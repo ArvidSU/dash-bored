@@ -10,6 +10,10 @@ main process and a Vite/React renderer. Read [IDEA.md](./IDEA.md) for product
 principles and [ARCHITECTURE.md](./ARCHITECTURE.md) for the complete runtime and
 security contracts.
 
+## License
+
+[MIT](./LICENSE)
+
 ## Developer setup
 
 Install [Bun](https://bun.sh/) and clone the repository. The project pins its Bun
