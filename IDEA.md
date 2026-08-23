@@ -28,6 +28,7 @@ The application provides:
 - a component tree model
 - a layout system
 - component loading
+- an action registry and command palette
 - configuration handling
 - host capabilities
 
@@ -51,6 +52,12 @@ The agent should:
 6. Reload the dashboard.
 
 Creating a dashboard should feel closer to asking an agent to modify code than configuring a traditional dashboard product.
+
+Direct manipulation complements that primary workflow. The desktop app may
+offer a focused structural editor for arranging existing components, filling
+their declared props, and adding or removing nodes. It should edit the same
+project-owned component tree rather than introduce a second layout model or a
+hidden application database.
 
 ## Design Principles
 
@@ -76,12 +83,33 @@ A project should be able to contain:
 project/
 ├── src/
 ├── package.json
-└── dashboard/
-    ├── dashboard.yaml
+└── dash-bored/
+    ├── dash-bored.yaml
+    ├── dash-bored-lock.yaml
     └── components/
 ```
 
 The dashboard becomes project memory.
+
+Projects may keep more than one standalone dashboard bundle when different
+people or workflows need different cockpits:
+
+```
+project/dash-bored/
+├── dash-bored.yaml
+├── dash-bored-lock.yaml
+├── components/
+└── arvid/
+    ├── dash-bored.yaml
+    ├── dash-bored-lock.yaml
+    └── components/
+```
+
+Each bundle is independently loadable and owns its lock file and local
+components. Dashboards compose only by using another config bundle's path as a
+component reference. The referenced dashboard receives the same kind of
+rectangular space as any other component; configs are not merged and neither
+inherits from the other.
 
 ### 3. Components over integrations
 
@@ -136,6 +164,23 @@ This allows:
 - documentation generation
 - agent discovery
 
+### 6. Workflows should be discoverable
+
+The application shell should expose its own navigation and lifecycle actions,
+configured project commands, and actions contributed by active components
+through one searchable command palette.
+
+Components register actions while they are mounted. The palette makes those
+actions easier to find; it does not bypass project trust or add capabilities.
+Privileged work still flows through the component's declared host APIs.
+
+### 7. Components are the unit of presentation
+
+The application provides space in which to show a component. Any component may
+be the root of a dashboard, including a single button, and any rendered
+component may be focused as a temporary virtual root. Layout components are
+useful composition tools, not required wrappers.
+
 ## Success Criteria
 
 The product succeeds if a developer can:
@@ -145,3 +190,4 @@ The product succeeds if a developer can:
 3. Immediately understand the project state.
 4. Perform common workflows without remembering commands.
 5. Extend the dashboard as new friction appears.
+6. Find app, project, and component actions from one keyboard-driven palette.

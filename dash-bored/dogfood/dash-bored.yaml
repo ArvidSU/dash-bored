@@ -1,0 +1,26 @@
+schemaVersion: 1
+name: dash-bored feature sandbox
+root:
+  id: dogfood-stack
+  component: "@dash-bored/stack"
+  props:
+    gap: medium
+  slots:
+    children:
+      - id: dogfood-notes
+        component: "@dash-bored/markdown"
+        props:
+          content: |
+            # Feature sandbox
+
+            This standalone bundle is linked from the main cockpit. It proves that a
+            dashboard can be composed as a component while keeping its own config,
+            lock file, and component directory.
+
+            Focus this panel and edit it to exercise bundle-local structural editing.
+      - id: dogfood-status
+        component: "@dash-bored/status"
+        props:
+          label: Config-link boundary
+          state: healthy
+          detail: This content is loaded from dash-bored/dogfood/dash-bored.yaml.

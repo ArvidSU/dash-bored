@@ -1,0 +1,167 @@
+schemaVersion: 1
+name: dash-bored development cockpit
+root:
+  id: project-cockpit
+  component: "@dash-bored/tabs"
+  props:
+    label: Project cockpit
+    labels:
+      - Overview
+      - Development
+      - Documentation
+      - Dogfood
+  slots:
+    children:
+      - id: overview
+        component: "@dash-bored/stack"
+        props:
+          gap: large
+        slots:
+          children:
+            - id: overview-intro
+              component: "@dash-bored/markdown"
+              props:
+                content: |
+                  # dash-bored
+
+                  A local-first project cockpit for composing project workflows from
+                  small components. Use this dashboard to run the normal development
+                  loop, inspect the project contract, and exercise the runtime itself.
+
+                  Press **Command-K** to find app, command, and local-component
+                  actions from one place.
+            - id: overview-layout
+              component: "@dash-bored/split"
+              props:
+                direction: horizontal
+              slots:
+                first:
+                  id: project-pulse-card
+                  component: "@dash-bored/card"
+                  props:
+                    title: Project pulse
+                    description: A project-defined component that reads the local package manifest.
+                  slots:
+                    children:
+                      - id: project-pulse
+                        component: "./components/project-pulse"
+                        props:
+                          packageFile: package.json
+                second:
+                  id: dashboard-capabilities-card
+                  component: "@dash-bored/card"
+                  props:
+                    title: Dashboard capabilities
+                    description: Trust gates the project-owned runtime features below.
+                  slots:
+                    children:
+                      - id: status-config
+                        component: "@dash-bored/status"
+                        props:
+                          label: YAML configuration
+                          state: healthy
+                          detail: Project-owned and validated on each reload.
+                      - id: status-local-components
+                        component: "@dash-bored/status"
+                        props:
+                          label: Local components
+                          state: healthy
+                          detail: The Project pulse card is compiled from this repository.
+                      - id: status-trust
+                        component: "@dash-bored/status"
+                        props:
+                          label: Host capabilities
+                          state: warning
+                          detail: File reads and commands require an explicit project trust decision.
+      - id: development
+        component: "@dash-bored/stack"
+        props:
+          gap: large
+        slots:
+          children:
+            - id: development-intro
+              component: "@dash-bored/markdown"
+              props:
+                content: |
+                  ## Development loop
+
+                  Start the desktop development environment when you need live renderer
+                  and main-process updates. Run QA before handing changes off. Commands
+                  never run automatically; each is an explicit, trusted action.
+            - id: development-layout
+              component: "@dash-bored/split"
+              props:
+                direction: horizontal
+              slots:
+                first:
+                  id: development-controls
+                  component: "@dash-bored/stack"
+                  props:
+                    gap: medium
+                  slots:
+                    children:
+                      - id: start-development
+                        component: "@dash-bored/command"
+                        props:
+                          label: Start development environment
+                          command: bun run dev
+                          cwd: .
+                      - id: run-qa
+                        component: "@dash-bored/command"
+                        props:
+                          label: Run full QA
+                          command: bun run qa
+                          cwd: .
+                      - id: validate-dashboard
+                        component: "@dash-bored/command"
+                        props:
+                          label: Validate dashboard configuration
+                          command: bun run dash-bored -- validate .
+                          cwd: .
+                second:
+                  id: development-output-card
+                  component: "@dash-bored/card"
+                  props:
+                    title: Development output
+                    description: Live bounded output from the development command.
+                  slots:
+                    children:
+                      - id: development-output
+                        component: "@dash-bored/terminal"
+                        props:
+                          processId: start-development
+            - id: local-preview-card
+              component: "@dash-bored/card"
+              props:
+                title: Renderer preview
+                description: Available after the development environment has started.
+              slots:
+                children:
+                  - id: renderer-preview
+                    component: "@dash-bored/webview"
+                    props:
+                      url: http://localhost:5173
+      - id: documentation
+        component: "@dash-bored/tabs"
+        props:
+          label: Project documentation
+          labels:
+            - README
+            - Product vision
+            - Architecture
+        slots:
+          children:
+            - id: readme-file
+              component: "@dash-bored/file"
+              props:
+                path: README.md
+            - id: idea-file
+              component: "@dash-bored/file"
+              props:
+                path: IDEA.md
+            - id: architecture-file
+              component: "@dash-bored/file"
+              props:
+                path: ARCHITECTURE.md
+      - id: dogfood-dashboard
+        component: ./dogfood

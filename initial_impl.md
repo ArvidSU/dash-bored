@@ -1,5 +1,10 @@
 # dash-bored - Initial Implementation Plan
 
+> **Historical, non-normative document.** This file is preserved as early
+> implementation inspiration. [IDEA.md](./IDEA.md) defines product direction
+> and [ARCHITECTURE.md](./ARCHITECTURE.md) defines the current implementation;
+> where they differ, those documents take precedence.
+
 ## Goal
 
 Build the smallest useful version of the component runtime.
@@ -22,7 +27,7 @@ Build:
 
 Suggested stack:
 
-- Electron or Tauri
+- Electrobun
 - TypeScript
 - React
 - YAML configuration

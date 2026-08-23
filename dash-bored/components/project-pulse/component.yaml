@@ -1,0 +1,15 @@
+schemaVersion: 1
+id: project-pulse
+name: Project pulse
+description: Reads the local package manifest and exposes a refresh action.
+entry: ./index.tsx
+propsSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    packageFile:
+      type: string
+  required:
+    - packageFile
+permissions:
+  - filesystem:read

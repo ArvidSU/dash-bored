@@ -1,0 +1,9 @@
+.hutch/
+.cottontail-tmp/
+node_modules/
+dist/
+build/
+artifacts/
+coverage/
+*.tsbuildinfo
+.DS_Store
