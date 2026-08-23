@@ -2098,6 +2098,37 @@ code {
   font-size: 11px;
 }
 
+.button--small {
+  min-height: 28px;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.command__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.command__output {
+  grid-column: 1 / -1;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #080a0d;
+  color: #c2c9d2;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
 .terminal {
   min-width: 0;
   overflow: hidden;
@@ -2567,8 +2598,21 @@ code {
     grid-template-columns: 1fr;
   }
 
-  .command > .button {
+  .command > .button,
+  .command__actions {
     width: 100%;
+  }
+
+  .command__actions {
+    justify-content: stretch;
+  }
+
+  .command__actions .button {
+    flex: 1 1 auto;
+  }
+
+  .command__actions .command__output-toggle {
+    flex: 0 0 auto;
   }
 
   .settings-card {

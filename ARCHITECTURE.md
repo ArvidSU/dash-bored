@@ -475,7 +475,11 @@ The initial built-in set is intentionally generic:
 - `@dash-bored/command` starts and stops a declared process after a user click.
 - `@dash-bored/terminal` displays bounded process logs.
 - `@dash-bored/file` displays a read-only project file.
-- `@dash-bored/webview` embeds a sandboxed application page.
+- `@dash-bored/webview` embeds a sandboxed application page. Native child
+  webviews are initialized only while their tab is visible and are explicitly
+  hidden while an already-initialized tab is inactive; the native surface is an
+  overlay rather than a DOM descendant, so ordinary CSS `display: none` cannot
+  hide it reliably.
 
 Every rendered node exposes a focus action. Focusing a node makes it a virtual
 root in the application viewport and provides breadcrumb navigation back to

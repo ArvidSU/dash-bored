@@ -32,3 +32,8 @@ behavior, its practical consequence, and the safe way to handle it.
   target is rendered as a local component error instead of invalidating its
   source dashboard; focusing linked content before editing selects the linked
   bundle's YAML as the single atomic save target.
+- Native `<electrobun-webview>` elements are separate window overlays, not DOM
+  descendants. CSS hiding an ancestor does not hide the native surface; the
+  built-in tabs renderer must propagate panel visibility so webviews initialize
+  only when visible and call `toggleHidden` plus `syncDimensions` when tabs
+  change.

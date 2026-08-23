@@ -1,4 +1,13 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import type { WebviewTagElement } from "electrobun/view";
@@ -33,6 +42,8 @@ function allChildren(slots: RenderedSlots): ReactNode[] {
   return Object.values(slots).flat();
 }
 
+const PanelVisibilityContext = createContext(true);
+
 function CapabilityGate({
   title,
   children,
@@ -53,6 +64,7 @@ function CapabilityGate({
 
 function Tabs({ node, slots }: BuiltinRendererProps): ReactNode {
   const panels = slots.children ?? [];
+  const parentVisible = useContext(PanelVisibilityContext);
   const rawLabels = node.props.labels;
   const labels = Array.isArray(rawLabels) ? rawLabels : [];
   const requestedDefault = node.props.defaultTab;
@@ -129,7 +141,9 @@ function Tabs({ node, slots }: BuiltinRendererProps): ReactNode {
           aria-labelledby={`${id}-tab-${index}`}
           hidden={index !== active}
         >
-          {panel}
+          <PanelVisibilityContext.Provider value={parentVisible && index === active}>
+            {panel}
+          </PanelVisibilityContext.Provider>
         </div>
       ))}
     </section>
@@ -246,9 +260,18 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
   const process = processes.get(node.id);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showOutput, setShowOutput] = useState(false);
+  const outputRef = useRef<HTMLDivElement>(null);
   const label = stringProp(node.props, ["label", "title"], "Run command");
   const command = stringProp(node.props, ["command"]);
   const running = process?.phase === "running" || process?.phase === "stopping";
+  const hasOutput = (process?.logs.length ?? 0) > 0;
+
+  useEffect(() => {
+    if (!showOutput) return;
+    const output = outputRef.current;
+    if (output) output.scrollTop = output.scrollHeight;
+  }, [process?.logs.length, showOutput]);
 
   if (!trusted) {
     return (
@@ -280,14 +303,46 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
           <span className={`phase phase--${process.phase}`}>{process.phase}</span>
         ) : null}
       </div>
-      <button
-        className={running ? "button button--danger" : "button button--primary"}
-        type="button"
-        disabled={pending || process?.phase === "stopping"}
-        onClick={() => void toggle()}
-      >
-        {pending ? "Working…" : running ? "Stop" : label}
-      </button>
+      <div className="command__actions">
+        <button
+          className="button button--quiet button--small command__output-toggle"
+          type="button"
+          aria-expanded={showOutput}
+          aria-controls={`${node.id}-output`}
+          onClick={() => setShowOutput((value) => !value)}
+        >
+          {showOutput ? "Hide output" : "Show output"}
+        </button>
+        <button
+          className={running ? "button button--danger" : "button button--primary"}
+          type="button"
+          disabled={pending || process?.phase === "stopping"}
+          onClick={() => void toggle()}
+        >
+          {pending ? "Working…" : running ? "Stop" : label}
+        </button>
+      </div>
+      {showOutput ? (
+        <div
+          id={`${node.id}-output`}
+          className="command__output"
+          ref={outputRef}
+          tabIndex={0}
+          role="log"
+          aria-live="polite"
+          aria-label={`Output for ${label}`}
+        >
+          {hasOutput ? (
+            process!.logs.map((entry) => (
+              <div className={`terminal__line terminal__line--${entry.stream}`} key={entry.sequence}>
+                {entry.text}
+              </div>
+            ))
+          ) : (
+            <span className="terminal__empty">No output yet.</span>
+          )}
+        </div>
+      ) : null}
       {error ? <p className="inline-error" role="alert">{error}</p> : null}
     </div>
   );
@@ -392,7 +447,9 @@ function FileViewer({ node, trusted }: BuiltinRendererProps): ReactNode {
 
 function Webview({ node, trusted }: BuiltinRendererProps): ReactNode {
   const url = stringProp(node.props, ["url", "src"]);
+  const panelVisible = useContext(PanelVisibilityContext);
   const ref = useRef<WebviewTagElement>(null);
+  const [nativeViewMounted, setNativeViewMounted] = useState(panelVisible && trusted);
   const validUrl = useMemo(() => {
     try {
       const parsed = new URL(url);
@@ -401,6 +458,24 @@ function Webview({ node, trusted }: BuiltinRendererProps): ReactNode {
       return false;
     }
   }, [url]);
+
+  useLayoutEffect(() => {
+    if (!trusted) {
+      setNativeViewMounted(false);
+    } else if (panelVisible) {
+      // Do not initialize a native child webview while its tab is hidden. Its
+      // first DOM rect would be 0x0, and the native overlay has no DOM parent
+      // that can hide it later.
+      setNativeViewMounted(true);
+    }
+  }, [panelVisible, trusted]);
+
+  useLayoutEffect(() => {
+    const view = ref.current;
+    if (!view) return;
+    view.toggleHidden(!panelVisible);
+    if (panelVisible) view.syncDimensions(true);
+  }, [nativeViewMounted, panelVisible]);
 
   if (!trusted) {
     return (
@@ -426,7 +501,9 @@ function Webview({ node, trusted }: BuiltinRendererProps): ReactNode {
           Reload
         </button>
       </header>
-      <electrobun-webview ref={ref} className="webview-shell__view" renderer="native" sandbox src={url} />
+      {nativeViewMounted ? (
+        <electrobun-webview ref={ref} className="webview-shell__view" renderer="native" sandbox src={url} />
+      ) : null}
     </section>
   );
 }
