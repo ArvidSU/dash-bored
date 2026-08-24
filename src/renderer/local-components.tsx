@@ -22,6 +22,7 @@ import type {
 } from "../shared/contracts";
 
 type LocalComponent = React.ComponentType<LocalComponentRenderProps>;
+const EMPTY_LOADED_COMPONENTS: ReadonlyMap<string, LoadedLocalComponent> = new Map();
 
 export interface LoadedLocalComponent {
   componentId: string;
@@ -102,36 +103,59 @@ function styleId(component: CompiledLocalComponent): string {
 
 export function useLocalComponents(
   components: CompiledLocalComponent[],
+  scope: string | null,
 ): ReadonlyMap<string, LoadedLocalComponent> {
   const [loaded, setLoaded] = useState<ReadonlyMap<string, LoadedLocalComponent>>(
     () => new Map(),
   );
+  const loadedRef = useRef(loaded);
+  const scopeRef = useRef(scope);
+  const stylesRef = useRef(new Map<string, {
+    revision: string;
+    element: HTMLStyleElement;
+  }>());
   const signature = components
     .map((component) => `${component.componentId}:${component.revision}`)
     .join("\u0000");
+  const targetRef = useRef({ scope, signature });
+  loadedRef.current = loaded;
+  targetRef.current = { scope, signature };
 
   useEffect(() => {
     let cancelled = false;
     const blobUrls = new Set<string>();
-    const styles: HTMLStyleElement[] = [];
-    const initial = new Map<string, LoadedLocalComponent>();
+    const scopeChanged = scopeRef.current !== scope;
+    if (scopeChanged) {
+      for (const style of stylesRef.current.values()) style.element.remove();
+      stylesRef.current.clear();
+      scopeRef.current = scope;
+    }
+
+    const nextLoaded = scopeChanged
+      ? new Map<string, LoadedLocalComponent>()
+      : new Map(loadedRef.current);
+    const desiredIds = new Set(components.map((component) => component.componentId));
+    for (const id of nextLoaded.keys()) {
+      if (!desiredIds.has(id)) nextLoaded.delete(id);
+    }
+    for (const [id, style] of stylesRef.current) {
+      if (!desiredIds.has(id)) {
+        style.element.remove();
+        stylesRef.current.delete(id);
+      }
+    }
 
     for (const compiled of components) {
-      initial.set(compiled.componentId, {
+      const existing = nextLoaded.get(compiled.componentId);
+      if (existing?.revision === compiled.revision && !existing.loading) continue;
+
+      nextLoaded.set(compiled.componentId, {
         componentId: compiled.componentId,
-        revision: compiled.revision,
-        component: null,
+        revision: existing?.revision ?? compiled.revision,
+        component: existing?.component ?? null,
         loading: true,
         error: null,
       });
-
-      if (compiled.css.trim()) {
-        const style = document.createElement("style");
-        style.dataset.dashBoredComponent = styleId(compiled);
-        style.textContent = compiled.css;
-        document.head.append(style);
-        styles.push(style);
-      }
 
       try {
         const blob = new Blob([compiled.javascript], {
@@ -144,13 +168,32 @@ export function useLocalComponents(
           .then((module: Record<string, unknown>) => {
             URL.revokeObjectURL(url);
             blobUrls.delete(url);
-            if (cancelled) return;
+            if (
+              cancelled ||
+              targetRef.current.scope !== scope ||
+              targetRef.current.signature !== signature
+            ) return;
 
             const component = module.default;
             if (typeof component !== "function") {
               throw new Error(
                 `Local component ${compiled.componentId} does not have a component default export.`,
               );
+            }
+
+            const previousStyle = stylesRef.current.get(compiled.componentId);
+            let replacementStyle: HTMLStyleElement | null = null;
+            if (compiled.css.trim()) {
+              replacementStyle = document.createElement("style");
+              replacementStyle.dataset.dashBoredComponent = styleId(compiled);
+              replacementStyle.textContent = compiled.css;
+              document.head.append(replacementStyle);
+              stylesRef.current.set(compiled.componentId, {
+                revision: compiled.revision,
+                element: replacementStyle,
+              });
+            } else {
+              stylesRef.current.delete(compiled.componentId);
             }
 
             setLoaded((current) => {
@@ -162,47 +205,63 @@ export function useLocalComponents(
                 loading: false,
                 error: null,
               });
+              loadedRef.current = next;
               return next;
             });
+
+            if (previousStyle?.element !== replacementStyle) {
+              requestAnimationFrame(() => previousStyle?.element.remove());
+            }
           })
           .catch((error: unknown) => {
             URL.revokeObjectURL(url);
             blobUrls.delete(url);
-            if (cancelled) return;
+            if (
+              cancelled ||
+              targetRef.current.scope !== scope ||
+              targetRef.current.signature !== signature
+            ) return;
 
             setLoaded((current) => {
               const next = new Map(current);
+              const previous = next.get(compiled.componentId);
               next.set(compiled.componentId, {
                 componentId: compiled.componentId,
-                revision: compiled.revision,
-                component: null,
+                revision: previous?.revision ?? compiled.revision,
+                component: previous?.component ?? null,
                 loading: false,
                 error: errorMessage(error),
               });
+              loadedRef.current = next;
               return next;
             });
           });
       } catch (error) {
-        initial.set(compiled.componentId, {
+        nextLoaded.set(compiled.componentId, {
           componentId: compiled.componentId,
-          revision: compiled.revision,
-          component: null,
+          revision: existing?.revision ?? compiled.revision,
+          component: existing?.component ?? null,
           loading: false,
           error: errorMessage(error),
         });
       }
     }
 
-    setLoaded(initial);
+    loadedRef.current = nextLoaded;
+    setLoaded(nextLoaded);
 
     return () => {
       cancelled = true;
       for (const url of blobUrls) URL.revokeObjectURL(url);
-      for (const style of styles) style.remove();
     };
-  }, [signature]);
+  }, [scope, signature]);
 
-  return loaded;
+  useEffect(() => () => {
+    for (const style of stylesRef.current.values()) style.element.remove();
+    stylesRef.current.clear();
+  }, []);
+
+  return scopeRef.current === scope ? loaded : EMPTY_LOADED_COMPONENTS;
 }
 
 interface ErrorBoundaryProps {

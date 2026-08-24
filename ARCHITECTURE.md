@@ -443,6 +443,15 @@ imports JavaScript through a revisioned blob URL and owns a replaceable style
 element for its CSS. Each instance has an error boundary, so one failed local
 component does not take down the dashboard.
 
+Local-component hot reload is incremental within one dashboard bundle. An
+unchanged compiled revision keeps its mounted component and stylesheet; a
+changed revision keeps the previous component visible while the new blob module
+loads, installs the replacement stylesheet before the React swap, and removes
+the prior stylesheet on the following frame. Other local components therefore
+do not pass through loading placeholders just because one bundle changed. A
+dashboard switch clears the old bundle scope instead of reusing code across
+projects.
+
 This is a convenience boundary, not a hostile-code sandbox. Trusting a project
 allows its local component code to execute in the shared application renderer.
 The main process still rejects host requests unless their supplied node ID has
@@ -716,6 +725,17 @@ If a reload fails, the renderer keeps the last known-good dashboard and adds
 actionable diagnostics from the rejected revision. Process reconciliation runs
 only after validation succeeds. This avoids destroying a useful running
 dashboard because of a temporary YAML or TSX edit.
+
+After React receives a successful tree replacement, the renderer compares each
+node with the previous accepted tree by stable node ID. Direct prop or component
+changes, inserted nodes, and moved nodes receive a short non-interactive polish
+overlay; removal highlights the nearest surviving parent. Descendant content
+changes do not also animate every layout ancestor. Large batches use a bounded
+visual-order stagger, initial loads and semantic no-op reloads do not animate,
+and the treatment follows the operating system's reduced-motion preference.
+The effect never changes a node's React key, so unchanged component state is
+preserved across YAML reloads. Native Electrobun webviews remain above DOM
+effects and therefore show the treatment on their surrounding shell only.
 
 Local render exceptions are isolated at component-instance boundaries. Host and
 process failures update snapshots and diagnostics without crashing the main
