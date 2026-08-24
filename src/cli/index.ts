@@ -1,13 +1,17 @@
 #!/usr/bin/env bun
 
 import { spawn } from "node:child_process";
-import { basename, resolve } from "node:path";
+import { constants } from "node:fs";
+import { access, realpath } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import { initializeProject } from "./init-project";
 import { ensureProjectFiles, inspectProject } from "../core/index";
 import { CONFIG_FILE, type Diagnostic, type InspectResult } from "../shared/contracts";
+import { installDashBoredSkill } from "./install-skill";
+import { installDashBoredCli } from "./install-cli";
 
 const VERSION = "0.1.0";
-const COMMANDS = new Set(["init", "open", "validate", "inspect"]);
+const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect"]);
 
 interface ParsedCommandArguments {
   project: string;
@@ -22,6 +26,8 @@ function usage(): string {
 
 Usage:
   dash-bored init [name ...] [--project <path>]
+  dash-bored install-cli
+  dash-bored install-skill [project]
   dash-bored open [project]
   dash-bored validate [project] [--json]
   dash-bored inspect [project]
@@ -110,6 +116,15 @@ function parseCommandArguments(
       error: `${command} accepts at most one project path.`,
     };
   }
+  if (command === "install-cli" && positional.length > 0) {
+    return {
+      project: ".",
+      configName: ".",
+      json,
+      help: false,
+      error: "install-cli does not accept a project path.",
+    };
+  }
   return command === "init"
     ? { project, configName: positional.length === 0 ? "." : positional.join("/"), json, help: false, error: null }
     : { project: positional[0] ?? ".", configName: ".", json, help: false, error: null };
@@ -144,12 +159,27 @@ async function openProject(input: string): Promise<number> {
     return 1;
   }
 
+  const configuredExecutable = process.env.DASH_BORED_APP_EXECUTABLE;
+  const bundledCli = process.env.DASH_BORED_BUNDLED_CLI ?? process.execPath;
+  const realCli = await realpath(bundledCli).catch(() => null);
+  const discoveredExecutable = process.platform === "darwin" && realCli !== null
+    ? resolve(dirname(realCli), "..", "..", "..", "MacOS", "launcher")
+    : null;
+  const appExecutable = configuredExecutable ?? discoveredExecutable;
+  const packagedAppAvailable = appExecutable !== null
+    && await access(appExecutable, constants.X_OK).then(() => true).catch(() => false);
   const packageRoot = resolve(import.meta.dirname, "../..");
-  const child = spawn("bun", ["run", "dev"], {
-    cwd: packageRoot,
-    env: sanitizedChildEnvironment(result.projectRoot),
-    stdio: "inherit",
-  });
+  const child = packagedAppAvailable
+    ? spawn(appExecutable, [], {
+        cwd: result.projectRoot,
+        env: sanitizedChildEnvironment(result.projectRoot),
+        stdio: "inherit",
+      })
+    : spawn("bun", ["run", "dev"], {
+        cwd: packageRoot,
+        env: sanitizedChildEnvironment(result.projectRoot),
+        stdio: "inherit",
+      });
 
   const forward = (signal: NodeJS.Signals) => {
     if (child.pid) child.kill(signal);
@@ -208,6 +238,31 @@ async function main(): Promise<number> {
     console.log(`Initialized dash-bored in ${result.projectRoot}`);
     console.log(result.configPath);
     console.log(result.lockPath);
+    console.log(result.environmentPath);
+    return 0;
+  }
+
+  if (command === "install-skill") {
+    const result = await installDashBoredSkill(project);
+    console.log(
+      result.created.length === 0 && result.linked.length === 0
+        ? `dash-bored skill is already installed in ${result.skillPath}`
+        : `Installed portable dash-bored skill in ${result.skillPath}`,
+    );
+    console.log(`Claude Code compatibility path: ${result.claudeSkillPath}`);
+    return 0;
+  }
+
+  if (command === "install-cli") {
+    const result = await installDashBoredCli();
+    console.log(
+      result.created
+        ? `Installed dash-bored CLI at ${result.targetPath}`
+        : `dash-bored CLI is already installed at ${result.targetPath}`,
+    );
+    if (!result.targetDirectoryOnPath) {
+      console.warn(`Add ${dirname(result.targetPath)} to PATH to use dash-bored from your shell.`);
+    }
     return 0;
   }
 

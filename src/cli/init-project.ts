@@ -7,6 +7,7 @@ export interface InitResult {
   projectRoot: string;
   configPath: string;
   lockPath: string;
+  environmentPath: string;
   componentsPath: string;
 }
 
@@ -21,6 +22,7 @@ export async function initializeProject(
     projectRoot: result.location.projectRoot,
     configPath: result.location.configPath,
     lockPath: result.location.lockPath,
+    environmentPath: result.environmentPath,
     componentsPath: result.location.componentsDirectory,
   };
 }

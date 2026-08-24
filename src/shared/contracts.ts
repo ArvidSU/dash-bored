@@ -154,6 +154,7 @@ export interface InspectResult {
   config: DashboardConfig | null;
   lock: DashboardLock | null;
   tree: ResolvedComponentNode | null;
+  componentCatalog: ComponentCatalogItem[];
   components: ComponentManifest[];
   permissions: Permission[];
   diagnostics: Diagnostic[];

@@ -9,6 +9,7 @@ root:
       - Overview
       - Development
       - Documentation
+      - Agent setup
       - Dogfood
   slots:
     children:
@@ -175,5 +176,44 @@ root:
               component: "@dash-bored/file"
               props:
                 path: ARCHITECTURE.md
+      - id: agent-setup
+        component: "@dash-bored/card"
+        props:
+          title: Configure with an agent
+          description: Exercise the same self-contained setup flow generated for new projects.
+        slots:
+          children:
+            - id: agent-setup-guide
+              component: "@dash-bored/markdown"
+              props:
+                content: |
+                  Choose the CLI coding agent below, install the version-matched
+                  dash-bored skill, then ask the agent to inspect this repository and
+                  improve its development cockpit. The app already exposes its bundled
+                  CLI to these commands.
+            - id: agent-environment
+              component: "@dash-bored/env"
+              props:
+                path: dash-bored/.env
+            - id: install-cli-link
+              component: "@dash-bored/command"
+              props:
+                label: Install dash-bored CLI in ~/.local/bin
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
+                cwd: .
+            - id: install-agent-skill
+              component: "@dash-bored/command"
+              props:
+                label: Install portable dash-bored skill
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
+                cwd: .
+            - id: configure-with-agent
+              component: "@dash-bored/command"
+              props:
+                label: Improve this dashboard with an agent
+                command: '. "./dash-bored/.env" && ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
+                cwd: .
+                env:
+                  DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
       - id: dogfood-dashboard
         component: ./dogfood

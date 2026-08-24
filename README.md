@@ -45,6 +45,7 @@ Useful repository commands:
 ```sh
 bun run dev             # Vite development renderer + watched Electrobun app
 bun run dev:desktop     # built renderer + watched Electrobun main process
+bun run build:cli       # standalone CLI embedded in desktop builds
 bun run typecheck
 bun test
 bun run build:renderer
@@ -56,6 +57,13 @@ bun run qa:fast         # non-locking typecheck, tests, and renderer build
 Platform toolchain requirements for packaging are those of Electrobun. Release
 signing, notarization, installers, and update publication are not configured in
 this repository.
+
+Packaged desktop builds contain a standalone, version-matched `dash-bored` CLI.
+The app prepends that embedded tool to `PATH` for dashboard commands and agents
+it launches, so users do not need a separate CLI installation. The starter
+dashboard also offers an explicit `dash-bored install-cli` action that creates
+an idempotent link at `~/.local/bin/dash-bored` for use from external shells;
+it refuses to replace an existing file or different link.
 
 ## Start a project dashboard
 
@@ -74,13 +82,29 @@ project/
 └── dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── .env
     └── components/
 ```
 
-The generated dashboard is immediately valid and contains a welcome panel. You
-can also create these files without opening the app by running
+The generated dashboard is immediately valid and combines a short guided tour,
+a sampler of the available component primitives, and a command that asks your
+chosen CLI coding agent to tailor the dashboard to the project. It uses
+`codex exec` by default; the included environment editor updates
+`DASH_BORED_AGENT` in `dash-bored/.env`, and the command sources that file
+before it runs. Adjacent actions optionally expose the bundled CLI to external
+shells and run `dash-bored install-skill .`, which copies the packaged guidance
+and component-authoring reference into the cross-client Agent Skills location
+`.agents/skills/dash-bored/`. That location is discovered by Codex, Gemini CLI,
+Cursor, Copilot CLI, and OpenCode. Because Claude Code currently uses its own
+project path, the installer also creates `.claude/skills/dash-bored` as a link
+to the same canonical payload. The skill itself follows the open Agent Skills
+format and contains no agent-specific commands; `agents/openai.yaml` is optional
+Codex presentation metadata that other clients ignore. Repeated installs are
+safe, and modified installed files or conflicting paths are never overwritten.
+You can also create these files without
+opening the app by running
 `dash-bored init .`; unlike `open`, explicit initialization fails if a
-configuration or lock file already exists.
+configuration, lock, or dashboard environment file already exists.
 
 Create a standalone named dashboard for a person or workflow with:
 
@@ -90,12 +114,13 @@ dash-bored init arvid
 dash-bored init arvid --project /path/to/project
 ```
 
-This creates all three bundle artifacts independently of the main dashboard:
+This creates all four bundle artifacts independently of the main dashboard:
 
 ```text
 project/dash-bored/arvid/
 ├── dash-bored.yaml
 ├── dash-bored-lock.yaml
+├── .env
 └── components/
 ```
 
@@ -114,7 +139,11 @@ dash-bored inspect .
 ```
 
 `validate` exits non-zero when it finds errors. `inspect` emits JSON containing
-the resolved tree, component metadata, requested permissions, and diagnostics.
+the resolved tree, requested permissions, diagnostics, and a `componentCatalog`
+for every built-in and discovered local component. Each catalog manifest is the
+machine-readable contract for its JSON Schema props, named slots, and required
+permissions. Agents use this version-matched catalog instead of guessing from
+examples; invalid local components remain in the catalog with diagnostics.
 
 `validate` and `inspect` accept a project root, a standalone bundle directory,
 or the path to its `dash-bored.yaml`. A directory passed to `open` is the
@@ -184,7 +213,8 @@ place when editing through the key-value view.
 ### Compose standalone dashboards
 
 Named and main configs are standalone bundles. They do not inherit from one
-another or share their lock file and local `components/` directory. To present
+another or share their lock file, environment file, or local `components/`
+directory. To present
 one inside another, use the target bundle path as a component reference:
 
 ```yaml
@@ -195,8 +225,8 @@ component: "./arvid"
 The path may identify the target bundle directory or its `dash-bored.yaml`.
 Paths may be absolute or relative; a relative path is resolved from the
 directory containing the YAML config with the reference. The target dashboard
-renders within the component's available space using its own config, lock, and
-local components.
+renders within the component's available space using its own config, lock,
+environment, and local components.
 
 A missing or moved target produces an error in that component only, leaving
 the containing dashboard usable. dash-bored deliberately does not repair

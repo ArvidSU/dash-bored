@@ -10,6 +10,9 @@ import { CoreError, ProjectRuntime, TrustStore } from "../core/index";
 import type { ProjectSnapshot } from "../shared/contracts";
 import type { DashboardRPC } from "../shared/rpc";
 import { ProjectRegistry } from "./project-registry";
+import { configureBundledToolEnvironment } from "./tool-environment";
+
+configureBundledToolEnvironment(import.meta.dirname);
 
 const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
   ?? `http://127.0.0.1:${process.env.DASH_BORED_VITE_PORT ?? "5173"}`;

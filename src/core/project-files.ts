@@ -9,7 +9,7 @@ import {
   stat,
   unlink,
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { stringify } from "yaml";
 import type { DashboardConfig, DashboardLock } from "../shared/contracts";
 import { CONFIG_DIRECTORY } from "../shared/contracts";
@@ -24,9 +24,11 @@ import {
 
 export interface ProjectFilesResult {
   location: ProjectLocation;
+  environmentPath: string;
   created: {
     config: boolean;
     lock: boolean;
+    environment: boolean;
     componentsDirectory: boolean;
   };
 }
@@ -81,12 +83,12 @@ async function existingFile(path: string, label: string): Promise<boolean> {
   }
 }
 
-async function writeExclusiveAtomic(path: string, contents: string): Promise<void> {
+async function writeExclusiveAtomic(path: string, contents: string, mode = 0o644): Promise<void> {
   const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   const handle = await open(
     temporaryPath,
     constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
-    0o644,
+    mode,
   );
   let closed = false;
   try {
@@ -132,21 +134,123 @@ export async function replaceDashboardConfigAtomic(
   }
 }
 
-function defaultConfig(bundleNameSource: string): DashboardConfig {
+function defaultConfig(bundleNameSource: string, environmentPath: string): DashboardConfig {
   const projectName = basename(bundleNameSource) || "Project";
+  const agentPrompt = [
+    `Set up the dash-bored dashboard for ${projectName}.`,
+    "Inspect this project before making changes.",
+    "Use the installed portable dash-bored skill for product-specific guidance.",
+    "Customize the dash-bored configuration that contains the node id setup-dashboard-with-agent into a useful project cockpit.",
+    "Keep the dashboard project-owned and task-focused: expose important status, documentation, and repeatable workflows with built-in components where possible, and add small local components only when they are genuinely useful.",
+    "Follow AGENTS.md and the project's own instructions, preserve unrelated changes, validate the finished dashboard, and summarize what you changed.",
+  ].join(" ");
   return {
     schemaVersion: 1,
     name: projectName,
     root: {
       component: "@dash-bored/stack",
-      props: { gap: "medium" },
+      props: { gap: "large" },
       slots: {
         children: [
           {
             id: "welcome",
             component: "@dash-bored/markdown",
             props: {
-              content: `# ${projectName}\n\nYour dash-bored dashboard is ready.\n\nAdd config-specific components under \`components/\`.\n`,
+              content: `# ${projectName}\n\nThis dashboard lives with your project. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to find dashboard actions, or choose **Edit dashboard** to arrange components and configure their props.\n`,
+            },
+          },
+          {
+            id: "getting-started",
+            component: "@dash-bored/split",
+            props: { direction: "horizontal" },
+            slots: {
+              first: {
+                id: "how-it-works",
+                component: "@dash-bored/card",
+                props: {
+                  title: "How it works",
+                  description: "A small YAML tree becomes your project cockpit.",
+                },
+                slots: {
+                  children: {
+                    component: "@dash-bored/markdown",
+                    props: {
+                      content: "1. Compose generic components in `dash-bored/dash-bored.yaml`.\n2. Trust the project when it needs files, network access, or commands.\n3. Keep improving the dashboard as project friction appears.\n",
+                    },
+                  },
+                },
+              },
+              second: {
+                id: "available-components",
+                component: "@dash-bored/card",
+                props: {
+                  title: "What you can add",
+                  description: "Start with built-ins; generate a local component for project-specific needs.",
+                },
+                slots: {
+                  children: {
+                    component: "@dash-bored/markdown",
+                    props: {
+                      content: "**Layout:** tabs, splits, stacks, and cards  \n**Display:** Markdown, text, status, files, and webviews  \n**Workflow:** commands, live output, and environment editing  \n**Custom:** React components under `dash-bored/components/`\n",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            id: "agent-setup",
+            component: "@dash-bored/card",
+            props: {
+              title: "Make it yours",
+              description: "Hand the repetitive setup work to your CLI coding agent.",
+            },
+            slots: {
+              children: [
+                {
+                  component: "@dash-bored/markdown",
+                  props: {
+                    content: "Choose your CLI agent in the environment editor and save it. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Then install the portable project-local Agent Skill so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
+                  },
+                },
+                {
+                  id: "dashboard-environment",
+                  component: "@dash-bored/env",
+                  props: {
+                    path: environmentPath,
+                  },
+                },
+                {
+                  id: "install-dash-bored-cli",
+                  component: "@dash-bored/command",
+                  props: {
+                    label: "Install dash-bored CLI in ~/.local/bin",
+                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli',
+                    cwd: ".",
+                  },
+                },
+                {
+                  id: "install-dash-bored-skill",
+                  component: "@dash-bored/command",
+                  props: {
+                    label: "Install portable dash-bored skill",
+                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .',
+                    cwd: ".",
+                  },
+                },
+                {
+                  id: "setup-dashboard-with-agent",
+                  component: "@dash-bored/command",
+                  props: {
+                    label: "Set up this dashboard",
+                    command: `. "./${environmentPath}" && \${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"`,
+                    cwd: ".",
+                    env: {
+                      DASH_BORED_AGENT_PROMPT: agentPrompt,
+                    },
+                  },
+                },
+              ],
             },
           },
         ],
@@ -177,23 +281,36 @@ async function createProjectFilesAtLocation(
     "dash-bored components directory",
   );
   await assertProjectLocationContained(location);
-  const [configExists, lockExists] = await Promise.all([
+  const environmentPath = join(location.configDirectory, ".env");
+  const relativeEnvironmentPath = relative(location.projectRoot, environmentPath).replaceAll("\\", "/");
+  const [configExists, lockExists, environmentExists] = await Promise.all([
     existingFile(location.configPath, "dash-bored configuration"),
     existingFile(location.lockPath, "dash-bored lock file"),
+    existingFile(environmentPath, "dash-bored environment file"),
   ]);
 
-  if (existingFiles === "error" && (configExists || lockExists)) {
+  if (existingFiles === "error" && (configExists || lockExists || environmentExists)) {
     throw new Error(
       `dash-bored is already initialized or partially initialized in ${location.configDirectory}; existing files were not overwritten.`,
     );
   }
 
-  const config = defaultConfig(location.configDirectory === join(location.projectRoot, CONFIG_DIRECTORY)
-    ? location.projectRoot
-    : location.configDirectory);
+  const config = defaultConfig(
+    location.configDirectory === join(location.projectRoot, CONFIG_DIRECTORY)
+      ? location.projectRoot
+      : location.configDirectory,
+    relativeEnvironmentPath,
+  );
   const lock: DashboardLock = { lockfileVersion: 1, components: {} };
+  const environment = [
+    "# Command used by the starter dashboard's agent setup action.",
+    "# Other examples: claude -p, gemini -p",
+    'DASH_BORED_AGENT="codex exec"',
+    "",
+  ].join("\n");
   let configCreated = false;
   let lockCreated = false;
+  let environmentCreated = false;
 
   try {
     if (!configExists) {
@@ -231,7 +348,23 @@ async function createProjectFilesAtLocation(
         }
       }
     }
+
+    if (!environmentExists) {
+      try {
+        await writeExclusiveAtomic(environmentPath, environment, 0o600);
+        environmentCreated = true;
+      } catch (error) {
+        if (
+          existingFiles !== "preserve" ||
+          (error as NodeJS.ErrnoException).code !== "EEXIST" ||
+          !(await existingFile(environmentPath, "dash-bored environment file"))
+        ) {
+          throw error;
+        }
+      }
+    }
   } catch (error) {
+    if (environmentCreated) await unlink(environmentPath).catch(() => undefined);
     if (lockCreated) await unlink(location.lockPath).catch(() => undefined);
     if (configCreated) await unlink(location.configPath).catch(() => undefined);
     throw error;
@@ -239,9 +372,11 @@ async function createProjectFilesAtLocation(
 
   return {
     location,
+    environmentPath,
     created: {
       config: configCreated,
       lock: lockCreated,
+      environment: environmentCreated,
       componentsDirectory,
     },
   };
@@ -258,7 +393,7 @@ export function ensureProjectFiles(
   });
 }
 
-/** Initialize a project and fail rather than accepting an existing config or lock file. */
+/** Initialize a project and fail rather than accepting an existing bundle artifact. */
 export function initializeProjectFiles(input = "."): Promise<ProjectFilesResult> {
   return createProjectFiles(input, {
     existingFiles: "error",

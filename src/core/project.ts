@@ -221,6 +221,7 @@ export async function inspectProject(
       config: definition.config,
       lock: definition.lock,
       tree: definition.tree,
+      componentCatalog: definition.componentCatalog,
       components: definition.manifests,
       permissions: definition.permissions,
       diagnostics: definition.diagnostics,
@@ -232,6 +233,7 @@ export async function inspectProject(
       config: null,
       lock: null,
       tree: null,
+      componentCatalog: [],
       components: [],
       permissions: [],
       diagnostics: [

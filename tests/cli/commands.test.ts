@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 
@@ -95,5 +95,81 @@ describe("dash-bored command arguments", () => {
     const repeated = await run(project, "init", ".");
     expect(repeated.exitCode).toBe(1);
     expect(repeated.stderr).toContain("existing files were not overwritten");
+  });
+
+  test("install-skill creates an idempotent project-local skill without overwriting changes", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+    const skillPath = join(project, ".agents", "skills", "dash-bored", "SKILL.md");
+    const componentReferencePath = join(
+      project,
+      ".agents",
+      "skills",
+      "dash-bored",
+      "references",
+      "components.md",
+    );
+
+    const installed = await run(project, "install-skill", ".");
+    expect(installed.exitCode).toBe(0);
+    expect(installed.stdout).toContain("Installed portable dash-bored skill");
+    expect(await readFile(skillPath, "utf8")).toBe(
+      await readFile(resolve(import.meta.dirname, "../../skills/dash-bored/SKILL.md"), "utf8"),
+    );
+    expect(await readFile(componentReferencePath, "utf8")).toBe(
+      await readFile(
+        resolve(import.meta.dirname, "../../skills/dash-bored/references/components.md"),
+        "utf8",
+      ),
+    );
+    const claudeSkillPath = join(project, ".claude", "skills", "dash-bored");
+    expect((await lstat(claudeSkillPath)).isSymbolicLink()).toBeTrue();
+    expect(await realpath(claudeSkillPath)).toBe(await realpath(join(project, ".agents", "skills", "dash-bored")));
+
+    const repeated = await run(project, "install-skill", ".");
+    expect(repeated.exitCode).toBe(0);
+    expect(repeated.stdout).toContain("already installed");
+
+    await writeFile(skillPath, "custom skill\n", "utf8");
+    const conflicting = await run(project, "install-skill", ".");
+    expect(conflicting.exitCode).toBe(1);
+    expect(conflicting.stderr).toContain("Refusing to overwrite a modified dash-bored skill file");
+    expect(await readFile(skillPath, "utf8")).toBe("custom skill\n");
+  });
+
+  test("install-skill rejects a symlinked agent directory", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    const outside = await mkdtemp(join(tmpdir(), "dash-bored-cli-outside-"));
+    temporaryDirectories.push(project, outside);
+    await symlink(outside, join(project, ".agents"));
+
+    const result = await run(project, "install-skill", ".");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("agent configuration directory must not be a symbolic link");
+    expect(await readdir(outside)).toEqual([]);
+  });
+
+  test("inspect exposes the version-matched component catalog", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+    expect((await run(project, "init", ".")).exitCode).toBe(0);
+
+    const inspected = await run(project, "inspect", ".");
+    expect(inspected.exitCode).toBe(0);
+    const result = JSON.parse(inspected.stdout);
+    const command = result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/command",
+    );
+    expect(command.available).toBeTrue();
+    expect(command.manifest.propsSchema.required).toEqual(["label", "command"]);
+    expect(command.manifest.permissions).toEqual(["process:execute"]);
+    const split = result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/split",
+    );
+    expect(split.manifest.slots).toEqual({
+      first: { required: true, multiple: false },
+      second: { required: true, multiple: false },
+    });
   });
 });

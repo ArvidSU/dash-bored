@@ -19,6 +19,11 @@ The v1 implementation deliberately has three boundaries:
 3. The React renderer owns presentation and can reach privileged behavior only
    through typed Electrobun RPC.
 
+Desktop builds also carry a standalone CLI compiled from the same source and
+an embedded agent-skill payload. This is distribution of the first boundary,
+not a fourth runtime authority: CLI validation uses the same core loader, and
+the skill tells agents to discover the live component catalog from that CLI.
+
 ## Runtime topology
 
 The application pins Electrobun 2.0.1 and uses its Bun main-process mode:
@@ -27,10 +32,12 @@ The application pins Electrobun 2.0.1 and uses its Bun main-process mode:
 project/dash-bored/                 # canonical standalone bundle
   dash-bored.yaml
   dash-bored-lock.yaml
+  .env
   components/
   arvid/                            # optional named standalone bundle
     dash-bored.yaml
     dash-bored-lock.yaml
+    .env
     components/
           |
           v
@@ -74,6 +81,9 @@ the source file, and a component catalog. The catalog contains every built-in
 plus bounded, containment-checked local manifest discovery. Invalid local
 manifests are represented as unavailable catalog entries with diagnostics, so
 they can be explained in the picker without breaking an otherwise valid tree.
+The CLI's `inspect` result exposes this same complete catalog, including
+`propsSchema`, slots, permissions, availability, and diagnostics. It is the
+version-authoritative component-shape interface for coding agents.
 
 ## Project contract
 
@@ -86,6 +96,7 @@ project/
 └── dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── .env
     └── components/
 ```
 
@@ -98,6 +109,7 @@ project/
     └── arvid/
         ├── dash-bored.yaml
         ├── dash-bored-lock.yaml
+        ├── .env
         └── components/
 ```
 
@@ -116,14 +128,18 @@ canonicalized before they are used as trust keys or containment boundaries.
 Opening a project, either through `dash-bored open` or the desktop project
 chooser, ensures that this complete project contract exists. The application
 creates the `dash-bored/` directory, default configuration, empty lock file,
-and `components/` directory when they are missing. It creates only missing
-artifacts and never replaces an existing configuration or lock file, so a
-partially initialized project is repaired without discarding project state.
+starter environment file, and `components/` directory when they are missing. It
+creates only missing artifacts and never replaces an existing configuration,
+lock, or environment file, so a partially initialized project is repaired
+without discarding project state.
+The starter `.env` is created with owner-only permissions and the generated
+environment editor and agent command both target that bundle-local file.
 Directories selected in the desktop chooser are always treated as project
 roots, including when the selected directory itself is named `dash-bored`.
 
 `dash-bored init arvid` creates the complete named bundle under
-`dash-bored/arvid/`: configuration, lock file, and local component directory.
+`dash-bored/arvid/`: configuration, lock file, environment file, and local
+component directory.
 Additional positional names each add a directory level, so `dash-bored init
 arvid cicd` creates `dash-bored/arvid/cicd/`. Slash-separated names such as
 `people/arvid` remain supported. The command neither changes the canonical
@@ -139,7 +155,7 @@ name: Example project
 root:
   component: "@dash-bored/stack"
   props:
-    gap: medium
+    gap: large
   slots:
     children:
       - id: welcome
@@ -147,7 +163,32 @@ root:
         props:
           content: |
             # Example project
-            The dashboard is ready.
+            This dashboard lives with your project.
+      - id: agent-setup
+        component: "@dash-bored/card"
+        slots:
+          children:
+            - id: dashboard-environment
+              component: "@dash-bored/env"
+              props:
+                path: dash-bored/.env
+            - id: install-dash-bored-skill
+              component: "@dash-bored/command"
+              props:
+                label: Install dash-bored skill
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
+            - id: install-dash-bored-cli
+              component: "@dash-bored/command"
+              props:
+                label: Install dash-bored CLI in ~/.local/bin
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
+            - id: setup-dashboard-with-agent
+              component: "@dash-bored/command"
+              props:
+                label: Set up this dashboard
+                command: '. "./dash-bored/.env" && ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
+                env:
+                  DASH_BORED_AGENT_PROMPT: Inspect this project and customize its dash-bored dashboard.
 ```
 
 The public configuration types are:
@@ -241,8 +282,8 @@ preprocessing directive.
 
 Paths may be absolute or relative; relative paths resolve from the directory
 containing the source `dash-bored.yaml`. The target uses its own
-`dash-bored.yaml`, `dash-bored-lock.yaml`, and `components/` directory and
-renders inside the space allocated to the referencing component. No nodes,
+`dash-bored.yaml`, `dash-bored-lock.yaml`, `.env`, and `components/` directory
+and renders inside the space allocated to the referencing component. No nodes,
 locks, or component lookup state are merged into the containing config.
 
 Broken paths are expected after users reorganize checked-in files. The
@@ -588,6 +629,8 @@ The package exposes a `dash-bored` executable through its `bin` field:
 
 ```text
 dash-bored init [name ...] [--project <path>]
+dash-bored install-cli
+dash-bored install-skill [project]
 dash-bored validate [project] [--json]
 dash-bored inspect [project]
 dash-bored open [project]
@@ -596,24 +639,57 @@ dash-bored open [project]
 - `init` and `init .` target the canonical bundle in the current project;
   `--project <path>` selects another project root. Initialization creates the
   required files and empty component directory, uses the bundle name in a valid
-  welcome dashboard, and never overwrites existing files.
+  guided dashboard with an editable bundle-local `.env` file and an
+  agent-customization command that sources it, plus a command that installs the
+  packaged dash-bored skill into the project. It never overwrites existing
+  files.
 - `init <name ...>` joins every positional name as another safe directory
   level and creates a complete standalone bundle at that leaf, including its
-  own config, lock, and components directory. It does not modify the canonical
-  dashboard. Positional values are always names; the former positional-project
-  form is not supported.
+  own config, lock, environment file, and components directory. It does not
+  modify the canonical dashboard. Positional values are always names; the
+  former positional-project form is not supported.
+- `install-skill` copies the packaged skill into
+  `.agents/skills/dash-bored/` below the selected project. This is the
+  cross-client Agent Skills convention used by Codex, Gemini CLI, Cursor,
+  Copilot CLI, and OpenCode. Claude Code currently discovers project skills
+  only below `.claude/skills/`, so the installer creates
+  `.claude/skills/dash-bored` as a symlink or Windows directory junction to the
+  same canonical payload. The skill uses only the portable `name` and
+  `description` frontmatter; `agents/openai.yaml` is optional presentation
+  metadata rather than a runtime dependency. The skill, metadata, and
+  local-component reference are text assets embedded in the standalone
+  executable. Installation is idempotent when files and aliases match and
+  refuses to replace modified files or conflicting paths.
+- `install-cli` creates a symlink from `~/.local/bin/dash-bored` to the CLI
+  bundled in the application on macOS or Linux. It is an explicit user action,
+  reports when that directory is absent from `PATH`, and refuses to replace an
+  existing file or a link to another target. The Windows app still carries the
+  CLI for in-app use, but this shell-link command is not yet supported there.
 - `validate` runs project, manifest, resolver, schema, and local compilation
   validation. It emits stable diagnostics and a non-zero status on errors.
-- `inspect` writes JSON describing the resolved tree, component metadata,
-  requested permissions, and diagnostics.
+- `inspect` writes JSON describing the resolved tree, the complete component
+  catalog, component metadata used by the tree, requested permissions, and
+  diagnostics. Agents read `componentCatalog[].manifest.propsSchema`, `slots`,
+  and `permissions` before editing instead of relying on static examples.
 - `open` creates any missing project artifacts, validates the resulting
-  dashboard, launches the Electrobun development application, and forwards
-  termination signals.
+  dashboard, launches the packaged desktop application when invoked by its
+  embedded or linked CLI (and the development application from source), and
+  forwards termination signals.
+
+`bun run build:cli` uses Bun's standalone-executable build to inline the CLI,
+its core dependencies, and the skill text assets into `dist/tools/dash-bored`.
+Electrobun copies `dist/tools/` into the application resources. At main-process
+startup dash-bored prepends that resource directory to the inherited `PATH`
+and publishes the exact CLI and app-launcher paths. Consequently every built-in
+command, long-running process, local-component shell call, and CLI agent
+launched from the dashboard can resolve the matching CLI without a global
+installation. The optional shell link resolves back into the application, so
+`dash-bored open` can locate the packaged launcher.
 
 Files are published atomically and never overwritten. Explicit `init` remains
-strict: an existing configuration or lock file is an error. Opening is
-idempotent and fills in missing required artifacts while preserving those that
-already exist.
+strict: an existing configuration, lock, or environment file is an error.
+Opening is idempotent and fills in missing required artifacts while preserving
+those that already exist.
 
 ## Deliberate v1 exclusions
 
@@ -621,7 +697,8 @@ The following are not part of this architecture yet:
 
 - npm, Git, registry, or marketplace component resolution
 - component search, describe, create, publishing, or shared templates
-- installer publication, signing, notarization, or application auto-update
+- Windows shell-link installation, installer publication, signing,
+  notarization, or application auto-update
 - interactive PTY support, general project-file editing, and a general process viewer
 - simultaneously active multi-project views or windows
 - custom AI or agent infrastructure

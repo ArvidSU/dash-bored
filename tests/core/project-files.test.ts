@@ -25,6 +25,7 @@ describe("ensureProjectFiles", () => {
     expect(result.created).toEqual({
       config: true,
       lock: true,
+      environment: true,
       componentsDirectory: true,
     });
     expect((await stat(join(root, "dash-bored", "components"))).isDirectory()).toBeTrue();
@@ -45,6 +46,7 @@ describe("ensureProjectFiles", () => {
     expect(result.created).toEqual({
       config: false,
       lock: true,
+      environment: true,
       componentsDirectory: true,
     });
     expect(await readFile(configPath, "utf8")).toBe(existingConfig);
@@ -54,9 +56,25 @@ describe("ensureProjectFiles", () => {
     expect(repeated.created).toEqual({
       config: false,
       lock: false,
+      environment: false,
       componentsDirectory: false,
     });
     expect(await readFile(configPath, "utf8")).toBe(existingConfig);
+  });
+
+  test("preserves an existing dashboard environment file", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const directory = join(root, "dash-bored");
+    const environmentPath = join(directory, ".env");
+    const existingEnvironment = 'DASH_BORED_AGENT="claude -p"\n';
+    await mkdir(directory);
+    await writeFile(environmentPath, existingEnvironment, "utf8");
+
+    const result = await ensureProjectFiles(root);
+
+    expect(result.created.environment).toBeFalse();
+    expect(await readFile(environmentPath, "utf8")).toBe(existingEnvironment);
   });
 
   test("treats a selected folder named dash-bored as the project root", async () => {

@@ -12,20 +12,51 @@ afterEach(async () => {
 });
 
 describe("initializeProject", () => {
-  test("creates a valid welcome dashboard, lock, and component directory", async () => {
+  test("creates a valid guided dashboard, agent setup command, lock, and component directory", async () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-init-"));
     temporaryDirectories.push(project);
 
     const result = await initializeProject(project);
     const config = parse(await readFile(result.configPath, "utf8"));
     const lock = parse(await readFile(result.lockPath, "utf8"));
+    const environment = await readFile(result.environmentPath, "utf8");
 
     expect(config.schemaVersion).toBe(1);
     expect(config.root.component).toBe("@dash-bored/stack");
     expect(config.root.slots.children[0].id).toBe("welcome");
+    expect(config.root.slots.children[1].component).toBe("@dash-bored/split");
+    const environmentEditor = config.root.slots.children[2].slots.children[1];
+    const cliCommand = config.root.slots.children[2].slots.children[2];
+    const skillCommand = config.root.slots.children[2].slots.children[3];
+    const agentCommand = config.root.slots.children[2].slots.children[4];
+    expect(environmentEditor.component).toBe("@dash-bored/env");
+    expect(environmentEditor.props.path).toBe("dash-bored/.env");
+    expect(cliCommand.id).toBe("install-dash-bored-cli");
+    expect(cliCommand.props.command).toContain("install-cli");
+    expect(skillCommand.id).toBe("install-dash-bored-skill");
+    expect(skillCommand.props.command).toContain("install-skill .");
+    expect(agentCommand.id).toBe("setup-dashboard-with-agent");
+    expect(agentCommand.component).toBe("@dash-bored/command");
+    expect(agentCommand.props.command).toContain("DASH_BORED_AGENT");
+    expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain(
+      "Inspect this project before making changes.",
+    );
+    expect(agentCommand.props.command).toContain('. "./dash-bored/.env"');
+    expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
+    expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
     expect(lock).toEqual({ lockfileVersion: 1, components: {} });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);
     expect((await readdir(join(project, "dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
+
+    await writeFile(result.environmentPath, 'DASH_BORED_AGENT="printf"\n');
+    const command = Bun.spawn(["/bin/sh", "-lc", agentCommand.props.command], {
+      cwd: project,
+      env: { ...process.env, ...agentCommand.props.env },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(await command.exited).toBe(0);
+    expect(await new Response(command.stdout).text()).toBe(agentCommand.props.env.DASH_BORED_AGENT_PROMPT);
   });
 
   test("never overwrites an existing initialization", async () => {
@@ -46,6 +77,10 @@ describe("initializeProject", () => {
     expect(result.configPath).toBe(join(canonicalProject, "dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
     expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: {} });
+    expect(await readFile(result.environmentPath, "utf8")).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(
+      parse(await readFile(result.configPath, "utf8")).root.slots.children[2].slots.children[1].props.path,
+    ).toBe("dash-bored/people/arvid/.env");
     expect((await stat(result.componentsPath)).isDirectory()).toBeTrue();
     expect((await stat(join(project, "dash-bored", "dash-bored.yaml"))).isFile()).toBeTrue();
     expect((await stat(join(project, "dash-bored", "dash-bored-lock.yaml"))).isFile()).toBeTrue();

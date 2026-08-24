@@ -53,6 +53,13 @@ The agent should:
 
 Creating a dashboard should feel closer to asking an agent to modify code than configuring a traditional dashboard product.
 
+The starter dashboard should make that workflow self-contained: it can install
+project-local guidance that teaches compatible agents the dash-bored component
+model, then launch the user's chosen CLI agent with a project-specific prompt.
+The desktop app carries a version-matched dash-bored CLI and skill payload so
+the generated dashboard, the agent's discovery commands, and the component
+contract do not depend on a separate global dash-bored installation.
+
 Direct manipulation complements that primary workflow. The desktop app may
 offer a focused structural editor for arranging existing components, filling
 their declared props, and adding or removing nodes. It should edit the same
@@ -86,6 +93,7 @@ project/
 └── dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── .env
     └── components/
 ```
 
@@ -98,15 +106,17 @@ people or workflows need different cockpits:
 project/dash-bored/
 ├── dash-bored.yaml
 ├── dash-bored-lock.yaml
+├── .env
 ├── components/
 └── arvid/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── .env
     └── components/
 ```
 
-Each bundle is independently loadable and owns its lock file and local
-components. Dashboards compose only by using another config bundle's path as a
+Each bundle is independently loadable and owns its lock file, environment, and
+local components. Dashboards compose only by using another config bundle's path as a
 component reference. The referenced dashboard receives the same kind of
 rectangular space as any other component; configs are not merged and neither
 inherits from the other.
