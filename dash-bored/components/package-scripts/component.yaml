@@ -1,0 +1,24 @@
+schemaVersion: 1
+id: package-scripts
+name: Package scripts
+description: Reads a package.json file and exposes its scripts as runnable actions.
+entry: ./index.tsx
+propsSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    packageFile:
+      type: string
+      minLength: 1
+    runner:
+      type: string
+      enum:
+        - bun
+        - npm
+        - pnpm
+        - yarn
+  required:
+    - packageFile
+permissions:
+  - filesystem:read
+  - process:execute

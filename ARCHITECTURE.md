@@ -502,6 +502,14 @@ calling that component instance's already-shaped host APIs. Component actions
 are intentionally unknown before the component is trusted and mounted; their
 metadata is neither cached nor declared in `component.yaml` in this version.
 
+The dogfood `package-scripts` component demonstrates dynamic action discovery:
+it reads a configured `package.json`, registers one action for each
+string-valued `scripts` entry, and invokes the selected package runner through
+`host.shell.run` from the manifest's containing directory. It defaults to the
+`packageManager` field when that field names Bun, npm, pnpm, or Yarn, while an
+explicit runner prop can override it. These are short bounded shell actions;
+long-running workflows should still use the built-in command/process model.
+
 Capability behavior is bounded:
 
 - File reads are UTF-8, confined to the canonical project root, and limited to
