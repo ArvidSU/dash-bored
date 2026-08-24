@@ -31,10 +31,10 @@ updates are intentionally deferred.
 3. Open the DMG and drag **dash-bored-canary** to **Applications**.
 4. Open the application and choose the project directory you want to use.
 
-These early builds are not signed or notarized, so macOS may block the first
-launch. Try to open the app once, then open **System Settings → Privacy &
-Security**, select **Open Anyway**, and confirm. Apple documents this explicit
-override in [Safely open apps on your
+These early builds are not Developer ID signed or notarized, so macOS may block
+the first launch. Try to open the app once, then open **System Settings →
+Privacy & Security**, select **Open Anyway**, and confirm. Apple documents this
+explicit override in [Safely open apps on your
 Mac](https://support.apple.com/en-us/102445). Only do this for an artifact you
 downloaded from this repository and, preferably, verified with the published
 checksum.

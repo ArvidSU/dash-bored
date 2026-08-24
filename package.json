@@ -1,6 +1,6 @@
 {
   "name": "dash-bored",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -17,7 +17,7 @@
     "build:cli": "bun ./scripts/build-cli.ts",
     "build:renderer": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build'",
     "build": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun build --env=canary'",
-    "build:release": "DASH_BORED_RELEASE=1 sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun build --env=canary'",
+    "build:release": "DASH_BORED_RELEASE=1 sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun build --env=canary && bun ./scripts/repair-macos-release-artifacts.ts'",
     "icon:generate": "sh ./scripts/generate-macos-icon.sh",
     "release:prepare": "bun ./scripts/prepare-macos-release.ts",
     "typecheck": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && tsc --noEmit'",

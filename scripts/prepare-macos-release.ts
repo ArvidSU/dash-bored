@@ -105,6 +105,13 @@ async function plistValue(appPath: string, key: string): Promise<string> {
 }
 
 async function verifyAppBundle(appPath: string): Promise<void> {
+  await run(["codesign", "--verify", "--deep", "--strict", appPath]).catch((error: unknown) => {
+    throw new Error(
+      `Packaged app has an invalid code signature; rebuild with bun run build:release: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  });
   const [version, identifier, name, iconFile, launcherArchitecture] = await Promise.all([
     plistValue(appPath, "CFBundleVersion"),
     plistValue(appPath, "CFBundleIdentifier"),
