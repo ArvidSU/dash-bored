@@ -144,6 +144,22 @@ opening the app by running
 `dash-bored init .`; unlike `open`, explicit initialization fails if a
 configuration, lock, or dashboard environment file already exists.
 
+Set a dashboard-specific sidebar icon directly in its `dash-bored.yaml`:
+
+```yaml
+schemaVersion: 1
+name: Example project
+icon: ../assets/icon.svg
+root:
+  component: "@dash-bored/text"
+  props:
+    content: "Ready"
+```
+
+The icon may be a relative or absolute image path, or an HTTP(S) URL. It is
+loaded after the project is trusted; missing or unsupported artwork falls back
+to the generic dashboard glyph.
+
 Create a standalone named dashboard for a person or workflow with:
 
 ```sh

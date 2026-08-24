@@ -156,6 +156,7 @@ dashboard nor adds a reference to the new bundle.
 ```yaml
 schemaVersion: 1
 name: Example project
+icon: ./assets/icon.svg
 root:
   component: "@dash-bored/stack"
   props:
@@ -201,6 +202,7 @@ The public configuration types are:
 interface DashboardConfig {
   schemaVersion: 1;
   name: string;
+  icon?: string;
   root: ComponentNode;
 }
 
@@ -225,6 +227,13 @@ unknown components, invalid props, and invalid slot cardinality. Diagnostics
 carry a stable code, severity, message, and file/path location where available.
 Slot names begin with an ASCII letter and contain only letters, digits,
 underscores, or hyphens.
+
+The optional top-level `icon` is an image path relative to the owning config
+bundle or an HTTP(S) URL. In trusted mode the main process bounds and
+content-sniffs the image, converts it to a data URL, and uses it for that
+dashboard's sidebar item. Missing, unreadable, or unsupported artwork falls back
+to the generic project glyph without invalidating the dashboard. The setting is
+config-file-only; it is not a component-tree node or an editor control.
 
 ### In-app structural editing
 
@@ -518,6 +527,11 @@ Capability behavior is bounded:
 
 - File reads are UTF-8, confined to the canonical project root, and limited to
   1 MiB.
+- Dashboard icon reads are limited to 2 MiB and support SVG, PNG, JPEG, GIF, and
+  WebP. Relative icon paths resolve from the owning config bundle and may point
+  outside the project root; absolute paths and HTTP(S) URLs are also accepted.
+  The main process returns a data URL to the renderer, and icon failures fall
+  back to the generic sidebar glyph.
 - HTTP accepts only `http:` and `https:` URLs and bounds response size and
   request time.
 - Short shell calls bound output and execution time; an optional relative
@@ -578,7 +592,8 @@ controls; trust and reload actions remain available from Settings. The main
 process persists successfully opened dashboard targets in a user-data
 registry. Each entry retains its canonical project root, exact config path,
 and configured dashboard name, so the canonical and named bundles can appear
-as separate sidebar entries. The sidebar can switch the single active runtime
+as separate sidebar entries. Each entry also retains its resolved top-level
+config icon when available. The sidebar can switch the single active runtime
 between those dashboards, add another target through the native chooser, open
 application settings, or remove a remembered dashboard.
 

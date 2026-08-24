@@ -50,6 +50,7 @@ function emptySnapshot(): ProjectSnapshot {
     projectRoot: null,
     configPath: null,
     dashboardName: null,
+    iconDataUrl: null,
     config: null,
     configRevision: null,
     componentCatalog: [],
@@ -156,6 +157,7 @@ export class ProjectRuntime {
         projectRoot: definition.location.projectRoot,
         configPath: definition.location.configPath,
         dashboardName: this.snapshot.tree === null ? definition.config?.name ?? null : this.snapshot.dashboardName,
+        iconDataUrl: null,
         config: definition.config ?? this.snapshot.config,
         configRevision: definition.configRevision,
         componentCatalog: definition.componentCatalog,
@@ -187,6 +189,10 @@ export class ProjectRuntime {
           this.snapshot = {
             ...this.snapshot,
             projectRoot: definition.location.projectRoot,
+            configPath: definition.location.configPath,
+            dashboardName: definition.config.name,
+            iconDataUrl: await this.resolveProjectIcon(definition, trusted),
+            config: definition.config,
             configRevision: definition.configRevision,
             componentCatalog: definition.componentCatalog,
             diagnostics: definition.diagnostics,
@@ -217,6 +223,7 @@ export class ProjectRuntime {
       projectRoot: definition.location.projectRoot,
       configPath: definition.location.configPath,
       dashboardName: definition.config.name,
+      iconDataUrl: await this.resolveProjectIcon(definition, trusted),
       config: definition.config,
       configRevision: definition.configRevision,
       componentCatalog: definition.componentCatalog,
@@ -229,6 +236,36 @@ export class ProjectRuntime {
       revision: this.snapshot.revision + 1,
     };
     return this.emitSnapshot();
+  }
+
+  /** Resolve an optional config-file icon without making it part of the component tree. */
+  private async resolveProjectIcon(
+    definition: ProjectDefinition,
+    trusted: boolean,
+  ): Promise<string | null> {
+    const source = definition.config?.icon?.trim();
+    if (!trusted || !source) return null;
+    try {
+      const payload = await this.capabilities.readImageWithLimits(
+        {
+          nodeId: "dash-bored-chrome",
+          source,
+          timeoutMs: 5_000,
+        },
+        {
+          projectRoot: definition.location.projectRoot,
+          trusted: true,
+          permissionsByNode: new Map(),
+          configDirectoriesByNode: new Map([
+            ["dash-bored-chrome", definition.location.configDirectory],
+          ]),
+        },
+      );
+      return payload.dataUrl;
+    } catch {
+      // Sidebar artwork is best-effort; a broken icon must not hide the dashboard.
+      return null;
+    }
   }
 
   async load(input: string, options: LoadProjectOptions = {}): Promise<ProjectSnapshot> {

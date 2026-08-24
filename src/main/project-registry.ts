@@ -19,7 +19,8 @@ function parseProjectListItem(value: unknown): ProjectListItem | null {
   if (
     typeof item.projectRoot !== "string" ||
     !isAbsolute(item.projectRoot) ||
-    (typeof item.dashboardName !== "string" && item.dashboardName !== null)
+    (typeof item.dashboardName !== "string" && item.dashboardName !== null) ||
+    (item.iconDataUrl !== undefined && item.iconDataUrl !== null && typeof item.iconDataUrl !== "string")
   ) return null;
   const configPath = item.configPath === undefined
     ? canonicalConfigPath(item.projectRoot)
@@ -29,6 +30,7 @@ function parseProjectListItem(value: unknown): ProjectListItem | null {
     projectRoot: item.projectRoot,
     configPath,
     dashboardName: item.dashboardName,
+    ...(item.iconDataUrl === undefined ? {} : { iconDataUrl: item.iconDataUrl }),
   };
 }
 
@@ -106,6 +108,7 @@ export class ProjectRegistry {
       projectRoot: snapshot.projectRoot,
       configPath: snapshot.configPath ?? canonicalConfigPath(snapshot.projectRoot),
       dashboardName: snapshot.dashboardName,
+      iconDataUrl: snapshot.iconDataUrl,
     };
 
     await this.enqueueWrite(async () => {
@@ -114,7 +117,8 @@ export class ProjectRegistry {
       );
       if (
         existingIndex !== -1 &&
-        this.projects[existingIndex]?.dashboardName === item.dashboardName
+        this.projects[existingIndex]?.dashboardName === item.dashboardName &&
+        this.projects[existingIndex]?.iconDataUrl === item.iconDataUrl
       ) {
         return;
       }

@@ -188,6 +188,12 @@ code {
   will-change: transform;
 }
 
+img.sidebar__project-icon {
+  display: block;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
 .sidebar__brand,
 .sidebar__chevron,
 .sidebar__label {

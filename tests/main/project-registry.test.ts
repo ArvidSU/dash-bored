@@ -13,11 +13,16 @@ afterEach(async () => {
   await Promise.all(cleanup.splice(0).map(removeTemporaryDirectory));
 });
 
-function snapshot(projectRoot: string, dashboardName: string | null): ProjectSnapshot {
+function snapshot(
+  projectRoot: string,
+  dashboardName: string | null,
+  iconDataUrl: string | null = null,
+): ProjectSnapshot {
   return {
     projectRoot,
     configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
     dashboardName,
+    iconDataUrl,
     config: null,
     configRevision: null,
     componentCatalog: [],
@@ -52,9 +57,9 @@ describe("ProjectRegistry", () => {
     expect(await registry.contains(firstRoot, join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"))).toBeTrue();
     expect(await registry.contains(join(directory, "unknown"))).toBeFalse();
     expect(await new ProjectRegistry(registryPath).list()).toEqual([
-      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Renamed dashboard" },
-      { projectRoot: secondRoot, configPath: join(secondRoot, "dash-bored", "dash-bored.yaml"), dashboardName: null },
-      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"), dashboardName: "Arvid dashboard" },
+      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Renamed dashboard", iconDataUrl: null },
+      { projectRoot: secondRoot, configPath: join(secondRoot, "dash-bored", "dash-bored.yaml"), dashboardName: null, iconDataUrl: null },
+      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"), dashboardName: "Arvid dashboard", iconDataUrl: null },
     ]);
   });
 
@@ -66,12 +71,41 @@ describe("ProjectRegistry", () => {
     expect(await registry.list()).toEqual([]);
   });
 
+  test("keeps icon data separate for named dashboards sharing a project root", async () => {
+    const directory = await temporaryDirectory();
+    cleanup.push(directory);
+    const projectRoot = join(directory, "project");
+    const namedConfigPath = join(projectRoot, "dash-bored", "arvid", "dash-bored.yaml");
+    const registry = new ProjectRegistry(join(directory, "state", "projects-v1.json"));
+
+    await registry.remember(snapshot(projectRoot, "Canonical", "data:image/svg+xml;base64,canonical"));
+    await registry.remember({
+      ...snapshot(projectRoot, "Arvid", "data:image/svg+xml;base64,arvid"),
+      configPath: namedConfigPath,
+    });
+
+    expect(await registry.list()).toEqual([
+      {
+        projectRoot,
+        configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
+        dashboardName: "Canonical",
+        iconDataUrl: "data:image/svg+xml;base64,canonical",
+      },
+      {
+        projectRoot,
+        configPath: namedConfigPath,
+        dashboardName: "Arvid",
+        iconDataUrl: "data:image/svg+xml;base64,arvid",
+      },
+    ]);
+  });
+
   test("removes and restores a project with atomic persisted registry state", async () => {
     const directory = await temporaryDirectory();
     cleanup.push(directory);
     const registryPath = join(directory, "state", "projects-v1.json");
     const projectRoot = join(directory, "project");
-    const item = { projectRoot, configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Restore me" };
+    const item = { projectRoot, configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Restore me", iconDataUrl: null };
     const registry = new ProjectRegistry(registryPath);
 
     await registry.remember(snapshot(projectRoot, item.dashboardName));

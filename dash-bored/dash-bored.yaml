@@ -1,5 +1,6 @@
 schemaVersion: 1
 name: dash-bored development cockpit
+icon: ../assets/icon.svg
 root:
   id: project-cockpit
   component: "@dash-bored/tabs"

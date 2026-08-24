@@ -65,10 +65,11 @@ function rememberProject(
   snapshot: ProjectSnapshot,
 ): ProjectListItem[] {
   if (snapshot.projectRoot === null || snapshot.configPath === undefined || snapshot.configPath === null) return projects;
-  const item = {
+  const item: ProjectListItem = {
     projectRoot: snapshot.projectRoot,
     configPath: snapshot.configPath,
     dashboardName: snapshot.dashboardName,
+    iconDataUrl: snapshot.iconDataUrl,
   };
   const existingIndex = projects.findIndex(
     (project) => project.configPath === item.configPath,
@@ -1113,7 +1114,17 @@ export function App(): ReactNode {
                     disabled={pendingAction !== null}
                     onClick={() => void selectProject(project)}
                   >
-                    <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
+                    {project.iconDataUrl ? (
+                      <img
+                        className="sidebar__item-icon sidebar__project-icon"
+                        src={project.iconDataUrl}
+                        alt=""
+                        width={20}
+                        height={20}
+                      />
+                    ) : (
+                      <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
+                    )}
                     <span className="sidebar__label">{opening ? "Opening…" : label}</span>
                   </button>
                   <button

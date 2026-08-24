@@ -84,6 +84,24 @@ describe("project paths and YAML", () => {
     expect(unknown.diagnostics.some((item) => item.code === "CONFIG_SCHEMA_INVALID")).toBeTrue();
   });
 
+  test("accepts a string icon on the dashboard config", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, { ...defaultConfig, icon: "../assets/icon.svg" });
+
+    const valid = await inspectProject(root);
+    expect(valid.ok).toBeTrue();
+    expect(valid.config?.icon).toBe("../assets/icon.svg");
+
+    await writeFile(
+      join(root, "dash-bored", "dash-bored.yaml"),
+      stringify({ ...defaultConfig, icon: 42 }),
+    );
+    const invalid = await inspectProject(root);
+    expect(invalid.ok).toBeFalse();
+    expect(invalid.diagnostics.some((item) => item.code === "CONFIG_SCHEMA_INVALID")).toBeTrue();
+  });
+
   test("requires an empty v1 lock file", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

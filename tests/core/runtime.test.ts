@@ -113,6 +113,34 @@ describe("ProjectRuntime", () => {
     expect(revoked.processes).toEqual([]);
   });
 
+  test("resolves a configured dashboard icon only after trust", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      ...processConfig,
+      icon: "icon.svg",
+    });
+    await writeFile(
+      join(root, "dash-bored", "icon.svg"),
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8"/></svg>',
+    );
+    const runtime = new ProjectRuntime({
+      trustStore: new TrustStore(join(root, ".state", "trust.json")),
+    });
+    runtimes.push(runtime);
+
+    const restricted = await runtime.load(root);
+    expect(restricted.iconDataUrl).toBeNull();
+
+    const trusted = await runtime.trust();
+    expect(trusted.iconDataUrl).toStartWith("data:image/svg+xml;base64,");
+
+    await writeFile(join(root, "dash-bored", "icon.svg"), "not an image");
+    const broken = await runtime.reload();
+    expect(broken.tree).not.toBeNull();
+    expect(broken.iconDataUrl).toBeNull();
+  });
+
   test("watches project files and publishes a successful reload", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

@@ -21,6 +21,8 @@ export interface ComponentNode {
 export interface DashboardConfig {
   schemaVersion: 1;
   name: string;
+  /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
+  icon?: string;
   root: ComponentNode;
 }
 
@@ -109,6 +111,8 @@ export interface ProjectSnapshot {
   /** Canonical YAML currently rendered, including standalone named bundles. */
   configPath?: string | null;
   dashboardName: string | null;
+  /** Resolved data URL for the configured dashboard icon, or null when unavailable. */
+  iconDataUrl: string | null;
   config: DashboardConfig | null;
   configRevision: string | null;
   componentCatalog: ComponentCatalogItem[];
@@ -152,6 +156,8 @@ export interface ProjectTarget {
 
 export interface ProjectListItem extends ProjectTarget {
   dashboardName: string | null;
+  /** Cached resolved data URL for the dashboard's configured sidebar icon. */
+  iconDataUrl?: string | null;
 }
 
 export interface ProjectOutline extends ProjectTarget {
@@ -209,6 +215,16 @@ export interface FileReadRequest extends HostRequestContext {
 export interface FileWriteRequest extends HostRequestContext {
   path: string;
   content: string;
+}
+
+export interface ImageReadRequest extends HostRequestContext {
+  source: string;
+  timeoutMs?: number;
+}
+
+export interface ImageReadPayload {
+  dataUrl: string;
+  mediaType: string;
 }
 
 export interface HttpRequest extends HostRequestContext {

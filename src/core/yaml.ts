@@ -45,6 +45,7 @@ const configSchema = {
   properties: {
     schemaVersion: { const: 1 },
     name: { type: "string", minLength: 1, maxLength: 200 },
+    icon: { type: "string", minLength: 1, maxLength: 2048 },
     root: { $ref: "#/$defs/componentNode" },
   },
   $defs: { componentNode: componentNodeSchema },

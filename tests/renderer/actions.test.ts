@@ -63,6 +63,7 @@ function snapshot(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
   return {
     projectRoot: "/workspace/example",
     dashboardName: "Example",
+    iconDataUrl: null,
     config: null,
     configRevision: null,
     componentCatalog: [],

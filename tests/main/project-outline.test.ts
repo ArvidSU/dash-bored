@@ -20,6 +20,7 @@ function snapshot(projectRoot: string): ProjectSnapshot {
   return {
     projectRoot,
     dashboardName: "Outline dashboard",
+    iconDataUrl: null,
     config: null,
     configRevision: null,
     componentCatalog: [],

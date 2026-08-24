@@ -6,7 +6,7 @@ import {
   CONFIG_FILE,
   LOCK_FILE,
 } from "../shared/contracts";
-import { CoreError } from "./diagnostics";
+import { CoreError, errorMessage } from "./diagnostics";
 
 export interface ProjectLocation {
   projectRoot: string;
@@ -253,5 +253,32 @@ export async function resolveContainedPath(
     }
   }
 
+  return canonicalPath;
+}
+
+/** Resolve a configured image path without imposing a project-root boundary. */
+export async function resolveUncontainedPath(root: string, requestedPath: string): Promise<string> {
+  if (requestedPath.trim() === "" || requestedPath.includes("\0")) {
+    throw new CoreError("PATH_INVALID", "The path must be a non-empty path.");
+  }
+  let expanded = requestedPath;
+  if (expanded === "~") {
+    expanded = Bun.env.HOME ?? expanded;
+  } else if (expanded.startsWith("~/") && Bun.env.HOME) {
+    expanded = join(Bun.env.HOME, expanded.slice(2));
+  }
+
+  const absolute = isAbsolute(expanded) ? resolve(expanded) : resolve(root, expanded);
+  let pathExists: boolean;
+  try {
+    pathExists = await exists(absolute);
+  } catch (error) {
+    throw new CoreError("IMAGE_READ_FAILED", `Could not read the image: ${errorMessage(error)}`, { cause: error });
+  }
+  if (!pathExists) throw new CoreError("PATH_NOT_FOUND", `Image does not exist: ${requestedPath}`);
+
+  const canonicalPath = await realpath(absolute);
+  const value = await stat(canonicalPath);
+  if (!value.isFile()) throw new CoreError("PATH_NOT_FILE", `Expected a file: ${requestedPath}`);
   return canonicalPath;
 }
