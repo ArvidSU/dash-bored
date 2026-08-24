@@ -170,11 +170,36 @@ describe("project deletion dependency analysis", () => {
     expect(unsafePreview.analysisIssues.join(" ")).toContain("outside the allowed directory");
   });
 
-  test("fails closed when another registered dashboard can run local component code", async () => {
-    const target = await temporaryDirectory();
+  test("ignores unrelated local component code outside the target files", async () => {
     const source = await temporaryDirectory();
-    cleanup.push(target, source);
+    const target = join(source, "new-dashboard");
+    cleanup.push(source);
+    await createProject(source, {
+      schemaVersion: 1,
+      name: "Local source",
+      root: { component: "./components/reader" },
+    });
+    await mkdir(target, { recursive: true });
     await createProject(target);
+    await writeLocalComponent(source, "reader", "export default () => null;");
+    const [targetRoot, sourceRoot] = await Promise.all([realpath(target), realpath(source)]);
+
+    const preview = await inspectProjectDeletion(
+      project(targetRoot, "Target"),
+      [project(targetRoot, "Target"), project(sourceRoot, "Local source")],
+    );
+
+    expect(preview.analysisComplete).toBeTrue();
+    expect(preview.analysisIssues).toEqual([]);
+    expect(preview.dependencies).toEqual([]);
+  });
+
+  test("fails closed when a registered local component is inside the target files", async () => {
+    const target = await temporaryDirectory();
+    const source = join(target, "dash-bored", "nested-dashboard");
+    cleanup.push(target);
+    await createProject(target);
+    await mkdir(source, { recursive: true });
     await createProject(source, {
       schemaVersion: 1,
       name: "Local source",

@@ -553,9 +553,10 @@ directory exists, which other registered dashboards directly or transitively
 link into it, the linked config paths, and whether analysis completed. A
 dashboard-only removal is the default. File removal is available only after a
 complete scan; broken, unreadable, invalid, cyclic, or otherwise unresolved
-config links fail closed. Registered dashboards that can execute arbitrary
-local component code also fail closed because their file access cannot be
-statically inferred.
+config links fail closed. A registered dashboard whose local component bundle
+is inside the target files also fails closed because moving those files would
+remove code that may access them. Local components outside the target files
+are not treated as dependencies of the target.
 
 One application process/window runs one active project at a time in v1. The
 project list is navigation history, not concurrent project execution; switching
@@ -605,8 +606,10 @@ runtime are restored. A failed Trash operation restores the registry and
 runtime as well. Named bundles below the target directory are included because
 they are part of that app-owned directory; they are linkable config targets,
 not separate sidebar entries. Dynamic file access from trusted local component
-code is not statically inferable, so any registered dashboard that can execute
-local component code makes analysis incomplete and keeps file removal disabled.
+code is not statically inferable. The deletion scan therefore reports static
+config links and blocks cleanup when registered local component files are
+inside the target directory; unrelated component bundles outside the target do
+not block removing the target.
 
 ### Action registry and command palette
 

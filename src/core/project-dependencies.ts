@@ -105,7 +105,10 @@ async function scanNode(
     return;
   }
 
-  if (node.component.startsWith("./components/")) {
+  if (
+    node.component.startsWith("./components/") &&
+    isPathContained(state.targetDirectory, resolve(location.configDirectory, node.component))
+  ) {
     addIssue(
       state,
       `Could not statically determine file access from local component ${node.component} in ${location.configPath}.`,

@@ -322,10 +322,11 @@ the project files untouched.
 
 The confirmation dialog previews direct and transitive standalone-config links
 from other remembered dashboards, including the affected config paths. If the
-dependency scan is incomplete because a link is broken, unreadable, or may
-execute arbitrary local component code, project file removal is disabled.
-Otherwise, you may select **Also move project files
-to Trash**. This moves only the app-owned `project/dash-bored/` directory (and
+dependency scan is incomplete because a link is broken, unreadable, or a
+registered dashboard's local component files are inside the files being
+removed, project file removal is disabled. Otherwise, you may select **Also
+move project files to Trash**. This moves only the app-owned
+`project/dash-bored/` directory (and
 its named bundles, components, lock files, and environment files) to the OS
 Trash. Source files elsewhere in the project are never removed. Removing the
 active dashboard unloads its watcher, supervised processes, and trust state;
