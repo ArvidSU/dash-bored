@@ -60,6 +60,11 @@ behavior, its practical consequence, and the safe way to handle it.
   interaction. If the Mac is locked or modifier-key injection is unreliable,
   verify the native menu path and renderer handler separately, and report the
   missing native coverage instead of presenting it as a completed smoke test.
+- `bun run build` is worktree-local and may intentionally inherit
+  `.env.worktree`. Use `bun run build:release` for distributable artifacts; it
+  strips worktree project, server, port, and instance variables. Then run
+  `bun run release:prepare -- --tag v<package.json version>`: it rejects a
+  worktree bundle identifier, a mismatched tag/version/CLI, or an invalid DMG.
 
 ## Worktree development
 

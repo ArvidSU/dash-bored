@@ -14,6 +14,38 @@ security contracts.
 
 [MIT](./LICENSE)
 
+## Install on macOS
+
+Unsigned prereleases support **Apple Silicon** Macs running **macOS 14 or
+newer**. Linux, Windows, Intel Macs, signing, notarization, and automatic
+updates are intentionally deferred.
+
+1. Download the macOS DMG and `SHA256SUMS.txt` from the latest
+   [GitHub Release](https://github.com/ArvidSU/dash-bored/releases).
+2. Optionally place both files in the same directory and verify the download:
+
+   ```sh
+   shasum -a 256 -c SHA256SUMS.txt
+   ```
+
+3. Open the DMG and drag **dash-bored-canary** to **Applications**.
+4. Open the application and choose the project directory you want to use.
+
+These early builds are not signed or notarized, so macOS may block the first
+launch. Try to open the app once, then open **System Settings → Privacy &
+Security**, select **Open Anyway**, and confirm. Apple documents this explicit
+override in [Safely open apps on your
+Mac](https://support.apple.com/en-us/102445). Only do this for an artifact you
+downloaded from this repository and, preferably, verified with the published
+checksum.
+
+The application already contains its version-matched `dash-bored` CLI, so Bun
+is not required. The starter dashboard can optionally expose that CLI at
+`~/.local/bin/dash-bored` for external shells.
+
+The installed application includes a custom dash-bored icon for Finder, the
+Applications folder, and the Dock.
+
 ## Developer setup
 
 Install [Bun](https://bun.sh/) and clone the repository. The project pins its Bun
@@ -50,13 +82,17 @@ bun run typecheck
 bun test
 bun run build:renderer
 bun run build           # local canary application build
+bun run icon:generate   # regenerate the committed macOS iconset from its SVG
+bun run build:release   # clean unsigned Apple Silicon release build
+bun run release:prepare # verify artifacts and stage release files
 bun run qa              # typecheck, tests, and renderer production build
 bun run qa:fast         # non-locking typecheck, tests, and renderer build
 ```
 
-Platform toolchain requirements for packaging are those of Electrobun. Release
-signing, notarization, installers, and update publication are not configured in
-this repository.
+GitHub Actions runs QA on an Apple Silicon macOS runner. Pushing a tag that
+exactly matches `v<package.json version>` builds and verifies the unsigned DMG,
+generates its checksum and install notes, and creates a draft GitHub prerelease.
+Publishing that draft remains an explicit maintainer action.
 
 Packaged desktop builds contain a standalone, version-matched `dash-bored` CLI.
 The app prepends that embedded tool to `PATH` for dashboard commands and agents
@@ -67,7 +103,9 @@ it refuses to replace an existing file or different link.
 
 ## Start a project dashboard
 
-Open a project root:
+Launch the desktop application and select a project directory. Once you have
+optionally installed the bundled CLI link, you can also open a project root
+from a shell:
 
 ```sh
 cd /path/to/project

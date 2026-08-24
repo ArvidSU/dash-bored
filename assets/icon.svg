@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- dash-bored app icon: a dashboard grid on a rounded tile. -->
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1024" y2="1024">
+      <stop offset="0" stop-color="#1c2333"/>
+      <stop offset="1" stop-color="#10141d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <g fill="#5eead4">
+    <rect x="176" y="176" width="296" height="296" rx="48"/>
+  </g>
+  <rect x="552" y="176" width="296" height="296" rx="48" fill="#2dd4bf"/>
+  <rect x="176" y="552" width="296" height="296" rx="48" fill="#14b8a6"/>
+  <path
+    d="M604 772 L652 724 L700 764 L796 668"
+    fill="none"
+    stroke="#a7f3d0"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

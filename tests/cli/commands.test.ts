@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { lstat, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
+import { APP_VERSION } from "../../src/shared/app-metadata";
 
 const cli = resolve(import.meta.dirname, "../../src/cli/index.ts");
 const temporaryDirectories: string[] = [];
@@ -40,6 +41,15 @@ async function exists(path: string): Promise<boolean> {
 }
 
 describe("dash-bored command arguments", () => {
+  test("reports the package version", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+
+    const result = await run(project, "--version");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe(APP_VERSION);
+  });
+
   test("command help never executes the command", async () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
     temporaryDirectories.push(project);

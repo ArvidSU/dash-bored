@@ -8,6 +8,7 @@ root:
     labels:
       - Overview
       - Development
+      - Release
       - Documentation
       - Agent setup
       - Dogfood
@@ -174,6 +175,75 @@ root:
                     component: "@dash-bored/webview"
                     props:
                       url: http://localhost:5173
+      - id: release
+        component: "@dash-bored/stack"
+        props:
+          gap: large
+        slots:
+          children:
+            - id: release-intro
+              component: "@dash-bored/markdown"
+              props:
+                content: |
+                  ## Unsigned macOS prerelease
+
+                  Releases currently target Apple Silicon on macOS 14 or newer.
+                  Run the checks in order before pushing a tag that exactly matches
+                  `v<package.json version>`. GitHub Actions repeats these checks and
+                  creates a draft prerelease for explicit publication.
+            - id: release-layout
+              component: "@dash-bored/split"
+              props:
+                direction: horizontal
+              slots:
+                first:
+                  id: release-controls
+                  component: "@dash-bored/stack"
+                  props:
+                    gap: medium
+                  slots:
+                    children:
+                      - id: run-release-qa
+                        component: "@dash-bored/command"
+                        props:
+                          label: Run release QA
+                          command: bun run qa && bun run dash-bored -- validate .
+                          cwd: .
+                      - id: build-macos-release
+                        component: "@dash-bored/command"
+                        props:
+                          label: Build clean macOS prerelease
+                          command: bun run build:release
+                          cwd: .
+                      - id: prepare-macos-release
+                        component: "@dash-bored/command"
+                        props:
+                          label: Verify and stage release assets
+                          command: bun run release:prepare
+                          cwd: .
+                second:
+                  id: release-output-card
+                  component: "@dash-bored/card"
+                  props:
+                    title: Release build output
+                    description: Live bounded output from the clean Electrobun package build.
+                  slots:
+                    children:
+                      - id: release-output
+                        component: "@dash-bored/terminal"
+                        props:
+                          processId: build-macos-release
+            - id: release-workflow-card
+              component: "@dash-bored/card"
+              props:
+                title: GitHub release workflow
+                description: The tag-triggered source of truth for draft prerelease publication.
+              slots:
+                children:
+                  - id: release-workflow-file
+                    component: "@dash-bored/file"
+                    props:
+                      path: .github/workflows/release.yml
       - id: documentation
         component: "@dash-bored/tabs"
         props:

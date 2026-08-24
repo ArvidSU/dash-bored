@@ -7,10 +7,10 @@ import { basename, dirname, resolve } from "node:path";
 import { initializeProject } from "./init-project";
 import { ensureProjectFiles, inspectProject } from "../core/index";
 import { CONFIG_FILE, type Diagnostic, type InspectResult } from "../shared/contracts";
+import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 import { installDashBoredCli } from "./install-cli";
 
-const VERSION = "0.1.0";
 const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect"]);
 
 interface ParsedCommandArguments {
@@ -22,7 +22,7 @@ interface ParsedCommandArguments {
 }
 
 function usage(): string {
-  return `dash-bored ${VERSION}
+  return `dash-bored ${APP_VERSION}
 
 Usage:
   dash-bored init [name ...] [--project <path>]
@@ -211,7 +211,7 @@ async function main(): Promise<number> {
     return 0;
   }
   if (command === "--version" || command === "-v" || command === "version") {
-    console.log(VERSION);
+    console.log(APP_VERSION);
     return 0;
   }
 

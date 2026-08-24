@@ -1,0 +1,73 @@
+name: macOS prerelease
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build unsigned Apple Silicon prerelease
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pinned Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install locked dependencies
+        run: bun ci
+
+      - name: Run release QA
+        run: |
+          bun run qa
+          bun run dash-bored -- validate .
+
+      - name: Build clean unsigned macOS artifacts
+        run: bun run build:release
+
+      - name: Verify and prepare release assets
+        run: bun run release:prepare -- --tag "${GITHUB_REF_NAME}"
+
+      - name: Verify published checksum
+        working-directory: release
+        run: shasum -a 256 -c SHA256SUMS.txt
+
+      - name: Preserve verified workflow artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dash-bored-${{ github.ref_name }}-macos-arm64-unsigned
+          path: release/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create immutable draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "A GitHub Release already exists for ${GITHUB_REF_NAME}; refusing to replace its assets." >&2
+            exit 1
+          fi
+          gh release create "${GITHUB_REF_NAME}" \
+            release/*.dmg \
+            release/SHA256SUMS.txt \
+            --draft \
+            --prerelease \
+            --verify-tag \
+            --title "dash-bored ${GITHUB_REF_NAME}" \
+            --notes-file release/RELEASE_NOTES.md
