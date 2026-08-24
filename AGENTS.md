@@ -36,6 +36,12 @@ behavior, its practical consequence, and the safe way to handle it.
   target is rendered as a local component error instead of invalidating its
   source dashboard; focusing linked content before editing selects the linked
   bundle's YAML as the single atomic save target.
+- Dashboard deletion is registry-first: the renderer previews direct and
+  transitive config links before offering file cleanup, and incomplete
+  dependency analysis disables cleanup. Only the canonical project-root
+  `dash-bored/` directory may be moved to OS Trash; active deletion unloads
+  watchers/processes and restores registry, trust, and runtime state if cleanup
+  fails.
 - The dashboard editor is structural; component-specific content belongs in
   Configure. In particular, `@dash-bored/tabs` stores one `props.labels` entry
   per child in positional order, so insert/remove/reorder operations must move

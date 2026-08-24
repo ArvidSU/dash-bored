@@ -137,6 +137,30 @@ describe("ProjectRuntime", () => {
     expect(runtime.getSnapshot().dashboardName).toBe("Changed");
   });
 
+  test("unloads watchers and project state while keeping the runtime reusable", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root);
+    const snapshots: ProjectSnapshot[] = [];
+    const runtime = new ProjectRuntime({
+      trustStore: new TrustStore(join(root, ".state", "trust.json")),
+      onSnapshot: (snapshot) => snapshots.push(snapshot),
+    });
+    runtimes.push(runtime);
+
+    await runtime.load(root);
+    runtime.watch();
+    const unloaded = await runtime.unload();
+    expect(unloaded.projectRoot).toBeNull();
+    expect(unloaded.tree).toBeNull();
+    expect(unloaded.processes).toEqual([]);
+    expect(snapshots.at(-1)?.projectRoot).toBeNull();
+
+    const reloaded = await runtime.load(root);
+    expect(reloaded.projectRoot).toBe(await realpath(root));
+    expect(reloaded.tree).not.toBeNull();
+  });
+
   test("serializes revoke with reload and leaves capabilities disabled", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

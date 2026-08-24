@@ -62,11 +62,11 @@ function isLocalReference(reference: string): boolean {
   return reference.startsWith(LOCAL_REFERENCE_PREFIX) && reference.length > LOCAL_REFERENCE_PREFIX.length;
 }
 
-function isConfigReference(reference: string): boolean {
+export function isConfigReference(reference: string): boolean {
   return !reference.startsWith("@dash-bored/") && !isLocalReference(reference);
 }
 
-async function configPathFromReference(
+export async function resolveConfigReferencePath(
   location: ProjectLocation,
   reference: string,
 ): Promise<string> {
@@ -389,7 +389,7 @@ export async function resolveComponentTree(
       let configError: string | undefined;
       let linkedTree: ResolvedComponentNode | null = null;
       try {
-        configPath = await configPathFromReference(location, node.component);
+        configPath = await resolveConfigReferencePath(location, node.component);
         if (configStack.includes(configPath)) {
           throw new Error(`Config link cycle detected at ${configPath}.`);
         }

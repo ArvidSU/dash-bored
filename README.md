@@ -275,6 +275,24 @@ Focus content rendered from a config-link component to edit that standalone
 bundle; composition boundaries remain separate, and each save rewrites only
 the source path shown in the editor toolbar.
 
+### Remove a dashboard
+
+Expand the project sidebar, then hover a dashboard row or focus it with the
+keyboard to reveal its trash button. Removing a dashboard deletes its entry
+from dash-bored’s remembered dashboard registry; this is the default and leaves
+the project files untouched.
+
+The confirmation dialog previews direct and transitive standalone-config links
+from other remembered dashboards, including the affected config paths. If the
+dependency scan is incomplete because a link is broken, unreadable, or may
+execute arbitrary local component code, project file removal is disabled.
+Otherwise, you may select **Also move project files
+to Trash**. This moves only the app-owned `project/dash-bored/` directory (and
+its named bundles, components, lock files, and environment files) to the OS
+Trash. Source files elsewhere in the project are never removed. Removing the
+active dashboard unloads its watcher, supervised processes, and trust state;
+the next remembered dashboard is selected automatically when one exists.
+
 The accepted configuration is written back as canonical YAML, so comments and
 hand formatting are not preserved. Adding a component that requests a new
 capability saves the configuration but returns the project to restricted mode

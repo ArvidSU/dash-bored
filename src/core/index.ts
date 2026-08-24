@@ -5,6 +5,7 @@ export * from "./diagnostics";
 export * from "./paths";
 export * from "./process-manager";
 export * from "./project";
+export * from "./project-dependencies";
 export * from "./project-files";
 export * from "./project-runtime";
 export * from "./tree";

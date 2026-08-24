@@ -148,6 +148,27 @@ export interface ProjectListItem {
   dashboardName: string | null;
 }
 
+export interface ProjectDeletionDependency {
+  projectRoot: string;
+  dashboardName: string | null;
+  configPaths: string[];
+}
+
+export interface ProjectDeletionPreview {
+  projectRoot: string;
+  dashboardName: string | null;
+  filesDirectory: string;
+  filesExist: boolean;
+  dependencies: ProjectDeletionDependency[];
+  analysisComplete: boolean;
+  analysisIssues: string[];
+}
+
+export interface DeleteProjectRequest {
+  projectRoot: string;
+  removeFiles: boolean;
+}
+
 export interface InspectResult {
   ok: boolean;
   projectRoot: string;

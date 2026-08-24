@@ -86,6 +86,26 @@ root:
                     props:
                       cwd: .
                       baseBranch: main
+            - id: dashboard-lifecycle-card
+              component: "@dash-bored/card"
+              props:
+                title: Dashboard lifecycle
+                description: Safe registry removal and project-file cleanup.
+              slots:
+                children:
+                  - id: dashboard-lifecycle
+                    component: "@dash-bored/markdown"
+                    props:
+                      content: |
+                        ### Dashboard lifecycle
+
+                        The expanded sidebar exposes a keyboard-accessible trash action.
+                        Removal only forgets the dashboard by default. Before optional
+                        cleanup, dash-bored previews direct and transitive config links;
+                        incomplete analysis keeps file removal disabled.
+
+                        If selected, only this project's app-owned `dash-bored/` directory
+                        moves to the OS Trash. Source project files are never targeted.
       - id: development
         component: "@dash-bored/stack"
         props:

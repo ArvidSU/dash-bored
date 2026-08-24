@@ -543,7 +543,19 @@ controls; trust and reload actions remain available from Settings. The main proc
 opened successfully in a user-data registry. Each entry retains its canonical
 project root and last configured dashboard name. The sidebar can switch the
 single active runtime between those projects, add another project through the
-native chooser, or open application settings.
+native chooser, open application settings, or remove a remembered dashboard.
+
+The trash affordance is rendered as a separate keyboard-accessible button on
+expanded sidebar rows and is revealed on row hover or focus. The renderer asks
+the main process for a typed deletion preview before showing the confirmation
+dialog. The preview reports whether the app-owned `project/dash-bored/`
+directory exists, which other registered dashboards directly or transitively
+link into it, the linked config paths, and whether analysis completed. A
+dashboard-only removal is the default. File removal is available only after a
+complete scan; broken, unreadable, invalid, cyclic, or otherwise unresolved
+config links fail closed. Registered dashboards that can execute arbitrary
+local component code also fail closed because their file access cannot be
+statically inferred.
 
 One application process/window runs one active project at a time in v1. The
 project list is navigation history, not concurrent project execution; switching
@@ -575,6 +587,26 @@ names are stored in the `labels` prop in child order. The editor keeps that
 positional list synchronized when tab children are inserted, removed, or
 reordered, while unnamed existing entries continue to render as `Tab N` until
 explicitly named.
+
+### Dashboard deletion and project-file cleanup
+
+The project registry is user-data navigation history, while the dashboard
+bundles remain project-owned files. Deleting a registry entry therefore never
+deletes project files unless the user explicitly selects file removal. The
+main-process deletion transaction recomputes the preview, unloads the active
+runtime (watcher, process manager, and capability bindings), revokes trust when
+file removal is selected, atomically removes the registry entry, and moves only
+the canonical top-level `project/dash-bored/` directory to the operating
+system Trash. The source project and paths outside that directory are not
+targets.
+
+If any step before the Trash move fails, the registry, trust grant, and active
+runtime are restored. A failed Trash operation restores the registry and
+runtime as well. Named bundles below the target directory are included because
+they are part of that app-owned directory; they are linkable config targets,
+not separate sidebar entries. Dynamic file access from trusted local component
+code is not statically inferable, so any registered dashboard that can execute
+local component code makes analysis incomplete and keeps file removal disabled.
 
 ### Action registry and command palette
 

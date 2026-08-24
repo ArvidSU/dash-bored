@@ -7,6 +7,7 @@ import type {
   ComponentCatalogItem,
   LocalComponentHost,
   ProcessSnapshot,
+  ProjectDeletionPreview,
   ProjectListItem,
   ProjectSnapshot,
   ResolvedComponentNode,
@@ -73,7 +74,7 @@ function rememberProject(
   return next;
 }
 
-type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit";
+type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit" | "trash";
 
 function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
   if (name === "project") {
@@ -106,6 +107,13 @@ function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
       <svg viewBox="0 0 20 20" aria-hidden="true">
         <path d="m5 14-.5 2.5L7 16l8-8-2-2-8 8Z" />
         <path d="m11.8 7.2 2 2" />
+      </svg>
+    );
+  }
+  if (name === "trash") {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5l.5 7h6l.5-7M8.5 10v3.5M11.5 10v3.5" />
       </svg>
     );
   }
@@ -521,6 +529,11 @@ export function App(): ReactNode {
     message: string;
     continueAction: () => void;
   } | null>(null);
+  const [deletionDialog, setDeletionDialog] = useState<{
+    project: ProjectListItem;
+    preview: ProjectDeletionPreview;
+    removeFiles: boolean;
+  } | null>(null);
   const localComponents = useLocalComponents(snapshot?.components ?? []);
   const actionRegistry = useMemo(() => new ActionRegistry(), []);
   const componentActions = useSyncExternalStore(
@@ -675,6 +688,70 @@ export function App(): ReactNode {
       () => void openSelectedProject(projectRoot),
     )) return;
     await openSelectedProject(projectRoot);
+  }
+
+  async function openDeletionDialog(
+    project: ProjectListItem,
+    skipDiscard = false,
+  ): Promise<void> {
+    if (
+      !skipDiscard &&
+      editSession?.projectRoot === project.projectRoot &&
+      !requireDiscard(
+        "Discard the unsaved dashboard changes and remove this dashboard?",
+        () => void openDeletionDialog(project, true),
+      )
+    ) return;
+
+    await perform(`preview-delete:${project.projectRoot}`, async () => {
+      const preview = await host.getProjectDeletionPreview(project.projectRoot);
+      setDeletionDialog({ project, preview, removeFiles: false });
+    });
+  }
+
+  async function confirmDeletion(): Promise<void> {
+    if (!deletionDialog) return;
+    const request = deletionDialog;
+    const wasActive = snapshot?.projectRoot === request.project.projectRoot;
+    const activeProjectIndex = projects.findIndex(
+      (project) => project.projectRoot === request.project.projectRoot,
+    );
+    setDeletionDialog(null);
+    setPendingAction(`delete:${request.project.projectRoot}`);
+    setActionError(null);
+    try {
+      await host.deleteProject(request.project.projectRoot, request.removeFiles);
+      const remaining = await host.listProjects();
+      setProjects(remaining);
+      setEditSession((current) =>
+        current?.projectRoot === request.project.projectRoot ? null : current,
+      );
+      setVirtualRoots((current) => {
+        if (!Object.hasOwn(current, request.project.projectRoot)) return current;
+        const next = { ...current };
+        delete next[request.project.projectRoot];
+        return next;
+      });
+      try {
+        window.localStorage.removeItem(virtualRootStorageKey(request.project.projectRoot));
+      } catch {
+        // The in-memory focus state has already been cleared.
+      }
+
+      if (wasActive) {
+        setActiveView("dashboard");
+        const nextIndex = Math.min(
+          Math.max(activeProjectIndex, 0),
+          Math.max(remaining.length - 1, 0),
+        );
+        const nextProject = remaining[nextIndex];
+        if (nextProject) await host.openProject(nextProject.projectRoot);
+      }
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function startProjectEditor(projectRoot: string): Promise<void> {
@@ -901,6 +978,20 @@ export function App(): ReactNode {
                   <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
                   <span className="sidebar__label">{opening ? "Opening…" : label}</span>
                 </button>
+                <button
+                  className="sidebar__project-remove"
+                  type="button"
+                  aria-label={`Remove ${label}`}
+                  title="Remove dashboard"
+                  tabIndex={sidebarExpanded ? 0 : -1}
+                  disabled={pendingAction !== null}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void openDeletionDialog(project);
+                  }}
+                >
+                  <ShellIcon name="trash" />
+                </button>
               </div>
             );
           })}
@@ -1079,6 +1170,83 @@ export function App(): ReactNode {
                 setEditSession(null);
                 queueMicrotask(continueAction);
               }}>Discard changes</button>
+            </footer>
+          </div>
+        </EditorModal>
+      ) : null}
+      {deletionDialog ? (
+        <EditorModal title="Remove dashboard?" onDismiss={() => setDeletionDialog(null)}>
+          <div className="remove-confirmation dashboard-delete-confirmation">
+            <p>
+              Remove <strong>{projectLabel(deletionDialog.project)}</strong> from the dash-bored sidebar?
+              The dashboard entry is removed by default; its project files stay on disk.
+            </p>
+
+            {deletionDialog.preview.dependencies.length > 0 ? (
+              <section className="dashboard-delete-dependencies" aria-labelledby="dashboard-delete-dependencies-title">
+                <h3 id="dashboard-delete-dependencies-title">Dashboards that use these files</h3>
+                <p>
+                  These links may stop working if the app-owned project files are moved to Trash.
+                </p>
+                <ul>
+                  {deletionDialog.preview.dependencies.map((dependency) => (
+                    <li key={dependency.projectRoot}>
+                      <strong>{dependency.dashboardName?.trim() || basename(dependency.projectRoot)}</strong>
+                      <ul>
+                        {dependency.configPaths.map((configPath) => <li key={configPath}><code>{configPath}</code></li>)}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {!deletionDialog.preview.analysisComplete ? (
+              <section className="dashboard-delete-issues" role="alert">
+                <strong>File removal is unavailable</strong>
+                <p>
+                  dash-bored could not safely complete dependency analysis, so the project files cannot be moved to Trash from this dialog.
+                </p>
+                <ul>
+                  {deletionDialog.preview.analysisIssues.map((issue) => <li key={issue}>{issue}</li>)}
+                </ul>
+              </section>
+            ) : null}
+
+            {deletionDialog.preview.filesExist ? (
+              <label className={`dashboard-delete-files-option${deletionDialog.removeFiles ? " dashboard-delete-files-option--selected" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={deletionDialog.removeFiles}
+                  disabled={!deletionDialog.preview.analysisComplete}
+                  onChange={(event) => setDeletionDialog((current) => current ? { ...current, removeFiles: event.target.checked } : current)}
+                />
+                <span>
+                  <strong>Also move project files to Trash</strong>
+                  <small>Moves only {deletionDialog.preview.filesDirectory} and its nested dash-bored bundles, components, locks, and environment files.</small>
+                </span>
+              </label>
+            ) : (
+              <p className="dashboard-delete-no-files">No app-owned dash-bored/ directory was found, so only the sidebar entry will be removed.</p>
+            )}
+
+            {deletionDialog.removeFiles ? (
+              <section className="dashboard-delete-warning" role="alert">
+                <strong>Project files will be moved to the OS Trash.</strong>
+                <p>This removes the dashboard’s app-owned files and can break the links listed above. Source project files outside dash-bored/ are never touched.</p>
+              </section>
+            ) : null}
+
+            <footer className="editor-modal__actions">
+              <button className="button button--quiet" data-modal-close type="button" onClick={() => setDeletionDialog(null)}>Cancel</button>
+              <button
+                className="button button--danger"
+                type="button"
+                disabled={deletionDialog.removeFiles && !deletionDialog.preview.analysisComplete}
+                onClick={() => void confirmDeletion()}
+              >
+                {deletionDialog.removeFiles ? "Move files to Trash & remove" : "Remove dashboard"}
+              </button>
             </footer>
           </div>
         </EditorModal>

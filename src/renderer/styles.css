@@ -337,19 +337,77 @@ code {
 }
 
 .sidebar__project-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
+  position: relative;
+  min-width: 0;
   border-radius: 9px;
 }
 
 .sidebar__project-link {
+  width: 100%;
   min-width: 0;
+}
+
+.sidebar__project-remove {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  background: rgb(255 255 255 / 6%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(4px, -50%, 0);
+  visibility: hidden;
+  transition: opacity 160ms ease, transform 160ms ease, color 160ms ease, background 160ms ease, border-color 160ms ease, visibility 0s linear 160ms;
+}
+
+.app-shell--sidebar-expanded .sidebar__project-row:hover .sidebar__project-remove,
+.app-shell--sidebar-expanded .sidebar__project-row:focus-within .sidebar__project-remove {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, -50%, 0);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.sidebar__project-remove:hover:not(:disabled),
+.sidebar__project-remove:focus-visible {
+  border-color: rgb(255 123 123 / 30%);
+  color: #ffc0c0;
+  outline: none;
+  background: rgb(255 123 123 / 12%);
+}
+
+.sidebar__project-remove:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.sidebar__project-remove svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
 }
 
 .app-shell:not(.app-shell--sidebar-expanded) .sidebar__label,
 .app-shell:not(.app-shell--sidebar-expanded) .sidebar__chevron {
   pointer-events: none;
+}
+
+.app-shell:not(.app-shell--sidebar-expanded) .sidebar__project-remove {
+  display: none;
 }
 
 .app-header {
@@ -1393,6 +1451,132 @@ code {
 .remove-confirmation {
   display: grid;
   gap: 12px;
+}
+
+.dashboard-delete-confirmation {
+  max-width: 680px;
+}
+
+.dashboard-delete-confirmation strong {
+  color: var(--text);
+}
+
+.dashboard-delete-dependencies,
+.dashboard-delete-issues,
+.dashboard-delete-warning {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+
+.dashboard-delete-dependencies h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.dashboard-delete-dependencies p,
+.dashboard-delete-issues p,
+.dashboard-delete-warning p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.dashboard-delete-dependencies ul,
+.dashboard-delete-issues ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dashboard-delete-dependencies ul ul {
+  gap: 3px;
+  margin-top: 4px;
+  padding-left: 16px;
+  list-style: circle;
+}
+
+.dashboard-delete-dependencies code {
+  overflow-wrap: anywhere;
+  color: #aab4c2;
+  font-size: 10px;
+}
+
+.dashboard-delete-issues {
+  border-color: rgb(244 198 107 / 35%);
+  background: rgb(244 198 107 / 7%);
+}
+
+.dashboard-delete-issues > strong,
+.dashboard-delete-warning > strong {
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.dashboard-delete-files-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--border-bright);
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  background: #0c0f14;
+}
+
+.dashboard-delete-files-option:hover:has(input:not(:disabled)),
+.dashboard-delete-files-option--selected {
+  border-color: rgb(255 123 123 / 38%);
+  background: rgb(255 123 123 / 7%);
+}
+
+.dashboard-delete-files-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--negative);
+}
+
+.dashboard-delete-files-option span {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-delete-files-option small,
+.dashboard-delete-no-files {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.dashboard-delete-warning {
+  border-color: rgb(255 123 123 / 40%);
+  background: rgb(112 25 30 / 18%);
+}
+
+.dashboard-delete-warning > strong {
+  color: #ffc0c0;
+}
+
+.dashboard-delete-no-files {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.dashboard-delete-confirmation .editor-modal__actions {
+  flex-wrap: wrap;
 }
 
 .boot,

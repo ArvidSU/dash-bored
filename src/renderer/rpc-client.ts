@@ -9,6 +9,7 @@ import type {
   HttpRequest,
   HttpResponsePayload,
   ProcessSnapshot,
+  ProjectDeletionPreview,
   ProjectListItem,
   ProjectSnapshot,
   ShellRunRequest,
@@ -91,6 +92,15 @@ export const host = {
 
   openProject(projectRoot: string): Promise<ProjectSnapshot> {
     return snapshotRequest(() => rpc.request.openProject({ projectRoot }));
+  },
+
+  async getProjectDeletionPreview(projectRoot: string): Promise<ProjectDeletionPreview> {
+    ensureTransport();
+    return await rpc.request.getProjectDeletionPreview({ projectRoot });
+  },
+
+  deleteProject(projectRoot: string, removeFiles: boolean): Promise<ProjectSnapshot> {
+    return snapshotRequest(() => rpc.request.deleteProject({ projectRoot, removeFiles }));
   },
 
   trustProject(): Promise<ProjectSnapshot> {

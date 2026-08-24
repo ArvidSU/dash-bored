@@ -58,4 +58,22 @@ describe("ProjectRegistry", () => {
 
     expect(await registry.list()).toEqual([]);
   });
+
+  test("removes and restores a project with atomic persisted registry state", async () => {
+    const directory = await temporaryDirectory();
+    cleanup.push(directory);
+    const registryPath = join(directory, "state", "projects-v1.json");
+    const projectRoot = join(directory, "project");
+    const item = { projectRoot, dashboardName: "Restore me" };
+    const registry = new ProjectRegistry(registryPath);
+
+    await registry.remember(snapshot(projectRoot, item.dashboardName));
+    expect(await registry.remove(projectRoot)).toEqual(item);
+    expect(await registry.list()).toEqual([]);
+    expect(await new ProjectRegistry(registryPath).list()).toEqual([]);
+
+    await registry.restore(item);
+    expect(await new ProjectRegistry(registryPath).list()).toEqual([item]);
+    expect(await registry.remove(join(directory, "missing"))).toBeNull();
+  });
 });

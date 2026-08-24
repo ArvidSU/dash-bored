@@ -25,6 +25,26 @@ export class ProjectRegistry {
 
   constructor(private readonly path: string) {}
 
+  private enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.writeQueue.then(operation, operation);
+    this.writeQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private async persist(): Promise<void> {
+    await mkdir(dirname(this.path), { recursive: true });
+    const temporaryPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(
+      temporaryPath,
+      `${JSON.stringify({ version: 1, projects: this.projects }, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+    await rename(temporaryPath, this.path);
+  }
+
   private load(): Promise<void> {
     this.loadPromise ??= (async () => {
       try {
@@ -66,7 +86,7 @@ export class ProjectRegistry {
       dashboardName: snapshot.dashboardName,
     };
 
-    this.writeQueue = this.writeQueue.then(async () => {
+    await this.enqueueWrite(async () => {
       const existingIndex = this.projects.findIndex(
         (project) => project.projectRoot === item.projectRoot,
       );
@@ -76,18 +96,50 @@ export class ProjectRegistry {
       ) {
         return;
       }
+      const previous = existingIndex === -1 ? undefined : this.projects[existingIndex];
       if (existingIndex === -1) this.projects.push(item);
       else this.projects[existingIndex] = item;
-
-      await mkdir(dirname(this.path), { recursive: true });
-      const temporaryPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
-      await writeFile(
-        temporaryPath,
-        `${JSON.stringify({ version: 1, projects: this.projects }, null, 2)}\n`,
-        { mode: 0o600 },
-      );
-      await rename(temporaryPath, this.path);
+      try {
+        await this.persist();
+      } catch (error) {
+        if (existingIndex === -1) this.projects.pop();
+        else if (previous !== undefined) this.projects[existingIndex] = previous;
+        throw error;
+      }
     });
-    await this.writeQueue;
+  }
+
+  async remove(projectRoot: string): Promise<ProjectListItem | null> {
+    await this.load();
+    return this.enqueueWrite(async () => {
+      const index = this.projects.findIndex((project) => project.projectRoot === projectRoot);
+      if (index === -1) return null;
+      const [removed] = this.projects.splice(index, 1);
+      try {
+        await this.persist();
+      } catch (error) {
+        if (removed !== undefined) this.projects.splice(index, 0, removed);
+        throw error;
+      }
+      return removed ? structuredClone(removed) : null;
+    });
+  }
+
+  async restore(project: ProjectListItem): Promise<void> {
+    await this.load();
+    await this.enqueueWrite(async () => {
+      const index = this.projects.findIndex((candidate) => candidate.projectRoot === project.projectRoot);
+      const previous = index === -1 ? undefined : this.projects[index];
+      const restored = structuredClone(project);
+      if (index === -1) this.projects.push(restored);
+      else this.projects[index] = restored;
+      try {
+        await this.persist();
+      } catch (error) {
+        if (index === -1) this.projects.pop();
+        else if (previous !== undefined) this.projects[index] = previous;
+        throw error;
+      }
+    });
   }
 }

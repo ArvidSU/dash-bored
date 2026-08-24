@@ -252,6 +252,23 @@ export class ProjectRuntime {
     });
   }
 
+  /** Stop all project-owned activity without closing the reusable runtime. */
+  async unload(): Promise<ProjectSnapshot> {
+    if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
+    return this.enqueue(async () => {
+      this.stopWatching();
+      await this.processManager?.close();
+      this.processManager = null;
+      this.capabilities.configure(null);
+      this.location = null;
+      this.snapshot = {
+        ...emptySnapshot(),
+        revision: this.snapshot.revision + 1,
+      };
+      return this.emitSnapshot();
+    });
+  }
+
   private async sourceLocation(configPath?: string): Promise<ProjectLocation> {
     if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
     if (configPath === undefined || configPath === this.location.configPath) return this.location;
