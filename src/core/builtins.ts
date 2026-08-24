@@ -8,6 +8,24 @@ const objectSchema = (properties: Record<string, unknown>, required: string[] = 
 });
 
 const string = { type: "string", minLength: 1 } as const;
+const chartSeriesSchema = objectSchema(
+  {
+    label: string,
+    values: {
+      type: "array",
+      minItems: 1,
+      maxItems: 500,
+      items: { type: ["number", "null"] },
+    },
+    color: string,
+  },
+  ["label", "values"],
+);
+const chartCommonProperties = {
+  title: { type: "string" },
+  type: { enum: ["line", "bar"] },
+  maxPoints: { type: "integer", minimum: 2, maximum: 200 },
+};
 
 const manifests: ComponentManifest[] = [
   {
@@ -89,6 +107,48 @@ const manifests: ComponentManifest[] = [
       },
       ["label", "state"],
     ),
+  },
+  {
+    schemaVersion: 1,
+    id: "@dash-bored/chart",
+    name: "Chart",
+    description: "Plots static line or bar data declared in dashboard YAML.",
+    entry: "builtin:chart",
+    propsSchema: objectSchema(
+      {
+        ...chartCommonProperties,
+        labels: {
+          type: "array",
+          minItems: 1,
+          maxItems: 500,
+          items: { type: "string" },
+        },
+        series: {
+          type: "array",
+          minItems: 1,
+          maxItems: 12,
+          items: chartSeriesSchema,
+        },
+      },
+      ["labels", "series"],
+    ),
+  },
+  {
+    schemaVersion: 1,
+    id: "@dash-bored/live-chart",
+    name: "Live chart",
+    description: "Polls a JSON endpoint and plots its chart-shaped response.",
+    entry: "builtin:live-chart",
+    propsSchema: objectSchema(
+      {
+        ...chartCommonProperties,
+        endpoint: { type: "string", pattern: "^(https?://|/|\\./)" },
+        dataPath: { type: "string" },
+        pollIntervalMs: { type: "integer", minimum: 1000, maximum: 300000 },
+      },
+      ["endpoint"],
+    ),
+    permissions: ["network:http"],
   },
   {
     schemaVersion: 1,

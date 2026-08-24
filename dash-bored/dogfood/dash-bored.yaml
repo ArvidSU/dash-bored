@@ -18,6 +18,45 @@ root:
             lock file, and component directory.
 
             Focus this panel and edit it to exercise bundle-local structural editing.
+      - id: dogfood-static-chart-card
+        component: "@dash-bored/card"
+        props:
+          title: Static chart
+          description: A multi-series chart declared entirely in dashboard YAML.
+        slots:
+          children:
+            - id: dogfood-static-chart
+              component: "@dash-bored/chart"
+              props:
+                title: Weekly workflow throughput
+                type: bar
+                labels:
+                  - Mon
+                  - Tue
+                  - Wed
+                  - Thu
+                  - Fri
+                series:
+                  - label: Checks passed
+                    color: "#70e2a0"
+                    values: [18, 24, 21, 29, 34]
+                  - label: Checks skipped
+                    color: "#f4c66b"
+                    values: [4, 3, 5, 2, 1]
+      - id: dogfood-live-chart-card
+        component: "@dash-bored/card"
+        props:
+          title: Live chart
+          description: Polls a local JSON endpoint every four seconds and pauses in hidden tabs.
+        slots:
+          children:
+            - id: dogfood-live-chart
+              component: "@dash-bored/live-chart"
+              props:
+                title: Renderer activity sample
+                endpoint: /dash-bored-chart-fixture.json
+                pollIntervalMs: 4000
+                maxPoints: 30
       - id: dogfood-status
         component: "@dash-bored/status"
         props:

@@ -239,6 +239,8 @@ The initial built-ins are:
   `@dash-bored/card`.
 - Display: `@dash-bored/text`, `@dash-bored/markdown`, and
   `@dash-bored/status`.
+- Charts: `@dash-bored/chart` for static YAML data and
+  `@dash-bored/live-chart` for polling JSON data.
 - Host-backed: `@dash-bored/command`, `@dash-bored/terminal`,
   `@dash-bored/file`, `@dash-bored/env`, and `@dash-bored/webview`.
 
@@ -247,6 +249,13 @@ file, and provides a key-value editor with a bulk/raw mode. Saving requires
 project trust because the component requests both `filesystem:read` and
 `filesystem:write`; comments, blank lines, and unrecognized lines remain in
 place when editing through the key-value view.
+
+Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
+static line or bar data from YAML, while `@dash-bored/live-chart` polls an HTTP
+JSON endpoint using `network:http`. Its endpoint can be absolute HTTP(S) or an
+app-relative path such as `/metrics/chart.json`; it also supports an optional
+dot-separated `dataPath` and pauses polling when its containing tab is hidden. Both keep
+rendering the last valid live result when a refresh fails.
 
 ### Compose standalone dashboards
 

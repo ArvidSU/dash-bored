@@ -271,6 +271,12 @@ resolution without pretending that resolution exists today.
 
 ## Component system
 
+The built-in catalog includes layout primitives, inline display components,
+`@dash-bored/chart` for YAML-defined static line or bar data, and
+`@dash-bored/live-chart` for polling a JSON chart model through the
+`network:http` capability. These chart components share a dependency-free SVG
+renderer and keep the last valid live result when a refresh fails.
+
 ### Standalone dashboard paths
 
 A component reference outside the built-in `@dash-bored/*` namespace and the
@@ -342,6 +348,23 @@ whether it accepts multiple nodes. Supported permission names are:
 - `filesystem:write`
 - `network:http`
 - `process:execute`
+
+Chart-shaped data uses a shared model:
+
+```yaml
+labels: [Mon, Tue, Wed, Thu]
+series:
+  - label: Checks passed
+    values: [18, 24, 21, 29]
+```
+
+`@dash-bored/chart` receives that model through its required `labels` and
+`series` props. `@dash-bored/live-chart` receives it from an HTTP JSON response.
+Its `endpoint` may be absolute HTTP(S) or an app-relative path such as
+`/metrics/chart.json`, and may optionally select a nested model with a
+dot-separated `dataPath`; it accepts `type: line|bar`,
+`pollIntervalMs: 1000..300000`, and `maxPoints: 2..200`. Live polling stops
+while the containing tab is hidden.
 
 Generic tree validation runs before component-specific props and slots are
 validated. The requested project permission set is the union of permissions
