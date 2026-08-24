@@ -25,6 +25,10 @@ behavior, its practical consequence, and the safe way to handle it.
   Do not terminate a user-owned dev process just to obtain the lock. With the
   generated Hutch files already present, use `bunx tsc --noEmit`, `bun test`,
   and `bunx vite build` for non-locking checks, and report that substitution.
+  macOS does not provide the usual `timeout` command; use a TTY/interruption
+  or a compatible timeout, inspect existing `npm run dev`/Electrobun/Vite
+  processes before starting another one, and clean up only processes you
+  launched.
 - In-app dashboard edits are draft-first. Save validates the whole tree,
   compares the source revision, and atomically rewrites canonical YAML; stale,
   invalid, or trusted-local compilation failures must leave the file unchanged.
@@ -32,8 +36,21 @@ behavior, its practical consequence, and the safe way to handle it.
   target is rendered as a local component error instead of invalidating its
   source dashboard; focusing linked content before editing selects the linked
   bundle's YAML as the single atomic save target.
+- The dashboard editor is structural; component-specific content belongs in
+  Configure. In particular, `@dash-bored/tabs` stores one `props.labels` entry
+  per child in positional order, so insert/remove/reorder operations must move
+  labels with their panels and the tab fields/add/remove controls belong in its
+  Configure modal.
+- At narrow widths the expanded sidebar is a fixed overlay while the app frame
+  remains in the grid. Keep the app frame explicitly in grid column 2 and test
+  both collapsed and expanded narrow states; otherwise CSS auto-placement can
+  put the content in the sidebar column and collapse it to roughly 58px.
 - Native `<electrobun-webview>` elements are separate window overlays, not DOM
   descendants. CSS hiding an ancestor does not hide the native surface; the
   built-in tabs renderer must propagate panel visibility so webviews initialize
   only when visible and call `toggleHidden` plus `syncDimensions` when tabs
   change.
+- A renderer harness or semantic app-state probe does not prove native desktop
+  interaction. If the Mac is locked or modifier-key injection is unreliable,
+  verify the native menu path and renderer handler separately, and report the
+  missing native coverage instead of presenting it as a completed smoke test.
