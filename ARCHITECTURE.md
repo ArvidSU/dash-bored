@@ -649,6 +649,8 @@ command palette merges three providers:
 
 - application navigation, lifecycle, and dashboard editing actions from shell
   state;
+- focus actions for every node in the currently selected dashboard, using the
+  same virtual-root navigation as the inline Focus controls;
 - start/stop actions derived from resolved `@dash-bored/command` nodes and
   their authoritative process snapshots;
 - actions registered by mounted, trusted local component instances.

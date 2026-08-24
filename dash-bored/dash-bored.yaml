@@ -31,7 +31,24 @@ root:
                   loop, inspect the project contract, and exercise the runtime itself.
 
                   Press **Command-K** to find app, command, and local-component
-                  actions from one place.
+                  actions from one place. You can also search for any dashboard
+                  node and focus it as the temporary dashboard root.
+            - id: command-palette-navigation-card
+              component: "@dash-bored/card"
+              props:
+                title: Command palette navigation
+                description: Focus any dashboard node without hunting through nested panels.
+              slots:
+                children:
+                  - id: command-palette-navigation-help
+                    component: "@dash-bored/markdown"
+                    props:
+                      content: |
+                        ### Focus any node
+
+                        Open the command palette and search for **Focus** to jump to
+                        a component or return to the full dashboard. The focus is
+                        temporary and does not change the YAML configuration.
             - id: overview-layout
               component: "@dash-bored/split"
               props:

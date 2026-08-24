@@ -78,6 +78,69 @@ function blockedReason(pendingAction: string | null): string | undefined {
     : "Another application action is in progress.";
 }
 
+function focusNodeLabel(node: ResolvedComponentNode, isRoot: boolean): string {
+  if (isRoot) return "Dashboard";
+  const title = node.props.title ?? node.props.label ?? node.props.name;
+  if (typeof title === "string" && title.trim()) return title.trim();
+  return node.manifest?.name ?? node.component.replace(/^@dash-bored\//, "");
+}
+
+interface FocusNodeContext {
+  node: ResolvedComponentNode;
+  path: string[];
+}
+
+function dashboardNodes(
+  node: ResolvedComponentNode,
+  path: readonly string[] = [],
+  isRoot = true,
+): FocusNodeContext[] {
+  const label = focusNodeLabel(node, isRoot);
+  const nextPath = [...path, label];
+  return [
+    { node, path: nextPath },
+    ...Object.values(node.slots).flatMap((children) =>
+      children.flatMap((child) => dashboardNodes(child, nextPath, false)),
+    ),
+  ];
+}
+
+export function buildNodeFocusActions(
+  snapshot: ProjectSnapshot | null,
+  focusedNodeId: string | null,
+  editing: boolean,
+  focusNode: (nodeId: string) => void,
+): PaletteAction[] {
+  if (!snapshot?.projectRoot || !snapshot.tree) return [];
+
+  return dashboardNodes(snapshot.tree).map(({ node, path }) => {
+    const alreadyFocused = node.id === focusedNodeId;
+    const disabledReason = editing
+      ? "Finish dashboard editing before focusing a node."
+      : alreadyFocused
+        ? "This node is already focused."
+        : undefined;
+    return {
+      id: `focus:${encodeURIComponent(node.id)}`,
+      label: `Focus ${path.at(-1)}`,
+      description: `Show ${path.join(" / ")} in the active dashboard.`,
+      keywords: [
+        "focus",
+        "node",
+        snapshot.dashboardName ?? "",
+        node.id,
+        node.component,
+        ...path,
+      ],
+      group: "Dashboard nodes",
+      source: node.id,
+      enabled: disabledReason === undefined,
+      ...(disabledReason ? { disabledReason } : {}),
+      run: () => focusNode(node.id),
+    } satisfies PaletteAction;
+  });
+}
+
 function appAction(
   action: Omit<PaletteAction, "keywords" | "enabled"> & {
     keywords?: string[];
