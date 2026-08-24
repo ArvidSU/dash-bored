@@ -11,6 +11,7 @@ import type {
 import {
   buildApplicationActions,
   buildProcessActions,
+  buildNodeFocusActions,
 } from "../../src/renderer/action-providers";
 import type {
   ProjectSnapshot,
@@ -304,6 +305,46 @@ describe("application action providers", () => {
       enabled: false,
       disabledReason: "This process is stopping.",
     });
+  });
+
+  test("derives focus actions for every node in the active dashboard", () => {
+    let focusedNode: string | undefined;
+    const actions = buildNodeFocusActions(
+      snapshot({ trusted: true }),
+      "server",
+      false,
+      (nodeId) => {
+        focusedNode = nodeId;
+      },
+    );
+
+    expect(actions.map((item) => item.id)).toEqual([
+      "focus:root",
+      "focus:server",
+    ]);
+    expect(actions[0]).toMatchObject({
+      label: "Focus Dashboard",
+      description: "Show Dashboard in the active dashboard.",
+      group: "Dashboard nodes",
+      enabled: true,
+    });
+    expect(actions[1]).toMatchObject({
+      label: "Focus Development server",
+      enabled: false,
+      disabledReason: "This node is already focused.",
+    });
+
+    actions[0]?.run();
+    expect(focusedNode).toBe("root");
+  });
+
+  test("keeps node focus actions searchable but unavailable while editing", () => {
+    const actions = buildNodeFocusActions(snapshot(), null, true, () => undefined);
+    expect(actions).toHaveLength(2);
+    expect(actions.every((item) => item.enabled)).toBeFalse();
+    expect(actions[0]?.disabledReason).toBe(
+      "Finish dashboard editing before focusing a node.",
+    );
   });
 
   test("exposes dashboard editing and draft save actions from the current editor state", () => {

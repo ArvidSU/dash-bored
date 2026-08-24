@@ -14,6 +14,7 @@ import type {
 } from "../shared/contracts";
 import {
   buildApplicationActions,
+  buildNodeFocusActions,
   hasLocalNode,
   PERMISSION_LABELS,
   projectLabel,
@@ -857,19 +858,6 @@ export function App(): ReactNode {
       },
     },
   });
-  const allActions = [...applicationActions, ...componentActions];
-  actionsByIdRef.current = new Map(allActions.map((action) => [action.id, action]));
-
-  async function executePaletteAction(id: string): Promise<void> {
-    setActionError(null);
-    const result = await actionExecutor.run(id);
-    if (result.status === "failed") setActionError(errorMessage(result.error));
-    else if (result.status === "unavailable") setActionError(result.reason);
-    else if (result.status === "running") {
-      setActionError("That action is already running.");
-    }
-  }
-
   const projectRoot = snapshot?.projectRoot ?? null;
   const storedVirtualRoot = projectRoot ? virtualRoots[projectRoot] : null;
   const virtualRoot = snapshot?.tree
@@ -908,6 +896,28 @@ export function App(): ReactNode {
       window.localStorage.setItem(virtualRootStorageKey(projectRoot), nodeId);
     } catch {
       // Session state remains usable when persistence is unavailable.
+    }
+  }
+
+  const nodeFocusActions = buildNodeFocusActions(
+    snapshot,
+    virtualRoot?.node.id ?? null,
+    editingCurrentProject,
+    (nodeId) => {
+      setActiveView("dashboard");
+      focusComponent(nodeId);
+    },
+  );
+  const allActions = [...applicationActions, ...nodeFocusActions, ...componentActions];
+  actionsByIdRef.current = new Map(allActions.map((action) => [action.id, action]));
+
+  async function executePaletteAction(id: string): Promise<void> {
+    setActionError(null);
+    const result = await actionExecutor.run(id);
+    if (result.status === "failed") setActionError(errorMessage(result.error));
+    else if (result.status === "unavailable") setActionError(result.reason);
+    else if (result.status === "running") {
+      setActionError("That action is already running.");
     }
   }
 

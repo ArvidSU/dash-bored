@@ -348,6 +348,7 @@ until the expanded permission set is trusted.
 
 Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
+every node in the currently selected dashboard for virtual-root focus,
 configured `@dash-bored/command` processes, and actions contributed by active
 local components.
 
