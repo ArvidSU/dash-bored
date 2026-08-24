@@ -96,6 +96,40 @@ export function nodeAtPath(root: ComponentNode, path: NodePath): ComponentNode {
   return node;
 }
 
+export function nodePathById(
+  root: ComponentNode,
+  id: string,
+  path: NodePath = [],
+): NodePath | null {
+  if (root.id === id) return path;
+  for (const [slot, value] of Object.entries(root.slots ?? {})) {
+    const children = Array.isArray(value) ? value : [value];
+    for (const [index, child] of children.entries()) {
+      const match = nodePathById(child, id, [...path, { slot, index }]);
+      if (match) return match;
+    }
+  }
+  return null;
+}
+
+export function collapsibleNodePaths(
+  root: ComponentNode,
+  path: NodePath = [],
+): NodePath[] {
+  const paths: NodePath[] = [];
+  const entries = Object.entries(root.slots ?? {});
+  if (entries.some(([, value]) => (Array.isArray(value) ? value.length : 1) > 0)) {
+    paths.push(path);
+  }
+  for (const [slot, value] of entries) {
+    const children = Array.isArray(value) ? value : [value];
+    children.forEach((child, index) => {
+      paths.push(...collapsibleNodePaths(child, [...path, { slot, index }]));
+    });
+  }
+  return paths;
+}
+
 function setSlotChildren(
   node: ComponentNode,
   slot: string,

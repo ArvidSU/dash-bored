@@ -5,11 +5,14 @@ import type {
   DashboardConfig,
 } from "../../src/shared/contracts";
 import {
+  collapsibleNodePaths,
   countNodes,
   countDiscardedRootNodes,
   createNode,
   insertNode,
   moveNode,
+  nodePathById,
+  pathKey,
   removeNode,
   renameTab,
   replaceRoot,
@@ -152,6 +155,19 @@ describe("dashboard editor tree operations", () => {
 
     const removed = removeNode(updated, [{ slot: "children", index: 0 }], catalog);
     expect(slotChildren(removed.root, "children").map((node) => node.id)).toEqual(["second", "text"]);
+  });
+
+  test("finds stable node paths and identifies collapsible branches", () => {
+    const tree = config();
+    expect(nodePathById(tree.root, "nested")).toEqual([
+      { slot: "children", index: 0 },
+      { slot: "children", index: 0 },
+    ]);
+    expect(nodePathById(tree.root, "missing")).toBeNull();
+    expect(collapsibleNodePaths(tree.root).map(pathKey)).toEqual([
+      "root",
+      "children:0",
+    ]);
   });
 
   test("replaces the root with any available component and carries compatible children", () => {
