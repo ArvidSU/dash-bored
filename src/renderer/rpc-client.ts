@@ -1,5 +1,8 @@
 import { Electroview } from "electrobun/view";
 import type {
+  AppSettings,
+  ComponentAgentLaunch,
+  ComponentAgentRequest,
   DashboardConfig,
   DashboardConfigSource,
   DashboardDraftValidation,
@@ -79,6 +82,21 @@ export const host = {
 
   getSnapshot(): Promise<ProjectSnapshot> {
     return snapshotRequest(() => rpc.request.getSnapshot({}));
+  },
+
+  async getAppSettings(): Promise<AppSettings> {
+    ensureTransport();
+    return await rpc.request.getAppSettings({});
+  },
+
+  async updateAppSettings(settings: AppSettings): Promise<AppSettings> {
+    ensureTransport();
+    return await rpc.request.updateAppSettings(settings);
+  },
+
+  async runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
+    ensureTransport();
+    return await rpc.request.runComponentAgent(request);
   },
 
   async listProjects(): Promise<ProjectListItem[]> {

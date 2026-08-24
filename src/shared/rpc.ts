@@ -1,5 +1,8 @@
 import type { RPCSchema } from "electrobun/main";
 import type {
+  AppSettings,
+  ComponentAgentLaunch,
+  ComponentAgentRequest,
   DashboardConfig,
   DashboardConfigSource,
   DashboardDraftValidation,
@@ -24,6 +27,9 @@ export type DashboardRPC = {
   bun: RPCSchema<{
     requests: {
       getSnapshot: { params: {}; response: ProjectSnapshot };
+      getAppSettings: { params: {}; response: AppSettings };
+      updateAppSettings: { params: AppSettings; response: AppSettings };
+      runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
       listProjects: { params: {}; response: ProjectListItem[] };
       getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
       chooseProject: { params: {}; response: ProjectSnapshot };

@@ -54,6 +54,18 @@ function pathForChild(parent: string, slot: string, index: number): string {
   return `${parent}.${slot}.${index}`;
 }
 
+function sourcePathForNodePath(nodePath: string): string {
+  if (nodePath === "root") return nodePath;
+  const segments = nodePath.split(".");
+  let sourcePath = segments.shift() ?? "root";
+  while (segments.length >= 2) {
+    const slot = segments.shift();
+    const index = segments.shift();
+    sourcePath += `.slots.${slot}[${index}]`;
+  }
+  return sourcePath;
+}
+
 function propsDiagnosticPath(nodePath: string, instancePath: string): string {
   return `${nodePath}.props${instancePath.replaceAll("/", ".")}`;
 }
@@ -448,6 +460,7 @@ export async function resolveComponentTree(
         slots: linkedTree ? { content: [linkedTree] } : {},
         source: "config",
         sourceConfigPath: location.configPath,
+        sourcePath: sourcePathForNodePath(nodePath),
         ...(configPath === undefined ? {} : { configPath }),
         ...(configName === undefined ? {} : { configName }),
         ...(configError === undefined ? {} : { configError }),
@@ -570,6 +583,7 @@ export async function resolveComponentTree(
       slots: resolvedSlots,
       source: node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? "local" : "builtin",
       sourceConfigPath: location.configPath,
+      sourcePath: sourcePathForNodePath(nodePath),
       ...(node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? { manifest } : {}),
     };
   };

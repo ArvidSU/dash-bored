@@ -6,9 +6,16 @@ import Electrobun, {
   Utils,
 } from "electrobun/main";
 import { join } from "node:path";
-import { CoreError, ProjectRuntime, TrustStore } from "../core/index";
+import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import type { ProjectSnapshot } from "../shared/contracts";
+import {
+  buildComponentAgentPrompt,
+  componentPath,
+  findResolvedNode,
+} from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
+import { AppSettingsStore } from "./app-settings";
+import { ComponentAgentRunner } from "./component-agent";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
@@ -54,6 +61,10 @@ function openCommandPalette(): void {
 
 const trustStore = new TrustStore(join(Utils.paths.userData, "trusted-projects-v1.json"));
 const projectRegistry = new ProjectRegistry(join(Utils.paths.userData, "projects-v1.json"));
+const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
+const initialAppSettings = await appSettingsStore.get();
+process.env.DASH_BORED_AGENT = initialAppSettings.dashBoredAgent;
+const componentAgentRunner = new ComponentAgentRunner();
 const runtime = new ProjectRuntime({
   trustStore,
   onSnapshot(snapshot) {
@@ -67,6 +78,37 @@ const runtime = new ProjectRuntime({
       ?.send?.process(process);
   },
 });
+
+async function runComponentAgent(nodeId: string, userPrompt: string) {
+  const snapshot = runtime.getSnapshot();
+  if (!snapshot.tree || !snapshot.projectRoot) {
+    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to change it.");
+  }
+  const node = findResolvedNode(snapshot.tree, nodeId);
+  if (!node) {
+    throw new CoreError(
+      "COMPONENT_NOT_FOUND",
+      "That component is no longer present. Reopen its menu and try again.",
+    );
+  }
+  const source = await runtime.getDashboardConfigSource(node.sourceConfigPath);
+  const sourceLocation = await resolveProjectLocation(source.configPath);
+  const locator = componentPath(node);
+  const settings = await appSettingsStore.get();
+  const prompt = buildComponentAgentPrompt({
+    projectRoot: sourceLocation.projectRoot,
+    configPath: source.configPath,
+    componentPath: locator,
+    componentId: node.id,
+    componentReference: node.component,
+  }, userPrompt);
+  return componentAgentRunner.launch({
+    command: settings.dashBoredAgent,
+    prompt,
+    projectRoot: sourceLocation.projectRoot,
+    componentPath: locator,
+  });
+}
 
 async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
   const paths = await Utils.openFileDialog({
@@ -99,6 +141,13 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
   handlers: {
     requests: {
       getSnapshot: () => runtime.getSnapshot(),
+      getAppSettings: () => appSettingsStore.get(),
+      updateAppSettings: async (settings) => {
+        const updated = await appSettingsStore.update(settings);
+        process.env.DASH_BORED_AGENT = updated.dashBoredAgent;
+        return updated;
+      },
+      runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
       listProjects: () => projectRegistry.list(),
       getProjectOutline: ({ projectRoot, configPath }) =>
         getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),
@@ -205,7 +254,7 @@ Electrobun.events.on("before-quit", (event) => {
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
-  void runtime.close().finally(() => {
+  void Promise.all([runtime.close(), componentAgentRunner.close()]).finally(() => {
     Utils.quit(0);
   });
 });

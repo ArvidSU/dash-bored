@@ -41,17 +41,16 @@ describe("initializeProject", () => {
     expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain(
       "Inspect this project before making changes.",
     );
-    expect(agentCommand.props.command).toContain('. "./dash-bored/.env"');
-    expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(agentCommand.props.command).not.toContain('. "./dash-bored/.env"');
+    expect(environment).toContain("Configure DASH_BORED_AGENT once");
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
     expect(lock).toEqual({ lockfileVersion: 1, components: {} });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);
     expect((await readdir(join(project, "dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
 
-    await writeFile(result.environmentPath, 'DASH_BORED_AGENT="printf"\n');
     const command = Bun.spawn(["/bin/sh", "-lc", agentCommand.props.command], {
       cwd: project,
-      env: { ...process.env, ...agentCommand.props.env },
+      env: { ...process.env, ...agentCommand.props.env, DASH_BORED_AGENT: "printf" },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -77,7 +76,7 @@ describe("initializeProject", () => {
     expect(result.configPath).toBe(join(canonicalProject, "dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
     expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: {} });
-    expect(await readFile(result.environmentPath, "utf8")).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(await readFile(result.environmentPath, "utf8")).toContain("Configure DASH_BORED_AGENT once");
     expect(
       parse(await readFile(result.configPath, "utf8")).root.slots.children[2].slots.children[1].props.path,
     ).toBe("dash-bored/people/arvid/.env");

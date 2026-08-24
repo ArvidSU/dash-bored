@@ -48,6 +48,7 @@ Electrobun Bun main process
   - compile trusted local TSX with Bun.build()
   - enforce trust and component permissions
   - own subprocesses, file access, and HTTP requests
+  - persist app settings and launch the explicitly configured CLI agent
           |
           | typed request/response and snapshot RPC
           v
@@ -136,8 +137,10 @@ starter environment file, and `components/` directory when they are missing. It
 creates only missing artifacts and never replaces an existing configuration,
 lock, or environment file, so a partially initialized project is repaired
 without discarding project state.
-The starter `.env` is created with owner-only permissions and the generated
-environment editor and agent command both target that bundle-local file.
+The starter `.env` is created with owner-only permissions for project-local
+component and command variables. `DASH_BORED_AGENT` is app-wide instead: the
+main process persists it in the Electrobun user-data directory, publishes it to
+dashboard command environments, and exposes it in Settings.
 Directories selected in the desktop chooser are always treated as project
 roots, including when the selected directory itself is named `dash-bored`.
 
@@ -191,7 +194,7 @@ root:
               component: "@dash-bored/command"
               props:
                 label: Set up this dashboard
-                command: '. "./dash-bored/.env" && ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
+                command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
                 env:
                   DASH_BORED_AGENT_PROMPT: Inspect this project and customize its dash-bored dashboard.
 ```
@@ -587,11 +590,27 @@ The initial built-in set is intentionally generic:
   overlay rather than a DOM descendant, so ordinary CSS `display: none` cannot
   hide it reliably.
 
-Every rendered node exposes a focus action. Focusing a node makes it a virtual
-root in the application viewport and provides breadcrumb navigation back to
-its configured ancestors; it never rewrites YAML or changes which bundle owns
-the node. This is the same presentation model for an ordinary leaf, a layout
-subtree, or a referenced dashboard.
+Every rendered node exposes a keyboard-accessible context menu, also available
+through right-click. It contains Focus, Copy component path, and Change with
+agent. Focusing a node makes it a virtual root in the application viewport and
+provides breadcrumb navigation back to its configured ancestors; it never
+rewrites YAML or changes which bundle owns the node. Copy uses an unambiguous
+locator such as `/project/dash-bored/dash-bored.yaml#root.slots.children[0]`.
+Resolved nodes retain both the canonical owning YAML and their YAML-style path,
+including nodes reached through standalone config links.
+
+Change with agent opens a composer that visibly presents the resolved app-wide
+command, user text in quotes, and Send as one invocation. The renderer sends
+only the selected node ID and user text. The main process re-resolves that node
+from the authoritative tree, verifies its owning config is reachable, adds the
+project root, config path, component path, ID, reference, dash-bored guidance,
+and project-instruction reminder, then starts the configured CLI from the
+owning project root. The enriched prompt is passed in
+`DASH_BORED_AGENT_PROMPT` and referenced as one quoted shell argument, so user
+text is not interpolated into shell syntax. This app-owned, explicit user
+action does not grant project component code a capability or embed an AI
+provider; dashboard file watching remains responsible for showing accepted
+agent edits.
 
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts
 and collapse to a stacked layout in narrow windows. The application shell also
@@ -605,6 +624,11 @@ as separate sidebar entries. Each entry also retains its resolved top-level
 config icon when available. The sidebar can switch the single active runtime
 between those dashboards, add another target through the native chooser, open
 application settings, or remove a remembered dashboard.
+
+Application Settings also persists `DASH_BORED_AGENT` in a separate versioned,
+owner-only user-data file. The inherited environment value supplies the first
+default, with `codex exec` as the fallback. Updating it affects later component
+agent launches and later dashboard commands without rewriting project files.
 
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks
@@ -757,10 +781,10 @@ dash-bored open [project]
 - `init` and `init .` target the canonical bundle in the current project;
   `--project <path>` selects another project root. Initialization creates the
   required files and empty component directory, uses the bundle name in a valid
-  guided dashboard with an editable bundle-local `.env` file and an
-  agent-customization command that sources it, plus a command that installs the
-  packaged dash-bored skill into the project. It never overwrites existing
-  files.
+  guided dashboard with an editable bundle-local `.env` file, an
+  agent-customization command that uses the app-wide `DASH_BORED_AGENT`, and a
+  command that installs the packaged dash-bored skill into the project. It
+  never overwrites existing files.
 - `init <name ...>` joins every positional name as another safe directory
   level and creates a complete standalone bundle at that leaf, including its
   own config, lock, environment file, and components directory. It does not
@@ -872,7 +896,7 @@ The following are not part of this architecture yet:
 - Developer ID signing, notarization, or application auto-update
 - interactive PTY support, general project-file editing, and a general process viewer
 - simultaneously active multi-project views or windows
-- custom AI or agent infrastructure
+- embedded model-provider infrastructure or agent-specific SDK integration
 - claims of hostile-code or per-component isolation for trusted local components
 
 These can be added only after their contracts are reflected here and remain

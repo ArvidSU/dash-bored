@@ -210,7 +210,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
                 {
                   component: "@dash-bored/markdown",
                   props: {
-                    content: "Choose your CLI agent in the environment editor and save it. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Then install the portable project-local Agent Skill so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
+                    content: "Choose your CLI agent once in application Settings. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Then install the portable project-local Agent Skill so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
                   },
                 },
                 {
@@ -243,7 +243,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
                   component: "@dash-bored/command",
                   props: {
                     label: "Set up this dashboard",
-                    command: `. "./${environmentPath}" && \${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"`,
+                    command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"',
                     cwd: ".",
                     env: {
                       DASH_BORED_AGENT_PROMPT: agentPrompt,
@@ -303,9 +303,8 @@ async function createProjectFilesAtLocation(
   );
   const lock: DashboardLock = { lockfileVersion: 1, components: {} };
   const environment = [
-    "# Command used by the starter dashboard's agent setup action.",
-    "# Other examples: claude -p, gemini -p",
-    'DASH_BORED_AGENT="codex exec"',
+    "# Project-local variables used by dashboard components and commands.",
+    "# Configure DASH_BORED_AGENT once in the dash-bored application Settings.",
     "",
   ].join("\n");
   let configCreated = false;

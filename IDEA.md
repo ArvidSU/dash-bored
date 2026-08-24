@@ -60,6 +60,12 @@ The desktop app carries a version-matched dash-bored CLI and skill payload so
 the generated dashboard, the agent's discovery commands, and the component
 contract do not depend on a separate global dash-bored installation.
 
+Every rendered component should make that workflow immediate through a small
+context menu. Alongside Focus, users can copy an exact config-and-tree locator
+or describe a wanted change and send it to the app-wide configured
+`DASH_BORED_AGENT`. The app enriches that request with dash-bored, project, and
+component context; it does not hide which external CLI command will run.
+
 Direct manipulation complements that primary workflow. The desktop app may
 offer a focused structural editor for arranging existing components, filling
 their declared props, and adding or removing nodes. It should edit the same

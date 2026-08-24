@@ -129,9 +129,11 @@ project/
 The generated dashboard is immediately valid and combines a short guided tour,
 a sampler of the available component primitives, and a command that asks your
 chosen CLI coding agent to tailor the dashboard to the project. It uses
-`codex exec` by default; the included environment editor updates
-`DASH_BORED_AGENT` in `dash-bored/.env`, and the command sources that file
-before it runs. Adjacent actions optionally expose the bundled CLI to external
+`codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
+**Settings → Dashboard agent**. Every rendered component has a context menu
+with Focus, Copy component path, and Change with agent. The last action shows
+the resolved command before sending and enriches your request with the owning
+dashboard and exact component path. Adjacent actions optionally expose the bundled CLI to external
 shells and run `dash-bored install-skill .`, which copies the packaged guidance
 and component-authoring reference into the cross-client Agent Skills location
 `.agents/skills/dash-bored/`. That location is discovered by Codex, Gemini CLI,

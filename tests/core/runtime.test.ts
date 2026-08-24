@@ -378,6 +378,7 @@ describe("ProjectRuntime", () => {
     const loaded = await runtime.load(root);
     const linkedRoot = loaded.tree?.slots.content?.[0];
     expect(linkedRoot?.sourceConfigPath).toBe(await realpath(join(named, "dash-bored.yaml")));
+    expect(linkedRoot?.sourcePath).toBe("root");
 
     const source = await runtime.getDashboardConfigSource(linkedRoot?.sourceConfigPath);
     const edited: DashboardConfig = {

@@ -330,7 +330,7 @@ root:
               component: "@dash-bored/command"
               props:
                 label: Improve this dashboard with an agent
-                command: '. "./dash-bored/.env" && ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
+                command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
                 cwd: .
                 env:
                   DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.

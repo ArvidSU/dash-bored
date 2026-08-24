@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type {
+  AppSettings,
   DashboardConfig,
   DashboardDraftValidation,
   Diagnostic,
@@ -21,6 +22,7 @@ import type {
   ProjectTarget,
   ResolvedComponentNode,
 } from "../shared/contracts";
+import { componentPath } from "../shared/component-agent";
 import {
   buildApplicationActions,
   buildNodeFocusActions,
@@ -33,6 +35,7 @@ import { ActionExecutor, ActionRegistry } from "./actions";
 import type { PaletteAction } from "./actions";
 import { BuiltinRenderer } from "./builtins";
 import type { RenderedSlots } from "./builtins";
+import { writeClipboardText } from "./clipboard";
 import { CommandPalette } from "./CommandPalette";
 import {
   changedComponentIds,
@@ -99,6 +102,11 @@ interface ProjectOutlineState {
   tree: ResolvedComponentNode | null;
   loading: boolean;
   error: string | null;
+}
+
+interface ActionNotice {
+  id: number;
+  message: string;
 }
 
 function outlineError(outline: Pick<ProjectOutline, "tree" | "diagnostics">): string | null {
@@ -225,6 +233,152 @@ function createLocalHost(
   return componentHost;
 }
 
+interface ComponentFrameProps {
+  as?: "div" | "section";
+  node: ResolvedComponentNode;
+  className: string;
+  isVirtualRoot: boolean;
+  role?: "alert";
+  ariaLive?: "polite";
+  onFocus: (nodeId: string) => void;
+  onCopyPath: (node: ResolvedComponentNode) => void;
+  onOpenAgent: (node: ResolvedComponentNode) => void;
+  children: ReactNode;
+}
+
+function ComponentFrame({
+  as = "div",
+  node,
+  className,
+  isVirtualRoot,
+  role,
+  ariaLive,
+  onFocus,
+  onCopyPath,
+  onOpenAgent,
+  children,
+}: ComponentFrameProps): ReactNode {
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const Element = as;
+  const name = node.configName?.trim() || node.manifest?.name || node.component;
+
+  function positionMenu(anchorX: number, anchorY: number, alignRight: boolean): void {
+    const width = Math.min(224, window.innerWidth - 24);
+    const height = 132;
+    const requestedLeft = alignRight ? anchorX - width : anchorX;
+    setMenuPosition({
+      left: Math.max(12, Math.min(requestedLeft, window.innerWidth - width - 12)),
+      top: Math.max(12, Math.min(anchorY, window.innerHeight - height - 12)),
+    });
+  }
+
+  function toggleMenu(): void {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) positionMenu(rect.right, rect.bottom + 5, true);
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent): void => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      requestAnimationFrame(() => triggerRef.current?.focus());
+    };
+    const closeOnViewportChange = (): void => setOpen(false);
+    document.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']:not(:disabled)")?.focus();
+    });
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [open]);
+
+  function choose(action: () => void): void {
+    setOpen(false);
+    action();
+  }
+
+  return (
+    <Element
+      className={className}
+      data-component={node.component}
+      data-node-id={node.id}
+      role={role}
+      aria-live={ariaLive}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        positionMenu(event.clientX, event.clientY, false);
+        setOpen(true);
+      }}
+    >
+      <div className="component-node__menu" ref={menuRef}>
+        <button
+          className="component-node__menu-trigger"
+          ref={triggerRef}
+          type="button"
+          aria-label={`Open ${name} component menu`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title="Component menu"
+          onClick={toggleMenu}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="4" cy="10" r="1.25" />
+            <circle cx="10" cy="10" r="1.25" />
+            <circle cx="16" cy="10" r="1.25" />
+          </svg>
+        </button>
+        {open ? (
+          <div
+            className="component-node__menu-popover"
+            role="menu"
+            aria-label={`${name} component actions`}
+            style={menuPosition}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              disabled={isVirtualRoot}
+              title={isVirtualRoot ? "This component is already focused." : undefined}
+              onClick={() => choose(() => onFocus(node.id))}
+            >
+              <span>Focus component</span>
+              {isVirtualRoot ? <small>Focused</small> : null}
+            </button>
+            <button type="button" role="menuitem" onClick={() => choose(() => onCopyPath(node))}>
+              Copy component path
+            </button>
+            <button type="button" role="menuitem" onClick={() => choose(() => onOpenAgent(node))}>
+              Change with agent…
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {children}
+    </Element>
+  );
+}
+
 interface NodeRendererProps {
   node: ResolvedComponentNode;
   trusted: boolean;
@@ -234,6 +388,8 @@ interface NodeRendererProps {
   actionScope: string;
   updateBatch: ComponentUpdateBatch | null;
   onFocus: (nodeId: string) => void;
+  onCopyPath: (node: ResolvedComponentNode) => void;
+  onOpenAgent: (node: ResolvedComponentNode) => void;
   isVirtualRoot?: boolean;
 }
 
@@ -270,6 +426,8 @@ function NodeRenderer({
   actionScope,
   updateBatch,
   onFocus,
+  onCopyPath,
+  onOpenAgent,
   isVirtualRoot = false,
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
@@ -295,6 +453,8 @@ function NodeRenderer({
           actionScope={actionScope}
           updateBatch={updateBatch}
           onFocus={onFocus}
+          onCopyPath={onCopyPath}
+          onOpenAgent={onOpenAgent}
         />
       )),
     ]),
@@ -302,12 +462,14 @@ function NodeRenderer({
 
   if (node.source === "builtin") {
     return (
-      <div className="component-node" data-component={node.component} data-node-id={node.id}>
-        {!isVirtualRoot ? (
-          <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)} title="Focus this component" aria-label={`Focus ${node.manifest?.name ?? node.component}`}>
-            Focus
-          </button>
-        ) : null}
+      <ComponentFrame
+        node={node}
+        className="component-node"
+        isVirtualRoot={isVirtualRoot}
+        onFocus={onFocus}
+        onCopyPath={onCopyPath}
+        onOpenAgent={onOpenAgent}
+      >
         <BuiltinRenderer
           node={node}
           slots={slots}
@@ -315,19 +477,22 @@ function NodeRenderer({
           processes={processes}
         />
         <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-      </div>
+      </ComponentFrame>
     );
   }
 
   if (node.source === "config") {
     const name = node.configName?.trim() || node.component;
     return (
-      <section className="component-node config-link" data-component={node.component} data-node-id={node.id}>
-        {!isVirtualRoot ? (
-          <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)} title="Focus this config" aria-label={`Focus ${name}`}>
-            Focus
-          </button>
-        ) : null}
+      <ComponentFrame
+        as="section"
+        node={node}
+        className="component-node config-link"
+        isVirtualRoot={isVirtualRoot}
+        onFocus={onFocus}
+        onCopyPath={onCopyPath}
+        onOpenAgent={onOpenAgent}
+      >
         {node.configError ? (
           <div className="component-state component-state--error" role="alert">
             <strong>Could not load {name}</strong>
@@ -338,20 +503,26 @@ function NodeRenderer({
           <div className="config-link__content">{slots.content}</div>
         )}
         <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-      </section>
+      </ComponentFrame>
     );
   }
 
   const name = node.manifest?.name ?? node.component;
   if (!trusted) {
     return (
-      <div className="component-node component-state component-state--locked" data-node-id={node.id}>
-        {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
+      <ComponentFrame
+        node={node}
+        className="component-node component-state component-state--locked"
+        isVirtualRoot={isVirtualRoot}
+        onFocus={onFocus}
+        onCopyPath={onCopyPath}
+        onOpenAgent={onOpenAgent}
+      >
         <span className="component-state__icon" aria-hidden="true">◇</span>
         <strong>{name}</strong>
         <span>Trust this project to load its local component code.</span>
         <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-      </div>
+      </ComponentFrame>
     );
   }
 
@@ -359,44 +530,67 @@ function NodeRenderer({
   const loaded = componentId ? localComponents.get(componentId) : undefined;
   if (!componentId) {
     return (
-      <div className="component-node component-state component-state--error" role="alert" data-node-id={node.id}>
-        {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
+      <ComponentFrame
+        node={node}
+        className="component-node component-state component-state--error"
+        isVirtualRoot={isVirtualRoot}
+        role="alert"
+        onFocus={onFocus}
+        onCopyPath={onCopyPath}
+        onOpenAgent={onOpenAgent}
+      >
         Local component <code>{node.component}</code> has no manifest ID.
         <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-      </div>
+      </ComponentFrame>
     );
   }
 
   if (!loaded || (loaded.loading && !loaded.component)) {
     return (
-      <div className="component-node component-state" aria-live="polite" data-node-id={node.id}>
-        {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
+      <ComponentFrame
+        node={node}
+        className="component-node component-state"
+        isVirtualRoot={isVirtualRoot}
+        ariaLive="polite"
+        onFocus={onFocus}
+        onCopyPath={onCopyPath}
+        onOpenAgent={onOpenAgent}
+      >
         <span className="spinner" aria-hidden="true" />
         Loading {name}…
         <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-      </div>
+      </ComponentFrame>
     );
   }
 
   if (!loaded.component) {
     return (
-      <div className="component-node component-state component-state--error" role="alert" data-node-id={node.id}>
-        {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
+      <ComponentFrame
+        node={node}
+        className="component-node component-state component-state--error"
+        isVirtualRoot={isVirtualRoot}
+        role="alert"
+        onFocus={onFocus}
+        onCopyPath={onCopyPath}
+        onOpenAgent={onOpenAgent}
+      >
         <strong>Could not load {name}</strong>
         <span>{loaded.error ?? "The compiled module has no component export."}</span>
         <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-      </div>
+      </ComponentFrame>
     );
   }
 
   const Component = loaded.component;
   return (
-    <div className="component-node component-node--local" data-component={componentId} data-node-id={node.id}>
-      {!isVirtualRoot ? (
-        <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)} title="Focus this component" aria-label={`Focus ${name}`}>
-          Focus
-        </button>
-      ) : null}
+    <ComponentFrame
+      node={node}
+      className="component-node component-node--local"
+      isVirtualRoot={isVirtualRoot}
+      onFocus={onFocus}
+      onCopyPath={onCopyPath}
+      onOpenAgent={onOpenAgent}
+    >
       <LocalComponentErrorBoundary
         name={name}
         resetKey={`${node.id}:${loaded.revision}`}
@@ -413,7 +607,7 @@ function NodeRenderer({
         </span>
       ) : null}
       <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-    </div>
+    </ComponentFrame>
   );
 }
 
@@ -590,19 +784,96 @@ function EmptyProject({
   );
 }
 
+function AgentPromptPanel({
+  node,
+  agentCommand,
+  pending,
+  onDismiss,
+  onSend,
+}: {
+  node: ResolvedComponentNode;
+  agentCommand: string;
+  pending: boolean;
+  onDismiss: () => void;
+  onSend: (prompt: string) => Promise<void>;
+}): ReactNode {
+  const [prompt, setPrompt] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const locator = componentPath(node);
+
+  async function submit(): Promise<void> {
+    if (!prompt.trim() || pending) return;
+    setError(null);
+    try {
+      await onSend(prompt.trim());
+    } catch (submitError) {
+      setError(errorMessage(submitError));
+    }
+  }
+
+  return (
+    <div className="agent-prompt">
+      <p>
+        Describe the change to this component. dash-bored adds the owning
+        dashboard, component locator, and project instructions to the prompt.
+      </p>
+      <code className="agent-prompt__path" title={locator}>{locator}</code>
+      <form className="agent-prompt__composer" onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}>
+        <code className="agent-prompt__command">{agentCommand}</code>
+        <span className="agent-prompt__quote" aria-hidden="true">&quot;</span>
+        <textarea
+          data-modal-autofocus
+          aria-label="Wanted component change"
+          placeholder="Change this component…"
+          maxLength={12_000}
+          value={prompt}
+          disabled={pending}
+          onChange={(event) => setPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              void submit();
+            }
+          }}
+        />
+        <span className="agent-prompt__quote" aria-hidden="true">&quot;</span>
+        <button className="button button--primary" type="submit" disabled={pending || !prompt.trim()}>
+          {pending ? "Sending…" : "Send"}
+        </button>
+      </form>
+      <p className="agent-prompt__hint">Press Command/Ctrl-Enter to send.</p>
+      {error ? <div className="agent-prompt__error" role="alert">{error}</div> : null}
+      <footer className="editor-modal__actions">
+        <button className="button button--quiet" type="button" disabled={pending} onClick={onDismiss}>Cancel</button>
+      </footer>
+    </div>
+  );
+}
+
 function SettingsPanel({
   snapshot,
+  appSettings,
   pendingAction,
+  onSaveAgent,
   onReload,
   onTrust,
   onRevoke,
 }: {
   snapshot: ProjectSnapshot | null;
+  appSettings: AppSettings;
   pendingAction: string | null;
+  onSaveAgent: (command: string) => void;
   onReload: () => void;
   onTrust: () => void;
   onRevoke: () => void;
 }): ReactNode {
+  const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent);
+  useEffect(() => setAgentDraft(appSettings.dashBoredAgent), [appSettings.dashBoredAgent]);
+  const normalizedAgentDraft = agentDraft.trim();
+  const savingAgent = pendingAction === "save-agent";
   return (
     <main className="settings-page" aria-labelledby="settings-title">
       <div className="settings-page__heading">
@@ -616,6 +887,37 @@ function SettingsPanel({
           <p>The sidebar starts collapsed each time dash-bored opens. Expand it to see configured dashboard names.</p>
         </div>
         <span className="settings-value">Collapsed by default</span>
+      </section>
+      <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
+        <div>
+          <h2 id="agent-settings-title">Dashboard agent</h2>
+          <p>Set the app-wide <code>DASH_BORED_AGENT</code> command used by every component’s Change with agent action.</p>
+        </div>
+        <form className="settings-agent" onSubmit={(event) => {
+          event.preventDefault();
+          if (normalizedAgentDraft) onSaveAgent(normalizedAgentDraft);
+        }}>
+          <label htmlFor="dash-bored-agent">DASH_BORED_AGENT</label>
+          <div className="settings-agent__controls">
+            <input
+              id="dash-bored-agent"
+              type="text"
+              spellCheck={false}
+              maxLength={1_024}
+              value={agentDraft}
+              disabled={savingAgent}
+              onChange={(event) => setAgentDraft(event.target.value)}
+            />
+            <button
+              className="button button--secondary"
+              type="submit"
+              disabled={savingAgent || !normalizedAgentDraft || normalizedAgentDraft === appSettings.dashBoredAgent}
+            >
+              {savingAgent ? "Saving…" : "Save"}
+            </button>
+          </div>
+          <span>Example: <code>{normalizedAgentDraft || "codex exec"} &quot;Change this thing&quot;</code></span>
+        </form>
       </section>
       <section className="settings-card" aria-labelledby="project-settings-title">
         <div className="settings-card__project">
@@ -653,9 +955,12 @@ function SettingsPanel({
 export function App(): ReactNode {
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings>({ dashBoredAgent: "codex exec" });
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const nextActionNoticeId = useRef(0);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [expandedProjectOutlines, setExpandedProjectOutlines] = useState<Record<string, boolean>>({});
   const [projectOutlines, setProjectOutlines] = useState<Record<string, ProjectOutlineState>>({});
@@ -681,6 +986,7 @@ export function App(): ReactNode {
     preview: ProjectDeletionPreview;
     removeFiles: boolean;
   } | null>(null);
+  const [agentDialog, setAgentDialog] = useState<ResolvedComponentNode | null>(null);
   const localComponents = useLocalComponents(
     snapshot?.components ?? [],
     snapshot?.configPath ?? null,
@@ -721,11 +1027,12 @@ export function App(): ReactNode {
       }
     });
 
-    void Promise.all([host.getSnapshot(), host.listProjects()])
-      .then(([initialSnapshot, initialProjects]) => {
+    void Promise.all([host.getSnapshot(), host.listProjects(), host.getAppSettings()])
+      .then(([initialSnapshot, initialProjects, initialSettings]) => {
         if (!active) return;
         setSnapshot(initialSnapshot);
         setProjects(rememberProject(initialProjects, initialSnapshot));
+        setAppSettings(initialSettings);
       })
       .catch((error: unknown) => {
         if (active) setActionError(errorMessage(error));
@@ -793,6 +1100,15 @@ export function App(): ReactNode {
     return () => window.removeEventListener("keydown", openFromKeyboard);
   }, []);
 
+  useEffect(() => {
+    if (!actionNotice) return;
+    const noticeId = actionNotice.id;
+    const timeout = window.setTimeout(() => {
+      setActionNotice((current) => current?.id === noticeId ? null : current);
+    }, 5_000);
+    return () => window.clearTimeout(timeout);
+  }, [actionNotice?.id]);
+
   const processes = useMemo(
     () => new Map(snapshot?.processes.map((process) => [process.id, process]) ?? []),
     [snapshot?.processes],
@@ -801,6 +1117,7 @@ export function App(): ReactNode {
   async function perform(name: string, action: () => Promise<unknown>): Promise<void> {
     setPendingAction(name);
     setActionError(null);
+    setActionNotice(null);
     try {
       await action();
     } catch (error) {
@@ -808,6 +1125,11 @@ export function App(): ReactNode {
     } finally {
       setPendingAction(null);
     }
+  }
+
+  function showActionNotice(message: string): void {
+    nextActionNoticeId.current += 1;
+    setActionNotice({ id: nextActionNoticeId.current, message });
   }
 
   function editSessionDirty(): boolean {
@@ -1017,6 +1339,40 @@ export function App(): ReactNode {
       () => setActiveView("settings"),
     )) return;
     setActiveView("settings");
+  }
+
+  function saveAgentSetting(command: string): void {
+    void perform("save-agent", async () => {
+      const updated = await host.updateAppSettings({ dashBoredAgent: command });
+      setAppSettings(updated);
+      showActionNotice(`DASH_BORED_AGENT is now ${updated.dashBoredAgent}.`);
+    });
+  }
+
+  async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
+    setActionError(null);
+    setActionNotice(null);
+    const locator = componentPath(node);
+    try {
+      await writeClipboardText(locator);
+      showActionNotice(`Copied ${locator}`);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
+  }
+
+  async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
+    const action = `component-agent:${node.id}`;
+    setPendingAction(action);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const launched = await host.runComponentAgent({ nodeId: node.id, prompt });
+      setAgentDialog(null);
+      showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function saveDashboardDraft(): Promise<void> {
@@ -1374,11 +1730,36 @@ export function App(): ReactNode {
             <button type="button" aria-label="Dismiss error" onClick={() => setActionError(null)}>×</button>
           </div>
         ) : null}
+        {actionNotice ? (
+          <div className="global-notice" role="status">
+            <span>{actionNotice.message}</span>
+            <button
+              className="global-notice__close"
+              type="button"
+              aria-label="Dismiss message"
+              onClick={() => setActionNotice(null)}
+            >
+              <svg className="global-notice__countdown" viewBox="0 0 28 28" aria-hidden="true">
+                <circle className="global-notice__countdown-track" cx="14" cy="14" r="11" />
+                <circle
+                  className="global-notice__countdown-progress"
+                  cx="14"
+                  cy="14"
+                  r="11"
+                  pathLength="1"
+                />
+              </svg>
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        ) : null}
 
         {activeView === "settings" ? (
           <SettingsPanel
             snapshot={snapshot}
+            appSettings={appSettings}
             pendingAction={pendingAction}
+            onSaveAgent={saveAgentSetting}
             onReload={() => void perform("reload", host.reloadProject)}
             onTrust={() => void perform("trust", host.trustProject)}
             onRevoke={() => void perform("revoke", host.revokeTrust)}
@@ -1425,6 +1806,8 @@ export function App(): ReactNode {
                   actionScope={actionScope}
                   updateBatch={componentUpdateBatch}
                   onFocus={focusComponent}
+                  onCopyPath={(node) => void copyComponentPath(node)}
+                  onOpenAgent={setAgentDialog}
                   isVirtualRoot
                 />
               </section>
@@ -1455,6 +1838,23 @@ export function App(): ReactNode {
         onDismiss={() => setPaletteOpen(false)}
         onExecute={(id) => void executePaletteAction(id)}
       />
+      {agentDialog ? (
+        <EditorModal
+          title={`Change ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
+          onDismiss={() => {
+            if (pendingAction !== `component-agent:${agentDialog.id}`) setAgentDialog(null);
+          }}
+        >
+          <AgentPromptPanel
+            key={agentDialog.id}
+            node={agentDialog}
+            agentCommand={appSettings.dashBoredAgent}
+            pending={pendingAction === `component-agent:${agentDialog.id}`}
+            onDismiss={() => setAgentDialog(null)}
+            onSend={(prompt) => runComponentAgent(agentDialog, prompt)}
+          />
+        </EditorModal>
+      ) : null}
       {discardConfirmation ? (
         <EditorModal title="Discard dashboard changes?" onDismiss={() => setDiscardConfirmation(null)}>
           <div className="remove-confirmation">

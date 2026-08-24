@@ -80,6 +80,24 @@ export interface ResolvedComponentNode {
   configError?: string;
   /** YAML file that owns this node and must receive structural edits. */
   sourceConfigPath?: string;
+  /** Stable YAML-style path to this node within its owning config. */
+  sourcePath?: string;
+}
+
+export interface AppSettings {
+  /** App-wide CLI command used for natural-language dashboard changes. */
+  dashBoredAgent: string;
+}
+
+export interface ComponentAgentRequest {
+  nodeId: string;
+  prompt: string;
+}
+
+export interface ComponentAgentLaunch {
+  command: string;
+  componentPath: string;
+  pid: number | null;
 }
 
 export interface CompiledLocalComponent {
