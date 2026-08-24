@@ -21,6 +21,9 @@ export interface ApplicationActionCallbacks {
   toggleSidebar(): void;
   addDashboard(): void | Promise<void>;
   openProject(projectRoot: string): void | Promise<void>;
+  editDashboard(): void | Promise<void>;
+  saveDashboard(): void | Promise<void>;
+  cancelDashboard(): void | Promise<void>;
   reloadProject(): void | Promise<void>;
   trustProject(): void | Promise<void>;
   revokeTrust(): void | Promise<void>;
@@ -34,6 +37,10 @@ export interface ApplicationActionContext {
   activeView: AppView;
   sidebarExpanded: boolean;
   pendingAction: string | null;
+  editing: boolean;
+  draftDirty: boolean;
+  draftValid: boolean;
+  savingDraft: boolean;
   callbacks: ApplicationActionCallbacks;
 }
 
@@ -86,7 +93,18 @@ function appAction(
 export function buildApplicationActions(
   context: ApplicationActionContext,
 ): PaletteAction[] {
-  const { snapshot, projects, activeView, sidebarExpanded, pendingAction, callbacks } =
+  const {
+    snapshot,
+    projects,
+    activeView,
+    sidebarExpanded,
+    pendingAction,
+    editing,
+    draftDirty,
+    draftValid,
+    savingDraft,
+    callbacks,
+  } =
     context;
   const projectOpen = snapshot?.projectRoot !== null && snapshot?.projectRoot !== undefined;
   const pendingReason = blockedReason(pendingAction);
@@ -153,6 +171,57 @@ export function buildApplicationActions(
   }
 
   if (projectOpen && snapshot) {
+    const editingBlockedReason = !editing
+      ? activeView !== "dashboard"
+        ? "Open the dashboard before editing."
+        : pendingReason
+      : "The dashboard is already in edit mode.";
+    const saveBlockedReason = !editing
+      ? "Enter dashboard edit mode first."
+      : savingDraft
+        ? "The dashboard draft is already being saved."
+        : !draftDirty
+          ? "There are no dashboard changes to save."
+          : !draftValid
+            ? "Fix dashboard validation errors before saving."
+            : pendingReason;
+    const cancelBlockedReason = !editing
+      ? "No dashboard draft is being edited."
+      : savingDraft
+        ? "The dashboard draft is being saved."
+        : pendingReason;
+    actions.push(
+      appAction({
+        id: "project:edit",
+        label: "Edit dashboard",
+        description: "Open the structural editor for the active dashboard.",
+        keywords: ["editor", "draft", "configure"],
+        group: "Dashboard editing",
+        enabled: activeView === "dashboard" && !editing && pendingAction === null,
+        ...(editingBlockedReason ? { disabledReason: editingBlockedReason } : {}),
+        run: callbacks.editDashboard,
+      }),
+      appAction({
+        id: "project:save-draft",
+        label: "Save dashboard changes",
+        description: "Write the current dashboard draft to its YAML configuration.",
+        keywords: ["editor", "draft", "write", "persist"],
+        group: "Dashboard editing",
+        enabled: editing && draftDirty && draftValid && !savingDraft && pendingAction === null,
+        ...(saveBlockedReason ? { disabledReason: saveBlockedReason } : {}),
+        run: callbacks.saveDashboard,
+      }),
+      appAction({
+        id: "project:cancel-edit",
+        label: "Cancel dashboard editing",
+        description: "Discard the current dashboard draft and leave edit mode.",
+        keywords: ["editor", "draft", "discard", "close"],
+        group: "Dashboard editing",
+        enabled: editing && !savingDraft && pendingAction === null,
+        ...(cancelBlockedReason ? { disabledReason: cancelBlockedReason } : {}),
+        run: callbacks.cancelDashboard,
+      }),
+    );
     actions.push(
       appAction({
         id: "project:reload",

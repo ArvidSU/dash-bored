@@ -489,8 +489,9 @@ subtree, or a referenced dashboard.
 
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts
 and collapse to a stacked layout in narrow windows. The application shell also
-shows project identity, trust state, reload state, diagnostics, and a collapsed-
-by-default project sidebar. The main process persists projects that have been
+shows project identity, diagnostics, and a collapsed-by-default project
+sidebar. The header exposes the command palette and active-dashboard edit
+controls; trust and reload actions remain available from Settings. The main process persists projects that have been
 opened successfully in a user-data registry. Each entry retains its canonical
 project root and last configured dashboard name. The sidebar can switch the
 single active runtime between those projects, add another project through the
@@ -501,12 +502,13 @@ project list is navigation history, not concurrent project execution; switching
 projects stops the prior project's watcher and supervised processes before the
 next project becomes active.
 
-The expanded project row exposes an edit control. Edit mode adds a sticky
-Save/Cancel toolbar and per-node drag, configure, and remove controls. Removal
-requires confirmation, including the size of a removed subtree. Native drag
-and drop is supplemented by same-slot up/down controls for keyboard users.
-Adding uses the snapshot catalog; a newly selected local component is shown as
-metadata until the accepted save reloads and, when trusted, compiles it.
+The active dashboard header exposes the edit toggle. Edit mode consolidates the
+Save/Cancel controls into that same header and adds per-node drag,
+configure, and remove controls. Removal requires confirmation, including the
+size of a removed subtree. Native drag and drop is supplemented by same-slot
+up/down controls for keyboard users. Adding uses the snapshot catalog; a newly
+selected local component is shown as metadata until the accepted save reloads
+and, when trusted, compiles it.
 
 The built-in tabs component keeps the dashboard editor structural: its preview
 shows the tab panels and their child-node controls, while Configure component
@@ -522,7 +524,8 @@ explicitly named.
 The renderer owns one action registry for the active application window. The
 command palette merges three providers:
 
-- application navigation and lifecycle actions from shell state;
+- application navigation, lifecycle, and dashboard editing actions from shell
+  state;
 - start/stop actions derived from resolved `@dash-bored/command` nodes and
   their authoritative process snapshots;
 - actions registered by mounted, trusted local component instances.
