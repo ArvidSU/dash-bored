@@ -510,12 +510,21 @@ projects stops the prior project's watcher and supervised processes before the
 next project becomes active.
 
 The active dashboard header exposes the edit toggle. Edit mode consolidates the
-Save/Cancel controls into that same header and adds per-node drag,
-configure, and remove controls. Removal requires confirmation, including the
-size of a removed subtree. Native drag and drop is supplemented by same-slot
-up/down controls for keyboard users. Adding uses the snapshot catalog; a newly
-selected local component is shown as metadata until the accepted save reloads
-and, when trusted, compiles it.
+Save/Cancel controls into that same header. The structural workbench keeps one
+selected component and one contextual action bar for configure, remove, root
+replacement, and keyboard-accessible same-slot movement instead of repeating
+those controls on every nested node. Component rows retain a direct drag handle.
+Nested branches start collapsed below the root and can be expanded individually
+or all at once, so large dashboards remain navigable without losing access to
+their complete tree. Single `children` slots omit redundant slot chrome, while
+named slots remain visible. Insertion targets have fixed geometry so revealing
+their action or dragging across them does not shift the surrounding structure.
+
+Removal requires confirmation, including the size of a removed subtree. Adding
+uses the snapshot catalog; a newly selected local component is shown as metadata
+until the accepted save reloads and, when trusted, compiles it. Configuration
+dialogs trap focus, return it on close, and only the topmost nested dialog reacts
+to Escape.
 
 The built-in tabs component keeps the dashboard editor structural: its preview
 shows the tab panels and their child-node controls, while Configure component

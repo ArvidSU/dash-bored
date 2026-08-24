@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   ComponentCatalogItem,
@@ -13,12 +13,15 @@ import { BuiltinRenderer } from "./builtins";
 import { host } from "./rpc-client";
 import {
   catalogManifest,
+  collapsibleNodePaths,
   countNodes,
   countDiscardedRootNodes,
   createNode,
   insertNode,
   moveNode,
   nodeAtPath,
+  nodePathById,
+  pathEquals,
   pathKey,
   removeNode,
   replaceRoot as replaceRootNode,
@@ -60,13 +63,27 @@ interface ModalProps {
   onDismiss: () => void;
 }
 
+const openEditorModals: symbol[] = [];
+
 export function EditorModal({ title, children, onDismiss }: ModalProps): ReactNode {
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const modalToken = useRef(Symbol("editor-modal"));
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>("button, input, textarea, select")?.focus());
+    const token = modalToken.current;
+    openEditorModals.push(token);
+    requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      const target = panel?.querySelector<HTMLElement>("[data-modal-autofocus]")
+        ?? panel?.querySelector<HTMLElement>("input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled):not([data-modal-close])");
+      target?.focus();
+    });
     const close = (event: globalThis.KeyboardEvent): void => {
+      if (openEditorModals.at(-1) !== token) return;
       if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
         onDismiss();
         return;
       }
@@ -88,6 +105,8 @@ export function EditorModal({ title, children, onDismiss }: ModalProps): ReactNo
     window.addEventListener("keydown", close);
     return () => {
       window.removeEventListener("keydown", close);
+      const index = openEditorModals.lastIndexOf(token);
+      if (index >= 0) openEditorModals.splice(index, 1);
       previous?.focus();
     };
   }, [onDismiss]);
@@ -95,10 +114,10 @@ export function EditorModal({ title, children, onDismiss }: ModalProps): ReactNo
     <div className="editor-modal" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onDismiss();
     }}>
-      <div className="editor-modal__panel" role="dialog" aria-modal="true" aria-labelledby="editor-modal-title" ref={panelRef}>
+      <div className="editor-modal__panel" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panelRef}>
         <header className="editor-modal__header">
-          <h2 id="editor-modal-title">{title}</h2>
-          <button className="editor-icon-button" type="button" aria-label="Close" onClick={onDismiss}>×</button>
+          <h2 id={titleId}>{title}</h2>
+          <button className="editor-icon-button" data-modal-close type="button" aria-label="Close" onClick={onDismiss}>×</button>
         </header>
         {children}
       </div>
@@ -204,7 +223,7 @@ function PropsEditor({ manifest, value, onChange, onSyntaxValid, hiddenPropertie
 
   return (
     <div className="props-editor">
-      {visibleProperties.map(([name, schema]) => {
+      {visibleProperties.map(([name, schema], index) => {
         const label = typeof schema.title === "string" ? schema.title : name;
         const description = typeof schema.description === "string" ? schema.description : null;
         if (!simpleProperty(schema)) return null;
@@ -212,15 +231,16 @@ function PropsEditor({ manifest, value, onChange, onSyntaxValid, hiddenPropertie
           <label className="props-field" key={name}>
             <span>{label}{required.has(name) ? <em>Required</em> : null}</span>
             {Array.isArray(schema.enum) ? (
-              <select value={value[name] === undefined ? "" : String(value[name])} onChange={(event) => changeProperty(name, schema, event.target.value)}>
+              <select data-modal-autofocus={index === 0 ? "true" : undefined} value={value[name] === undefined ? "" : String(value[name])} onChange={(event) => changeProperty(name, schema, event.target.value)}>
                 {value[name] === undefined && required.has(name) ? <option value="" disabled>Select…</option> : null}
                 {!required.has(name) ? <option value="">Not set</option> : null}
                 {schema.enum.map((option) => <option value={String(option)} key={String(option)}>{String(option)}</option>)}
               </select>
             ) : schema.type === "boolean" ? (
-              <input type="checkbox" checked={value[name] === true} onChange={(event) => changeProperty(name, schema, event.target.checked)} />
+              <input data-modal-autofocus={index === 0 ? "true" : undefined} type="checkbox" checked={value[name] === true} onChange={(event) => changeProperty(name, schema, event.target.checked)} />
             ) : (
               <input
+                data-modal-autofocus={index === 0 ? "true" : undefined}
                 type={schema.type === "number" || schema.type === "integer" ? "number" : "text"}
                 step={schema.type === "integer" ? 1 : "any"}
                 value={value[name] === undefined ? "" : String(value[name])}
@@ -287,6 +307,7 @@ function TabsConfigEditor({ node, props, catalog, onAddTab, onRemoveTab, onRenam
               <label>
                 <span>Tab {index + 1} name</span>
                 <input
+                  data-modal-autofocus={index === 0 ? "true" : undefined}
                   type="text"
                   aria-label={`Name tab ${index + 1}`}
                   value={value}
@@ -412,10 +433,10 @@ function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApp
 
   return (
     <>
-      <EditorModal title={replaceRoot ? "Replace dashboard root" : existing ? "Configure component" : addingTab ? "Add tab" : "Add component"} onDismiss={onDismiss}>
+      <EditorModal title={replaceRoot ? "Replace dashboard root" : existing ? `Configure ${existingItem?.manifest?.name ?? existing.node.component}` : addingTab ? "Add tab" : "Add component"} onDismiss={onDismiss}>
       {!existing && !selected ? (
         <div className="component-picker">
-          <input className="component-picker__search" type="search" placeholder="Search components…" aria-label="Search components" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input className="component-picker__search" data-modal-autofocus type="search" placeholder="Search components…" aria-label="Search components" value={query} onChange={(event) => setQuery(event.target.value)} />
           <div className="component-picker__list">
             {available.map((item) => (
               <button className="component-picker__item" type="button" key={item.reference} disabled={!item.available || item.manifest === null} onClick={() => choose(item)}>
@@ -559,15 +580,65 @@ export function DashboardEditor({
   const [replaceRootOpen, setReplaceRootOpen] = useState(false);
   const [removePath, setRemovePath] = useState<NodePath | null>(null);
   const [dragging, setDragging] = useState<NodePath | null>(null);
+  const [selectedPath, setSelectedPath] = useState<NodePath>([]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(
+    collapsibleNodePaths(config.root)
+      .filter((path) => path.length > 0)
+      .map(pathKey),
+  ));
   const [editorError, setEditorError] = useState<string | null>(null);
   const valid = diagnostics.every((item) => item.severity !== "error");
-  const apply = (operation: () => DashboardConfig): void => {
+
+  let effectiveSelectedPath = selectedPath;
+  let selectedNode: ComponentNode;
+  try {
+    selectedNode = nodeAtPath(config.root, selectedPath);
+  } catch {
+    effectiveSelectedPath = [];
+    selectedNode = config.root;
+  }
+
+  const selectedManifest = catalogManifest(catalog, selectedNode.component);
+  const selectedName = selectedManifest?.name ?? selectedNode.component;
+  const selectedSegment = effectiveSelectedPath.at(-1);
+  const selectedParentPath = effectiveSelectedPath.slice(0, -1);
+  const selectedParent = selectedSegment ? nodeAtPath(config.root, selectedParentPath) : null;
+  const selectedSiblings = selectedParent && selectedSegment
+    ? slotChildren(selectedParent, selectedSegment.slot)
+    : [config.root];
+  const selectedCanReorder = Boolean(
+    selectedParent &&
+    selectedSegment &&
+    slotAcceptsMultiple(catalog, selectedParent, selectedSegment.slot),
+  );
+  const collapsiblePaths = collapsibleNodePaths(config.root).filter((path) => path.length > 0);
+  const allCollapsed = collapsiblePaths.every((path) => collapsed.has(pathKey(path)));
+
+  const applyDraft = (next: DashboardConfig, fallbackPath = effectiveSelectedPath): void => {
+    const nextSelection = selectedNode.id
+      ? nodePathById(next.root, selectedNode.id) ?? fallbackPath
+      : fallbackPath;
+    onChange(next);
+    setSelectedPath(nextSelection);
+  };
+
+  const apply = (operation: () => DashboardConfig, fallbackPath = effectiveSelectedPath): void => {
     try {
       setEditorError(null);
-      onChange(operation());
+      applyDraft(operation(), fallbackPath);
     } catch (error) {
       setEditorError(error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const toggleCollapsed = (path: NodePath): void => {
+    const key = pathKey(path);
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const renderDropZone = (target: SlotTarget, empty: boolean): ReactNode => (
@@ -584,13 +655,13 @@ export function DashboardEditor({
         event.preventDefault();
         const sourceText = event.dataTransfer.getData(DRAG_TYPE);
         if (!sourceText) return;
-        apply(() => moveNode(config, JSON.parse(sourceText) as NodePath, target, catalog));
+        apply(() => moveNode(config, JSON.parse(sourceText) as NodePath, target, catalog), target.parentPath);
         setDragging(null);
       }}
     >
       <button type="button" aria-label={`Add component to ${target.slot}`} onClick={() => setAddTarget(target)}>
         <EditorIcon name="add" />
-        {empty ? <span>Add component</span> : null}
+        <span>{empty ? "Add component" : "Add here"}</span>
       </button>
     </div>
   );
@@ -598,9 +669,10 @@ export function DashboardEditor({
   const renderSlot = (parent: ComponentNode, parentPath: NodePath, slot: string): ReactNode => {
     const children = slotChildren(parent, slot);
     const multiple = slotAcceptsMultiple(catalog, parent, slot);
+    const implicit = slot === "children" && slotNames(catalog, parent).length === 1;
     return (
-      <div className={`editor-slot${children.length === 0 ? " editor-slot--empty" : ""}`} data-slot={slot} key={slot}>
-        <span className="editor-slot__label">{slot}</span>
+      <div className={`editor-slot${implicit ? " editor-slot--implicit" : ""}${children.length === 0 ? " editor-slot--empty" : ""}`} data-slot={slot} key={slot}>
+        {!implicit ? <span className="editor-slot__label">{slot}</span> : null}
         {multiple || children.length === 0
           ? renderDropZone({ parentPath, slot, index: 0 }, children.length === 0)
           : null}
@@ -608,7 +680,7 @@ export function DashboardEditor({
           const childPath = [...parentPath, { slot, index }];
           return (
             <div className="editor-slot__child" key={child.id ?? `${pathKey(childPath)}:${child.component}`}>
-              {renderNode(child, childPath, false, multiple ? index : null, children.length)}
+              {renderNode(child, childPath, false)}
               {multiple ? renderDropZone({ parentPath, slot, index: index + 1 }, false) : null}
             </div>
           );
@@ -621,12 +693,14 @@ export function DashboardEditor({
     node: ComponentNode,
     path: NodePath,
     root: boolean,
-    siblingIndex: number | null,
-    siblingCount: number,
   ): ReactNode => {
     const manifest = catalogManifest(catalog, node.component);
     const name = manifest?.name ?? node.component;
     const configuredSlots = slotNames(catalog, node);
+    const key = pathKey(path);
+    const selected = pathEquals(path, effectiveSelectedPath);
+    const collapsible = configuredSlots.some((slot) => slotChildren(node, slot).length > 0);
+    const isCollapsed = !root && collapsible && collapsed.has(key);
     const resolvedNode: ResolvedComponentNode = {
       id: node.id ?? pathKey(path),
       component: node.component,
@@ -635,8 +709,6 @@ export function DashboardEditor({
       source: node.component.startsWith("./components/") ? "local" : "builtin",
       ...(node.component.startsWith("./components/") && manifest ? { manifest } : {}),
     };
-    const parentPath = path.slice(0, -1);
-    const segment = path.at(-1);
     let preview: ReactNode;
     if (node.component === "@dash-bored/stack") {
       preview = <div className={`stack stack--${String(node.props?.gap ?? "medium")}`}>{configuredSlots.map((slot) => renderSlot(node, path, slot))}</div>;
@@ -649,11 +721,16 @@ export function DashboardEditor({
     } else if (["@dash-bored/text", "@dash-bored/markdown", "@dash-bored/status"].includes(node.component)) {
       preview = <BuiltinRenderer node={resolvedNode} slots={{}} trusted={false} processes={new Map()} />;
     } else {
-      preview = <div className="editor-component-preview"><strong>{name}</strong><code>{node.component}</code>{configuredSlots.map((slot) => renderSlot(node, path, slot))}</div>;
+      const previewKind = node.component.startsWith("./components/")
+        ? "Local component"
+        : node.component.startsWith("@dash-bored/")
+          ? "Component preview"
+          : "Linked dashboard";
+      preview = <div className="editor-component-preview"><span>{previewKind}</span><code>{node.component}</code>{configuredSlots.map((slot) => renderSlot(node, path, slot))}</div>;
     }
 
     return (
-      <section className={`editor-node${root ? " editor-node--root" : ""}`} data-editor-node={pathKey(path)}>
+      <section className={`editor-node${root ? " editor-node--root" : ""}${selected ? " editor-node--selected" : ""}${isCollapsed ? " editor-node--collapsed" : ""}`} data-editor-node={key}>
         <header className="editor-node__toolbar">
           {!root ? (
             <button
@@ -666,28 +743,22 @@ export function DashboardEditor({
                 event.dataTransfer.setData(DRAG_TYPE, JSON.stringify(path));
                 event.dataTransfer.effectAllowed = "move";
                 setDragging(path);
+                setSelectedPath(path);
               }}
               onDragEnd={() => setDragging(null)}
             ><EditorIcon name="drag" /></button>
           ) : null}
-          <span className="editor-node__identity"><strong>{name}</strong>{node.id ? <code>{node.id}</code> : null}</span>
-          {root ? <button className="editor-node__replace" type="button" onClick={() => setReplaceRootOpen(true)}>Replace root</button> : null}
-          {!root && siblingIndex !== null ? (
-            <>
-              <button className="editor-icon-button" type="button" aria-label={`Move ${name} up`} disabled={siblingIndex === 0} onClick={() => {
-                if (!segment) return;
-                apply(() => moveNode(config, path, { parentPath, slot: segment.slot, index: siblingIndex - 1 }, catalog));
-              }}><EditorIcon name="up" /></button>
-              <button className="editor-icon-button" type="button" aria-label={`Move ${name} down`} disabled={siblingIndex >= siblingCount - 1} onClick={() => {
-                if (!segment) return;
-                apply(() => moveNode(config, path, { parentPath, slot: segment.slot, index: siblingIndex + 2 }, catalog));
-              }}><EditorIcon name="down" /></button>
-            </>
+          <button className="editor-node__select" type="button" aria-pressed={selected} onClick={() => setSelectedPath(path)}>
+            <span className="editor-node__identity"><strong>{name}</strong>{node.id ? <code>{node.id}</code> : null}</span>
+            {isCollapsed ? <span className="editor-node__summary">{countNodes(node) - 1} nested</span> : null}
+          </button>
+          {!root && collapsible ? (
+            <button className="editor-node__collapse" type="button" aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${name}`} aria-expanded={!isCollapsed} onClick={() => toggleCollapsed(path)}>
+              <EditorIcon name={isCollapsed ? "down" : "up"} />
+            </button>
           ) : null}
-          <button className="editor-icon-button" type="button" aria-label={`Configure ${name}`} title="Configure" disabled={!manifest} onClick={() => setConfigurePath(path)}><EditorIcon name="settings" /></button>
-          {!root ? <button className="editor-icon-button editor-icon-button--danger" type="button" aria-label={`Remove ${name}`} title="Remove" onClick={() => setRemovePath(path)}><EditorIcon name="remove" /></button> : null}
         </header>
-        <div className="editor-node__preview">{preview}</div>
+        {!isCollapsed ? <div className="editor-node__preview">{preview}</div> : null}
       </section>
     );
   };
@@ -712,12 +783,48 @@ export function DashboardEditor({
           <ul>{diagnostics.map((item, index) => <li key={`${item.code}:${index}`}><code>{item.code}</code> {item.message}</li>)}</ul>
         </details>
       ) : null}
+      <div className="editor-workbench" role="region" aria-label="Selected component actions">
+        <div className="editor-workbench__selection">
+          <span>Selected component</span>
+          <strong>{selectedName}</strong>
+          {selectedNode.id ? <code>{selectedNode.id}</code> : null}
+        </div>
+        <div className="editor-workbench__actions">
+          <button className="button button--quiet editor-workbench__tree-toggle" type="button" disabled={collapsiblePaths.length === 0} onClick={() => {
+            setCollapsed(allCollapsed
+              ? new Set()
+              : new Set(collapsiblePaths.map(pathKey)));
+          }}>{allCollapsed ? "Expand all" : "Collapse all"}</button>
+          {selectedSegment && selectedCanReorder ? (
+            <div className="editor-workbench__move" aria-label="Move selected component">
+              <button className="editor-icon-button" type="button" aria-label={`Move ${selectedName} up`} title="Move up" disabled={selectedSegment.index === 0} onClick={() => {
+                const nextPath = [...selectedParentPath, { ...selectedSegment, index: selectedSegment.index - 1 }];
+                apply(() => moveNode(config, effectiveSelectedPath, { parentPath: selectedParentPath, slot: selectedSegment.slot, index: selectedSegment.index - 1 }, catalog), nextPath);
+              }}><EditorIcon name="up" /></button>
+              <button className="editor-icon-button" type="button" aria-label={`Move ${selectedName} down`} title="Move down" disabled={selectedSegment.index >= selectedSiblings.length - 1} onClick={() => {
+                const nextPath = [...selectedParentPath, { ...selectedSegment, index: selectedSegment.index + 1 }];
+                apply(() => moveNode(config, effectiveSelectedPath, { parentPath: selectedParentPath, slot: selectedSegment.slot, index: selectedSegment.index + 2 }, catalog), nextPath);
+              }}><EditorIcon name="down" /></button>
+            </div>
+          ) : null}
+          {effectiveSelectedPath.length === 0 ? (
+            <button className="button button--quiet" type="button" onClick={() => setReplaceRootOpen(true)}>Replace root</button>
+          ) : null}
+          <button className="button button--secondary" type="button" disabled={!selectedManifest} onClick={() => setConfigurePath(effectiveSelectedPath)}><EditorIcon name="settings" />Configure</button>
+          {effectiveSelectedPath.length > 0 ? (
+            <button className="button button--quiet button--danger-quiet" type="button" onClick={() => setRemovePath(effectiveSelectedPath)}><EditorIcon name="remove" />Remove</button>
+          ) : null}
+        </div>
+      </div>
       <section className="dashboard dashboard--editing" aria-label={`${config.name} dashboard editor`}>
-        {renderNode(config.root, [], true, null, 1)}
+        {renderNode(config.root, [], true)}
       </section>
-      {addTarget ? <ComponentDialog catalog={catalog} config={config} target={addTarget} onApply={onChange} onDismiss={() => setAddTarget(null)} /> : null}
-      {configurePath && configuring ? <ComponentDialog catalog={catalog} config={config} existing={{ path: configurePath, node: configuring }} onApply={onChange} onDismiss={() => setConfigurePath(null)} /> : null}
-      {replaceRootOpen ? <ComponentDialog catalog={catalog} config={config} replaceRoot={config.root} onApply={onChange} onDismiss={() => setReplaceRootOpen(false)} /> : null}
+      {addTarget ? <ComponentDialog catalog={catalog} config={config} target={addTarget} onApply={applyDraft} onDismiss={() => setAddTarget(null)} /> : null}
+      {configurePath && configuring ? <ComponentDialog catalog={catalog} config={config} existing={{ path: configurePath, node: configuring }} onApply={applyDraft} onDismiss={() => setConfigurePath(null)} /> : null}
+      {replaceRootOpen ? <ComponentDialog catalog={catalog} config={config} replaceRoot={config.root} onApply={(next) => {
+        onChange(next);
+        setSelectedPath([]);
+      }} onDismiss={() => setReplaceRootOpen(false)} /> : null}
       {removePath && removing ? (
         <EditorModal title={removingTab ? "Remove tab?" : "Remove component?"} onDismiss={() => setRemovePath(null)}>
           <div className="remove-confirmation">
@@ -731,7 +838,7 @@ export function DashboardEditor({
             <footer className="editor-modal__actions">
               <button className="button button--quiet" type="button" onClick={() => setRemovePath(null)}>Cancel</button>
               <button className="button button--danger" type="button" onClick={() => {
-                apply(() => removeNode(config, removePath, catalog));
+                apply(() => removeNode(config, removePath, catalog), removePath.slice(0, -1));
                 setRemovePath(null);
               }}>{removingTab ? "Remove tab" : "Remove"}</button>
             </footer>
