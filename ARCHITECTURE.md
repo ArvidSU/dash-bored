@@ -589,6 +589,14 @@ is inside the target files also fails closed because moving those files would
 remove code that may access them. Local components outside the target files
 are not treated as dependencies of the target.
 
+Each expanded sidebar row also reveals a tree-disclosure button immediately
+before the trash affordance. It loads a read-only resolved outline for that
+registered dashboard without activating its runtime, then expands the complete
+node hierarchy below the row. Selecting an outline node switches to that
+dashboard when necessary and uses the existing virtual-root focus model for
+navigation. The active dashboard outline follows live snapshots; inactive
+outlines are refreshed whenever their disclosure is reopened.
+
 One application process/window runs one active project at a time in v1. The
 project list is navigation history, not concurrent project execution; switching
 projects stops the prior project's watcher and supervised processes before the

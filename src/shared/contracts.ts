@@ -148,6 +148,13 @@ export interface ProjectListItem {
   dashboardName: string | null;
 }
 
+export interface ProjectOutline {
+  projectRoot: string;
+  dashboardName: string | null;
+  tree: ResolvedComponentNode | null;
+  diagnostics: Diagnostic[];
+}
+
 export interface ProjectDeletionDependency {
   projectRoot: string;
   dashboardName: string | null;

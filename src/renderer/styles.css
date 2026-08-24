@@ -336,6 +336,11 @@ code {
   padding: 0 10px 0 8px;
 }
 
+.sidebar__project {
+  min-width: 0;
+  border-radius: 9px;
+}
+
 .sidebar__project-row {
   position: relative;
   min-width: 0;
@@ -347,11 +352,14 @@ code {
   min-width: 0;
 }
 
-.sidebar__project-remove {
+.app-shell--sidebar-expanded .sidebar__project-link .sidebar__label {
+  padding-right: 76px;
+}
+
+.sidebar__project-action {
   position: absolute;
   z-index: 1;
   top: 50%;
-  right: 4px;
   display: grid;
   width: 30px;
   height: 30px;
@@ -369,13 +377,31 @@ code {
   transition: opacity 160ms ease, transform 160ms ease, color 160ms ease, background 160ms ease, border-color 160ms ease, visibility 0s linear 160ms;
 }
 
-.app-shell--sidebar-expanded .sidebar__project-row:hover .sidebar__project-remove,
-.app-shell--sidebar-expanded .sidebar__project-row:focus-within .sidebar__project-remove {
+.sidebar__project-tree-toggle {
+  right: 38px;
+}
+
+.sidebar__project-remove {
+  right: 4px;
+}
+
+.app-shell--sidebar-expanded .sidebar__project:hover .sidebar__project-action,
+.app-shell--sidebar-expanded .sidebar__project:focus-within .sidebar__project-action,
+.app-shell--sidebar-expanded .sidebar__project-tree-toggle--active {
   opacity: 1;
   pointer-events: auto;
   transform: translate3d(0, -50%, 0);
   visibility: visible;
   transition-delay: 0s;
+}
+
+.sidebar__project-tree-toggle:hover:not(:disabled),
+.sidebar__project-tree-toggle:focus-visible,
+.sidebar__project-tree-toggle--active {
+  border-color: rgb(217 255 104 / 26%);
+  color: var(--accent);
+  outline: none;
+  background: rgb(217 255 104 / 9%);
 }
 
 .sidebar__project-remove:hover:not(:disabled),
@@ -386,12 +412,12 @@ code {
   background: rgb(255 123 123 / 12%);
 }
 
-.sidebar__project-remove:disabled {
+.sidebar__project-action:disabled {
   cursor: default;
   opacity: 0.48;
 }
 
-.sidebar__project-remove svg {
+.sidebar__project-action svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -401,12 +427,91 @@ code {
   stroke-width: 1.55;
 }
 
+.sidebar-tree {
+  margin: 2px 4px 7px 18px;
+  padding: 5px 0 5px 5px;
+  overflow: hidden;
+  border-left: 1px solid rgb(255 255 255 / 10%);
+}
+
+.sidebar-tree__root,
+.sidebar-tree__group {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sidebar-tree__group {
+  margin-left: 10px;
+  border-left: 1px solid rgb(255 255 255 / 8%);
+}
+
+.sidebar-tree__item {
+  min-width: 0;
+}
+
+.sidebar-tree__node {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 26px;
+  grid-template-columns: 17px minmax(0, 1fr);
+  align-items: center;
+  padding: 1px 5px 1px 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+}
+
+.sidebar-tree__node:hover,
+.sidebar-tree__node:focus-visible {
+  color: var(--text);
+  outline: none;
+  background: rgb(255 255 255 / 5%);
+}
+
+.sidebar-tree__marker {
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+}
+
+.sidebar-tree__marker--branch {
+  color: #8993a2;
+  transform: translateY(-1px);
+}
+
+.sidebar-tree__node-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-tree__state {
+  display: block;
+  padding: 5px 8px 5px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.sidebar-tree__state--error {
+  color: #ffc0c0;
+}
+
 .app-shell:not(.app-shell--sidebar-expanded) .sidebar__label,
 .app-shell:not(.app-shell--sidebar-expanded) .sidebar__chevron {
   pointer-events: none;
 }
 
-.app-shell:not(.app-shell--sidebar-expanded) .sidebar__project-remove {
+.app-shell:not(.app-shell--sidebar-expanded) .sidebar__project-action,
+.app-shell:not(.app-shell--sidebar-expanded) .sidebar-tree {
   display: none;
 }
 

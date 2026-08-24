@@ -6,7 +6,7 @@ export interface VirtualRootCrumb {
   node: ResolvedComponentNode;
 }
 
-function nodeLabel(node: ResolvedComponentNode, root: boolean): string {
+export function nodeLabel(node: ResolvedComponentNode, root: boolean): string {
   if (root) return "Dashboard";
   const title = node.props.title ?? node.props.label ?? node.props.name;
   if (typeof title === "string" && title.trim()) return title.trim();
