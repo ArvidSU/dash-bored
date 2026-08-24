@@ -23,7 +23,11 @@ import type { PaletteAction } from "./actions";
 import { BuiltinRenderer } from "./builtins";
 import type { RenderedSlots } from "./builtins";
 import { CommandPalette } from "./CommandPalette";
-import { DashboardEditor, EditorModal } from "./DashboardEditor";
+import {
+  DashboardEditor,
+  DashboardEditorToolbar,
+  EditorModal,
+} from "./DashboardEditor";
 import {
   LocalComponentErrorBoundary,
   useLocalComponents,
@@ -694,11 +698,16 @@ export function App(): ReactNode {
     });
   }
 
+  function cancelDashboardEdit(): void {
+    if (!editSession) return;
+    if (requireDiscard("Discard the unsaved dashboard changes and exit edit mode?", () => undefined)) {
+      setEditSession(null);
+    }
+  }
+
   async function toggleProjectEditor(projectRoot: string): Promise<void> {
     if (editSession?.projectRoot === projectRoot) {
-      if (requireDiscard("Discard the unsaved dashboard changes and exit edit mode?", () => undefined)) {
-        setEditSession(null);
-      }
+      cancelDashboardEdit();
       return;
     }
     if (editSession && !requireDiscard(
@@ -734,18 +743,32 @@ export function App(): ReactNode {
     }
   }
 
+  const editingCurrentProject = Boolean(editSession && editSession.projectRoot === snapshot?.projectRoot);
+  const draftDirty = editingCurrentProject && editSessionDirty();
+  const draftValid = editingCurrentProject && Boolean(
+    editSession?.validation.diagnostics.every((item) => item.severity !== "error"),
+  );
   const applicationActions = buildApplicationActions({
     snapshot,
     projects,
     activeView,
     sidebarExpanded,
     pendingAction,
+    editing: editingCurrentProject,
+    draftDirty,
+    draftValid,
+    savingDraft,
     callbacks: {
       showDashboard: () => setActiveView("dashboard"),
       showSettings,
       toggleSidebar: () => setSidebarExpanded((expanded) => !expanded),
       addDashboard,
       openProject: selectProject,
+      editDashboard: () => snapshot?.projectRoot
+        ? toggleProjectEditor(snapshot.projectRoot)
+        : undefined,
+      saveDashboard: () => saveDashboardDraft(),
+      cancelDashboard: cancelDashboardEdit,
       reloadProject: () => perform("reload", host.reloadProject),
       trustProject: () => perform("trust", host.trustProject),
       revokeTrust: () => perform("revoke", host.revokeTrust),
@@ -831,9 +854,9 @@ export function App(): ReactNode {
     );
   }
 
-  const projectOpen = Boolean(snapshot?.projectRoot);
   const title = snapshot?.dashboardName?.trim() || (snapshot?.projectRoot ? basename(snapshot.projectRoot) : "dash-bored");
   const headerTitle = activeView === "settings" ? "Settings" : title;
+  const headerProjectRoot = snapshot?.projectRoot;
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
   }\u0000${snapshot?.trusted ? "trusted" : "restricted"}`;
@@ -864,9 +887,8 @@ export function App(): ReactNode {
             const label = projectLabel(project);
             const active = activeView === "dashboard" && project.projectRoot === snapshot?.projectRoot;
             const opening = pendingAction === `open:${project.projectRoot}`;
-            const editing = editSession?.projectRoot === project.projectRoot;
             return (
-              <div className={`sidebar__project-row${editing ? " sidebar__project-row--editing" : ""}`} key={project.projectRoot}>
+              <div className="sidebar__project-row" key={project.projectRoot}>
                 <button
                   className={`sidebar__item sidebar__project-link${active ? " sidebar__item--active" : ""}`}
                   type="button"
@@ -879,16 +901,6 @@ export function App(): ReactNode {
                   <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
                   <span className="sidebar__label">{opening ? "Opening…" : label}</span>
                 </button>
-                {sidebarExpanded ? (
-                  <button
-                    className={`sidebar__edit${editing ? " sidebar__edit--active" : ""}`}
-                    type="button"
-                    aria-label={editing ? `Exit edit mode for ${label}` : `Edit ${label}`}
-                    title={editing ? "Exit edit mode" : "Edit dashboard"}
-                    disabled={pendingAction !== null}
-                    onClick={() => void toggleProjectEditor(project.projectRoot)}
-                  ><ShellIcon name="edit" /></button>
-                ) : null}
               </div>
             );
           })}
@@ -907,7 +919,7 @@ export function App(): ReactNode {
       </aside>
 
       <div className="app-frame">
-        <header className="app-header">
+        <header className={`app-header${editingCurrentProject ? " app-header--editing" : ""}`}>
           <div className="app-header__identity">
             <div>
               <span className="app-header__title">{headerTitle}</span>
@@ -934,20 +946,34 @@ export function App(): ReactNode {
               <span>Commands</span>
               <kbd>{shortcutLabel}</kbd>
             </button>
-            {activeView === "dashboard" ? (
+            {activeView === "dashboard" && headerProjectRoot ? (
               <>
-              {snapshot?.trusted ? (
-                <button className="trust-chip" type="button" disabled={pendingAction !== null} onClick={() => void perform("revoke", host.revokeTrust)} title="Revoke project trust">
-                  <span aria-hidden="true">●</span> Trusted
-                </button>
-              ) : projectOpen ? (
-                <span className="trust-chip trust-chip--locked"><span aria-hidden="true">○</span> Restricted</span>
-              ) : null}
-              {projectOpen ? (
-                <button className="button button--quiet" type="button" disabled={pendingAction !== null} onClick={() => void perform("reload", host.reloadProject)}>
-                  {pendingAction === "reload" ? "Reloading…" : "Reload"}
-                </button>
-              ) : null}
+                {editSession && editingCurrentProject ? (
+                  <div className="app-header__editor-toolbar">
+                    <DashboardEditorToolbar
+                      diagnostics={editSession.validation.diagnostics}
+                      saving={savingDraft}
+                      dirty={editSessionDirty()}
+                      onSave={() => void saveDashboardDraft()}
+                      onCancel={cancelDashboardEdit}
+                    />
+                  </div>
+                ) : null}
+                {!editingCurrentProject ? (
+                  <button
+                    className="button button--quiet dashboard-edit-toggle"
+                    type="button"
+                    aria-label="Edit dashboard"
+                    title="Edit dashboard"
+                    disabled={pendingAction !== null}
+                    onClick={() => {
+                      if (headerProjectRoot) void toggleProjectEditor(headerProjectRoot);
+                    }}
+                  >
+                    <ShellIcon name="edit" />
+                    <span>Edit dashboard</span>
+                  </button>
+                ) : null}
               </>
             ) : null}
           </div>
@@ -976,19 +1002,9 @@ export function App(): ReactNode {
             {editSession && editSession.projectRoot === snapshot.projectRoot ? (
               <DashboardEditor
                 config={editSession.draft}
-                sourcePath={editSession.configPath}
                 catalog={editSession.componentCatalog}
                 diagnostics={editSession.validation.diagnostics}
-                requestedPermissions={editSession.validation.requestedPermissions}
-                saving={savingDraft}
-                dirty={editSessionDirty()}
                 onChange={(draft) => setEditSession((current) => current ? { ...current, draft } : current)}
-                onSave={() => void saveDashboardDraft()}
-                onCancel={() => {
-                  if (requireDiscard("Discard the unsaved dashboard changes?", () => undefined)) {
-                    setEditSession(null);
-                  }
-                }}
               />
             ) : (
               <>

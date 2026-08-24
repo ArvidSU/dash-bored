@@ -229,6 +229,9 @@ describe("application action providers", () => {
     toggleSidebar: () => undefined,
     addDashboard: () => undefined,
     openProject: () => undefined,
+    editDashboard: () => undefined,
+    saveDashboard: () => undefined,
+    cancelDashboard: () => undefined,
     reloadProject: () => undefined,
     trustProject: () => undefined,
     revokeTrust: () => undefined,
@@ -246,6 +249,10 @@ describe("application action providers", () => {
       activeView: "settings",
       sidebarExpanded: false,
       pendingAction: null,
+      editing: false,
+      draftDirty: false,
+      draftValid: false,
+      savingDraft: false,
       callbacks,
     });
 
@@ -296,6 +303,52 @@ describe("application action providers", () => {
       label: "Stop Development server",
       enabled: false,
       disabledReason: "This process is stopping.",
+    });
+  });
+
+  test("exposes dashboard editing and draft save actions from the current editor state", () => {
+    const base = {
+      snapshot: snapshot({ trusted: true }),
+      projects: [],
+      activeView: "dashboard" as const,
+      sidebarExpanded: false,
+      pendingAction: null,
+      callbacks,
+    };
+    const idle = buildApplicationActions({
+      ...base,
+      editing: false,
+      draftDirty: false,
+      draftValid: false,
+      savingDraft: false,
+    });
+    expect(idle.find((item) => item.id === "project:edit")).toMatchObject({
+      enabled: true,
+      label: "Edit dashboard",
+    });
+    expect(idle.find((item) => item.id === "project:save-draft")).toMatchObject({
+      enabled: false,
+      disabledReason: "Enter dashboard edit mode first.",
+    });
+
+    const editing = buildApplicationActions({
+      ...base,
+      editing: true,
+      draftDirty: true,
+      draftValid: true,
+      savingDraft: false,
+    });
+    expect(editing.find((item) => item.id === "project:edit")).toMatchObject({
+      enabled: false,
+      disabledReason: "The dashboard is already in edit mode.",
+    });
+    expect(editing.find((item) => item.id === "project:save-draft")).toMatchObject({
+      enabled: true,
+      label: "Save dashboard changes",
+    });
+    expect(editing.find((item) => item.id === "project:cancel-edit")).toMatchObject({
+      enabled: true,
+      label: "Cancel dashboard editing",
     });
   });
 });

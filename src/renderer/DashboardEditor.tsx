@@ -6,7 +6,6 @@ import type {
   ComponentNode,
   DashboardConfig,
   Diagnostic,
-  Permission,
   ResolvedComponentNode,
 } from "../shared/contracts";
 import { PERMISSION_LABELS } from "./action-providers";
@@ -516,30 +515,44 @@ function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApp
   );
 }
 
-interface DashboardEditorProps {
-  config: DashboardConfig;
-  sourcePath?: string;
-  catalog: readonly ComponentCatalogItem[];
+export interface DashboardEditorToolbarProps {
   diagnostics: readonly Diagnostic[];
-  requestedPermissions: readonly Permission[];
   saving: boolean;
   dirty: boolean;
-  onChange: (config: DashboardConfig) => void;
   onSave: () => void;
   onCancel: () => void;
 }
 
-export function DashboardEditor({
-  config,
-  sourcePath,
-  catalog,
+export function DashboardEditorToolbar({
   diagnostics,
-  requestedPermissions,
   saving,
   dirty,
-  onChange,
   onSave,
   onCancel,
+}: DashboardEditorToolbarProps): ReactNode {
+  const valid = diagnostics.every((item) => item.severity !== "error");
+  return (
+    <div className="editor-toolbar" role="region" aria-label="Dashboard editor">
+      <div className="editor-toolbar__actions">
+        <button className="button button--quiet" type="button" disabled={saving} onClick={onCancel}>Cancel</button>
+        <button className="button button--primary" type="button" disabled={saving || !dirty || !valid} onClick={onSave}>{saving ? "Saving…" : "Save dashboard"}</button>
+      </div>
+    </div>
+  );
+}
+
+interface DashboardEditorProps {
+  config: DashboardConfig;
+  catalog: readonly ComponentCatalogItem[];
+  diagnostics: readonly Diagnostic[];
+  onChange: (config: DashboardConfig) => void;
+}
+
+export function DashboardEditor({
+  config,
+  catalog,
+  diagnostics,
+  onChange,
 }: DashboardEditorProps): ReactNode {
   const [addTarget, setAddTarget] = useState<SlotTarget | null>(null);
   const [configurePath, setConfigurePath] = useState<NodePath | null>(null);
@@ -548,7 +561,6 @@ export function DashboardEditor({
   const [dragging, setDragging] = useState<NodePath | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
   const valid = diagnostics.every((item) => item.severity !== "error");
-
   const apply = (operation: () => DashboardConfig): void => {
     try {
       setEditorError(null);
@@ -693,17 +705,6 @@ export function DashboardEditor({
   const configuring = configurePath ? nodeAtPath(config.root, configurePath) : null;
   return (
     <>
-      <div className="editor-toolbar" role="region" aria-label="Dashboard editor">
-        <div><span className="eyebrow">Edit mode</span><strong>{dirty ? "Unsaved dashboard changes" : "Dashboard is unchanged"}</strong>{sourcePath ? <code title={sourcePath}>{sourcePath}</code> : null}</div>
-        <div className="editor-toolbar__status">
-          {requestedPermissions.length ? <span title={requestedPermissions.map((permission) => PERMISSION_LABELS[permission]).join(", ")}>{requestedPermissions.length} capabilities</span> : <span>No capabilities</span>}
-          {!valid ? <span className="badge badge--error">{diagnostics.filter((item) => item.severity === "error").length} errors</span> : <span className="badge">Valid</span>}
-        </div>
-        <div className="editor-toolbar__actions">
-          <button className="button button--quiet" type="button" disabled={saving} onClick={onCancel}>Cancel</button>
-          <button className="button button--primary" type="button" disabled={saving || !dirty || !valid} onClick={onSave}>{saving ? "Saving…" : "Save dashboard"}</button>
-        </div>
-      </div>
       {editorError ? <div className="global-error" role="alert"><strong>Edit failed</strong><span>{editorError}</span><button type="button" aria-label="Dismiss error" onClick={() => setEditorError(null)}>×</button></div> : null}
       {diagnostics.length > 0 ? (
         <details className="editor-diagnostics" open={!valid}>
