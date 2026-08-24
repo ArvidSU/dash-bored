@@ -108,6 +108,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       startProcess: ({ nodeId }) => runtime.startProcess(nodeId),
       stopProcess: ({ nodeId }) => runtime.stopProcess(nodeId),
       readTextFile: (request) => runtime.readText(request),
+      writeTextFile: (request) => runtime.writeText(request),
       httpRequest: (request) => runtime.http(request),
       runShell: (request) => runtime.runShell(request),
     },

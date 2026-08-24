@@ -11,6 +11,7 @@ export type AppView = "dashboard" | "settings";
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
   "filesystem:read": "Read workspace files",
+  "filesystem:write": "Write workspace files",
   "network:http": "Make HTTP requests",
   "process:execute": "Run project commands",
 };

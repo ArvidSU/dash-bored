@@ -7,6 +7,7 @@ export const COMPONENTS_DIRECTORY = "components";
 
 export type Permission =
   | "filesystem:read"
+  | "filesystem:write"
   | "network:http"
   | "process:execute";
 
@@ -171,6 +172,11 @@ export interface FileReadRequest extends HostRequestContext {
   path: string;
 }
 
+export interface FileWriteRequest extends HostRequestContext {
+  path: string;
+  content: string;
+}
+
 export interface HttpRequest extends HostRequestContext {
   url: string;
   method?: string;
@@ -226,7 +232,10 @@ export interface ComponentAction {
 export interface LocalComponentHost {
   dashboard: { reload(): Promise<void> };
   actions: { register(action: ComponentAction): () => void };
-  filesystem?: { readText(path: string): Promise<string> };
+  filesystem?: {
+    readText(path: string): Promise<string>;
+    writeText?(path: string, content: string): Promise<void>;
+  };
   http?: { request(request: Omit<HttpRequest, "nodeId">): Promise<HttpResponsePayload> };
   shell?: { run(request: Omit<ShellRunRequest, "nodeId">): Promise<ShellRunResult> };
 }

@@ -7,6 +7,7 @@ import type {
   DashboardConfigSource,
   DashboardDraftValidation,
   FileReadRequest,
+  FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
   ProcessSnapshot,
@@ -452,6 +453,10 @@ export class ProjectRuntime {
 
   readText(request: FileReadRequest): Promise<string> {
     return this.capabilities.readText(request);
+  }
+
+  writeText(request: FileWriteRequest): Promise<void> {
+    return this.capabilities.writeText(request);
   }
 
   http(request: HttpRequest): Promise<HttpResponsePayload> {

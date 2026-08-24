@@ -136,11 +136,18 @@ function createLocalHost(
     },
   };
 
-  if (permissions.has("filesystem:read")) {
+  if (permissions.has("filesystem:read") || permissions.has("filesystem:write")) {
     componentHost.filesystem = {
       readText(path) {
         return host.readTextFile({ nodeId: node.id, path });
       },
+      ...(permissions.has("filesystem:write")
+        ? {
+            writeText(path, content) {
+              return host.writeTextFile({ nodeId: node.id, path, content });
+            },
+          }
+        : {}),
     };
   }
 

@@ -5,6 +5,7 @@ import type {
   DashboardDraftValidation,
   ComponentPropsValidation,
   FileReadRequest,
+  FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
   ProcessSnapshot,
@@ -32,6 +33,7 @@ export type DashboardRPC = {
       startProcess: { params: { nodeId: string }; response: ProcessSnapshot };
       stopProcess: { params: { nodeId: string }; response: ProcessSnapshot };
       readTextFile: { params: FileReadRequest; response: string };
+      writeTextFile: { params: FileWriteRequest; response: void };
       httpRequest: { params: HttpRequest; response: HttpResponsePayload };
       runShell: { params: ShellRunRequest; response: ShellRunResult };
     };

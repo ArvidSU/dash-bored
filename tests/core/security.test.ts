@@ -73,6 +73,29 @@ describe("CapabilityService", () => {
     });
   });
 
+  test("writes contained UTF-8 files only with the write capability", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await writeFile(join(root, "small.env"), "A=one\n");
+
+    const readOnly = service(root, "filesystem:read");
+    await expect(readOnly.writeText({ nodeId: "node", path: "small.env", content: "A=two\n" })).rejects.toMatchObject({
+      code: "PERMISSION_DENIED",
+    });
+
+    const writer = service(root, "filesystem:write", { fileBytes: 8 });
+    await writer.writeText({ nodeId: "node", path: "small.env", content: "A=two\n" });
+    expect(await Bun.file(join(root, "small.env")).text()).toBe("A=two\n");
+    await writer.writeText({ nodeId: "node", path: "new.env", content: "B=two\n" });
+    expect(await Bun.file(join(root, "new.env")).text()).toBe("B=two\n");
+    await expect(writer.writeText({ nodeId: "node", path: "../outside.env", content: "x" })).rejects.toMatchObject({
+      code: "PATH_OUTSIDE_PROJECT",
+    });
+    await expect(writer.writeText({ nodeId: "node", path: "small.env", content: "123456789" })).rejects.toMatchObject({
+      code: "FILE_TOO_LARGE",
+    });
+  });
+
   test("bounds HTTP protocols, response bytes, and timeouts", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

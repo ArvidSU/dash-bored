@@ -24,7 +24,7 @@ function emptyTrustFile(): TrustFile {
 }
 
 function isPermission(value: unknown): value is Permission {
-  return value === "filesystem:read" || value === "network:http" || value === "process:execute";
+  return value === "filesystem:read" || value === "filesystem:write" || value === "network:http" || value === "process:execute";
 }
 
 function parseTrustFile(source: string): TrustFile {

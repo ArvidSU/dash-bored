@@ -173,7 +173,13 @@ The initial built-ins are:
 - Display: `@dash-bored/text`, `@dash-bored/markdown`, and
   `@dash-bored/status`.
 - Host-backed: `@dash-bored/command`, `@dash-bored/terminal`,
-  `@dash-bored/file`, and `@dash-bored/webview`.
+  `@dash-bored/file`, `@dash-bored/env`, and `@dash-bored/webview`.
+
+`@dash-bored/env` takes a relative `path` prop, reads a project-local dotenv
+file, and provides a key-value editor with a bulk/raw mode. Saving requires
+project trust because the component requests both `filesystem:read` and
+`filesystem:write`; comments, blank lines, and unrecognized lines remain in
+place when editing through the key-value view.
 
 ### Compose standalone dashboards
 
@@ -365,6 +371,7 @@ declares the corresponding permission:
 | --- | --- | --- |
 | None | `host.actions.register(action)` | Contribute a mounted-instance action to the command palette. |
 | `filesystem:read` | `host.filesystem.readText(path)` | Read a bounded UTF-8 file below the project root. |
+| `filesystem:write` | `host.filesystem.writeText(path, content)` | Atomically replace a bounded UTF-8 file below the project root. |
 | `network:http` | `host.http.request(request)` | Make a bounded, timed `http:` or `https:` request. |
 | `process:execute` | `host.shell.run(request)` | Run a short, output- and time-bounded command. |
 

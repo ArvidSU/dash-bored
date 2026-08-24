@@ -24,3 +24,7 @@ root:
           label: Config-link boundary
           state: healthy
           detail: This content is loaded from dash-bored/dogfood/dash-bored.yaml.
+      - id: dogfood-env
+        component: "@dash-bored/env"
+        props:
+          path: .env.worktree

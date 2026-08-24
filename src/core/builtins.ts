@@ -126,6 +126,15 @@ const manifests: ComponentManifest[] = [
   },
   {
     schemaVersion: 1,
+    id: "@dash-bored/env",
+    name: "Environment editor",
+    description: "Edits a project-local .env file as key-value pairs or raw text.",
+    entry: "builtin:env",
+    propsSchema: objectSchema({ path: string }, ["path"]),
+    permissions: ["filesystem:read", "filesystem:write"],
+  },
+  {
+    schemaVersion: 1,
     id: "@dash-bored/webview",
     name: "Webview",
     description: "Embeds an HTTP or HTTPS application page.",

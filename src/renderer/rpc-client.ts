@@ -5,6 +5,7 @@ import type {
   DashboardDraftValidation,
   ComponentPropsValidation,
   FileReadRequest,
+  FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
   ProcessSnapshot,
@@ -152,6 +153,11 @@ export const host = {
   readTextFile(request: FileReadRequest): Promise<string> {
     ensureTransport();
     return rpc.request.readTextFile(request);
+  },
+
+  writeTextFile(request: FileWriteRequest): Promise<void> {
+    ensureTransport();
+    return rpc.request.writeTextFile(request);
   },
 
   httpRequest(request: HttpRequest): Promise<HttpResponsePayload> {

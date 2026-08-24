@@ -187,6 +187,7 @@ describe("tree resolution and local compilation", () => {
 
     const result = await loadProjectDefinition(root);
     expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/stack" && item.available)).toBeTrue();
+    expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/env" && item.available)).toBeTrue();
     expect(result.componentCatalog.some((item) => item.reference === "./components/available" && item.available)).toBeTrue();
     const unavailable = result.componentCatalog.find((item) => item.reference === "./components/invalid");
     expect(unavailable?.available).toBeFalse();

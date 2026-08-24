@@ -86,7 +86,7 @@ const manifestSchema = {
     permissions: {
       type: "array",
       uniqueItems: true,
-      items: { enum: ["filesystem:read", "network:http", "process:execute"] },
+      items: { enum: ["filesystem:read", "filesystem:write", "network:http", "process:execute"] },
     },
   },
 } as const;

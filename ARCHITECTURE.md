@@ -298,6 +298,7 @@ permissions:
 whether it accepts multiple nodes. Supported permission names are:
 
 - `filesystem:read`
+- `filesystem:write`
 - `network:http`
 - `process:execute`
 
@@ -374,8 +375,8 @@ authenticated boundary between mutually hostile local components.
 ## Trust and host capabilities
 
 An untrusted project may be parsed and may render safe built-in layout and
-inline content. It cannot compile local code, start a command, read a project
-file, make an HTTP request, or instantiate a project webview.
+inline content. It cannot compile local code, start a command, read or write a
+project file, make an HTTP request, or instantiate a project webview.
 
 The application presents one project-level trust decision with the complete
 requested permission set. Trust is keyed by canonical project root and stores
@@ -413,7 +414,10 @@ interface ComponentAction {
 interface LocalComponentHost {
   dashboard: { reload(): Promise<void> };
   actions: { register(action: ComponentAction): () => void };
-  filesystem?: { readText(path: string): Promise<string> };
+  filesystem?: {
+    readText(path: string): Promise<string>;
+    writeText?(path: string, content: string): Promise<void>;
+  };
   http?: { request(request: HttpRequest): Promise<HttpResponsePayload> };
   shell?: { run(request: ShellRunRequest): Promise<ShellRunResult> };
 }
@@ -475,6 +479,9 @@ The initial built-in set is intentionally generic:
 - `@dash-bored/command` starts and stops a declared process after a user click.
 - `@dash-bored/terminal` displays bounded process logs.
 - `@dash-bored/file` displays a read-only project file.
+- `@dash-bored/env` edits a project-local dotenv file through a key-value or
+  bulk/raw editor. Key-value saves preserve comments, blank lines, and
+  unrecognized lines; writes are bounded, project-contained, and atomic.
 - `@dash-bored/webview` embeds a sandboxed application page. Native child
   webviews are initialized only while their tab is visible and are explicitly
   hidden while an already-initialized tab is inactive; the native surface is an

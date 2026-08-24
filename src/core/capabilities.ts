@@ -1,6 +1,7 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import type {
   FileReadRequest,
+  FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
   Permission,
@@ -135,6 +136,33 @@ export class CapabilityService {
       return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
       throw new CoreError("FILE_NOT_UTF8", "The requested file is not valid UTF-8 text.");
+    }
+  }
+
+  async writeText(request: FileWriteRequest): Promise<void> {
+    const context = this.assertAllowed(request.nodeId, "filesystem:write");
+    if (Buffer.byteLength(request.content, "utf8") > this.fileBytes) {
+      throw new CoreError("FILE_TOO_LARGE", `Files may not exceed ${this.fileBytes} bytes.`);
+    }
+    const projectRoot = context.projectRootsByNode?.get(request.nodeId) ?? context.projectRoot;
+    const path = await resolveContainedPath(projectRoot, request.path, {
+      kind: "file",
+      mustExist: false,
+    });
+    let mode = 0o600;
+    try {
+      mode = (await stat(path)).mode & 0o777;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+
+    const temporaryPath = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, request.content, { encoding: "utf8", mode });
+      await rename(temporaryPath, path);
+    } catch (error) {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      throw new CoreError("FILE_WRITE_FAILED", errorMessage(error), { cause: error });
     }
   }
 
