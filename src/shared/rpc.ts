@@ -9,6 +9,7 @@ import type {
   HttpRequest,
   HttpResponsePayload,
   ProcessSnapshot,
+  ProjectOutline,
   ProjectListItem,
   ProjectDeletionPreview,
   ProjectSnapshot,
@@ -23,6 +24,7 @@ export type DashboardRPC = {
     requests: {
       getSnapshot: { params: {}; response: ProjectSnapshot };
       listProjects: { params: {}; response: ProjectListItem[] };
+      getProjectOutline: { params: { projectRoot: string }; response: ProjectOutline };
       chooseProject: { params: {}; response: ProjectSnapshot };
       openProject: { params: { projectRoot: string }; response: ProjectSnapshot };
       getProjectDeletionPreview: { params: { projectRoot: string }; response: ProjectDeletionPreview };

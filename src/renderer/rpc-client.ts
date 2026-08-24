@@ -9,6 +9,7 @@ import type {
   HttpRequest,
   HttpResponsePayload,
   ProcessSnapshot,
+  ProjectOutline,
   ProjectDeletionPreview,
   ProjectListItem,
   ProjectSnapshot,
@@ -82,6 +83,11 @@ export const host = {
   async listProjects(): Promise<ProjectListItem[]> {
     ensureTransport();
     return await rpc.request.listProjects({});
+  },
+
+  async getProjectOutline(projectRoot: string): Promise<ProjectOutline> {
+    ensureTransport();
+    return await rpc.request.getProjectOutline({ projectRoot });
   },
 
   chooseProject(): Promise<ProjectSnapshot> {

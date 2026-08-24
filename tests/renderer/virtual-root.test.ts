@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ResolvedComponentNode } from "../../src/shared/contracts";
 import {
   findVirtualRootPath,
+  nodeLabel,
   resolveVirtualRoot,
   virtualRootStorageKey,
 } from "../../src/renderer/virtual-root";
@@ -31,6 +32,12 @@ const tree: ResolvedComponentNode = {
 };
 
 describe("virtual dashboard roots", () => {
+  test("uses readable component props for sidebar and breadcrumb labels", () => {
+    expect(nodeLabel(tree, true)).toBe("Dashboard");
+    expect(nodeLabel({ ...leaf, props: { label: "Deploy API" } }, false)).toBe("Deploy API");
+    expect(nodeLabel({ ...leaf, props: {} }, false)).toBe("command");
+  });
+
   test("finds any nested component and builds human-readable breadcrumbs", () => {
     const path = findVirtualRootPath(tree, "only-button");
     expect(path?.map(({ id, label }) => ({ id, label }))).toEqual([

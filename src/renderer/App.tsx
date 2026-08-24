@@ -9,6 +9,7 @@ import type {
   ProcessSnapshot,
   ProjectDeletionPreview,
   ProjectListItem,
+  ProjectOutline,
   ProjectSnapshot,
   ResolvedComponentNode,
 } from "../shared/contracts";
@@ -25,6 +26,7 @@ import type { PaletteAction } from "./actions";
 import { BuiltinRenderer } from "./builtins";
 import type { RenderedSlots } from "./builtins";
 import { CommandPalette } from "./CommandPalette";
+import { DashboardOutlineTree } from "./DashboardOutlineTree";
 import {
   DashboardEditor,
   DashboardEditorToolbar,
@@ -75,7 +77,19 @@ function rememberProject(
   return next;
 }
 
-type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit" | "trash";
+interface ProjectOutlineState {
+  tree: ResolvedComponentNode | null;
+  loading: boolean;
+  error: string | null;
+}
+
+function outlineError(outline: Pick<ProjectOutline, "tree" | "diagnostics">): string | null {
+  if (outline.tree) return null;
+  return outline.diagnostics.find((item) => item.severity === "error")?.message
+    ?? "The dashboard tree is unavailable.";
+}
+
+type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit" | "tree" | "trash";
 
 function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
   if (name === "project") {
@@ -108,6 +122,16 @@ function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
       <svg viewBox="0 0 20 20" aria-hidden="true">
         <path d="m5 14-.5 2.5L7 16l8-8-2-2-8 8Z" />
         <path d="m11.8 7.2 2 2" />
+      </svg>
+    );
+  }
+  if (name === "tree") {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M5 4v9.5M5 7h4M5 13h4" />
+        <rect x="10" y="4.5" width="5" height="5" rx="1" />
+        <rect x="10" y="11" width="5" height="5" rx="1" />
+        <circle cx="5" cy="4" r="1.25" />
       </svg>
     );
   }
@@ -513,6 +537,8 @@ export function App(): ReactNode {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [expandedProjectOutlines, setExpandedProjectOutlines] = useState<Record<string, boolean>>({});
+  const [projectOutlines, setProjectOutlines] = useState<Record<string, ProjectOutlineState>>({});
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [virtualRoots, setVirtualRoots] = useState<Record<string, string | null>>({});
@@ -585,6 +611,19 @@ export function App(): ReactNode {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const snapshotProjectRoot = snapshot?.projectRoot;
+    if (!snapshotProjectRoot) return;
+    setProjectOutlines((current) => ({
+      ...current,
+      [snapshotProjectRoot]: {
+        tree: snapshot.tree,
+        loading: false,
+        error: outlineError(snapshot),
+      },
+    }));
+  }, [snapshot?.projectRoot, snapshot?.revision, snapshot?.tree, snapshot?.diagnostics]);
 
   useEffect(() => {
     if (!editSession) return;
@@ -691,6 +730,43 @@ export function App(): ReactNode {
     await openSelectedProject(projectRoot);
   }
 
+  function toggleProjectOutline(project: ProjectListItem): void {
+    const projectRoot = project.projectRoot;
+    const closing = expandedProjectOutlines[projectRoot] === true;
+    setExpandedProjectOutlines((current) => ({ ...current, [projectRoot]: !closing }));
+    if (closing || snapshot?.projectRoot === projectRoot) return;
+
+    setProjectOutlines((current) => ({
+      ...current,
+      [projectRoot]: {
+        tree: current[projectRoot]?.tree ?? null,
+        loading: true,
+        error: null,
+      },
+    }));
+    void host.getProjectOutline(projectRoot)
+      .then((outline) => {
+        setProjectOutlines((current) => ({
+          ...current,
+          [projectRoot]: {
+            tree: outline.tree,
+            loading: false,
+            error: outlineError(outline),
+          },
+        }));
+      })
+      .catch((error: unknown) => {
+        setProjectOutlines((current) => ({
+          ...current,
+          [projectRoot]: {
+            tree: null,
+            loading: false,
+            error: errorMessage(error),
+          },
+        }));
+      });
+  }
+
   async function openDeletionDialog(
     project: ProjectListItem,
     skipDiscard = false,
@@ -728,6 +804,18 @@ export function App(): ReactNode {
         current?.projectRoot === request.project.projectRoot ? null : current,
       );
       setVirtualRoots((current) => {
+        if (!Object.hasOwn(current, request.project.projectRoot)) return current;
+        const next = { ...current };
+        delete next[request.project.projectRoot];
+        return next;
+      });
+      setExpandedProjectOutlines((current) => {
+        if (!Object.hasOwn(current, request.project.projectRoot)) return current;
+        const next = { ...current };
+        delete next[request.project.projectRoot];
+        return next;
+      });
+      setProjectOutlines((current) => {
         if (!Object.hasOwn(current, request.project.projectRoot)) return current;
         const next = { ...current };
         delete next[request.project.projectRoot];
@@ -889,14 +977,38 @@ export function App(): ReactNode {
     }
   }, [projectRoot, snapshot?.tree, storedVirtualRoot]);
 
-  function focusComponent(nodeId: string): void {
-    if (!projectRoot) return;
-    setVirtualRoots((current) => ({ ...current, [projectRoot]: nodeId }));
+  function storeVirtualRoot(targetProjectRoot: string, nodeId: string): void {
+    setVirtualRoots((current) => ({ ...current, [targetProjectRoot]: nodeId }));
     try {
-      window.localStorage.setItem(virtualRootStorageKey(projectRoot), nodeId);
+      window.localStorage.setItem(virtualRootStorageKey(targetProjectRoot), nodeId);
     } catch {
       // Session state remains usable when persistence is unavailable.
     }
+  }
+
+  function focusComponent(nodeId: string): void {
+    if (!projectRoot) return;
+    storeVirtualRoot(projectRoot, nodeId);
+  }
+
+  async function focusProjectNode(targetProjectRoot: string, nodeId: string): Promise<void> {
+    if (snapshot?.projectRoot === targetProjectRoot) {
+      setActiveView("dashboard");
+      storeVirtualRoot(targetProjectRoot, nodeId);
+      return;
+    }
+    if (editSession && editSession.projectRoot !== targetProjectRoot && !requireDiscard(
+      "Discard the unsaved dashboard changes and navigate to another dashboard node?",
+      () => void focusProjectNode(targetProjectRoot, nodeId),
+    )) return;
+
+    let opened = false;
+    await perform(`open:${targetProjectRoot}`, async () => {
+      await host.openProject(targetProjectRoot);
+      setActiveView("dashboard");
+      opened = true;
+    });
+    if (opened) storeVirtualRoot(targetProjectRoot, nodeId);
   }
 
   const nodeFocusActions = buildNodeFocusActions(
@@ -970,38 +1082,68 @@ export function App(): ReactNode {
         </button>
 
         <nav className="sidebar__projects" aria-label="Projects">
-          {projects.map((project) => {
+          {projects.map((project, projectIndex) => {
             const label = projectLabel(project);
             const active = activeView === "dashboard" && project.projectRoot === snapshot?.projectRoot;
             const opening = pendingAction === `open:${project.projectRoot}`;
+            const outlineExpanded = expandedProjectOutlines[project.projectRoot] === true;
+            const outline = projectOutlines[project.projectRoot] ?? {
+              tree: null,
+              loading: false,
+              error: null,
+            };
+            const outlineId = `sidebar-project-tree-${projectIndex}`;
             return (
-              <div className="sidebar__project-row" key={project.projectRoot}>
-                <button
-                  className={`sidebar__item sidebar__project-link${active ? " sidebar__item--active" : ""}`}
-                  type="button"
-                  aria-current={active ? "page" : undefined}
-                  aria-label={label}
-                  title={label}
-                  disabled={pendingAction !== null}
-                  onClick={() => void selectProject(project.projectRoot)}
-                >
-                  <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
-                  <span className="sidebar__label">{opening ? "Opening…" : label}</span>
-                </button>
-                <button
-                  className="sidebar__project-remove"
-                  type="button"
-                  aria-label={`Remove ${label}`}
-                  title="Remove dashboard"
-                  tabIndex={sidebarExpanded ? 0 : -1}
-                  disabled={pendingAction !== null}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void openDeletionDialog(project);
-                  }}
-                >
-                  <ShellIcon name="trash" />
-                </button>
+              <div className="sidebar__project" key={project.projectRoot}>
+                <div className="sidebar__project-row">
+                  <button
+                    className={`sidebar__item sidebar__project-link${active ? " sidebar__item--active" : ""}`}
+                    type="button"
+                    aria-current={active ? "page" : undefined}
+                    aria-label={label}
+                    title={label}
+                    disabled={pendingAction !== null}
+                    onClick={() => void selectProject(project.projectRoot)}
+                  >
+                    <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
+                    <span className="sidebar__label">{opening ? "Opening…" : label}</span>
+                  </button>
+                  <button
+                    className={`sidebar__project-action sidebar__project-tree-toggle${outlineExpanded ? " sidebar__project-tree-toggle--active" : ""}`}
+                    type="button"
+                    aria-label={`${outlineExpanded ? "Collapse" : "Show"} ${label} tree`}
+                    aria-expanded={outlineExpanded}
+                    aria-controls={outlineId}
+                    title={outlineExpanded ? "Collapse dashboard tree" : "Show dashboard tree"}
+                    tabIndex={sidebarExpanded ? 0 : -1}
+                    disabled={pendingAction !== null}
+                    onClick={() => toggleProjectOutline(project)}
+                  >
+                    <ShellIcon name="tree" />
+                  </button>
+                  <button
+                    className="sidebar__project-action sidebar__project-remove"
+                    type="button"
+                    aria-label={`Remove ${label}`}
+                    title="Remove dashboard"
+                    tabIndex={sidebarExpanded ? 0 : -1}
+                    disabled={pendingAction !== null}
+                    onClick={() => void openDeletionDialog(project)}
+                  >
+                    <ShellIcon name="trash" />
+                  </button>
+                </div>
+                {outlineExpanded ? (
+                  <div id={outlineId}>
+                    <DashboardOutlineTree
+                      tree={outline.tree}
+                      loading={outline.loading}
+                      error={outline.error}
+                      label={label}
+                      onSelect={(nodeId) => void focusProjectNode(project.projectRoot, nodeId)}
+                    />
+                  </div>
+                ) : null}
               </div>
             );
           })}

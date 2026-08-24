@@ -10,6 +10,7 @@ import { CoreError, ProjectRuntime, TrustStore } from "../core/index";
 import type { ProjectSnapshot } from "../shared/contracts";
 import type { DashboardRPC } from "../shared/rpc";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
+import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment } from "./tool-environment";
 
@@ -99,6 +100,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
     requests: {
       getSnapshot: () => runtime.getSnapshot(),
       listProjects: () => projectRegistry.list(),
+      getProjectOutline: ({ projectRoot }) =>
+        getRegisteredProjectOutline(projectRegistry, projectRoot),
       chooseProject: () => chooseAndLoadProject(),
       openProject: ({ projectRoot }) => openProject(projectRoot),
       getProjectDeletionPreview: ({ projectRoot }) =>
