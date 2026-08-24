@@ -16,6 +16,7 @@ afterEach(async () => {
 function snapshot(projectRoot: string, dashboardName: string | null): ProjectSnapshot {
   return {
     projectRoot,
+    configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
     dashboardName,
     config: null,
     configRevision: null,
@@ -41,13 +42,19 @@ describe("ProjectRegistry", () => {
 
     await registry.remember(snapshot(firstRoot, "First dashboard"));
     await registry.remember(snapshot(secondRoot, null));
+    await registry.remember({
+      ...snapshot(firstRoot, "Arvid dashboard"),
+      configPath: join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"),
+    });
     await registry.remember(snapshot(firstRoot, "Renamed dashboard"));
 
     expect(await registry.contains(firstRoot)).toBeTrue();
+    expect(await registry.contains(firstRoot, join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"))).toBeTrue();
     expect(await registry.contains(join(directory, "unknown"))).toBeFalse();
     expect(await new ProjectRegistry(registryPath).list()).toEqual([
-      { projectRoot: firstRoot, dashboardName: "Renamed dashboard" },
-      { projectRoot: secondRoot, dashboardName: null },
+      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Renamed dashboard" },
+      { projectRoot: secondRoot, configPath: join(secondRoot, "dash-bored", "dash-bored.yaml"), dashboardName: null },
+      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"), dashboardName: "Arvid dashboard" },
     ]);
   });
 
@@ -64,7 +71,7 @@ describe("ProjectRegistry", () => {
     cleanup.push(directory);
     const registryPath = join(directory, "state", "projects-v1.json");
     const projectRoot = join(directory, "project");
-    const item = { projectRoot, dashboardName: "Restore me" };
+    const item = { projectRoot, configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Restore me" };
     const registry = new ProjectRegistry(registryPath);
 
     await registry.remember(snapshot(projectRoot, item.dashboardName));

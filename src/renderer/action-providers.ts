@@ -21,7 +21,7 @@ export interface ApplicationActionCallbacks {
   showSettings(): void;
   toggleSidebar(): void;
   addDashboard(): void | Promise<void>;
-  openProject(projectRoot: string): void | Promise<void>;
+  openProject(project: ProjectListItem): void | Promise<void>;
   editDashboard(): void | Promise<void>;
   saveDashboard(): void | Promise<void>;
   cancelDashboard(): void | Promise<void>;
@@ -216,12 +216,12 @@ export function buildApplicationActions(
   for (const project of projects) {
     const label = projectLabel(project);
     const current =
-      project.projectRoot === snapshot?.projectRoot && activeView === "dashboard";
+      project.configPath === snapshot?.configPath && activeView === "dashboard";
     actions.push(
       appAction({
-        id: `dashboard:${encodeURIComponent(project.projectRoot)}`,
+        id: `dashboard:${encodeURIComponent(project.configPath)}`,
         label: `Open ${label}`,
-        description: project.projectRoot,
+        description: project.configPath,
         keywords: ["dashboard", "project", project.projectRoot],
         group: "Dashboards",
         source: project.projectRoot,
@@ -229,7 +229,7 @@ export function buildApplicationActions(
         disabledReason: current
           ? "This dashboard is already open."
           : pendingReason,
-        run: () => callbacks.openProject(project.projectRoot),
+        run: () => callbacks.openProject(project),
       }),
     );
   }

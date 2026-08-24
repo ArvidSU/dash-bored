@@ -118,12 +118,16 @@ configs do not implicitly share lock entries, component directories, nodes, or
 defaults. Their only composition mechanism is an explicit component reference
 to another standalone bundle path.
 
-The `validate` and `inspect` project arguments may identify the project root, a
-standalone bundle directory, or its `dash-bored.yaml`. A directory passed to
-`open` is the project root; `open` also accepts an explicit `dash-bored.yaml`
-path. `init` instead takes an optional bundle name and an explicit `--project`
-path. Resolution does not walk unrelated ancestor directories. Paths are
-canonicalized before they are used as trust keys or containment boundaries.
+The `validate`, `inspect`, and CLI `open` project arguments may identify the
+project root, a standalone bundle directory, or its `dash-bored.yaml`. `open`
+renders exactly the selected bundle; the CLI passes both the canonical project
+root and the selected config path to the desktop process. Resolution does not
+walk unrelated ancestor directories. Paths are canonicalized before they are
+used as trust keys or containment boundaries. The desktop project chooser uses
+the selected directory's shape: a nested `dash-bored/dash-bored.yaml` selects
+the project root, while a direct `dash-bored.yaml` selects that standalone
+bundle. The same chooser therefore opens either kind of dashboard without
+merging standalone configs into one another.
 
 Opening a project, either through `dash-bored open` or the desktop project
 chooser, ensures that this complete project contract exists. The application
@@ -570,11 +574,13 @@ Tabs are keyboard accessible. Splits support horizontal and vertical layouts
 and collapse to a stacked layout in narrow windows. The application shell also
 shows project identity, diagnostics, and a collapsed-by-default project
 sidebar. The header exposes the command palette and active-dashboard edit
-controls; trust and reload actions remain available from Settings. The main process persists projects that have been
-opened successfully in a user-data registry. Each entry retains its canonical
-project root and last configured dashboard name. The sidebar can switch the
-single active runtime between those projects, add another project through the
-native chooser, open application settings, or remove a remembered dashboard.
+controls; trust and reload actions remain available from Settings. The main
+process persists successfully opened dashboard targets in a user-data
+registry. Each entry retains its canonical project root, exact config path,
+and configured dashboard name, so the canonical and named bundles can appear
+as separate sidebar entries. The sidebar can switch the single active runtime
+between those dashboards, add another target through the native chooser, open
+application settings, or remove a remembered dashboard.
 
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks
@@ -597,10 +603,10 @@ dashboard when necessary and uses the existing virtual-root focus model for
 navigation. The active dashboard outline follows live snapshots; inactive
 outlines are refreshed whenever their disclosure is reopened.
 
-One application process/window runs one active project at a time in v1. The
-project list is navigation history, not concurrent project execution; switching
-projects stops the prior project's watcher and supervised processes before the
-next project becomes active.
+One application process/window runs one active dashboard at a time in v1. The
+dashboard list is navigation history, not concurrent execution; switching
+dashboards stops the prior dashboard's watcher and supervised processes before
+the next target becomes active.
 
 The active dashboard header exposes the edit toggle. Edit mode consolidates the
 Save/Cancel controls into that same header. The structural workbench keeps one
@@ -643,8 +649,9 @@ targets.
 If any step before the Trash move fails, the registry, trust grant, and active
 runtime are restored. A failed Trash operation restores the registry and
 runtime as well. Named bundles below the target directory are included because
-they are part of that app-owned directory; they are linkable config targets,
-not separate sidebar entries. Dynamic file access from trusted local component
+they are part of that app-owned directory; when file cleanup is selected, all
+remembered entries for that project root are removed together. Dynamic file
+access from trusted local component
 code is not statically inferable. The deletion scan therefore reports static
 config links and blocks cleanup when registered local component files are
 inside the target directory; unrelated component bundles outside the target do
@@ -782,7 +789,8 @@ GitHub prerelease so publishing remains an explicit maintainer decision.
 
 `bun run build:release` uses the Electrobun canary channel, which keeps these
 early installs separate from a future stable, signed application. Unlike a
-normal worktree build, it strips `DASH_BORED_PROJECT_ROOT`, development-server,
+normal worktree build, it strips `DASH_BORED_PROJECT_ROOT`,
+`DASH_BORED_CONFIG_PATH`, development-server,
 port, and instance variables before packaging. This prevents a local worktree
 identifier or project path from becoming part of a release.
 

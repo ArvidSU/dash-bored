@@ -37,6 +37,32 @@ describe("project paths and YAML", () => {
     expect(fromRoot.projectRoot).toBe(await realpath(root));
   });
 
+  test("resolves a standalone bundle directory as that bundle", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root);
+    const named = join(root, "dash-bored", "arvid");
+    await mkdir(join(named, "components"), { recursive: true });
+    await writeFile(
+      join(named, "dash-bored.yaml"),
+      stringify({
+        schemaVersion: 1,
+        name: "Arvid",
+        root: { component: "@dash-bored/text", props: { content: "Personal" } },
+      }),
+    );
+    await writeFile(
+      join(named, "dash-bored-lock.yaml"),
+      stringify({ lockfileVersion: 1, components: {} }),
+    );
+
+    const location = await resolveProjectLocation(named);
+
+    expect(location.projectRoot).toBe(await realpath(root));
+    expect(location.configPath).toBe(await realpath(join(named, "dash-bored.yaml")));
+    expect(location.componentsDirectory).toBe(await realpath(join(named, "components")));
+  });
+
   test("reports duplicate YAML keys and unknown structural keys", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

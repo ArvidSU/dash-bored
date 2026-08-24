@@ -106,6 +106,8 @@ export interface ProcessSnapshot {
 
 export interface ProjectSnapshot {
   projectRoot: string | null;
+  /** Canonical YAML currently rendered, including standalone named bundles. */
+  configPath?: string | null;
   dashboardName: string | null;
   config: DashboardConfig | null;
   configRevision: string | null;
@@ -143,13 +145,16 @@ export interface SaveDashboardConfigRequest {
   configPath?: string;
 }
 
-export interface ProjectListItem {
+export interface ProjectTarget {
   projectRoot: string;
+  configPath: string;
+}
+
+export interface ProjectListItem extends ProjectTarget {
   dashboardName: string | null;
 }
 
-export interface ProjectOutline {
-  projectRoot: string;
+export interface ProjectOutline extends ProjectTarget {
   dashboardName: string | null;
   tree: ResolvedComponentNode | null;
   diagnostics: Diagnostic[];
@@ -161,8 +166,7 @@ export interface ProjectDeletionDependency {
   configPaths: string[];
 }
 
-export interface ProjectDeletionPreview {
-  projectRoot: string;
+export interface ProjectDeletionPreview extends ProjectTarget {
   dashboardName: string | null;
   filesDirectory: string;
   filesExist: boolean;
@@ -173,6 +177,7 @@ export interface ProjectDeletionPreview {
 
 export interface DeleteProjectRequest {
   projectRoot: string;
+  configPath: string;
   removeFiles: boolean;
 }
 

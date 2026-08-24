@@ -201,6 +201,43 @@ describe("ProjectRuntime", () => {
     expect(runtime.getSnapshot().diagnostics).toEqual([]);
   });
 
+  test("switches between canonical and named bundles in the same project", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 1,
+      name: "Canonical",
+      root: { component: "@dash-bored/text", props: { content: "Canonical" } },
+    });
+    const named = join(root, "dash-bored", "arvid");
+    await mkdir(join(named, "components"), { recursive: true });
+    await Promise.all([
+      writeFile(
+        join(named, "dash-bored.yaml"),
+        stringify({
+          schemaVersion: 1,
+          name: "Arvid",
+          root: { component: "@dash-bored/text", props: { content: "Personal" } },
+        }),
+      ),
+      writeFile(
+        join(named, "dash-bored-lock.yaml"),
+        stringify({ lockfileVersion: 1, components: {} }),
+      ),
+    ]);
+
+    const runtime = new ProjectRuntime({
+      trustStore: new TrustStore(join(root, ".state", "trust.json")),
+    });
+    runtimes.push(runtime);
+
+    expect((await runtime.load(root)).dashboardName).toBe("Canonical");
+    const selected = await runtime.load(named);
+    expect(selected.dashboardName).toBe("Arvid");
+    expect(selected.tree?.props.content).toBe("Personal");
+    expect(selected.diagnostics).toEqual([]);
+  });
+
   test("validates and atomically saves a draft while rejecting stale or invalid writes", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

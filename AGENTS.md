@@ -10,10 +10,18 @@ Keep this section current with verified, repository-specific behavior that is
 easy for another agent to miss. Prefer short notes that explain the surprising
 behavior, its practical consequence, and the safe way to handle it.
 
-- A directory opened through the desktop chooser or passed to `dash-bored open`
-  is the project root, even when that directory itself is named `dash-bored`.
-  App-owned files belong in its nested `dash-bored/` directory. An explicit
-  `dash-bored.yaml` path is the unambiguous way to open by configuration path.
+- A directory opened through the desktop chooser is the project root, even
+  when that directory itself is named `dash-bored`; app-owned files belong in
+  its nested `dash-bored/` directory. CLI `dash-bored open` treats a project
+  root as the canonical dashboard and a standalone bundle directory as that
+  bundle; an explicit `dash-bored.yaml` path is always unambiguous. It passes
+  `DASH_BORED_CONFIG_PATH` alongside the project root; keep both values when
+  changing launch or release plumbing.
+- The desktop sidebar's **Add dashboard** chooser selects directories. Its
+  `auto` resolution opens a nested `dash-bored/` as a project root, or a
+  direct `dash-bored.yaml` as that standalone bundle. Each selected config is
+  remembered as its own sidebar entry, even when multiple entries share one
+  project root.
 - Opening a project creates only missing canonical `dash-bored/` artifacts and
   preserves existing configuration and lock files. Plain `dash-bored init`
   remains strict; `dash-bored init <name>` preserves or repairs the canonical

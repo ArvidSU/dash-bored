@@ -23,6 +23,7 @@ afterEach(async () => {
 function snapshot(projectRoot: string, dashboardName: string | null): ProjectSnapshot {
   return {
     projectRoot,
+    configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
     dashboardName,
     config: null,
     configRevision: null,
@@ -143,7 +144,7 @@ describe("registered dashboard deletion", () => {
       moveToTrash: () => false,
     })).rejects.toMatchObject({ code: "PROJECT_FILES_TRASH_FAILED" });
 
-    expect(await registry.list()).toEqual([{ projectRoot: canonicalRoot, dashboardName: "Rollback dashboard" }]);
+    expect(await registry.list()).toEqual([{ projectRoot: canonicalRoot, configPath: join(canonicalRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Rollback dashboard" }]);
     expect(runtime.getSnapshot().projectRoot).toBe(canonicalRoot);
     expect(runtime.getSnapshot().trusted).toBeTrue();
     expect(await trustStore.getGrant(canonicalRoot)).not.toBeNull();

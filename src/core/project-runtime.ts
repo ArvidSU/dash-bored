@@ -48,6 +48,7 @@ export interface LoadProjectOptions {
 function emptySnapshot(): ProjectSnapshot {
   return {
     projectRoot: null,
+    configPath: null,
     dashboardName: null,
     config: null,
     configRevision: null,
@@ -153,6 +154,7 @@ export class ProjectRuntime {
       this.snapshot = {
         ...this.snapshot,
         projectRoot: definition.location.projectRoot,
+        configPath: definition.location.configPath,
         dashboardName: this.snapshot.tree === null ? definition.config?.name ?? null : this.snapshot.dashboardName,
         config: definition.config ?? this.snapshot.config,
         configRevision: definition.configRevision,
@@ -213,6 +215,7 @@ export class ProjectRuntime {
     });
     this.snapshot = {
       projectRoot: definition.location.projectRoot,
+      configPath: definition.location.configPath,
       dashboardName: definition.config.name,
       config: definition.config,
       configRevision: definition.configRevision,
@@ -232,12 +235,17 @@ export class ProjectRuntime {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
       const nextLocation = (await ensureProjectFiles(input, options)).location;
-      if (this.location?.projectRoot !== nextLocation.projectRoot) {
+      const locationChanged = this.location?.projectRoot !== nextLocation.projectRoot
+        || this.location?.configPath !== nextLocation.configPath;
+      if (locationChanged) {
         this.stopWatching();
         await this.processManager?.close();
         this.processManager = null;
         this.capabilities.configure(null);
-        this.snapshot = emptySnapshot();
+        this.snapshot = {
+          ...emptySnapshot(),
+          revision: this.snapshot.revision + 1,
+        };
       }
       this.location = nextLocation;
       return this.applyDefinition(await loadProjectDefinition(nextLocation));

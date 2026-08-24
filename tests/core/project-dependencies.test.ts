@@ -34,7 +34,11 @@ function linkConfig(name: string, references: readonly string[]): DashboardConfi
 }
 
 function project(root: string, dashboardName: string): ProjectListItem {
-  return { projectRoot: root, dashboardName };
+  return {
+    projectRoot: root,
+    configPath: join(root, "dash-bored", "dash-bored.yaml"),
+    dashboardName,
+  };
 }
 
 describe("project deletion dependency analysis", () => {

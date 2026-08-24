@@ -11,6 +11,7 @@ import type {
   ProjectListItem,
   ProjectOutline,
   ProjectSnapshot,
+  ProjectTarget,
   ResolvedComponentNode,
 } from "../shared/contracts";
 import {
@@ -63,18 +64,23 @@ function rememberProject(
   projects: ProjectListItem[],
   snapshot: ProjectSnapshot,
 ): ProjectListItem[] {
-  if (snapshot.projectRoot === null) return projects;
+  if (snapshot.projectRoot === null || snapshot.configPath === undefined || snapshot.configPath === null) return projects;
   const item = {
     projectRoot: snapshot.projectRoot,
+    configPath: snapshot.configPath,
     dashboardName: snapshot.dashboardName,
   };
   const existingIndex = projects.findIndex(
-    (project) => project.projectRoot === item.projectRoot,
+    (project) => project.configPath === item.configPath,
   );
   if (existingIndex === -1) return [...projects, item];
   const next = [...projects];
   next[existingIndex] = item;
   return next;
+}
+
+function dashboardKey(project: ProjectListItem): string {
+  return project.configPath;
 }
 
 interface ProjectOutlineState {
@@ -613,17 +619,17 @@ export function App(): ReactNode {
   }, []);
 
   useEffect(() => {
-    const snapshotProjectRoot = snapshot?.projectRoot;
-    if (!snapshotProjectRoot) return;
+    const snapshotConfigPath = snapshot?.configPath;
+    if (!snapshotConfigPath) return;
     setProjectOutlines((current) => ({
       ...current,
-      [snapshotProjectRoot]: {
+      [snapshotConfigPath]: {
         tree: snapshot.tree,
         loading: false,
         error: outlineError(snapshot),
       },
     }));
-  }, [snapshot?.projectRoot, snapshot?.revision, snapshot?.tree, snapshot?.diagnostics]);
+  }, [snapshot?.configPath, snapshot?.revision, snapshot?.tree, snapshot?.diagnostics]);
 
   useEffect(() => {
     if (!editSession) return;
@@ -711,44 +717,44 @@ export function App(): ReactNode {
     await chooseDashboard();
   }
 
-  async function openSelectedProject(projectRoot: string): Promise<void> {
-    if (snapshot?.projectRoot === projectRoot) {
+  async function openSelectedProject(project: ProjectListItem): Promise<void> {
+    if (snapshot?.configPath === project.configPath) {
       setActiveView("dashboard");
       return;
     }
-    await perform(`open:${projectRoot}`, async () => {
-      await host.openProject(projectRoot);
+    await perform(`open:${dashboardKey(project)}`, async () => {
+      await host.openProject(project);
       setActiveView("dashboard");
     });
   }
 
-  async function selectProject(projectRoot: string): Promise<void> {
-    if (editSession && editSession.projectRoot !== projectRoot && !requireDiscard(
+  async function selectProject(project: ProjectListItem): Promise<void> {
+    if (editSession && editSession.configPath !== project.configPath && !requireDiscard(
       "Discard the unsaved dashboard changes and switch projects?",
-      () => void openSelectedProject(projectRoot),
+      () => void openSelectedProject(project),
     )) return;
-    await openSelectedProject(projectRoot);
+    await openSelectedProject(project);
   }
 
   function toggleProjectOutline(project: ProjectListItem): void {
-    const projectRoot = project.projectRoot;
-    const closing = expandedProjectOutlines[projectRoot] === true;
-    setExpandedProjectOutlines((current) => ({ ...current, [projectRoot]: !closing }));
-    if (closing || snapshot?.projectRoot === projectRoot) return;
+    const key = dashboardKey(project);
+    const closing = expandedProjectOutlines[key] === true;
+    setExpandedProjectOutlines((current) => ({ ...current, [key]: !closing }));
+    if (closing || snapshot?.configPath === project.configPath) return;
 
     setProjectOutlines((current) => ({
       ...current,
-      [projectRoot]: {
-        tree: current[projectRoot]?.tree ?? null,
+      [key]: {
+        tree: current[key]?.tree ?? null,
         loading: true,
         error: null,
       },
     }));
-    void host.getProjectOutline(projectRoot)
+    void host.getProjectOutline(project)
       .then((outline) => {
         setProjectOutlines((current) => ({
           ...current,
-          [projectRoot]: {
+          [key]: {
             tree: outline.tree,
             loading: false,
             error: outlineError(outline),
@@ -758,7 +764,7 @@ export function App(): ReactNode {
       .catch((error: unknown) => {
         setProjectOutlines((current) => ({
           ...current,
-          [projectRoot]: {
+          [key]: {
             tree: null,
             loading: false,
             error: errorMessage(error),
@@ -773,15 +779,15 @@ export function App(): ReactNode {
   ): Promise<void> {
     if (
       !skipDiscard &&
-      editSession?.projectRoot === project.projectRoot &&
+      editSession?.configPath === project.configPath &&
       !requireDiscard(
         "Discard the unsaved dashboard changes and remove this dashboard?",
         () => void openDeletionDialog(project, true),
       )
     ) return;
 
-    await perform(`preview-delete:${project.projectRoot}`, async () => {
-      const preview = await host.getProjectDeletionPreview(project.projectRoot);
+    await perform(`preview-delete:${dashboardKey(project)}`, async () => {
+      const preview = await host.getProjectDeletionPreview(project);
       setDeletionDialog({ project, preview, removeFiles: false });
     });
   }
@@ -789,40 +795,40 @@ export function App(): ReactNode {
   async function confirmDeletion(): Promise<void> {
     if (!deletionDialog) return;
     const request = deletionDialog;
-    const wasActive = snapshot?.projectRoot === request.project.projectRoot;
+    const wasActive = snapshot?.configPath === request.project.configPath;
     const activeProjectIndex = projects.findIndex(
-      (project) => project.projectRoot === request.project.projectRoot,
+      (project) => project.configPath === request.project.configPath,
     );
     setDeletionDialog(null);
-    setPendingAction(`delete:${request.project.projectRoot}`);
+    setPendingAction(`delete:${dashboardKey(request.project)}`);
     setActionError(null);
     try {
-      await host.deleteProject(request.project.projectRoot, request.removeFiles);
+      await host.deleteProject(request.project, request.removeFiles);
       const remaining = await host.listProjects();
       setProjects(remaining);
       setEditSession((current) =>
-        current?.projectRoot === request.project.projectRoot ? null : current,
+        current?.configPath === request.project.configPath ? null : current,
       );
       setVirtualRoots((current) => {
-        if (!Object.hasOwn(current, request.project.projectRoot)) return current;
+        if (!Object.hasOwn(current, request.project.configPath)) return current;
         const next = { ...current };
-        delete next[request.project.projectRoot];
+        delete next[request.project.configPath];
         return next;
       });
       setExpandedProjectOutlines((current) => {
-        if (!Object.hasOwn(current, request.project.projectRoot)) return current;
+        if (!Object.hasOwn(current, request.project.configPath)) return current;
         const next = { ...current };
-        delete next[request.project.projectRoot];
+        delete next[request.project.configPath];
         return next;
       });
       setProjectOutlines((current) => {
-        if (!Object.hasOwn(current, request.project.projectRoot)) return current;
+        if (!Object.hasOwn(current, request.project.configPath)) return current;
         const next = { ...current };
-        delete next[request.project.projectRoot];
+        delete next[request.project.configPath];
         return next;
       });
       try {
-        window.localStorage.removeItem(virtualRootStorageKey(request.project.projectRoot));
+        window.localStorage.removeItem(virtualRootStorageKey(request.project.configPath));
       } catch {
         // The in-memory focus state has already been cleared.
       }
@@ -834,7 +840,7 @@ export function App(): ReactNode {
           Math.max(remaining.length - 1, 0),
         );
         const nextProject = remaining[nextIndex];
-        if (nextProject) await host.openProject(nextProject.projectRoot);
+        if (nextProject) await host.openProject(nextProject);
       }
     } catch (error) {
       setActionError(errorMessage(error));
@@ -843,17 +849,17 @@ export function App(): ReactNode {
     }
   }
 
-  async function startProjectEditor(projectRoot: string): Promise<void> {
-    await perform(`edit:${projectRoot}`, async () => {
-      if (snapshot?.projectRoot !== projectRoot) await host.openProject(projectRoot);
-      const focusedSource = snapshot?.projectRoot === projectRoot
+  async function startProjectEditor(project: ProjectTarget): Promise<void> {
+    await perform(`edit:${project.configPath}`, async () => {
+      if (snapshot?.configPath !== project.configPath) await host.openProject(project);
+      const focusedSource = snapshot?.configPath === project.configPath
         ? virtualRoot?.node.sourceConfigPath
         : undefined;
       const source = await host.getDashboardConfigSource(focusedSource);
       const validation = await host.validateDashboardDraft(source.config, source.configPath);
       setActiveView("dashboard");
       setEditSession({
-        projectRoot,
+        projectRoot: project.projectRoot,
         configPath: source.configPath,
         componentCatalog: source.componentCatalog,
         original: structuredClone(source.config),
@@ -871,16 +877,16 @@ export function App(): ReactNode {
     }
   }
 
-  async function toggleProjectEditor(projectRoot: string): Promise<void> {
-    if (editSession?.projectRoot === projectRoot) {
+  async function toggleProjectEditor(project: ProjectTarget): Promise<void> {
+    if (editSession?.configPath === project.configPath) {
       cancelDashboardEdit();
       return;
     }
-    if (editSession && !requireDiscard(
+    if (editSession && editSession.configPath !== project.configPath && !requireDiscard(
       "Discard the unsaved dashboard changes and edit another project?",
-      () => void startProjectEditor(projectRoot),
+      () => void startProjectEditor(project),
     )) return;
-    await startProjectEditor(projectRoot);
+    await startProjectEditor(project);
   }
 
   function showSettings(): void {
@@ -909,7 +915,7 @@ export function App(): ReactNode {
     }
   }
 
-  const editingCurrentProject = Boolean(editSession && editSession.projectRoot === snapshot?.projectRoot);
+  const editingCurrentProject = Boolean(editSession && editSession.configPath === snapshot?.configPath);
   const draftDirty = editingCurrentProject && editSessionDirty();
   const draftValid = editingCurrentProject && Boolean(
     editSession?.validation.diagnostics.every((item) => item.severity !== "error"),
@@ -930,8 +936,8 @@ export function App(): ReactNode {
       toggleSidebar: () => setSidebarExpanded((expanded) => !expanded),
       addDashboard,
       openProject: selectProject,
-      editDashboard: () => snapshot?.projectRoot
-        ? toggleProjectEditor(snapshot.projectRoot)
+      editDashboard: () => snapshot?.projectRoot && snapshot.configPath
+        ? toggleProjectEditor({ projectRoot: snapshot.projectRoot, configPath: snapshot.configPath })
         : undefined,
       saveDashboard: () => saveDashboardDraft(),
       cancelDashboard: cancelDashboardEdit,
@@ -946,69 +952,69 @@ export function App(): ReactNode {
       },
     },
   });
-  const projectRoot = snapshot?.projectRoot ?? null;
-  const storedVirtualRoot = projectRoot ? virtualRoots[projectRoot] : null;
+  const dashboardPath = snapshot?.configPath ?? null;
+  const storedVirtualRoot = dashboardPath ? virtualRoots[dashboardPath] : null;
   const virtualRoot = snapshot?.tree
     ? resolveVirtualRoot(snapshot.tree, storedVirtualRoot ?? null)
     : null;
 
   useEffect(() => {
-    if (!projectRoot || Object.hasOwn(virtualRoots, projectRoot)) return;
+    if (!dashboardPath || Object.hasOwn(virtualRoots, dashboardPath)) return;
     let saved: string | null = null;
     try {
-      saved = window.localStorage.getItem(virtualRootStorageKey(projectRoot));
+      saved = window.localStorage.getItem(virtualRootStorageKey(dashboardPath));
     } catch {
       // Local storage can be unavailable in hardened webviews; focus still works for this session.
     }
-    setVirtualRoots((current) => Object.hasOwn(current, projectRoot)
+    setVirtualRoots((current) => Object.hasOwn(current, dashboardPath)
       ? current
-      : { ...current, [projectRoot]: saved });
-  }, [projectRoot, virtualRoots]);
+      : { ...current, [dashboardPath]: saved });
+  }, [dashboardPath, virtualRoots]);
 
   useEffect(() => {
-    if (!projectRoot || !snapshot?.tree || !storedVirtualRoot) return;
+    if (!dashboardPath || !snapshot?.tree || !storedVirtualRoot) return;
     const resolved = resolveVirtualRoot(snapshot.tree, storedVirtualRoot);
     if (resolved.node.id === storedVirtualRoot) return;
-    setVirtualRoots((current) => ({ ...current, [projectRoot]: null }));
+    setVirtualRoots((current) => ({ ...current, [dashboardPath]: null }));
     try {
-      window.localStorage.removeItem(virtualRootStorageKey(projectRoot));
+      window.localStorage.removeItem(virtualRootStorageKey(dashboardPath));
     } catch {
       // See the read path above.
     }
-  }, [projectRoot, snapshot?.tree, storedVirtualRoot]);
+  }, [dashboardPath, snapshot?.tree, storedVirtualRoot]);
 
-  function storeVirtualRoot(targetProjectRoot: string, nodeId: string): void {
-    setVirtualRoots((current) => ({ ...current, [targetProjectRoot]: nodeId }));
+  function storeVirtualRoot(targetDashboardPath: string, nodeId: string): void {
+    setVirtualRoots((current) => ({ ...current, [targetDashboardPath]: nodeId }));
     try {
-      window.localStorage.setItem(virtualRootStorageKey(targetProjectRoot), nodeId);
+      window.localStorage.setItem(virtualRootStorageKey(targetDashboardPath), nodeId);
     } catch {
       // Session state remains usable when persistence is unavailable.
     }
   }
 
   function focusComponent(nodeId: string): void {
-    if (!projectRoot) return;
-    storeVirtualRoot(projectRoot, nodeId);
+    if (!dashboardPath) return;
+    storeVirtualRoot(dashboardPath, nodeId);
   }
 
-  async function focusProjectNode(targetProjectRoot: string, nodeId: string): Promise<void> {
-    if (snapshot?.projectRoot === targetProjectRoot) {
+  async function focusProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
+    if (snapshot?.configPath === targetProject.configPath) {
       setActiveView("dashboard");
-      storeVirtualRoot(targetProjectRoot, nodeId);
+      storeVirtualRoot(targetProject.configPath, nodeId);
       return;
     }
-    if (editSession && editSession.projectRoot !== targetProjectRoot && !requireDiscard(
+    if (editSession && editSession.configPath !== targetProject.configPath && !requireDiscard(
       "Discard the unsaved dashboard changes and navigate to another dashboard node?",
-      () => void focusProjectNode(targetProjectRoot, nodeId),
+      () => void focusProjectNode(targetProject, nodeId),
     )) return;
 
     let opened = false;
-    await perform(`open:${targetProjectRoot}`, async () => {
-      await host.openProject(targetProjectRoot);
+    await perform(`open:${targetProject.configPath}`, async () => {
+      await host.openProject(targetProject);
       setActiveView("dashboard");
       opened = true;
     });
-    if (opened) storeVirtualRoot(targetProjectRoot, nodeId);
+    if (opened) storeVirtualRoot(targetProject.configPath, nodeId);
   }
 
   const nodeFocusActions = buildNodeFocusActions(
@@ -1056,6 +1062,7 @@ export function App(): ReactNode {
   const title = snapshot?.dashboardName?.trim() || (snapshot?.projectRoot ? basename(snapshot.projectRoot) : "dash-bored");
   const headerTitle = activeView === "settings" ? "Settings" : title;
   const headerProjectRoot = snapshot?.projectRoot;
+  const headerDashboardPath = snapshot?.configPath ?? snapshot?.projectRoot;
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
   }\u0000${snapshot?.trusted ? "trusted" : "restricted"}`;
@@ -1084,17 +1091,18 @@ export function App(): ReactNode {
         <nav className="sidebar__projects" aria-label="Projects">
           {projects.map((project, projectIndex) => {
             const label = projectLabel(project);
-            const active = activeView === "dashboard" && project.projectRoot === snapshot?.projectRoot;
-            const opening = pendingAction === `open:${project.projectRoot}`;
-            const outlineExpanded = expandedProjectOutlines[project.projectRoot] === true;
-            const outline = projectOutlines[project.projectRoot] ?? {
+            const key = dashboardKey(project);
+            const active = activeView === "dashboard" && project.configPath === snapshot?.configPath;
+            const opening = pendingAction === `open:${key}`;
+            const outlineExpanded = expandedProjectOutlines[key] === true;
+            const outline = projectOutlines[key] ?? {
               tree: null,
               loading: false,
               error: null,
             };
             const outlineId = `sidebar-project-tree-${projectIndex}`;
             return (
-              <div className="sidebar__project" key={project.projectRoot}>
+              <div className="sidebar__project" key={key}>
                 <div className="sidebar__project-row">
                   <button
                     className={`sidebar__item sidebar__project-link${active ? " sidebar__item--active" : ""}`}
@@ -1103,7 +1111,7 @@ export function App(): ReactNode {
                     aria-label={label}
                     title={label}
                     disabled={pendingAction !== null}
-                    onClick={() => void selectProject(project.projectRoot)}
+                    onClick={() => void selectProject(project)}
                   >
                     <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
                     <span className="sidebar__label">{opening ? "Opening…" : label}</span>
@@ -1140,7 +1148,7 @@ export function App(): ReactNode {
                       loading={outline.loading}
                       error={outline.error}
                       label={label}
-                      onSelect={(nodeId) => void focusProjectNode(project.projectRoot, nodeId)}
+                      onSelect={(nodeId) => void focusProjectNode(project, nodeId)}
                     />
                   </div>
                 ) : null}
@@ -1168,8 +1176,8 @@ export function App(): ReactNode {
               <span className="app-header__title">{headerTitle}</span>
               {activeView === "settings" ? (
                 <span className="app-header__path">Application preferences</span>
-              ) : snapshot?.projectRoot ? (
-                <span className="app-header__path" title={snapshot.projectRoot}>{snapshot.projectRoot}</span>
+              ) : headerDashboardPath ? (
+                <span className="app-header__path" title={headerDashboardPath}>{headerDashboardPath}</span>
               ) : (
                 <span className="app-header__path">No project open</span>
               )}
@@ -1210,7 +1218,12 @@ export function App(): ReactNode {
                     title="Edit dashboard"
                     disabled={pendingAction !== null}
                     onClick={() => {
-                      if (headerProjectRoot) void toggleProjectEditor(headerProjectRoot);
+                      if (headerProjectRoot && snapshot?.configPath) {
+                        void toggleProjectEditor({
+                          projectRoot: headerProjectRoot,
+                          configPath: snapshot.configPath,
+                        });
+                      }
                     }}
                   >
                     <ShellIcon name="edit" />

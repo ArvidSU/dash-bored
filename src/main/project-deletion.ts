@@ -1,4 +1,5 @@
 import { lstat } from "node:fs/promises";
+import { join } from "node:path";
 import type { ProjectListItem, ProjectSnapshot } from "../shared/contracts";
 import {
   CoreError,
@@ -15,6 +16,7 @@ export interface ProjectDeletionServiceOptions {
   runtime: ProjectRuntime;
   trustStore: TrustStore;
   projectRoot: string;
+  configPath?: string;
   removeFiles: boolean;
   moveToTrash: (path: string) => boolean | Promise<boolean>;
 }
@@ -22,8 +24,11 @@ export interface ProjectDeletionServiceOptions {
 function findRegisteredProject(
   projects: readonly ProjectListItem[],
   projectRoot: string,
+  configPath: string,
 ): ProjectListItem {
-  const project = projects.find((candidate) => candidate.projectRoot === projectRoot);
+  const project = projects.find(
+    (candidate) => candidate.projectRoot === projectRoot && candidate.configPath === configPath,
+  );
   if (project === undefined) {
     throw new CoreError(
       "PROJECT_NOT_REGISTERED",
@@ -36,9 +41,10 @@ function findRegisteredProject(
 export async function getProjectDeletionPreview(
   registry: ProjectRegistry,
   projectRoot: string,
+  configPath: string,
 ) {
   const projects = await registry.list();
-  const project = findRegisteredProject(projects, projectRoot);
+  const project = findRegisteredProject(projects, projectRoot, configPath);
   return inspectProjectDeletion(project, projects);
 }
 
@@ -100,7 +106,8 @@ export async function deleteRegisteredProject(
   options: ProjectDeletionServiceOptions,
 ): Promise<ProjectSnapshot> {
   const projects = await options.registry.list();
-  const project = findRegisteredProject(projects, options.projectRoot);
+  const configPath = options.configPath ?? join(options.projectRoot, "dash-bored", "dash-bored.yaml");
+  const project = findRegisteredProject(projects, options.projectRoot, configPath);
   const preview = await inspectProjectDeletion(project, projects);
   if (options.removeFiles && !preview.analysisComplete) {
     throw new CoreError(
@@ -109,11 +116,11 @@ export async function deleteRegisteredProject(
     );
   }
 
-  const wasActive = options.runtime.getSnapshot().projectRoot === project.projectRoot;
+  const wasActive = options.runtime.getSnapshot().configPath === project.configPath;
   const grant = options.removeFiles
     ? await options.trustStore.getGrant(project.projectRoot)
     : null;
-  let removed: ProjectListItem | null = null;
+  const removed: ProjectListItem[] = [];
   let trustRevoked = false;
 
   try {
@@ -123,12 +130,18 @@ export async function deleteRegisteredProject(
       trustRevoked = true;
     }
 
-    removed = await options.registry.remove(project.projectRoot);
-    if (removed === null) {
-      throw new CoreError(
-        "PROJECT_NOT_REGISTERED",
-        "That dashboard is no longer registered in dash-bored.",
-      );
+    const entriesToRemove = options.removeFiles
+      ? projects.filter((candidate) => candidate.projectRoot === project.projectRoot)
+      : [project];
+    for (const entry of entriesToRemove) {
+      const removedEntry = await options.registry.remove(entry.projectRoot, entry.configPath);
+      if (removedEntry === null) {
+        throw new CoreError(
+          "PROJECT_NOT_REGISTERED",
+          "That dashboard is no longer registered in dash-bored.",
+        );
+      }
+      removed.push(removedEntry);
     }
 
     if (options.removeFiles) {
@@ -136,15 +149,13 @@ export async function deleteRegisteredProject(
     }
     return options.runtime.getSnapshot();
   } catch (error) {
-    if (removed !== null) {
-      await options.registry.restore(removed).catch(() => undefined);
-    }
+    for (const entry of removed.reverse()) await options.registry.restore(entry).catch(() => undefined);
     if (trustRevoked) {
       await restoreTrust(options.trustStore, project.projectRoot, grant).catch(() => undefined);
     }
     if (wasActive && options.runtime.getSnapshot().projectRoot === null) {
       await options.runtime
-        .load(project.projectRoot, { inputKind: "project-root" })
+        .load(project.configPath, { inputKind: "auto" })
         .then(() => options.runtime.watch())
         .catch(() => undefined);
     }

@@ -12,6 +12,7 @@ import type {
   ProjectOutline,
   ProjectDeletionPreview,
   ProjectListItem,
+  ProjectTarget,
   ProjectSnapshot,
   ShellRunRequest,
   ShellRunResult,
@@ -85,9 +86,12 @@ export const host = {
     return await rpc.request.listProjects({});
   },
 
-  async getProjectOutline(projectRoot: string): Promise<ProjectOutline> {
+  async getProjectOutline(project: ProjectListItem): Promise<ProjectOutline> {
     ensureTransport();
-    return await rpc.request.getProjectOutline({ projectRoot });
+    return await rpc.request.getProjectOutline({
+      projectRoot: project.projectRoot,
+      configPath: project.configPath,
+    });
   },
 
   chooseProject(): Promise<ProjectSnapshot> {
@@ -96,17 +100,27 @@ export const host = {
     );
   },
 
-  openProject(projectRoot: string): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.openProject({ projectRoot }));
+  openProject(project: ProjectTarget): Promise<ProjectSnapshot> {
+    return snapshotRequest(() => rpc.request.openProject({
+      projectRoot: project.projectRoot,
+      configPath: project.configPath,
+    }));
   },
 
-  async getProjectDeletionPreview(projectRoot: string): Promise<ProjectDeletionPreview> {
+  async getProjectDeletionPreview(project: ProjectListItem): Promise<ProjectDeletionPreview> {
     ensureTransport();
-    return await rpc.request.getProjectDeletionPreview({ projectRoot });
+    return await rpc.request.getProjectDeletionPreview({
+      projectRoot: project.projectRoot,
+      configPath: project.configPath,
+    });
   },
 
-  deleteProject(projectRoot: string, removeFiles: boolean): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.deleteProject({ projectRoot, removeFiles }));
+  deleteProject(project: ProjectListItem, removeFiles: boolean): Promise<ProjectSnapshot> {
+    return snapshotRequest(() => rpc.request.deleteProject({
+      projectRoot: project.projectRoot,
+      configPath: project.configPath,
+      removeFiles,
+    }));
   },
 
   trustProject(): Promise<ProjectSnapshot> {

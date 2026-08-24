@@ -205,7 +205,7 @@ export async function inspectProjectDeletion(
     state.stack.clear();
     let projectLocation: ProjectLocation;
     try {
-      projectLocation = await resolveProjectLocation(project.projectRoot, { inputKind: "project-root" });
+      projectLocation = await resolveProjectLocation(project.configPath);
     } catch (error) {
       addIssue(state, `Could not inspect ${project.projectRoot}: ${errorMessage(error)}`);
       continue;
@@ -226,6 +226,7 @@ export async function inspectProjectDeletion(
 
   return {
     projectRoot: target.projectRoot,
+    configPath: target.configPath,
     dashboardName: target.dashboardName,
     filesDirectory: location.configDirectory,
     filesExist,

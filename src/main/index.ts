@@ -77,19 +77,19 @@ async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
   });
   const selected = paths[0];
   if (!selected) return runtime.getSnapshot();
-  await runtime.load(selected, { inputKind: "project-root" });
+  await runtime.load(selected, { inputKind: "auto" });
   runtime.watch();
   return runtime.getSnapshot();
 }
 
-async function openProject(projectRoot: string): Promise<ProjectSnapshot> {
-  if (!(await projectRegistry.contains(projectRoot))) {
+async function openProject(projectRoot: string, configPath: string): Promise<ProjectSnapshot> {
+  if (!(await projectRegistry.contains(projectRoot, configPath))) {
     throw new CoreError(
       "PROJECT_NOT_REGISTERED",
       "Choose this project through Add dashboard before opening it from the sidebar.",
     );
   }
-  await runtime.load(projectRoot, { inputKind: "project-root" });
+  await runtime.load(configPath, { inputKind: "auto" });
   runtime.watch();
   return runtime.getSnapshot();
 }
@@ -100,18 +100,19 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
     requests: {
       getSnapshot: () => runtime.getSnapshot(),
       listProjects: () => projectRegistry.list(),
-      getProjectOutline: ({ projectRoot }) =>
-        getRegisteredProjectOutline(projectRegistry, projectRoot),
+      getProjectOutline: ({ projectRoot, configPath }) =>
+        getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),
       chooseProject: () => chooseAndLoadProject(),
-      openProject: ({ projectRoot }) => openProject(projectRoot),
-      getProjectDeletionPreview: ({ projectRoot }) =>
-        getProjectDeletionPreview(projectRegistry, projectRoot),
-      deleteProject: ({ projectRoot, removeFiles }) =>
+      openProject: ({ projectRoot, configPath }) => openProject(projectRoot, configPath),
+      getProjectDeletionPreview: ({ projectRoot, configPath }) =>
+        getProjectDeletionPreview(projectRegistry, projectRoot, configPath),
+      deleteProject: ({ projectRoot, configPath, removeFiles }) =>
         deleteRegisteredProject({
           registry: projectRegistry,
           runtime,
           trustStore,
           projectRoot,
+          configPath,
           removeFiles,
           moveToTrash: (path) => Utils.moveToTrash(path),
         }),
@@ -169,7 +170,11 @@ ApplicationMenu.on("application-menu-clicked", (event) => {
 });
 
 const configuredProject = process.env.DASH_BORED_PROJECT_ROOT;
-if (configuredProject) {
+const configuredConfig = process.env.DASH_BORED_CONFIG_PATH;
+if (configuredConfig) {
+  await runtime.load(configuredConfig, { inputKind: "auto" });
+  runtime.watch();
+} else if (configuredProject) {
   await runtime.load(configuredProject, { inputKind: "project-root" });
   runtime.watch();
 }

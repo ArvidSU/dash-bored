@@ -184,14 +184,30 @@ permissions. Agents use this version-matched catalog instead of guessing from
 examples; invalid local components remain in the catalog with diagnostics.
 
 `validate` and `inspect` accept a project root, a standalone bundle directory,
-or the path to its `dash-bored.yaml`. A directory passed to `open` is the
-project root; `open` also accepts an explicit `dash-bored.yaml` path. `init`
+or the path to its `dash-bored.yaml`. `open` accepts the same three forms and
+renders exactly the bundle selected by the path. For example:
+
+```sh
+dash-bored open ./dash-bored/arvid
+# equivalent:
+dash-bored open ./dash-bored/arvid/dash-bored.yaml
+```
+
+The app receives the selected config path separately from the project root, so
+opening a named bundle does not fall back to the canonical dashboard. `init`
 uses `--project <path>` to select another project root because its positional
 argument is the optional bundle name.
 Running the desktop app without a project presents a project chooser; selecting
 an uninitialized project creates the same root-level `dash-bored/` structure
-before loading it. The selected folder is always the project root, even when
-that folder is itself named `dash-bored`.
+before loading it. A selected folder containing a nested `dash-bored/` is the
+project root, even when that folder is itself named `dash-bored`. The same
+**Add dashboard** chooser
+also opens standalone bundles: select a directory containing
+`dash-bored.yaml`, and that bundle is rendered directly without merging it into
+the canonical dashboard. A selected directory containing a nested
+`dash-bored/` directory continues to open as a project root. Each selected
+config is remembered as its own sidebar entry, so the canonical dashboard and
+named bundles from the same project can be switched independently.
 
 ## Configure a dashboard
 

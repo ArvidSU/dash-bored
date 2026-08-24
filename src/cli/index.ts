@@ -3,10 +3,10 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access, realpath } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { initializeProject } from "./init-project";
 import { ensureProjectFiles, inspectProject } from "../core/index";
-import { CONFIG_FILE, type Diagnostic, type InspectResult } from "../shared/contracts";
+import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 import { installDashBoredCli } from "./install-cli";
@@ -134,7 +134,7 @@ async function inspect(path: string, compile: boolean): Promise<InspectResult> {
   return inspectProject(path, { compile });
 }
 
-function sanitizedChildEnvironment(projectRoot: string): Record<string, string> {
+function sanitizedChildEnvironment(projectRoot: string, configPath: string): Record<string, string> {
   const environment: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (value === undefined) continue;
@@ -144,16 +144,18 @@ function sanitizedChildEnvironment(projectRoot: string): Record<string, string> 
     environment[key] = value;
   }
   environment.DASH_BORED_PROJECT_ROOT = projectRoot;
+  environment.DASH_BORED_CONFIG_PATH = configPath;
   return environment;
 }
 
 async function openProject(input: string): Promise<number> {
   const prepared = await ensureProjectFiles(input, {
-    // A directory passed to `open` denotes the project the user wants to view.
-    // A config file path remains an unambiguous way to target its parent project.
-    inputKind: basename(resolve(input)) === CONFIG_FILE ? "auto" : "project-root",
+    // A project root contains dash-bored/dash-bored.yaml. A bundle directory
+    // contains dash-bored.yaml directly, so auto resolution can target either
+    // the canonical dashboard or one standalone named dashboard.
+    inputKind: "auto",
   });
-  const result = await inspect(prepared.location.projectRoot, false);
+  const result = await inspect(prepared.location.configPath, false);
   if (!result.ok) {
     printDiagnostics(result.diagnostics);
     return 1;
@@ -172,12 +174,12 @@ async function openProject(input: string): Promise<number> {
   const child = packagedAppAvailable
     ? spawn(appExecutable, [], {
         cwd: result.projectRoot,
-        env: sanitizedChildEnvironment(result.projectRoot),
+        env: sanitizedChildEnvironment(result.projectRoot, prepared.location.configPath),
         stdio: "inherit",
       })
     : spawn("bun", ["run", "dev"], {
         cwd: packageRoot,
-        env: sanitizedChildEnvironment(result.projectRoot),
+        env: sanitizedChildEnvironment(result.projectRoot, prepared.location.configPath),
         stdio: "inherit",
       });
 

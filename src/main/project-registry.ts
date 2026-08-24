@@ -1,21 +1,39 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import type { ProjectListItem, ProjectSnapshot } from "../shared/contracts";
+import { CONFIG_DIRECTORY, CONFIG_FILE } from "../shared/contracts";
 
 interface StoredProjectRegistry {
   version: 1;
   projects: ProjectListItem[];
 }
 
-function isProjectListItem(value: unknown): value is ProjectListItem {
-  if (typeof value !== "object" || value === null) return false;
+function canonicalConfigPath(projectRoot: string): string {
+  return join(projectRoot, CONFIG_DIRECTORY, CONFIG_FILE);
+}
+
+function parseProjectListItem(value: unknown): ProjectListItem | null {
+  if (typeof value !== "object" || value === null) return null;
   const item = value as Record<string, unknown>;
-  return (
-    typeof item.projectRoot === "string" &&
-    isAbsolute(item.projectRoot) &&
-    (typeof item.dashboardName === "string" || item.dashboardName === null)
-  );
+  if (
+    typeof item.projectRoot !== "string" ||
+    !isAbsolute(item.projectRoot) ||
+    (typeof item.dashboardName !== "string" && item.dashboardName !== null)
+  ) return null;
+  const configPath = item.configPath === undefined
+    ? canonicalConfigPath(item.projectRoot)
+    : item.configPath;
+  if (typeof configPath !== "string" || !isAbsolute(configPath)) return null;
+  return {
+    projectRoot: item.projectRoot,
+    configPath,
+    dashboardName: item.dashboardName,
+  };
+}
+
+function dashboardKey(item: Pick<ProjectListItem, "configPath">): string {
+  return item.configPath;
 }
 
 export class ProjectRegistry {
@@ -51,10 +69,11 @@ export class ProjectRegistry {
         const candidate = JSON.parse(await readFile(this.path, "utf8")) as Partial<StoredProjectRegistry>;
         if (candidate.version !== 1 || !Array.isArray(candidate.projects)) return;
         const seen = new Set<string>();
-        this.projects = candidate.projects.filter((item): item is ProjectListItem => {
-          if (!isProjectListItem(item) || seen.has(item.projectRoot)) return false;
-          seen.add(item.projectRoot);
-          return true;
+        this.projects = candidate.projects.flatMap((item) => {
+          const parsed = parseProjectListItem(item);
+          if (parsed === null || seen.has(dashboardKey(parsed))) return [];
+          seen.add(dashboardKey(parsed));
+          return [parsed];
         });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -72,10 +91,12 @@ export class ProjectRegistry {
     return structuredClone(this.projects);
   }
 
-  async contains(projectRoot: string): Promise<boolean> {
+  async contains(projectRoot: string, configPath = canonicalConfigPath(projectRoot)): Promise<boolean> {
     await this.load();
     await this.writeQueue;
-    return this.projects.some((project) => project.projectRoot === projectRoot);
+    return this.projects.some(
+      (project) => project.projectRoot === projectRoot && project.configPath === configPath,
+    );
   }
 
   async remember(snapshot: ProjectSnapshot): Promise<void> {
@@ -83,12 +104,13 @@ export class ProjectRegistry {
     await this.load();
     const item: ProjectListItem = {
       projectRoot: snapshot.projectRoot,
+      configPath: snapshot.configPath ?? canonicalConfigPath(snapshot.projectRoot),
       dashboardName: snapshot.dashboardName,
     };
 
     await this.enqueueWrite(async () => {
       const existingIndex = this.projects.findIndex(
-        (project) => project.projectRoot === item.projectRoot,
+        (project) => dashboardKey(project) === dashboardKey(item),
       );
       if (
         existingIndex !== -1 &&
@@ -109,10 +131,12 @@ export class ProjectRegistry {
     });
   }
 
-  async remove(projectRoot: string): Promise<ProjectListItem | null> {
+  async remove(projectRoot: string, configPath = canonicalConfigPath(projectRoot)): Promise<ProjectListItem | null> {
     await this.load();
     return this.enqueueWrite(async () => {
-      const index = this.projects.findIndex((project) => project.projectRoot === projectRoot);
+      const index = this.projects.findIndex(
+        (project) => project.projectRoot === projectRoot && project.configPath === configPath,
+      );
       if (index === -1) return null;
       const [removed] = this.projects.splice(index, 1);
       try {
@@ -128,7 +152,9 @@ export class ProjectRegistry {
   async restore(project: ProjectListItem): Promise<void> {
     await this.load();
     await this.enqueueWrite(async () => {
-      const index = this.projects.findIndex((candidate) => candidate.projectRoot === project.projectRoot);
+      const index = this.projects.findIndex(
+        (candidate) => dashboardKey(candidate) === dashboardKey(project),
+      );
       const previous = index === -1 ? undefined : this.projects[index];
       const restored = structuredClone(project);
       if (index === -1) this.projects.push(restored);

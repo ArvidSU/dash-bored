@@ -13,6 +13,7 @@ import type {
   ProjectListItem,
   ProjectDeletionPreview,
   ProjectSnapshot,
+  ProjectTarget,
   DeleteProjectRequest,
   SaveDashboardConfigRequest,
   ShellRunRequest,
@@ -24,10 +25,10 @@ export type DashboardRPC = {
     requests: {
       getSnapshot: { params: {}; response: ProjectSnapshot };
       listProjects: { params: {}; response: ProjectListItem[] };
-      getProjectOutline: { params: { projectRoot: string }; response: ProjectOutline };
+      getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
       chooseProject: { params: {}; response: ProjectSnapshot };
-      openProject: { params: { projectRoot: string }; response: ProjectSnapshot };
-      getProjectDeletionPreview: { params: { projectRoot: string }; response: ProjectDeletionPreview };
+      openProject: { params: ProjectTarget; response: ProjectSnapshot };
+      getProjectDeletionPreview: { params: ProjectTarget; response: ProjectDeletionPreview };
       deleteProject: { params: DeleteProjectRequest; response: ProjectSnapshot };
       trustProject: { params: {}; response: ProjectSnapshot };
       revokeTrust: { params: {}; response: ProjectSnapshot };
