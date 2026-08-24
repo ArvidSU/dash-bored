@@ -1,0 +1,15 @@
+{
+  "labels": ["09:00", "09:05", "09:10", "09:15", "09:20", "09:25", "09:30"],
+  "series": [
+    {
+      "label": "Renderer requests",
+      "color": "#8fb8ff",
+      "values": [3, 7, 5, 11, 9, 14, 12]
+    },
+    {
+      "label": "Successful responses",
+      "color": "#d9ff68",
+      "values": [3, 6, 5, 10, 9, 13, 12]
+    }
+  ]
+}

@@ -72,6 +72,28 @@ Declare only capabilities the implementation uses:
 All file paths and command working directories remain contained by the project
 root associated with the component instance.
 
+## Built-in charts
+
+Use `@dash-bored/chart` when the values belong in the dashboard YAML:
+
+```yaml
+component: "@dash-bored/chart"
+props:
+  title: Weekly throughput
+  type: bar
+  labels: [Mon, Tue, Wed, Thu]
+  series:
+    - label: Checks passed
+      values: [18, 24, 21, 29]
+```
+
+Use `@dash-bored/live-chart` for an HTTP JSON endpoint. Its `endpoint` may be
+an absolute HTTP(S) URL or an app-relative path such as `/metrics/chart.json`.
+It accepts the same `labels` and `series` model, an optional dot-separated
+`dataPath`, and a `pollIntervalMs` between 1000 and 300000. It requires `network:http`; the
+renderer keeps the most recent valid chart when a refresh fails and stops
+polling while the containing tab is hidden.
+
 ## TSX contract
 
 Import the supported API from `@dash-bored/component`:

@@ -2177,6 +2177,136 @@ code {
   padding: 17px;
 }
 
+.chart {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #0c0f14;
+}
+
+.chart__header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.chart__heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart__heading strong {
+  color: #dce4ee;
+  font-size: 11px;
+}
+
+.chart__heading span,
+.chart__footer {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.chart__svg {
+  display: block;
+  width: 100%;
+  min-height: 210px;
+  padding: 9px 10px 0;
+}
+
+.chart__grid {
+  stroke: rgb(142 153 169 / 18%);
+  stroke-dasharray: 3 6;
+  stroke-width: 1;
+}
+
+.chart__axis {
+  stroke: var(--border-bright);
+  stroke-width: 1;
+}
+
+.chart__axis-label,
+.chart__x-label {
+  fill: var(--faint);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.chart__x-label {
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.chart__line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart__point {
+  stroke: #0c0f14;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart__bar {
+  opacity: 0.9;
+}
+
+.chart__footer {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 11px;
+  border-top: 1px solid var(--border);
+}
+
+.chart__legend {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+}
+
+.chart__legend-item {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart__legend-item i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.chart__error {
+  margin: 10px 11px 0;
+  padding: 8px 9px;
+  border: 1px solid rgb(255 123 123 / 24%);
+  border-radius: var(--radius-sm);
+  color: #ffc5c5;
+  background: rgb(112 25 30 / 18%);
+  font-size: 11px;
+}
+
 .text {
   margin: 0;
 }
