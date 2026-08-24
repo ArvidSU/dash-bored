@@ -65,9 +65,11 @@ bun run worktree:setup
 
 It installs the locked dependencies, prepares Hutch, creates an ignored
 `.env.worktree` with an isolated port and Electrobun development identity, and
-validates the dashboard. After that, `bun run dev` is ready to use. If another
-desktop development process is already running, `bun run qa:fast` provides the
-non-locking typecheck, test, and renderer-build path once Hutch is prepared.
+validates the dashboard. After that, `bun run dev` is ready to use. If
+`bun run dev` is already running, setup reuses its prepared development files
+instead of waiting for Hutch's build lock. If another desktop development
+process is already running, `bun run qa:fast` provides the non-locking
+typecheck, test, and renderer-build path once Hutch is prepared.
 
 `bun link` exposes the local `dash-bored` CLI. Without a link, invoke the same
 entrypoint with `bun run dash-bored -- <command>`.

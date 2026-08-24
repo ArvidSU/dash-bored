@@ -83,6 +83,9 @@ behavior, its practical consequence, and the safe way to handle it.
   Electrobun development identifier. `bun run dev`, `bun run dev:desktop`, and
   build commands load it automatically; do not copy another worktree's
   `.hutch`, `node_modules`, or `.env.worktree` into this one.
+- If `bun run dev` is already serving the worktree, `bun run worktree:setup`
+  reuses that session's prepared Hutch files instead of invoking a second
+  `electrobun prepare` that would wait on the dev reader lock.
 - Use `bun run qa:fast` when Hutch is already prepared but another user-owned
   desktop development process holds Electrobun's build lock. Do not terminate
   that process to make QA proceed; report the substituted checks and any

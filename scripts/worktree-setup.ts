@@ -1,4 +1,4 @@
-import { access, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 
@@ -11,6 +11,31 @@ async function exists(path: string): Promise<boolean> {
   try {
     await access(path);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+async function hutchDevelopmentFilesReady(): Promise<boolean> {
+  return (await exists(hutchTsconfigPath)) && (await exists(hutchVitePath));
+}
+
+async function worktreeDevServerUrl(): Promise<string | null> {
+  try {
+    const contents = await readFile(worktreeEnvPath, "utf8");
+    return contents.match(/^DASH_BORED_DEV_SERVER_URL="([^"]+)"$/m)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function worktreeDevServerIsRunning(): Promise<boolean> {
+  const url = await worktreeDevServerUrl();
+  if (!url) return false;
+
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(750) });
+    return response.ok;
   } catch {
     return false;
   }
@@ -97,11 +122,15 @@ try {
   await createWorktreeEnv();
   await run(["bun", "run", "dash-bored", "--", "validate", "."]);
 
-  if (!(await exists(hutchTsconfigPath)) || !(await exists(hutchVitePath))) {
+  if (await hutchDevelopmentFilesReady()) {
+    console.log("Electrobun/Hutch development files already prepared.");
+  } else if (await worktreeDevServerIsRunning()) {
+    console.log(
+      "Worktree dev server is already running; reusing its Electrobun/Hutch preparation.",
+    );
+  } else {
     console.log("Preparing Electrobun/Hutch development files…");
     await run(["bun", "run", "setup"]);
-  } else {
-    console.log("Electrobun/Hutch development files already prepared.");
   }
 
   console.log("Worktree setup complete. Run `bun run dev` to start the isolated desktop environment.");
