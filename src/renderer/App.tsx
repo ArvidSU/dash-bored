@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type {
   DashboardConfig,
   DashboardDraftValidation,
@@ -27,6 +34,10 @@ import type { PaletteAction } from "./actions";
 import { BuiltinRenderer } from "./builtins";
 import type { RenderedSlots } from "./builtins";
 import { CommandPalette } from "./CommandPalette";
+import {
+  changedComponentIds,
+  updateStaggerMs,
+} from "./component-updates";
 import { DashboardOutlineTree } from "./DashboardOutlineTree";
 import {
   DashboardEditor,
@@ -221,8 +232,33 @@ interface NodeRendererProps {
   localComponents: ReadonlyMap<string, LoadedLocalComponent>;
   actionRegistry: ActionRegistry;
   actionScope: string;
+  updateBatch: ComponentUpdateBatch | null;
   onFocus: (nodeId: string) => void;
   isVirtualRoot?: boolean;
+}
+
+interface ComponentUpdateBatch {
+  generation: number;
+  delays: ReadonlyMap<string, number>;
+}
+
+function ComponentUpdatePolish({
+  batch,
+  nodeId,
+}: {
+  batch: ComponentUpdateBatch | null;
+  nodeId: string;
+}): ReactNode {
+  const delay = batch?.delays.get(nodeId);
+  if (batch === null || delay === undefined) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className="component-node__update-polish"
+      key={`${nodeId}:${batch.generation}`}
+      style={{ "--component-update-delay": `${delay}ms` } as CSSProperties}
+    />
+  );
 }
 
 function NodeRenderer({
@@ -232,6 +268,7 @@ function NodeRenderer({
   localComponents,
   actionRegistry,
   actionScope,
+  updateBatch,
   onFocus,
   isVirtualRoot = false,
 }: NodeRendererProps): ReactNode {
@@ -256,6 +293,7 @@ function NodeRenderer({
           localComponents={localComponents}
           actionRegistry={actionRegistry}
           actionScope={actionScope}
+          updateBatch={updateBatch}
           onFocus={onFocus}
         />
       )),
@@ -276,6 +314,7 @@ function NodeRenderer({
           trusted={trusted}
           processes={processes}
         />
+        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
       </div>
     );
   }
@@ -298,6 +337,7 @@ function NodeRenderer({
         ) : (
           <div className="config-link__content">{slots.content}</div>
         )}
+        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
       </section>
     );
   }
@@ -310,6 +350,7 @@ function NodeRenderer({
         <span className="component-state__icon" aria-hidden="true">◇</span>
         <strong>{name}</strong>
         <span>Trust this project to load its local component code.</span>
+        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
       </div>
     );
   }
@@ -321,26 +362,29 @@ function NodeRenderer({
       <div className="component-node component-state component-state--error" role="alert" data-node-id={node.id}>
         {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
         Local component <code>{node.component}</code> has no manifest ID.
+        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
       </div>
     );
   }
 
-  if (!loaded || loaded.loading) {
+  if (!loaded || (loaded.loading && !loaded.component)) {
     return (
       <div className="component-node component-state" aria-live="polite" data-node-id={node.id}>
         {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
         <span className="spinner" aria-hidden="true" />
         Loading {name}…
+        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
       </div>
     );
   }
 
-  if (loaded.error || !loaded.component) {
+  if (!loaded.component) {
     return (
       <div className="component-node component-state component-state--error" role="alert" data-node-id={node.id}>
         {!isVirtualRoot ? <button className="component-node__focus" type="button" onClick={() => onFocus(node.id)}>Focus</button> : null}
         <strong>Could not load {name}</strong>
         <span>{loaded.error ?? "The compiled module has no component export."}</span>
+        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
       </div>
     );
   }
@@ -359,8 +403,77 @@ function NodeRenderer({
       >
         <Component props={node.props} slots={slots} host={localHost} />
       </LocalComponentErrorBoundary>
+      {loaded.error ? (
+        <span
+          className="component-node__stale-warning"
+          role="status"
+          title={loaded.error}
+        >
+          Update failed; showing previous version
+        </span>
+      ) : null}
+      <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
     </div>
   );
+}
+
+function useComponentUpdateBatch(
+  tree: ResolvedComponentNode | null | undefined,
+  identity: string | null | undefined,
+  trusted: boolean | undefined,
+): ComponentUpdateBatch | null {
+  const previous = useRef<{
+    identity: string;
+    tree: ResolvedComponentNode;
+    trusted: boolean;
+  } | null>(null);
+  const generation = useRef(0);
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [batch, setBatch] = useState<ComponentUpdateBatch | null>(null);
+
+  useLayoutEffect(() => {
+    if (!tree || !identity || trusted === undefined) {
+      previous.current = null;
+      setBatch(null);
+      return;
+    }
+
+    const before = previous.current;
+    previous.current = { identity, tree, trusted };
+    if (
+      before === null ||
+      before.identity !== identity ||
+      before.trusted !== trusted
+    ) {
+      if (clearTimer.current !== null) clearTimeout(clearTimer.current);
+      clearTimer.current = null;
+      setBatch(null);
+      return;
+    }
+
+    const changedIds = changedComponentIds(before.tree, tree);
+    if (changedIds.length === 0) return;
+
+    generation.current += 1;
+    const delays = new Map(
+      changedIds.map((id, index) => [
+        id,
+        updateStaggerMs(index, changedIds.length),
+      ]),
+    );
+    setBatch({ generation: generation.current, delays });
+    if (clearTimer.current !== null) clearTimeout(clearTimer.current);
+    clearTimer.current = setTimeout(() => {
+      clearTimer.current = null;
+      setBatch(null);
+    }, 1_000);
+  }, [identity, tree, trusted]);
+
+  useEffect(() => () => {
+    if (clearTimer.current !== null) clearTimeout(clearTimer.current);
+  }, []);
+
+  return batch;
 }
 
 function DiagnosticItem({ diagnostic }: { diagnostic: Diagnostic }): ReactNode {
@@ -568,7 +681,15 @@ export function App(): ReactNode {
     preview: ProjectDeletionPreview;
     removeFiles: boolean;
   } | null>(null);
-  const localComponents = useLocalComponents(snapshot?.components ?? []);
+  const localComponents = useLocalComponents(
+    snapshot?.components ?? [],
+    snapshot?.configPath ?? null,
+  );
+  const componentUpdateBatch = useComponentUpdateBatch(
+    snapshot?.tree,
+    snapshot?.configPath,
+    snapshot?.trusted,
+  );
   const actionRegistry = useMemo(() => new ActionRegistry(), []);
   const componentActions = useSyncExternalStore(
     actionRegistry.subscribe,
@@ -1302,6 +1423,7 @@ export function App(): ReactNode {
                   localComponents={localComponents}
                   actionRegistry={actionRegistry}
                   actionScope={actionScope}
+                  updateBatch={componentUpdateBatch}
                   onFocus={focusComponent}
                   isVirtualRoot
                 />
