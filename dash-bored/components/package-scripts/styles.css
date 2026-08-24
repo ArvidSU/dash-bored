@@ -1,0 +1,129 @@
+.package-scripts {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.package-scripts__header,
+.package-scripts__identity,
+.package-script {
+  align-items: center;
+  display: flex;
+}
+
+.package-scripts__header {
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.package-scripts__identity {
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.package-scripts__identity strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.package-scripts__identity code,
+.package-script__identity code {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: 0.35rem;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.35rem;
+}
+
+.package-scripts__refresh,
+.package-script__run {
+  border: 1px solid var(--border-bright, #343c49);
+  border-radius: 7px;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  padding: 0.35rem 0.55rem;
+}
+
+.package-scripts__refresh:hover,
+.package-script__run:hover:not(:disabled) {
+  background: var(--surface-hover, #1b202a);
+}
+
+.package-script__run:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.package-scripts__summary,
+.package-scripts__message {
+  color: var(--muted, #8e99a9);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.package-scripts__message--error {
+  color: var(--negative, #ff7b7b);
+}
+
+.package-scripts__list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.package-script {
+  gap: 0.7rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border, #252b36);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 1.5%);
+}
+
+.package-script__identity {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.package-script__identity span {
+  color: var(--muted, #8e99a9);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.package-script__run {
+  flex: 0 0 auto;
+}
+
+.package-scripts__result {
+  display: grid;
+  gap: 0.4rem;
+  border-left: 2px solid var(--accent, #d9ff68);
+  padding: 0.2rem 0 0.2rem 0.7rem;
+}
+
+.package-scripts__result--failed {
+  border-left-color: var(--negative, #ff7b7b);
+}
+
+.package-scripts__result pre {
+  margin: 0;
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--muted, #8e99a9);
+  font: 0.72rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (max-width: 560px) {
+  .package-script {
+    align-items: stretch;
+  }
+
+  .package-script__run {
+    align-self: center;
+  }
+}

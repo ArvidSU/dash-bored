@@ -175,6 +175,17 @@ root:
                     component: "@dash-bored/webview"
                     props:
                       url: http://localhost:5173
+            - id: package-scripts-card
+              component: "@dash-bored/card"
+              props:
+                title: Package scripts
+                description: Every package.json script is available as a button and command-palette action.
+              slots:
+                children:
+                  - id: package-scripts
+                    component: "./components/package-scripts"
+                    props:
+                      packageFile: package.json
       - id: release
         component: "@dash-bored/stack"
         props:

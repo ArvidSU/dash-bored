@@ -474,6 +474,13 @@ and its declared capability on every host request. A reload that adds a
 requested permission requires a new trust decision; the same or a smaller
 permission set preserves the existing decision.
 
+The repository's dogfood dashboard includes a `package-scripts` component. It
+reads a configured `package.json`, detects its `packageManager` when present,
+and registers one action per string-valued script. Each action runs from the
+directory containing that manifest through `host.shell.run`; the component also
+shows direct buttons and the bounded result of the most recent run. Use the
+optional `runner` prop when a project needs to override its manifest metadata.
+
 Local components are trusted project code running together in one renderer,
 not a hostile-code sandbox. Their per-node permissions shape the provided API
 and prevent accidental capability use, but do not isolate local components from
