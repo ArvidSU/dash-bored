@@ -1,0 +1,16 @@
+schemaVersion: 1
+id: git-branches
+name: Git branches
+description: Lists local Git branches and the commits of work on each branch.
+entry: ./index.tsx
+propsSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    cwd:
+      type: string
+    baseBranch:
+      type: string
+  required: []
+permissions:
+  - process:execute

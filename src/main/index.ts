@@ -11,7 +11,8 @@ import type { ProjectSnapshot } from "../shared/contracts";
 import type { DashboardRPC } from "../shared/rpc";
 import { ProjectRegistry } from "./project-registry";
 
-const DEV_SERVER_URL = "http://localhost:5173";
+const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
+  ?? `http://127.0.0.1:${process.env.DASH_BORED_VITE_PORT ?? "5173"}`;
 const DEV_SERVER_ATTEMPTS = 40;
 const DEV_SERVER_RETRY_MS = 100;
 const MIN_WINDOW_WIDTH = 350;

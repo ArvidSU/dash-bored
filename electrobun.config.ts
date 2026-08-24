@@ -1,9 +1,11 @@
 import type { ElectrobunConfig } from "electrobun";
 
+const devInstance = process.env.DASH_BORED_INSTANCE?.trim().replace(/[^a-zA-Z0-9.-]/g, "-");
+
 export default {
   app: {
     name: "dash-bored",
-    identifier: "dev.dash-bored.app",
+    identifier: devInstance ? `dev.dash-bored.${devInstance}` : "dev.dash-bored.app",
     version: "0.1.0",
   },
   build: {

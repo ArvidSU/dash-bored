@@ -11,11 +11,13 @@
   "scripts": {
     "dash-bored": "bun ./src/cli/index.ts",
     "setup": "electrobun prepare",
-    "dev": "electrobun prepare && vite build && concurrently --kill-others-on-fail \"vite --port 5173\" \"electrobun dev --watch\"",
-    "dev:desktop": "electrobun prepare && vite build && electrobun dev --watch",
-    "build:renderer": "electrobun prepare && vite build",
-    "build": "electrobun prepare && vite build && electrobun build --env=canary",
-    "typecheck": "electrobun prepare && tsc --noEmit",
+    "worktree:setup": "bun ./scripts/worktree-setup.ts",
+    "dev": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && concurrently --kill-others-on-fail \"vite --host 127.0.0.1\" \"electrobun dev --watch\"'",
+    "dev:desktop": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && electrobun dev --watch'",
+    "build:renderer": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build'",
+    "build": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && electrobun build --env=canary'",
+    "typecheck": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && tsc --noEmit'",
+    "qa:fast": "sh ./scripts/with-worktree-env.sh sh -c 'tsc --noEmit && bun test && vite build'",
     "test": "bun test",
     "qa": "bun run typecheck && bun test && bun run build:renderer"
   },

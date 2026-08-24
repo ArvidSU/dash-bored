@@ -25,6 +25,18 @@ bun run setup
 bun link
 ```
 
+For a new Git worktree, use the one-step setup instead:
+
+```sh
+bun run worktree:setup
+```
+
+It installs the locked dependencies, prepares Hutch, creates an ignored
+`.env.worktree` with an isolated port and Electrobun development identity, and
+validates the dashboard. After that, `bun run dev` is ready to use. If another
+desktop development process is already running, `bun run qa:fast` provides the
+non-locking typecheck, test, and renderer-build path once Hutch is prepared.
+
 `bun link` exposes the local `dash-bored` CLI. Without a link, invoke the same
 entrypoint with `bun run dash-bored -- <command>`.
 
@@ -38,6 +50,7 @@ bun test
 bun run build:renderer
 bun run build           # local canary application build
 bun run qa              # typecheck, tests, and renderer production build
+bun run qa:fast         # non-locking typecheck, tests, and renderer build
 ```
 
 Platform toolchain requirements for packaging are those of Electrobun. Release

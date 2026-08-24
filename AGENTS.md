@@ -54,3 +54,17 @@ behavior, its practical consequence, and the safe way to handle it.
   interaction. If the Mac is locked or modifier-key injection is unreliable,
   verify the native menu path and renderer handler separately, and report the
   missing native coverage instead of presenting it as a completed smoke test.
+
+## Worktree development
+
+- Run `bun run worktree:setup` once in every new worktree. It installs the frozen
+  Bun lockfile, prepares missing Hutch/Electrobun files, creates the ignored
+  `.env.worktree`, and validates the dashboard.
+- `.env.worktree` assigns a deterministic local Vite port, project root, and
+  Electrobun development identifier. `bun run dev`, `bun run dev:desktop`, and
+  build commands load it automatically; do not copy another worktree's
+  `.hutch`, `node_modules`, or `.env.worktree` into this one.
+- Use `bun run qa:fast` when Hutch is already prepared but another user-owned
+  desktop development process holds Electrobun's build lock. Do not terminate
+  that process to make QA proceed; report the substituted checks and any
+  missing generated files.

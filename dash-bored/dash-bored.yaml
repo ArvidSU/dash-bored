@@ -73,6 +73,18 @@ root:
                           label: Host capabilities
                           state: warning
                           detail: File reads and commands require an explicit project trust decision.
+            - id: git-branches-card
+              component: "@dash-bored/card"
+              props:
+                title: Git branches
+                description: Commits unique to each local branch, plus upstream tracking.
+              slots:
+                children:
+                  - id: git-branches
+                    component: "./components/git-branches"
+                    props:
+                      cwd: .
+                      baseBranch: main
       - id: development
         component: "@dash-bored/stack"
         props:

@@ -1,4 +1,5 @@
 .hutch/
+.env.worktree
 .cottontail-tmp/
 node_modules/
 dist/
