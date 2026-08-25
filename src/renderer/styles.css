@@ -141,10 +141,10 @@ code {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid rgb(255 255 255 / 7%);
-  background: rgb(12 15 20 / 96%);
-  box-shadow: 1px 0 0 rgb(0 0 0 / 24%);
+  background: var(--bg);
   transition: width 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease;
+  -webkit-app-region: drag;
+  app-region: drag;
 }
 
 .app-shell--sidebar-expanded .sidebar {
@@ -358,10 +358,6 @@ img.sidebar__project-icon {
   min-width: 0;
 }
 
-.app-shell--sidebar-expanded .sidebar__project-link .sidebar__label {
-  padding-right: 76px;
-}
-
 .sidebar__project-action {
   position: absolute;
   z-index: 1;
@@ -371,11 +367,11 @@ img.sidebar__project-icon {
   height: 30px;
   padding: 0;
   place-items: center;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-bright);
   border-radius: 7px;
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
-  background: rgb(255 255 255 / 6%);
+  background: var(--surface-raised);
   opacity: 0;
   pointer-events: none;
   transform: translate3d(4px, -50%, 0);
@@ -404,18 +400,18 @@ img.sidebar__project-icon {
 .sidebar__project-tree-toggle:hover:not(:disabled),
 .sidebar__project-tree-toggle:focus-visible,
 .sidebar__project-tree-toggle--active {
-  border-color: rgb(217 255 104 / 26%);
+  border-color: var(--accent-strong);
   color: var(--accent);
   outline: none;
-  background: rgb(217 255 104 / 9%);
+  background: var(--surface-hover);
 }
 
 .sidebar__project-remove:hover:not(:disabled),
 .sidebar__project-remove:focus-visible {
-  border-color: rgb(255 123 123 / 30%);
+  border-color: #a8545e;
   color: #ffc0c0;
   outline: none;
-  background: rgb(255 123 123 / 12%);
+  background: #3a2026;
 }
 
 .sidebar__project-action:disabled {
@@ -532,9 +528,7 @@ img.sidebar__project-icon {
   flex-wrap: nowrap;
   gap: 24px;
   padding: 12px 20px;
-  border-bottom: 1px solid rgb(255 255 255 / 7%);
-  background: rgb(10 12 16 / 86%);
-  backdrop-filter: blur(18px) saturate(140%);
+  background: var(--bg);
   -webkit-app-region: drag;
   app-region: drag;
 }

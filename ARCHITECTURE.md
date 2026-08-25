@@ -65,12 +65,14 @@ is prepared through Hutch and aliased into Vite. The application uses native
 system webviews and does not bundle CEF.
 
 The main window uses Electrobun's `hiddenInset` title-bar style. The renderer
-keeps only a small transparent drag region around the native traffic-light
-controls, allowing the main shell to provide the visual surface underneath
-without adding a second title treatment. The sidebar reserves that small area
-so its brand mark does not collide with the controls. The main process clamps
-resizes below 350px, and the renderer keeps the header single-row at that
-minimum by shrinking and ellipsizing content instead of wrapping actions.
+uses one shared app-background surface for the sidebar and header, without a
+separator between them, so the native traffic lights sit inside the shell
+instead of a second title treatment. The transparent traffic-light hit area,
+sidebar, and header are draggable; buttons and other controls explicitly opt
+out so they remain interactive. The sidebar reserves the small top area so its
+brand mark does not collide with the controls. The main process clamps resizes
+below 350px, and the renderer keeps the header single-row at that minimum by
+shrinking and ellipsizing content instead of wrapping actions.
 
 The main process publishes a complete `ProjectSnapshot` at startup and after
 each accepted change. It also publishes individual process snapshots while a
