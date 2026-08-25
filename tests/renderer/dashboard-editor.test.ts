@@ -18,6 +18,7 @@ import {
   replaceRoot,
   slotChildren,
   tabLabels,
+  updateDashboardMetadata,
   updateNodeProps,
 } from "../../src/renderer/dashboard-editor";
 
@@ -155,6 +156,22 @@ describe("dashboard editor tree operations", () => {
 
     const removed = removeNode(updated, [{ slot: "children", index: 0 }], catalog);
     expect(slotChildren(removed.root, "children").map((node) => node.id)).toEqual(["second", "text"]);
+  });
+
+  test("updates dashboard name and icon metadata without mutating the source config", () => {
+    const source = { ...config(), icon: "./assets/original.svg" };
+
+    const renamed = updateDashboardMetadata(source, "name", "Development cockpit");
+    expect(renamed.name).toBe("Development cockpit");
+    expect(renamed.icon).toBe("./assets/original.svg");
+    expect(source.name).toBe("Editor");
+
+    const changedIcon = updateDashboardMetadata(renamed, "icon", "https://example.com/icon.svg");
+    expect(changedIcon.icon).toBe("https://example.com/icon.svg");
+    expect(renamed.icon).toBe("./assets/original.svg");
+
+    const cleared = updateDashboardMetadata(changedIcon, "icon", "   ");
+    expect(cleared).not.toHaveProperty("icon");
   });
 
   test("finds stable node paths and identifies collapsible branches", () => {

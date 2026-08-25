@@ -347,6 +347,26 @@ export function updateNodeProps(
   return next;
 }
 
+export type DashboardMetadataField = "name" | "icon";
+
+/** Update dashboard identity without mutating the active draft. */
+export function updateDashboardMetadata(
+  config: DashboardConfig,
+  field: DashboardMetadataField,
+  value: string,
+): DashboardConfig {
+  const next = structuredClone(config);
+  if (field === "name") {
+    next.name = value;
+    return next;
+  }
+
+  const icon = value.trim();
+  if (icon.length === 0) delete next.icon;
+  else next.icon = icon;
+  return next;
+}
+
 export function countNodes(node: ComponentNode): number {
   return 1 + Object.values(node.slots ?? {}).reduce((total, value) => {
     const children = Array.isArray(value) ? value : [value];

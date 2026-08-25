@@ -162,7 +162,9 @@ root:
 
 The icon may be a relative or absolute image path, or an HTTP(S) URL. It is
 loaded after the project is trusted; missing or unsupported artwork falls back
-to the generic dashboard glyph.
+to the generic dashboard glyph. You can edit the dashboard name and this icon
+from the app's **Edit dashboard** view; clearing the icon field restores the
+generic glyph. Changes are written when you save the dashboard draft.
 
 Create a standalone named dashboard for a person or workflow with:
 

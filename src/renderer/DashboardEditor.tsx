@@ -29,6 +29,7 @@ import {
   slotChildren,
   slotNames,
   tabLabels,
+  updateDashboardMetadata,
   updateNodeProps,
   type NodePath,
   type SlotTarget,
@@ -562,6 +563,47 @@ export function DashboardEditorToolbar({
   );
 }
 
+interface DashboardMetadataEditorProps {
+  config: DashboardConfig;
+  onChange: (config: DashboardConfig) => void;
+}
+
+function DashboardMetadataEditor({ config, onChange }: DashboardMetadataEditorProps): ReactNode {
+  return (
+    <section className="dashboard-metadata-editor" aria-label="Dashboard details">
+      <header className="dashboard-metadata-editor__header">
+        <div>
+          <span className="eyebrow">Dashboard</span>
+          <h2>Identity</h2>
+        </div>
+        <p>These details are saved with the dashboard configuration.</p>
+      </header>
+      <div className="dashboard-metadata-editor__fields">
+        <label className="props-field">
+          <span>Name<em>Required</em></span>
+          <input
+            type="text"
+            value={config.name}
+            onChange={(event) => onChange(updateDashboardMetadata(config, "name", event.target.value))}
+          />
+          <small>Shown in the sidebar and window title.</small>
+        </label>
+        <label className="props-field">
+          <span>Sidebar icon</span>
+          <input
+            type="text"
+            spellCheck={false}
+            placeholder="./assets/icon.svg or https://…"
+            value={config.icon ?? ""}
+            onChange={(event) => onChange(updateDashboardMetadata(config, "icon", event.target.value))}
+          />
+          <small>Use a relative or absolute image path, or an HTTP(S) URL. Leave blank for the default icon.</small>
+        </label>
+      </div>
+    </section>
+  );
+}
+
 interface DashboardEditorProps {
   config: DashboardConfig;
   catalog: readonly ComponentCatalogItem[];
@@ -777,6 +819,7 @@ export function DashboardEditor({
   return (
     <>
       {editorError ? <div className="global-error" role="alert"><strong>Edit failed</strong><span>{editorError}</span><button type="button" aria-label="Dismiss error" onClick={() => setEditorError(null)}>×</button></div> : null}
+      <DashboardMetadataEditor config={config} onChange={onChange} />
       {diagnostics.length > 0 ? (
         <details className="editor-diagnostics" open={!valid}>
           <summary>Draft validation</summary>

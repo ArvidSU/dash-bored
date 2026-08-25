@@ -237,8 +237,11 @@ The optional top-level `icon` is an image path relative to the owning config
 bundle or an HTTP(S) URL. In trusted mode the main process bounds and
 content-sniffs the image, converts it to a data URL, and uses it for that
 dashboard's sidebar item. Missing, unreadable, or unsupported artwork falls back
-to the generic project glyph without invalidating the dashboard. The setting is
-config-file-only; it is not a component-tree node or an editor control.
+to the generic project glyph without invalidating the dashboard. The dashboard
+editor exposes both `name` and `icon` as dashboard metadata fields; they are
+saved with the same draft as the component tree. Clearing the icon field removes
+the optional key and restores the generic project glyph. These fields are
+dashboard metadata, not component-tree nodes.
 
 ### In-app structural editing
 

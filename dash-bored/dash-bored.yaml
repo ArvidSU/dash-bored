@@ -1,5 +1,5 @@
 schemaVersion: 1
-name: dash-bored development cockpit
+name: Dash Bored
 icon: ../assets/icon.svg
 root:
   id: project-cockpit
@@ -64,7 +64,7 @@ root:
                   slots:
                     children:
                       - id: project-pulse
-                        component: "./components/project-pulse"
+                        component: ./components/project-pulse
                         props:
                           packageFile: package.json
                 second:
@@ -101,7 +101,7 @@ root:
               slots:
                 children:
                   - id: git-branches
-                    component: "./components/git-branches"
+                    component: ./components/git-branches
                     props:
                       cwd: .
                       baseBranch: main
@@ -201,7 +201,7 @@ root:
               slots:
                 children:
                   - id: package-scripts
-                    component: "./components/package-scripts"
+                    component: ./components/package-scripts
                     props:
                       packageFile: package.json
       - id: release
@@ -330,7 +330,7 @@ root:
               component: "@dash-bored/command"
               props:
                 label: Improve this dashboard with an agent
-                command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
+                command: ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"
                 cwd: .
                 env:
                   DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
