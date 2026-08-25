@@ -94,6 +94,18 @@ It accepts the same `labels` and `series` model, an optional dot-separated
 renderer keeps the most recent valid chart when a refresh fails and stops
 polling while the containing tab is hidden.
 
+Use `@dash-bored/todo-list` for a small project-owned YAML todo list:
+
+```yaml
+component: "@dash-bored/todo-list"
+props:
+  path: dash-bored/todos.yaml
+```
+
+The YAML data model is deliberately limited to `description`, boolean `done`,
+and `tags`. The built-in provides status sorting, tag filtering, add/remove,
+and inline description and tag editing.
+
 ## TSX contract
 
 Import the supported API from `@dash-bored/component`:

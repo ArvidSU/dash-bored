@@ -1,0 +1,10 @@
+todos:
+  - description: "Try the tag filter"
+    done: false
+    tags: ["dogfood","ui"]
+  - description: "Mark an item complete"
+    done: true
+    tags: ["dogfood"]
+  - description: "Editable sweet again, lol"
+    done: true
+    tags: ["cool test","testing"]

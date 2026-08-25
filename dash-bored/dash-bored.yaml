@@ -105,6 +105,17 @@ root:
                     props:
                       cwd: .
                       baseBranch: main
+            - id: yaml-todo-card
+              component: "@dash-bored/card"
+              props:
+                title: YAML todo list
+                description: A small stateful component whose items live in dash-bored/todos.yaml.
+              slots:
+                children:
+                  - id: yaml-todo
+                    component: "@dash-bored/todo-list"
+                    props:
+                      path: dash-bored/todos.yaml
             - id: dashboard-lifecycle-card
               component: "@dash-bored/card"
               props:

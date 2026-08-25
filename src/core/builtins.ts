@@ -195,6 +195,15 @@ const manifests: ComponentManifest[] = [
   },
   {
     schemaVersion: 1,
+    id: "@dash-bored/todo-list",
+    name: "YAML todo list",
+    description: "Keeps a small todo list in a project-owned YAML file.",
+    entry: "builtin:todo-list",
+    propsSchema: objectSchema({ path: string }, ["path"]),
+    permissions: ["filesystem:read", "filesystem:write"],
+  },
+  {
+    schemaVersion: 1,
     id: "@dash-bored/webview",
     name: "Webview",
     description: "Embeds an HTTP or HTTPS application page.",

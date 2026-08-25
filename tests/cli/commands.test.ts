@@ -174,6 +174,12 @@ describe("dash-bored command arguments", () => {
     expect(command.available).toBeTrue();
     expect(command.manifest.propsSchema.required).toEqual(["label", "command"]);
     expect(command.manifest.permissions).toEqual(["process:execute"]);
+    const todoList = result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/todo-list",
+    );
+    expect(todoList.available).toBeTrue();
+    expect(todoList.manifest.propsSchema.required).toEqual(["path"]);
+    expect(todoList.manifest.permissions).toEqual(["filesystem:read", "filesystem:write"]);
     const split = result.componentCatalog.find(
       (item: { reference: string }) => item.reference === "@dash-bored/split",
     );

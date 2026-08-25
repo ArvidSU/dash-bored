@@ -38,6 +38,7 @@ import {
   updateEnvEntry,
   type EnvDocument,
 } from "./env";
+import { TodoList } from "./todo-list";
 
 export type RenderedSlots = Record<string, ReactNode[]>;
 
@@ -1137,6 +1138,8 @@ export function BuiltinRenderer(props: BuiltinRendererProps): ReactNode {
       return <FileViewer {...props} />;
     case "@dash-bored/env":
       return <EnvEditor {...props} />;
+    case "@dash-bored/todo-list":
+      return <TodoList node={props.node} trusted={props.trusted} />;
     case "@dash-bored/webview":
       return <Webview {...props} />;
     default:

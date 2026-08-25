@@ -589,6 +589,9 @@ The initial built-in set is intentionally generic:
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
   unrecognized lines; writes are bounded, project-contained, and atomic.
+- `@dash-bored/todo-list` edits a small project-owned YAML list containing only
+  descriptions, boolean completion state, and tags. It sorts open items first,
+  filters by tag, and supports adding, removing, and inline editing items.
 - `@dash-bored/webview` embeds a sandboxed application page. Native child
   webviews are initialized only while their tab is visible and are explicitly
   hidden while an already-initialized tab is inactive; the native surface is an

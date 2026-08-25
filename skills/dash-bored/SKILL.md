@@ -42,7 +42,8 @@ Prefer the generic built-ins:
 - Display: `@dash-bored/markdown`, `@dash-bored/text`, and
   `@dash-bored/status`.
 - Project capabilities: `@dash-bored/command`, `@dash-bored/terminal`,
-  `@dash-bored/file`, `@dash-bored/env`, and `@dash-bored/webview`.
+  `@dash-bored/file`, `@dash-bored/env`, `@dash-bored/todo-list`, and
+  `@dash-bored/webview`.
 
 Use commands for explicit user actions; they never need to start automatically.
 Pair a long-running command with a terminal whose `processId` is the command's

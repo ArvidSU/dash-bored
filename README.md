@@ -280,13 +280,20 @@ The initial built-ins are:
 - Charts: `@dash-bored/chart` for static YAML data and
   `@dash-bored/live-chart` for polling JSON data.
 - Host-backed: `@dash-bored/command`, `@dash-bored/terminal`,
-  `@dash-bored/file`, `@dash-bored/env`, and `@dash-bored/webview`.
+  `@dash-bored/file`, `@dash-bored/env`, `@dash-bored/todo-list`, and
+  `@dash-bored/webview`.
 
 `@dash-bored/env` takes a relative `path` prop, reads a project-local dotenv
 file, and provides a key-value editor with a bulk/raw mode. Saving requires
 project trust because the component requests both `filesystem:read` and
 `filesystem:write`; comments, blank lines, and unrecognized lines remain in
 place when editing through the key-value view.
+
+`@dash-bored/todo-list` takes a relative YAML `path` prop. Its document stores
+only `description`, `done`, and `tags` for each item; the component provides
+status sorting, tag filtering, add/remove actions, and inline description/tag
+editing. Saving requires project trust because it requests both filesystem
+capabilities.
 
 Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
 static line or bar data from YAML, while `@dash-bored/live-chart` polls an HTTP
