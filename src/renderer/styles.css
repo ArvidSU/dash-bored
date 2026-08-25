@@ -2204,6 +2204,88 @@ img.sidebar__project-icon {
   isolation: isolate;
 }
 
+.component-node--collapsed {
+  overflow: hidden;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 2%);
+}
+
+.component-node--collapsed.component-state {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border-style: solid;
+  color: inherit;
+  text-align: left;
+}
+
+.component-node__collapsed {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 44px 9px 12px;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.component-node__collapsed:hover,
+.component-node__collapsed:focus-visible {
+  outline: none;
+  background: rgb(255 255 255 / 4%);
+}
+
+.component-node__collapsed-indicator {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(151 163 180 / 28%);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  transform: translateX(1px);
+}
+
+.component-node__collapsed-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-node__collapsed-summary,
+.component-node__collapsed-action {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.component-node__collapsed-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.component-node__collapsed-action {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .component-node__update-polish {
   position: absolute;
   z-index: 3;
@@ -2356,6 +2438,10 @@ img.sidebar__project-icon {
 .component-node__menu-popover button:focus-visible {
   color: var(--text);
   background: var(--surface-hover);
+}
+
+.component-node--collapsed.component-state--error {
+  background: rgb(60 20 24 / 28%);
 }
 
 .component-node__menu-popover button:disabled {

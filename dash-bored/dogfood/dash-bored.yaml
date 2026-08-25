@@ -18,6 +18,23 @@ root:
             lock file, and component directory.
 
             Focus this panel and edit it to exercise bundle-local structural editing.
+      - id: dogfood-runtime-controls-card
+        component: "@dash-bored/card"
+        props:
+          title: Runtime layout controls
+          description: Keep large component trees compact without changing dashboard configuration.
+        slots:
+          children:
+            - id: dogfood-runtime-controls
+              component: "@dash-bored/markdown"
+              props:
+                content: |
+                  Right-click any component, or open its three-dot menu, to
+                  collapse or expand it. Collapsed components keep a compact
+                  name and expand action; their rendered body is temporarily
+                  unmounted so nested polling and embedded surfaces stay out
+                  of the way. Focus expands a component before making it the
+                  temporary dashboard root.
       - id: dogfood-static-chart-card
         component: "@dash-bored/card"
         props:

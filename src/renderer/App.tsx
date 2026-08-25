@@ -41,6 +41,13 @@ import {
   changedComponentIds,
   updateStaggerMs,
 } from "./component-updates";
+import {
+  collapsedComponentsStorageKey,
+  collectComponentNodeIds,
+  countComponentDescendants,
+  parseCollapsedComponentIds,
+  serializeCollapsedComponentIds,
+} from "./component-view-state";
 import { DashboardOutlineTree } from "./DashboardOutlineTree";
 import {
   DashboardEditor,
@@ -53,7 +60,9 @@ import {
 } from "./local-components";
 import type { LoadedLocalComponent } from "./local-components";
 import { host } from "./rpc-client";
-import { resolveVirtualRoot, virtualRootStorageKey } from "./virtual-root";
+import { nodeLabel, resolveVirtualRoot, virtualRootStorageKey } from "./virtual-root";
+
+const EMPTY_COLLAPSED_COMPONENT_IDS = new Set<string>();
 
 function replaceProcess(
   snapshot: ProjectSnapshot,
@@ -137,9 +146,9 @@ function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
   }
   if (name === "settings") {
     return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="10" cy="10" r="2.5" />
-        <path d="M10 2.8v2M10 15.2v2M2.8 10h2M15.2 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M15.1 4.9l-1.4 1.4M6.3 13.7l-1.4 1.4" />
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12.22 2h-.44a2 2 0 0 0-1.99 1.67l-.06.36a2 2 0 0 1-2.99 1.4l-.31-.18a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.31.18a2 2 0 0 1 0 3.46l-.31.18a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.31-.18a2 2 0 0 1 2.99 1.4l.06.36A2 2 0 0 0 10 20h.44a2 2 0 0 0 1.99-1.67l.06-.36a2 2 0 0 1 2.99-1.4l.31.18a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.31-.18a2 2 0 0 1 0-3.46l.31-.18a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.31.18a2 2 0 0 1-2.99-1.4l-.06-.36A2 2 0 0 0 12.22 2Z" />
+        <circle cx="12" cy="12" r="3" />
       </svg>
     );
   }
@@ -238,9 +247,11 @@ interface ComponentFrameProps {
   node: ResolvedComponentNode;
   className: string;
   isVirtualRoot: boolean;
+  collapsed: boolean;
   role?: "alert";
   ariaLive?: "polite";
   onFocus: (nodeId: string) => void;
+  onToggleCollapse: () => void;
   onCopyPath: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
   children: ReactNode;
@@ -251,9 +262,11 @@ function ComponentFrame({
   node,
   className,
   isVirtualRoot,
+  collapsed,
   role,
   ariaLive,
   onFocus,
+  onToggleCollapse,
   onCopyPath,
   onOpenAgent,
   children,
@@ -263,11 +276,12 @@ function ComponentFrame({
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const Element = as;
-  const name = node.configName?.trim() || node.manifest?.name || node.component;
+  const name = node.configName?.trim() || nodeLabel(node, false);
+  const descendantCount = countComponentDescendants(node);
 
   function positionMenu(anchorX: number, anchorY: number, alignRight: boolean): void {
     const width = Math.min(224, window.innerWidth - 24);
-    const height = 132;
+    const height = 168;
     const requestedLeft = alignRight ? anchorX - width : anchorX;
     setMenuPosition({
       left: Math.max(12, Math.min(requestedLeft, window.innerWidth - width - 12)),
@@ -319,9 +333,10 @@ function ComponentFrame({
 
   return (
     <Element
-      className={className}
+      className={`${className}${collapsed ? " component-node--collapsed" : ""}`}
       data-component={node.component}
       data-node-id={node.id}
+      data-collapsed={collapsed ? "true" : "false"}
       role={role}
       aria-live={ariaLive}
       onContextMenu={(event) => {
@@ -365,6 +380,15 @@ function ComponentFrame({
               <span>Focus component</span>
               {isVirtualRoot ? <small>Focused</small> : null}
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              aria-expanded={!collapsed}
+              onClick={() => choose(onToggleCollapse)}
+            >
+              <span>{collapsed ? "Expand component" : "Collapse component"}</span>
+              {collapsed ? <small>Collapsed</small> : null}
+            </button>
             <button type="button" role="menuitem" onClick={() => choose(() => onCopyPath(node))}>
               Copy component path
             </button>
@@ -374,7 +398,24 @@ function ComponentFrame({
           </div>
         ) : null}
       </div>
-      {children}
+      {collapsed ? (
+        <button
+          className="component-node__collapsed"
+          type="button"
+          aria-label={`Expand ${name} component`}
+          aria-expanded={false}
+          onClick={onToggleCollapse}
+        >
+          <span className="component-node__collapsed-indicator" aria-hidden="true">›</span>
+          <span className="component-node__collapsed-name">{name}</span>
+          <span className="component-node__collapsed-summary">
+            {descendantCount > 0
+              ? `${descendantCount} nested ${descendantCount === 1 ? "component" : "components"}`
+              : "Component hidden"}
+          </span>
+          <span className="component-node__collapsed-action">Expand</span>
+        </button>
+      ) : children}
     </Element>
   );
 }
@@ -387,7 +428,9 @@ interface NodeRendererProps {
   actionRegistry: ActionRegistry;
   actionScope: string;
   updateBatch: ComponentUpdateBatch | null;
+  collapsedNodeIds: ReadonlySet<string>;
   onFocus: (nodeId: string) => void;
+  onToggleCollapse: (nodeId: string) => void;
   onCopyPath: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
   isVirtualRoot?: boolean;
@@ -425,7 +468,9 @@ function NodeRenderer({
   actionRegistry,
   actionScope,
   updateBatch,
+  collapsedNodeIds,
   onFocus,
+  onToggleCollapse,
   onCopyPath,
   onOpenAgent,
   isVirtualRoot = false,
@@ -439,26 +484,31 @@ function NodeRenderer({
     () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
     [actionRegistry, actionScope, node.id],
   );
-  const slots: RenderedSlots = Object.fromEntries(
-    Object.entries(node.slots).map(([name, children]) => [
-      name,
-      children.map((child) => (
-        <NodeRenderer
-          key={child.id}
-          node={child}
-          trusted={trusted}
-          processes={processes}
-          localComponents={localComponents}
-          actionRegistry={actionRegistry}
-          actionScope={actionScope}
-          updateBatch={updateBatch}
-          onFocus={onFocus}
-          onCopyPath={onCopyPath}
-          onOpenAgent={onOpenAgent}
-        />
-      )),
-    ]),
-  );
+  const collapsed = collapsedNodeIds.has(node.id);
+  const slots: RenderedSlots = collapsed
+    ? {}
+    : Object.fromEntries(
+        Object.entries(node.slots).map(([name, children]) => [
+          name,
+          children.map((child) => (
+            <NodeRenderer
+              key={child.id}
+              node={child}
+              trusted={trusted}
+              processes={processes}
+              localComponents={localComponents}
+              actionRegistry={actionRegistry}
+              actionScope={actionScope}
+              updateBatch={updateBatch}
+              collapsedNodeIds={collapsedNodeIds}
+              onFocus={onFocus}
+              onToggleCollapse={onToggleCollapse}
+              onCopyPath={onCopyPath}
+              onOpenAgent={onOpenAgent}
+            />
+          )),
+        ]),
+      );
 
   if (node.source === "builtin") {
     return (
@@ -466,17 +516,23 @@ function NodeRenderer({
         node={node}
         className="component-node"
         isVirtualRoot={isVirtualRoot}
+        collapsed={collapsed}
         onFocus={onFocus}
+        onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
         onOpenAgent={onOpenAgent}
       >
-        <BuiltinRenderer
-          node={node}
-          slots={slots}
-          trusted={trusted}
-          processes={processes}
-        />
-        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        {!collapsed ? (
+          <>
+            <BuiltinRenderer
+              node={node}
+              slots={slots}
+              trusted={trusted}
+              processes={processes}
+            />
+            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+          </>
+        ) : null}
       </ComponentFrame>
     );
   }
@@ -489,20 +545,26 @@ function NodeRenderer({
         node={node}
         className="component-node config-link"
         isVirtualRoot={isVirtualRoot}
+        collapsed={collapsed}
         onFocus={onFocus}
+        onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
         onOpenAgent={onOpenAgent}
       >
-        {node.configError ? (
-          <div className="component-state component-state--error" role="alert">
-            <strong>Could not load {name}</strong>
-            <span>{node.configError}</span>
-            <code>{node.configPath ?? node.component}</code>
-          </div>
-        ) : (
-          <div className="config-link__content">{slots.content}</div>
-        )}
-        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        {!collapsed ? (
+          <>
+            {node.configError ? (
+              <div className="component-state component-state--error" role="alert">
+                <strong>Could not load {name}</strong>
+                <span>{node.configError}</span>
+                <code>{node.configPath ?? node.component}</code>
+              </div>
+            ) : (
+              <div className="config-link__content">{slots.content}</div>
+            )}
+            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+          </>
+        ) : null}
       </ComponentFrame>
     );
   }
@@ -514,14 +576,20 @@ function NodeRenderer({
         node={node}
         className="component-node component-state component-state--locked"
         isVirtualRoot={isVirtualRoot}
+        collapsed={collapsed}
         onFocus={onFocus}
+        onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
         onOpenAgent={onOpenAgent}
       >
-        <span className="component-state__icon" aria-hidden="true">◇</span>
-        <strong>{name}</strong>
-        <span>Trust this project to load its local component code.</span>
-        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        {!collapsed ? (
+          <>
+            <span className="component-state__icon" aria-hidden="true">◇</span>
+            <strong>{name}</strong>
+            <span>Trust this project to load its local component code.</span>
+            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+          </>
+        ) : null}
       </ComponentFrame>
     );
   }
@@ -534,13 +602,19 @@ function NodeRenderer({
         node={node}
         className="component-node component-state component-state--error"
         isVirtualRoot={isVirtualRoot}
+        collapsed={collapsed}
         role="alert"
         onFocus={onFocus}
+        onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
         onOpenAgent={onOpenAgent}
       >
-        Local component <code>{node.component}</code> has no manifest ID.
-        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        {!collapsed ? (
+          <>
+            Local component <code>{node.component}</code> has no manifest ID.
+            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+          </>
+        ) : null}
       </ComponentFrame>
     );
   }
@@ -551,14 +625,20 @@ function NodeRenderer({
         node={node}
         className="component-node component-state"
         isVirtualRoot={isVirtualRoot}
+        collapsed={collapsed}
         ariaLive="polite"
         onFocus={onFocus}
+        onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
         onOpenAgent={onOpenAgent}
       >
-        <span className="spinner" aria-hidden="true" />
-        Loading {name}…
-        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        {!collapsed ? (
+          <>
+            <span className="spinner" aria-hidden="true" />
+            Loading {name}…
+            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+          </>
+        ) : null}
       </ComponentFrame>
     );
   }
@@ -569,14 +649,20 @@ function NodeRenderer({
         node={node}
         className="component-node component-state component-state--error"
         isVirtualRoot={isVirtualRoot}
+        collapsed={collapsed}
         role="alert"
         onFocus={onFocus}
+        onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
         onOpenAgent={onOpenAgent}
       >
-        <strong>Could not load {name}</strong>
-        <span>{loaded.error ?? "The compiled module has no component export."}</span>
-        <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        {!collapsed ? (
+          <>
+            <strong>Could not load {name}</strong>
+            <span>{loaded.error ?? "The compiled module has no component export."}</span>
+            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+          </>
+        ) : null}
       </ComponentFrame>
     );
   }
@@ -587,26 +673,32 @@ function NodeRenderer({
       node={node}
       className="component-node component-node--local"
       isVirtualRoot={isVirtualRoot}
+      collapsed={collapsed}
       onFocus={onFocus}
+      onToggleCollapse={() => onToggleCollapse(node.id)}
       onCopyPath={onCopyPath}
       onOpenAgent={onOpenAgent}
     >
-      <LocalComponentErrorBoundary
-        name={name}
-        resetKey={`${node.id}:${loaded.revision}`}
-      >
-        <Component props={node.props} slots={slots} host={localHost} />
-      </LocalComponentErrorBoundary>
-      {loaded.error ? (
-        <span
-          className="component-node__stale-warning"
-          role="status"
-          title={loaded.error}
-        >
-          Update failed; showing previous version
-        </span>
+      {!collapsed ? (
+        <>
+          <LocalComponentErrorBoundary
+            name={name}
+            resetKey={`${node.id}:${loaded.revision}`}
+          >
+            <Component props={node.props} slots={slots} host={localHost} />
+          </LocalComponentErrorBoundary>
+          {loaded.error ? (
+            <span
+              className="component-node__stale-warning"
+              role="status"
+              title={loaded.error}
+            >
+              Update failed; showing previous version
+            </span>
+          ) : null}
+          <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
+        </>
       ) : null}
-      <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
     </ComponentFrame>
   );
 }
@@ -967,6 +1059,8 @@ export function App(): ReactNode {
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [virtualRoots, setVirtualRoots] = useState<Record<string, string | null>>({});
+  const [collapsedDashboardPath, setCollapsedDashboardPath] = useState<string | null>(null);
+  const [collapsedComponentIds, setCollapsedComponentIds] = useState<Set<string>>(new Set());
   const [editSession, setEditSession] = useState<{
     projectRoot: string;
     configPath: string;
@@ -1432,9 +1526,50 @@ export function App(): ReactNode {
   });
   const dashboardPath = snapshot?.configPath ?? null;
   const storedVirtualRoot = dashboardPath ? virtualRoots[dashboardPath] : null;
+  const activeCollapsedComponentIds = collapsedDashboardPath === dashboardPath
+    ? collapsedComponentIds
+    : EMPTY_COLLAPSED_COMPONENT_IDS;
   const virtualRoot = snapshot?.tree
     ? resolveVirtualRoot(snapshot.tree, storedVirtualRoot ?? null)
     : null;
+
+  useEffect(() => {
+    if (!dashboardPath) {
+      setCollapsedDashboardPath(null);
+      setCollapsedComponentIds(new Set());
+      return;
+    }
+
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(collapsedComponentsStorageKey(dashboardPath));
+    } catch {
+      // Local storage can be unavailable in hardened webviews; collapse state remains session-only.
+    }
+    setCollapsedComponentIds(parseCollapsedComponentIds(saved));
+    setCollapsedDashboardPath(dashboardPath);
+  }, [dashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || collapsedDashboardPath !== dashboardPath) return;
+    try {
+      window.localStorage.setItem(
+        collapsedComponentsStorageKey(dashboardPath),
+        serializeCollapsedComponentIds(collapsedComponentIds),
+      );
+    } catch {
+      // Collapse state remains available for this session when persistence is unavailable.
+    }
+  }, [collapsedComponentIds, collapsedDashboardPath, dashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || collapsedDashboardPath !== dashboardPath || !snapshot?.tree) return;
+    const validIds = collectComponentNodeIds(snapshot.tree);
+    setCollapsedComponentIds((current) => {
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size && [...next].every((id) => current.has(id)) ? current : next;
+    });
+  }, [collapsedDashboardPath, dashboardPath, snapshot?.tree]);
 
   useEffect(() => {
     if (!dashboardPath || Object.hasOwn(virtualRoots, dashboardPath)) return;
@@ -1470,14 +1605,51 @@ export function App(): ReactNode {
     }
   }
 
+  function expandComponent(targetDashboardPath: string, nodeId: string): void {
+    if (collapsedDashboardPath === targetDashboardPath) {
+      setCollapsedComponentIds((current) => {
+        if (!current.has(nodeId)) return current;
+        const next = new Set(current);
+        next.delete(nodeId);
+        return next;
+      });
+      return;
+    }
+
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(collapsedComponentsStorageKey(targetDashboardPath));
+      const ids = parseCollapsedComponentIds(saved);
+      if (!ids.delete(nodeId)) return;
+      window.localStorage.setItem(
+        collapsedComponentsStorageKey(targetDashboardPath),
+        serializeCollapsedComponentIds(ids),
+      );
+    } catch {
+      // The target dashboard will still render the focused node when its state is unavailable.
+    }
+  }
+
+  function toggleComponentCollapse(nodeId: string): void {
+    if (!dashboardPath || collapsedDashboardPath !== dashboardPath) return;
+    setCollapsedComponentIds((current) => {
+      const next = new Set(current);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }
+
   function focusComponent(nodeId: string): void {
     if (!dashboardPath) return;
+    expandComponent(dashboardPath, nodeId);
     storeVirtualRoot(dashboardPath, nodeId);
   }
 
   async function focusProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
     if (snapshot?.configPath === targetProject.configPath) {
       setActiveView("dashboard");
+      expandComponent(targetProject.configPath, nodeId);
       storeVirtualRoot(targetProject.configPath, nodeId);
       return;
     }
@@ -1492,7 +1664,10 @@ export function App(): ReactNode {
       setActiveView("dashboard");
       opened = true;
     });
-    if (opened) storeVirtualRoot(targetProject.configPath, nodeId);
+    if (opened) {
+      expandComponent(targetProject.configPath, nodeId);
+      storeVirtualRoot(targetProject.configPath, nodeId);
+    }
   }
 
   const nodeFocusActions = buildNodeFocusActions(
@@ -1805,7 +1980,9 @@ export function App(): ReactNode {
                   actionRegistry={actionRegistry}
                   actionScope={actionScope}
                   updateBatch={componentUpdateBatch}
+                  collapsedNodeIds={activeCollapsedComponentIds}
                   onFocus={focusComponent}
+                  onToggleCollapse={toggleComponentCollapse}
                   onCopyPath={(node) => void copyComponentPath(node)}
                   onOpenAgent={setAgentDialog}
                   isVirtualRoot

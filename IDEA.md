@@ -61,8 +61,9 @@ the generated dashboard, the agent's discovery commands, and the component
 contract do not depend on a separate global dash-bored installation.
 
 Every rendered component should make that workflow immediate through a small
-context menu. Alongside Focus, users can copy an exact config-and-tree locator
-or describe a wanted change and send it to the app-wide configured
+context menu. Alongside Focus, users can collapse or expand a component to keep
+large dashboards compact, copy an exact config-and-tree locator, or describe a
+wanted change and send it to the app-wide configured
 `DASH_BORED_AGENT`. The app enriches that request with dash-bored, project, and
 component context; it does not hide which external CLI command will run.
 

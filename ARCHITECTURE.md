@@ -593,13 +593,24 @@ The initial built-in set is intentionally generic:
   hide it reliably.
 
 Every rendered node exposes a keyboard-accessible context menu, also available
-through right-click. It contains Focus, Copy component path, and Change with
-agent. Focusing a node makes it a virtual root in the application viewport and
-provides breadcrumb navigation back to its configured ancestors; it never
-rewrites YAML or changes which bundle owns the node. Copy uses an unambiguous
-locator such as `/project/dash-bored/dash-bored.yaml#root.slots.children[0]`.
-Resolved nodes retain both the canonical owning YAML and their YAML-style path,
-including nodes reached through standalone config links.
+through right-click. It contains Focus, Collapse or Expand component, Copy
+component path, and Change with agent. Focusing a node makes it a virtual root
+in the application viewport and provides breadcrumb navigation back to its
+configured ancestors; it never rewrites YAML or changes which bundle owns the
+node. Copy uses an unambiguous locator such as
+`/project/dash-bored/dash-bored.yaml#root.slots.children[0]`. Resolved nodes
+retain both the canonical owning YAML and their YAML-style path, including
+nodes reached through standalone config links.
+
+Collapse state is renderer-owned presentation state, persisted locally per
+dashboard config path and resolved node ID. It is not a component prop, a YAML
+field, or part of a draft save. A collapsed node retains a compact accessible
+shell with its component name and an expand action; its rendered body and
+descendant components are unmounted so polling and native child surfaces do not
+continue consuming dashboard space. Processes remain owned by the main
+process, so collapsing a command or terminal does not stop a running command.
+Focusing a collapsed node expands it first. This runtime state is separate from
+the structural editor's temporary tree-branch collapse state.
 
 Change with agent opens a composer that visibly presents the resolved app-wide
 command, user text in quotes, and Send as one invocation. The renderer sends
@@ -665,7 +676,8 @@ replacement, and keyboard-accessible same-slot movement instead of repeating
 those controls on every nested node. Component rows retain a direct drag handle.
 Nested branches start collapsed below the root and can be expanded individually
 or all at once, so large dashboards remain navigable without losing access to
-their complete tree. Single `children` slots omit redundant slot chrome, while
+their complete tree. This editor-only tree state is independent of runtime
+component collapse. Single `children` slots omit redundant slot chrome, while
 named slots remain visible. Insertion targets have fixed geometry so revealing
 their action or dragging across them does not shift the surrounding structure.
 
