@@ -1549,6 +1549,10 @@ img.sidebar__project-icon {
   background: var(--surface-hover);
 }
 
+.component-picker__item--agent {
+  border-color: rgb(217 255 104 / 22%);
+}
+
 .component-picker__item:disabled {
   cursor: default;
   opacity: 0.48;
@@ -1575,6 +1579,17 @@ img.sidebar__project-icon {
 
 .component-picker__item small {
   color: var(--accent);
+}
+
+.component-picker__agent-context {
+  max-height: min(320px, calc(100vh - 180px));
+  overflow: auto;
+  color: #9aa6b5;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .component-config {

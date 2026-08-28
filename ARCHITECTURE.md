@@ -182,16 +182,21 @@ root:
               component: "@dash-bored/env"
               props:
                 path: dash-bored/.env
-            - id: install-dash-bored-skill
-              component: "@dash-bored/command"
-              props:
-                label: Install dash-bored skill
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
             - id: install-dash-bored-cli
               component: "@dash-bored/command"
               props:
                 label: Install dash-bored CLI in ~/.local/bin
                 command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
+            - id: install-dash-bored-global-skill
+              component: "@dash-bored/command"
+              props:
+                label: Install dash-bored skill globally
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
+            - id: install-dash-bored-skill
+              component: "@dash-bored/command"
+              props:
+                label: Install portable dash-bored skill for this project
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
             - id: setup-dashboard-with-agent
               component: "@dash-bored/command"
               props:
@@ -693,6 +698,20 @@ until the accepted save reloads and, when trusted, compiles it. Configuration
 dialogs trap focus, return it on close, and only the topmost nested dialog reacts
 to Escape.
 
+When an effective `DASH_BORED_AGENT` command is configured, the add-component
+picker accepts either a catalog search or a natural-language component
+description. If no catalog entry matches non-empty text, the results contain
+one explicit agent action showing the user's description, configured command,
+and complete enriched prompt. Selecting it leaves edit mode (with the normal
+discard confirmation for an already-dirty draft), asks the main process to
+revalidate the target against the authoritative reachable config, and launches
+the configured agent. The prompt tells the agent to use the installed
+dash-bored skill when available, build a project-local component for the owning
+dashboard, and insert its node at an exact YAML path such as
+`root.slots.children[1].slots.content[0]`. The prompt remains one
+environment-backed shell argument under the same launch boundary as Change
+with agent.
+
 The built-in tabs component keeps the dashboard editor structural: its preview
 shows the tab panels and their child-node controls, while Configure component
 contains the tab fields. From that modal users can add a panel through the
@@ -770,16 +789,19 @@ actionable diagnostics from the rejected revision. Process reconciliation runs
 only after validation succeeds. This avoids destroying a useful running
 dashboard because of a temporary YAML or TSX edit.
 
-After React receives a successful tree replacement, the renderer compares each
+After React receives an accepted dashboard update, the renderer compares each
 node with the previous accepted tree by stable node ID. Direct prop or component
 changes, inserted nodes, and moved nodes receive a short non-interactive polish
-overlay; removal highlights the nearest surviving parent. Descendant content
-changes do not also animate every layout ancestor. Large batches use a bounded
-visual-order stagger, initial loads and semantic no-op reloads do not animate,
-and the treatment follows the operating system's reduced-motion preference.
-The effect never changes a node's React key, so unchanged component state is
-preserved across YAML reloads. Native Electrobun webviews remain above DOM
-effects and therefore show the treatment on their surrounding shell only.
+overlay; removal highlights the nearest surviving parent. A successfully loaded
+local-component code or style revision highlights every mounted instance when
+the renderer swaps in that revision, rather than while the previous revision is
+still visible. Descendant content changes do not also animate every layout
+ancestor. Large batches use a bounded visual-order stagger, initial loads and
+semantic no-op reloads do not animate, and the treatment follows the operating
+system's reduced-motion preference. The effect never changes a node's React key,
+so unchanged component state is preserved across YAML reloads. Native Electrobun
+webviews remain above DOM effects and therefore show the treatment on their
+surrounding shell only.
 
 Local render exceptions are isolated at component-instance boundaries. Host and
 process failures update snapshots and diagnostics without crashing the main
@@ -792,7 +814,7 @@ The package exposes a `dash-bored` executable through its `bin` field:
 ```text
 dash-bored init [name ...] [--project <path>]
 dash-bored install-cli
-dash-bored install-skill [project]
+dash-bored install-skill [project] [--global]
 dash-bored validate [project] [--json]
 dash-bored inspect [project]
 dash-bored open [project]
@@ -810,18 +832,20 @@ dash-bored open [project]
   own config, lock, environment file, and components directory. It does not
   modify the canonical dashboard. Positional values are always names; the
   former positional-project form is not supported.
-- `install-skill` copies the packaged skill into
-  `.agents/skills/dash-bored/` below the selected project. This is the
-  cross-client Agent Skills convention used by Codex, Gemini CLI, Cursor,
-  Copilot CLI, and OpenCode. Claude Code currently discovers project skills
-  only below `.claude/skills/`, so the installer creates
-  `.claude/skills/dash-bored` as a symlink or Windows directory junction to the
-  same canonical payload. The skill uses only the portable `name` and
-  `description` frontmatter; `agents/openai.yaml` is optional presentation
-  metadata rather than a runtime dependency. The skill, metadata, and
-  local-component reference are text assets embedded in the standalone
-  executable. Installation is idempotent when files and aliases match and
-  refuses to replace modified files or conflicting paths.
+- `install-skill [project]` copies the packaged skill into
+  `.agents/skills/dash-bored/` below the selected project. With `--global`, it
+  instead uses the current user's home directory, so the shared skill is
+  available across projects. Both scopes create `.claude/skills/dash-bored` as
+  a symlink or Windows directory junction to the same canonical payload for
+  Claude Code. The shared `.agents/skills/` location is the cross-client Agent
+  Skills convention used by Codex, Gemini CLI, Cursor, Copilot CLI, and
+  OpenCode. The skill uses only the portable `name` and `description`
+  frontmatter; `agents/openai.yaml` is optional presentation metadata rather
+  than a runtime dependency. The skill, metadata, and local-component
+  reference are text assets embedded in the standalone executable.
+  Installation is idempotent when files and aliases match and refuses to
+  replace modified files or conflicting paths. `--global` does not accept a
+  project path.
 - `install-cli` creates a symlink from `~/.local/bin/dash-bored` to the CLI
   bundled in the application on macOS or Linux. It is an explicit user action,
   reports when that directory is absent from `PATH`, and refuses to replace an
@@ -911,7 +935,8 @@ or bundled-CLI contracts.
 The following are not part of this architecture yet:
 
 - npm, Git, registry, or marketplace component resolution
-- component search, describe, create, publishing, or shared templates
+- marketplace component search, publishing, or shared templates; direct
+  in-process component generation without the configured external agent
 - Linux, Windows, and Intel Mac distribution; Windows shell-link installation
 - Developer ID signing, notarization, or application auto-update
 - interactive PTY support, general project-file editing, and a general process viewer

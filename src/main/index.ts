@@ -7,10 +7,17 @@ import Electrobun, {
 } from "electrobun/main";
 import { join } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
-import type { ProjectSnapshot } from "../shared/contracts";
+import type {
+  ComponentNode,
+  DashboardConfigSource,
+  DashboardInsertionTarget,
+  ProjectSnapshot,
+} from "../shared/contracts";
 import {
   buildComponentAgentPrompt,
+  buildComponentCreationAgentPrompt,
   componentPath,
+  dashboardInsertionPath,
   findResolvedNode,
 } from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
@@ -110,6 +117,65 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
   });
 }
 
+function configuredSlotChildren(node: ComponentNode, slot: string): ComponentNode[] {
+  const configured = node.slots?.[slot];
+  if (configured === undefined) return [];
+  return Array.isArray(configured) ? configured : [configured];
+}
+
+function validatedInsertionPath(
+  source: DashboardConfigSource,
+  target: DashboardInsertionTarget,
+): string {
+  const invalid = (): never => {
+    throw new CoreError(
+      "COMPONENT_INSERTION_TARGET_INVALID",
+      "That component insertion point is no longer present. Reopen the dashboard editor and try again.",
+    );
+  };
+  const validIndex = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
+  let parent = source.config.root;
+  for (const segment of target.parentPath) {
+    if (!segment.slot || !validIndex(segment.index)) invalid();
+    const child = configuredSlotChildren(parent, segment.slot)[segment.index];
+    parent = child ?? invalid();
+  }
+  if (!target.slot || !validIndex(target.index)) invalid();
+
+  const children = configuredSlotChildren(parent, target.slot);
+  const manifest = source.componentCatalog.find(
+    (item) => item.reference === parent.component,
+  )?.manifest;
+  const slot = manifest?.slots?.[target.slot];
+  if (!slot && parent.slots?.[target.slot] === undefined) invalid();
+  if (slot?.multiple !== true && children.length > 0) invalid();
+  if (target.index > children.length) invalid();
+  return dashboardInsertionPath(target);
+}
+
+async function runComponentCreationAgent(
+  configPath: string,
+  target: DashboardInsertionTarget,
+  userPrompt: string,
+) {
+  const source = await runtime.getDashboardConfigSource(configPath);
+  const sourceLocation = await resolveProjectLocation(source.configPath);
+  const insertionPath = validatedInsertionPath(source, target);
+  const locator = `${source.configPath}#${insertionPath}`;
+  const settings = await appSettingsStore.get();
+  const prompt = buildComponentCreationAgentPrompt({
+    projectRoot: sourceLocation.projectRoot,
+    configPath: source.configPath,
+    insertionPath,
+  }, userPrompt);
+  return componentAgentRunner.launch({
+    command: settings.dashBoredAgent,
+    prompt,
+    projectRoot: sourceLocation.projectRoot,
+    componentPath: locator,
+  });
+}
+
 async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
   const paths = await Utils.openFileDialog({
     startingFolder: process.cwd(),
@@ -148,6 +214,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
         return updated;
       },
       runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
+      runComponentCreationAgent: ({ configPath, target, prompt }) =>
+        runComponentCreationAgent(configPath, target, prompt),
       listProjects: () => projectRegistry.list(),
       getProjectOutline: ({ projectRoot, configPath }) =>
         getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),

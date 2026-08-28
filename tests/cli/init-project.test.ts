@@ -27,12 +27,15 @@ describe("initializeProject", () => {
     expect(config.root.slots.children[1].component).toBe("@dash-bored/split");
     const environmentEditor = config.root.slots.children[2].slots.children[1];
     const cliCommand = config.root.slots.children[2].slots.children[2];
-    const skillCommand = config.root.slots.children[2].slots.children[3];
-    const agentCommand = config.root.slots.children[2].slots.children[4];
+    const globalSkillCommand = config.root.slots.children[2].slots.children[3];
+    const skillCommand = config.root.slots.children[2].slots.children[4];
+    const agentCommand = config.root.slots.children[2].slots.children[5];
     expect(environmentEditor.component).toBe("@dash-bored/env");
     expect(environmentEditor.props.path).toBe("dash-bored/.env");
     expect(cliCommand.id).toBe("install-dash-bored-cli");
     expect(cliCommand.props.command).toContain("install-cli");
+    expect(globalSkillCommand.id).toBe("install-dash-bored-global-skill");
+    expect(globalSkillCommand.props.command).toContain("install-skill --global");
     expect(skillCommand.id).toBe("install-dash-bored-skill");
     expect(skillCommand.props.command).toContain("install-skill .");
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");

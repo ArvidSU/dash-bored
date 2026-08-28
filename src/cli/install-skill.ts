@@ -11,10 +11,18 @@ import {
   symlink,
   unlink,
 } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DASH_BORED_SKILL_FILES } from "./skill-payload";
 
 const SKILL_FILES = Object.entries(DASH_BORED_SKILL_FILES);
+
+export interface InstallSkillOptions {
+  /** Install below the current user's home directory instead of a project. */
+  global?: boolean;
+  /** Override the home directory for tests or an explicitly selected user scope. */
+  homeDirectory?: string;
+}
 
 export interface InstallSkillResult {
   projectRoot: string;
@@ -84,13 +92,26 @@ async function existingSkillAlias(path: string, expectedTarget: string): Promise
   }
 }
 
-export async function installDashBoredSkill(projectInput = "."): Promise<InstallSkillResult> {
-  const requestedRoot = resolve(projectInput);
+export async function installDashBoredSkill(
+  projectInput = ".",
+  options: InstallSkillOptions = {},
+): Promise<InstallSkillResult> {
+  const requestedRoot = resolve(
+    options.global ? options.homeDirectory ?? homedir() : projectInput,
+  );
   const rootInfo = await stat(requestedRoot).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") throw new Error(`Project directory does not exist: ${requestedRoot}`);
+    if (error.code === "ENOENT") {
+      throw new Error(
+        `${options.global ? "Home" : "Project"} directory does not exist: ${requestedRoot}`,
+      );
+    }
     throw error;
   });
-  if (!rootInfo.isDirectory()) throw new Error(`Project path is not a directory: ${requestedRoot}`);
+  if (!rootInfo.isDirectory()) {
+    throw new Error(
+      `${options.global ? "Home" : "Project"} path is not a directory: ${requestedRoot}`,
+    );
+  }
 
   const projectRoot = await realpath(requestedRoot);
   const agentsPath = join(projectRoot, ".agents");

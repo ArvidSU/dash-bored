@@ -318,9 +318,9 @@ root:
               props:
                 content: |
                   Choose the CLI coding agent below, install the version-matched
-                  dash-bored skill, then ask the agent to inspect this repository and
-                  improve its development cockpit. The app already exposes its bundled
-                  CLI to these commands.
+                  dash-bored skill globally or just for this repository, then ask the
+                  agent to inspect this repository and improve its development cockpit.
+                  The app already exposes its bundled CLI to these commands.
             - id: agent-environment
               component: "@dash-bored/env"
               props:
@@ -331,10 +331,16 @@ root:
                 label: Install dash-bored CLI in ~/.local/bin
                 command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
                 cwd: .
+            - id: install-agent-skill-global
+              component: "@dash-bored/command"
+              props:
+                label: Install dash-bored skill globally
+                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
+                cwd: .
             - id: install-agent-skill
               component: "@dash-bored/command"
               props:
-                label: Install portable dash-bored skill
+                label: Install portable dash-bored skill for this project
                 command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
                 cwd: .
             - id: configure-with-agent

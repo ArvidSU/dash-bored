@@ -210,7 +210,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
                 {
                   component: "@dash-bored/markdown",
                   props: {
-                    content: "Choose your CLI agent once in application Settings. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Then install the portable project-local Agent Skill so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
+                    content: "Choose your CLI agent once in application Settings. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Install the portable Agent Skill globally for all projects, or only in this project so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
                   },
                 },
                 {
@@ -230,10 +230,19 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
                   },
                 },
                 {
+                  id: "install-dash-bored-global-skill",
+                  component: "@dash-bored/command",
+                  props: {
+                    label: "Install dash-bored skill globally",
+                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global',
+                    cwd: ".",
+                  },
+                },
+                {
                   id: "install-dash-bored-skill",
                   component: "@dash-bored/command",
                   props: {
-                    label: "Install portable dash-bored skill",
+                    label: "Install portable dash-bored skill for this project",
                     command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .',
                     cwd: ".",
                   },

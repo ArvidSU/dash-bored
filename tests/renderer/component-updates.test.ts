@@ -20,6 +20,21 @@ function node(
   };
 }
 
+function localNode(id: string, componentId: string): ResolvedComponentNode {
+  return {
+    ...node(id, `./components/${componentId}`),
+    source: "local",
+    manifest: {
+      schemaVersion: 1,
+      id: componentId,
+      name: componentId,
+      description: `${componentId} test component`,
+      entry: "./index.tsx",
+      propsSchema: { type: "object" },
+    },
+  };
+}
+
 describe("component update detection", () => {
   test("marks only the component whose own props changed", () => {
     const before = node("root", "@dash-bored/stack", {}, [
@@ -74,6 +89,38 @@ describe("component update detection", () => {
     const after = node("main", "@dash-bored/markdown", { content: "Replacement" });
 
     expect(changedComponentIds(before, after)).toEqual(["main"]);
+  });
+
+  test("marks every mounted instance after its local component successfully reloads", () => {
+    const tree = node("root", "@dash-bored/stack", {}, [
+      localNode("first-pulse", "project-pulse"),
+      localNode("package-scripts", "package-scripts"),
+      localNode("second-pulse", "project-pulse"),
+    ]);
+
+    expect(changedComponentIds(
+      tree,
+      structuredClone(tree),
+      new Map([
+        ["project-pulse", "revision-1"],
+        ["package-scripts", "stable"],
+      ]),
+      new Map([
+        ["project-pulse", "revision-2"],
+        ["package-scripts", "stable"],
+      ]),
+    )).toEqual(["first-pulse", "second-pulse"]);
+  });
+
+  test("does not mark the initial load of local component code", () => {
+    const tree = localNode("project-pulse", "project-pulse");
+
+    expect(changedComponentIds(
+      tree,
+      structuredClone(tree),
+      new Map(),
+      new Map([["project-pulse", "revision-1"]]),
+    )).toEqual([]);
   });
 
   test("keeps large update waves bounded", () => {

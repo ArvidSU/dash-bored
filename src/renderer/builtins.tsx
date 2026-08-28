@@ -1038,9 +1038,12 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
             <div className="env-editor__empty">
               <strong>No variables yet</strong>
               <span>Add the first key-value pair or switch to raw mode to paste a complete file.</span>
+              <button className="button button--primary" type="button" onClick={addEntry}>+ Add first variable</button>
             </div>
           )}
-          <button className="button button--quiet env-editor__add" type="button" onClick={addEntry}>+ Add variable</button>
+          {rows.length > 0 ? (
+            <button className="button button--quiet env-editor__add" type="button" onClick={addEntry}>+ Add variable</button>
+          ) : null}
         </div>
       )}
     </section>

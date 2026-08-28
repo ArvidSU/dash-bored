@@ -34,11 +34,18 @@ describe("env document editing", () => {
     const document = parseEnv("A=one\r\n");
     const withNewRow = appendEnvEntry(document);
     const added = envEntries(withNewRow).at(-1);
-    expect(added?.entry.key).toBe("NEW_VARIABLE");
-    expect(serializeEnv(withNewRow)).toBe("A=one\r\nNEW_VARIABLE=\r\n");
+    expect(added?.entry.key).toBe("DASH_BORED_AGENT");
+    expect(serializeEnv(withNewRow)).toBe("A=one\r\nDASH_BORED_AGENT=\r\n");
 
     const removed = removeEnvEntry(withNewRow, added!.lineIndex);
     expect(serializeEnv(removed)).toBe("A=one\r\n");
+  });
+
+  test("adds the first row to an empty environment file", () => {
+    const withFirstRow = appendEnvEntry(parseEnv(""));
+
+    expect(envEntries(withFirstRow)).toHaveLength(1);
+    expect(serializeEnv(withFirstRow)).toBe("DASH_BORED_AGENT=\n");
   });
 
   test("validates portable environment variable names", () => {

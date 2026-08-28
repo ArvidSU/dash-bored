@@ -12,6 +12,8 @@ interface TreeIndex {
   order: readonly string[];
 }
 
+const EMPTY_COMPONENT_REVISIONS: ReadonlyMap<string, string> = new Map();
+
 function stableValue(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
   if (Array.isArray(value)) return `[${value.map(stableValue).join(",")}]`;
@@ -63,11 +65,14 @@ function indexTree(tree: ResolvedComponentNode): TreeIndex {
 /**
  * Return changed nodes in their new visual traversal order. Descendant prop
  * changes do not make layout ancestors flash, while inserted, moved, replaced,
- * and directly edited nodes each receive their own update treatment.
+ * directly edited, and successfully reloaded local nodes each receive their
+ * own update treatment.
  */
 export function changedComponentIds(
   previousTree: ResolvedComponentNode,
   nextTree: ResolvedComponentNode,
+  previousLocalComponentRevisions: ReadonlyMap<string, string> = EMPTY_COMPONENT_REVISIONS,
+  nextLocalComponentRevisions: ReadonlyMap<string, string> = EMPTY_COMPONENT_REVISIONS,
 ): string[] {
   const previous = indexTree(previousTree);
   const next = indexTree(nextTree);
@@ -77,11 +82,20 @@ export function changedComponentIds(
     const current = next.nodes.get(id);
     const before = previous.nodes.get(id);
     if (!current) continue;
+    const localComponentId = current.node.source === "local"
+      ? current.node.manifest?.id
+      : undefined;
+    const localComponentReloaded = localComponentId !== undefined
+      && previousLocalComponentRevisions.has(localComponentId)
+      && nextLocalComponentRevisions.has(localComponentId)
+      && previousLocalComponentRevisions.get(localComponentId)
+        !== nextLocalComponentRevisions.get(localComponentId);
     if (
       !before ||
       before.ownSignature !== current.ownSignature ||
       before.parentId !== current.parentId ||
-      before.position !== current.position
+      before.position !== current.position ||
+      localComponentReloaded
     ) {
       changed.add(id);
     }

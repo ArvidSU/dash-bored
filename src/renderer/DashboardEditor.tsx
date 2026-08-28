@@ -8,6 +8,7 @@ import type {
   Diagnostic,
   ResolvedComponentNode,
 } from "../shared/contracts";
+import { buildComponentCreationAgentPrompt, dashboardInsertionPath } from "../shared/component-agent";
 import { PERMISSION_LABELS } from "./action-providers";
 import { BuiltinRenderer } from "./builtins";
 import { host } from "./rpc-client";
@@ -338,14 +339,32 @@ function TabsConfigEditor({ node, props, catalog, onAddTab, onRemoveTab, onRenam
 interface ComponentDialogProps {
   catalog: readonly ComponentCatalogItem[];
   config: DashboardConfig;
+  projectRoot?: string;
+  configPath?: string;
+  agentCommand?: string;
+  agentPending?: boolean;
   target?: SlotTarget;
   existing?: { path: NodePath; node: ComponentNode };
   replaceRoot?: ComponentNode;
+  onBuildWithAgent?: (target: SlotTarget, prompt: string) => void;
   onApply: (next: DashboardConfig) => void;
   onDismiss: () => void;
 }
 
-function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApply, onDismiss }: ComponentDialogProps): ReactNode {
+function ComponentDialog({
+  catalog,
+  config,
+  projectRoot,
+  configPath,
+  agentCommand,
+  agentPending = false,
+  target,
+  existing,
+  replaceRoot,
+  onBuildWithAgent,
+  onApply,
+  onDismiss,
+}: ComponentDialogProps): ReactNode {
   const existingItem = existing
     ? catalog.find((item) => item.reference === existing.node.component)
     : undefined;
@@ -371,6 +390,23 @@ function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApp
     const haystack = `${item.manifest?.name ?? item.reference} ${item.reference} ${item.manifest?.description ?? ""}`.toLowerCase();
     return haystack.includes(query.trim().toLowerCase());
   });
+  const componentDescription = query.trim();
+  const agentBuildAvailable = Boolean(
+    componentDescription &&
+    available.length === 0 &&
+    projectRoot &&
+    configPath &&
+    agentCommand?.trim() &&
+    target &&
+    onBuildWithAgent,
+  );
+  const agentContextPrompt = agentBuildAvailable && projectRoot && configPath && target
+    ? buildComponentCreationAgentPrompt({
+      projectRoot,
+      configPath,
+      insertionPath: dashboardInsertionPath(target),
+    }, componentDescription)
+    : null;
 
   useEffect(() => {
     if (!selected?.manifest) return;
@@ -437,7 +473,7 @@ function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApp
       <EditorModal title={replaceRoot ? "Replace dashboard root" : existing ? `Configure ${existingItem?.manifest?.name ?? existing.node.component}` : addingTab ? "Add tab" : "Add component"} onDismiss={onDismiss}>
       {!existing && !selected ? (
         <div className="component-picker">
-          <input className="component-picker__search" data-modal-autofocus type="search" placeholder="Search components…" aria-label="Search components" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input className="component-picker__search" data-modal-autofocus type="search" maxLength={12_000} placeholder={agentCommand?.trim() && target ? "Search or describe a component..." : "Search components…"} aria-label="Search components" value={query} onChange={(event) => setQuery(event.target.value)} />
           <div className="component-picker__list">
             {available.map((item) => (
               <button className="component-picker__item" type="button" key={item.reference} disabled={!item.available || item.manifest === null} onClick={() => choose(item)}>
@@ -446,7 +482,18 @@ function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApp
                 {item.manifest?.permissions?.length ? <small>{item.manifest.permissions.map((permission) => PERMISSION_LABELS[permission]).join(" · ")}</small> : null}
               </button>
             ))}
-            {available.length === 0 ? <p className="editor-muted">No matching components.</p> : null}
+            {agentBuildAvailable && agentContextPrompt && onBuildWithAgent && target ? (
+              <button
+                className="component-picker__item component-picker__item--agent"
+                type="button"
+                disabled={agentPending}
+                onClick={() => onBuildWithAgent(target, componentDescription)}
+              >
+                <span><strong>{componentDescription}</strong><code>{agentCommand}</code></span>
+                <span className="component-picker__agent-context">{agentContextPrompt}</span>
+                <small>Build this component with DASH_BORED_AGENT</small>
+              </button>
+            ) : available.length === 0 ? <p className="editor-muted">No matching components.</p> : null}
           </div>
         </div>
       ) : selected?.manifest ? (
@@ -525,7 +572,12 @@ function ComponentDialog({ catalog, config, target, existing, replaceRoot, onApp
         <ComponentDialog
           catalog={catalog}
           config={tabDraftConfig}
+          projectRoot={projectRoot}
+          configPath={configPath}
+          agentCommand={agentCommand}
+          agentPending={agentPending}
           target={{ parentPath: existing.path, slot: "children", index: slotChildren(tabsNode, "children").length }}
+          onBuildWithAgent={onBuildWithAgent}
           onApply={(next) => {
             applyTabDraft(next);
             setTabAddOpen(false);
@@ -608,6 +660,11 @@ interface DashboardEditorProps {
   config: DashboardConfig;
   catalog: readonly ComponentCatalogItem[];
   diagnostics: readonly Diagnostic[];
+  projectRoot: string;
+  configPath: string;
+  agentCommand?: string;
+  agentPending?: boolean;
+  onBuildWithAgent?: (target: SlotTarget, prompt: string) => void;
   onChange: (config: DashboardConfig) => void;
 }
 
@@ -615,6 +672,11 @@ export function DashboardEditor({
   config,
   catalog,
   diagnostics,
+  projectRoot,
+  configPath,
+  agentCommand,
+  agentPending,
+  onBuildWithAgent,
   onChange,
 }: DashboardEditorProps): ReactNode {
   const [addTarget, setAddTarget] = useState<SlotTarget | null>(null);
@@ -862,7 +924,7 @@ export function DashboardEditor({
       <section className="dashboard dashboard--editing" aria-label={`${config.name} dashboard editor`}>
         {renderNode(config.root, [], true)}
       </section>
-      {addTarget ? <ComponentDialog catalog={catalog} config={config} target={addTarget} onApply={applyDraft} onDismiss={() => setAddTarget(null)} /> : null}
+      {addTarget ? <ComponentDialog catalog={catalog} config={config} projectRoot={projectRoot} configPath={configPath} agentCommand={agentCommand} agentPending={agentPending} target={addTarget} onBuildWithAgent={onBuildWithAgent} onApply={applyDraft} onDismiss={() => setAddTarget(null)} /> : null}
       {configurePath && configuring ? <ComponentDialog catalog={catalog} config={config} existing={{ path: configurePath, node: configuring }} onApply={applyDraft} onDismiss={() => setConfigurePath(null)} /> : null}
       {replaceRootOpen ? <ComponentDialog catalog={catalog} config={config} replaceRoot={config.root} onApply={(next) => {
         onChange(next);

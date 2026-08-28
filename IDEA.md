@@ -54,8 +54,8 @@ The agent should:
 Creating a dashboard should feel closer to asking an agent to modify code than configuring a traditional dashboard product.
 
 The starter dashboard should make that workflow self-contained: it can install
-project-local guidance that teaches compatible agents the dash-bored component
-model, then launch the user's chosen CLI agent with a project-specific prompt.
+global or project-local guidance that teaches compatible agents the dash-bored
+component model, then launch the user's chosen CLI agent with a project-specific prompt.
 The desktop app carries a version-matched dash-bored CLI and skill payload so
 the generated dashboard, the agent's discovery commands, and the component
 contract do not depend on a separate global dash-bored installation.

@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildComponentAgentPrompt,
+  buildComponentCreationAgentPrompt,
   componentPath,
+  dashboardInsertionPath,
   findResolvedNode,
 } from "../../src/shared/component-agent";
 import type { ResolvedComponentNode } from "../../src/shared/contracts";
@@ -58,5 +60,24 @@ describe("component agent context", () => {
     const invocation = componentAgentInvocation(" codex exec ");
     expect(invocation.startsWith("codex exec ")).toBeTrue();
     expect(invocation).toContain("DASH_BORED_AGENT_PROMPT");
+  });
+
+  test("tells an agent to build an unmatched component at the exact YAML insertion path", () => {
+    const insertionPath = dashboardInsertionPath({
+      parentPath: [{ slot: "children", index: 1 }],
+      slot: "content",
+      index: 0,
+    });
+    const prompt = buildComponentCreationAgentPrompt({
+      projectRoot: "/project",
+      configPath: "/project/dash-bored/dash-bored.yaml",
+      insertionPath,
+    }, "  Show deployment health by region.  ");
+
+    expect(insertionPath).toBe("root.slots.children[1].slots.content[0]");
+    expect(prompt).toContain("Use the installed dash-bored skill when available.");
+    expect(prompt).toContain("Build a project-local component for this dashboard");
+    expect(prompt).toContain("YAML insertion path: root.slots.children[1].slots.content[0]");
+    expect(prompt).toEndWith("User component description:\nShow deployment health by region.");
   });
 });

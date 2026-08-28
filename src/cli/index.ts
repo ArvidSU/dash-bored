@@ -17,6 +17,7 @@ interface ParsedCommandArguments {
   project: string;
   configName: string;
   json: boolean;
+  global: boolean;
   help: boolean;
   error: string | null;
 }
@@ -27,7 +28,7 @@ function usage(): string {
 Usage:
   dash-bored init [name ...] [--project <path>]
   dash-bored install-cli
-  dash-bored install-skill [project]
+  dash-bored install-skill [project] [--global]
   dash-bored open [project]
   dash-bored validate [project] [--json]
   dash-bored inspect [project]
@@ -52,6 +53,7 @@ function parseCommandArguments(
   const positional: string[] = [];
   let optionsEnabled = true;
   let json = false;
+  let global = false;
   let project = ".";
   let projectSpecified = false;
 
@@ -62,15 +64,15 @@ function parseCommandArguments(
       continue;
     }
     if (optionsEnabled && (argument === "--help" || argument === "-h")) {
-      return { project: ".", configName: ".", json: false, help: true, error: null };
+      return { project: ".", configName: ".", json: false, global: false, help: true, error: null };
     }
     if (optionsEnabled && command === "init" && argument === "--project") {
       if (projectSpecified) {
-        return { project, configName: ".", json, help: false, error: "Option --project may be specified only once." };
+        return { project, configName: ".", json, global, help: false, error: "Option --project may be specified only once." };
       }
       const value = args[index + 1];
       if (value === undefined || value.startsWith("-")) {
-        return { project, configName: ".", json, help: false, error: "Option --project requires a path." };
+        return { project, configName: ".", json, global, help: false, error: "Option --project requires a path." };
       }
       project = value;
       projectSpecified = true;
@@ -79,19 +81,26 @@ function parseCommandArguments(
     }
     if (optionsEnabled && command === "init" && argument.startsWith("--project=")) {
       if (projectSpecified) {
-        return { project, configName: ".", json, help: false, error: "Option --project may be specified only once." };
+        return { project, configName: ".", json, global, help: false, error: "Option --project may be specified only once." };
       }
       project = argument.slice("--project=".length);
       if (project === "") {
-        return { project: ".", configName: ".", json, help: false, error: "Option --project requires a path." };
+        return { project: ".", configName: ".", json, global, help: false, error: "Option --project requires a path." };
       }
       projectSpecified = true;
+      continue;
+    }
+    if (optionsEnabled && command === "install-skill" && argument === "--global") {
+      if (global) {
+        return { project: ".", configName: ".", json, global, help: false, error: "Option --global may be specified only once." };
+      }
+      global = true;
       continue;
     }
     if (optionsEnabled && argument.startsWith("-")) {
       if (command === "validate" && argument === "--json") {
         if (json) {
-          return { project: ".", configName: ".", json, help: false, error: "Option --json may be specified only once." };
+          return { project: ".", configName: ".", json, global, help: false, error: "Option --json may be specified only once." };
         }
         json = true;
         continue;
@@ -100,6 +109,7 @@ function parseCommandArguments(
         project: ".",
         configName: ".",
         json,
+        global,
         help: false,
         error: `Unknown option for ${command}: ${argument}`,
       };
@@ -112,6 +122,7 @@ function parseCommandArguments(
       project: ".",
       configName: ".",
       json,
+      global,
       help: false,
       error: `${command} accepts at most one project path.`,
     };
@@ -121,13 +132,24 @@ function parseCommandArguments(
       project: ".",
       configName: ".",
       json,
+      global,
       help: false,
       error: "install-cli does not accept a project path.",
     };
   }
+  if (command === "install-skill" && global && positional.length > 0) {
+    return {
+      project: ".",
+      configName: ".",
+      json,
+      global,
+      help: false,
+      error: "install-skill --global does not accept a project path.",
+    };
+  }
   return command === "init"
-    ? { project, configName: positional.length === 0 ? "." : positional.join("/"), json, help: false, error: null }
-    : { project: positional[0] ?? ".", configName: ".", json, help: false, error: null };
+    ? { project, configName: positional.length === 0 ? "." : positional.join("/"), json, global, help: false, error: null }
+    : { project: positional[0] ?? ".", configName: ".", json, global, help: false, error: null };
 }
 
 async function inspect(path: string, compile: boolean): Promise<InspectResult> {
@@ -245,11 +267,11 @@ async function main(): Promise<number> {
   }
 
   if (command === "install-skill") {
-    const result = await installDashBoredSkill(project);
+    const result = await installDashBoredSkill(project, { global: parsed.global });
     console.log(
       result.created.length === 0 && result.linked.length === 0
-        ? `dash-bored skill is already installed in ${result.skillPath}`
-        : `Installed portable dash-bored skill in ${result.skillPath}`,
+        ? `dash-bored skill is already installed${parsed.global ? " globally" : ""} in ${result.skillPath}`
+        : `Installed portable dash-bored skill${parsed.global ? " globally" : ""} in ${result.skillPath}`,
     );
     console.log(`Claude Code compatibility path: ${result.claudeSkillPath}`);
     return 0;

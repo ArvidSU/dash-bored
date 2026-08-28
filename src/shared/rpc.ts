@@ -3,6 +3,7 @@ import type {
   AppSettings,
   ComponentAgentLaunch,
   ComponentAgentRequest,
+  ComponentCreationAgentRequest,
   DashboardConfig,
   DashboardConfigSource,
   DashboardDraftValidation,
@@ -30,6 +31,7 @@ export type DashboardRPC = {
       getAppSettings: { params: {}; response: AppSettings };
       updateAppSettings: { params: AppSettings; response: AppSettings };
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
+      runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
       listProjects: { params: {}; response: ProjectListItem[] };
       getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
       chooseProject: { params: {}; response: ProjectSnapshot };

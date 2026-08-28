@@ -177,7 +177,7 @@ export function appendEnvEntry(document: EnvDocument): EnvDocument {
       {
         kind: "entry",
         entry: {
-          key: "NEW_VARIABLE",
+          key: "DASH_BORED_AGENT",
           value: "",
           quote: "none",
           leading: "",

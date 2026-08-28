@@ -16,9 +16,18 @@ afterEach(async () => {
 });
 
 async function run(project: string, ...args: string[]) {
+  return runWithEnvironment(project, process.env, ...args);
+}
+
+async function runWithEnvironment(
+  project: string,
+  environment: NodeJS.ProcessEnv,
+  ...args: string[]
+) {
   const subprocess = Bun.spawn({
     cmd: [process.execPath, cli, ...args],
     cwd: project,
+    env: environment,
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -158,6 +167,48 @@ describe("dash-bored command arguments", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("agent configuration directory must not be a symbolic link");
     expect(await readdir(outside)).toEqual([]);
+  });
+
+  test("install-skill --global creates an idempotent user skill without touching the project", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    const home = await mkdtemp(join(tmpdir(), "dash-bored-cli-home-"));
+    temporaryDirectories.push(project, home);
+    const skillPath = join(home, ".agents", "skills", "dash-bored", "SKILL.md");
+    const claudeSkillPath = join(home, ".claude", "skills", "dash-bored");
+
+    const installed = await runWithEnvironment(
+      project,
+      { ...process.env, HOME: home },
+      "install-skill",
+      "--global",
+    );
+    expect(installed.exitCode).toBe(0);
+    expect(installed.stdout).toContain("Installed portable dash-bored skill globally");
+    expect(await readFile(skillPath, "utf8")).toBe(
+      await readFile(resolve(import.meta.dirname, "../../skills/dash-bored/SKILL.md"), "utf8"),
+    );
+    expect((await lstat(claudeSkillPath)).isSymbolicLink()).toBeTrue();
+    expect(await realpath(claudeSkillPath)).toBe(await realpath(join(home, ".agents", "skills", "dash-bored")));
+    expect(await exists(join(project, ".agents"))).toBeFalse();
+
+    const repeated = await runWithEnvironment(
+      project,
+      { ...process.env, HOME: home },
+      "install-skill",
+      "--global",
+    );
+    expect(repeated.exitCode).toBe(0);
+    expect(repeated.stdout).toContain("already installed globally");
+  });
+
+  test("install-skill --global rejects a project path", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+
+    const result = await run(project, "install-skill", ".", "--global");
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("install-skill --global does not accept a project path");
   });
 
   test("inspect exposes the version-matched component catalog", async () => {

@@ -22,6 +22,11 @@ behavior, its practical consequence, and the safe way to handle it.
   direct `dash-bored.yaml` as that standalone bundle. Each selected config is
   remembered as its own sidebar entry, even when multiple entries share one
   project root.
+- The starter dashboard's `install-skill .` action installs the portable skill
+  for that project under `.agents/skills/` and links Claude's project path;
+  `install-skill --global` targets the current user's `~/.agents/skills/` and
+  `~/.claude/skills/` paths instead. Both modes refuse to replace modified
+  payloads or conflicting directories.
 - Opening a project creates only missing canonical `dash-bored/` artifacts and
   preserves existing configuration and lock files. Plain `dash-bored init`
   remains strict; `dash-bored init <name>` preserves or repairs the canonical

@@ -3,6 +3,7 @@ import type {
   AppSettings,
   ComponentAgentLaunch,
   ComponentAgentRequest,
+  ComponentCreationAgentRequest,
   DashboardConfig,
   DashboardConfigSource,
   DashboardDraftValidation,
@@ -97,6 +98,13 @@ export const host = {
   async runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
     ensureTransport();
     return await rpc.request.runComponentAgent(request);
+  },
+
+  async runComponentCreationAgent(
+    request: ComponentCreationAgentRequest,
+  ): Promise<ComponentAgentLaunch> {
+    ensureTransport();
+    return await rpc.request.runComponentCreationAgent(request);
   },
 
   async listProjects(): Promise<ProjectListItem[]> {

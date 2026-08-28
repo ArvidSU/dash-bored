@@ -54,6 +54,7 @@ import {
   DashboardEditorToolbar,
   EditorModal,
 } from "./DashboardEditor";
+import type { SlotTarget } from "./dashboard-editor";
 import {
   LocalComponentErrorBoundary,
   useLocalComponents,
@@ -707,11 +708,13 @@ function useComponentUpdateBatch(
   tree: ResolvedComponentNode | null | undefined,
   identity: string | null | undefined,
   trusted: boolean | undefined,
+  localComponents: ReadonlyMap<string, LoadedLocalComponent>,
 ): ComponentUpdateBatch | null {
   const previous = useRef<{
     identity: string;
     tree: ResolvedComponentNode;
     trusted: boolean;
+    localComponentRevisions: ReadonlyMap<string, string>;
   } | null>(null);
   const generation = useRef(0);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -724,8 +727,19 @@ function useComponentUpdateBatch(
       return;
     }
 
+    const localComponentRevisions = new Map<string, string>();
+    for (const [componentId, loaded] of localComponents) {
+      if (loaded.component !== null) {
+        localComponentRevisions.set(componentId, loaded.revision);
+      }
+    }
     const before = previous.current;
-    previous.current = { identity, tree, trusted };
+    previous.current = {
+      identity,
+      tree,
+      trusted,
+      localComponentRevisions,
+    };
     if (
       before === null ||
       before.identity !== identity ||
@@ -737,7 +751,12 @@ function useComponentUpdateBatch(
       return;
     }
 
-    const changedIds = changedComponentIds(before.tree, tree);
+    const changedIds = changedComponentIds(
+      before.tree,
+      tree,
+      before.localComponentRevisions,
+      localComponentRevisions,
+    );
     if (changedIds.length === 0) return;
 
     generation.current += 1;
@@ -753,7 +772,7 @@ function useComponentUpdateBatch(
       clearTimer.current = null;
       setBatch(null);
     }, 1_000);
-  }, [identity, tree, trusted]);
+  }, [identity, tree, trusted, localComponents]);
 
   useEffect(() => () => {
     if (clearTimer.current !== null) clearTimeout(clearTimer.current);
@@ -1089,6 +1108,7 @@ export function App(): ReactNode {
     snapshot?.tree,
     snapshot?.configPath,
     snapshot?.trusted,
+    localComponents,
   );
   const actionRegistry = useMemo(() => new ActionRegistry(), []);
   const componentActions = useSyncExternalStore(
@@ -1467,6 +1487,41 @@ export function App(): ReactNode {
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function runComponentCreationAgent(
+    configPath: string,
+    target: SlotTarget,
+    prompt: string,
+  ): Promise<void> {
+    setPendingAction("component-agent:create");
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
+      setEditSession(null);
+      showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  function requestComponentCreationAgent(target: SlotTarget, prompt: string): void {
+    if (!editSession || pendingAction !== null) return;
+    const configPath = editSession.configPath;
+    const launch = (): void => {
+      void runComponentCreationAgent(configPath, target, prompt);
+    };
+    if (editSessionDirty()) {
+      setDiscardConfirmation({
+        message: "Discard the dashboard draft and ask the configured agent to build this component?",
+        continueAction: launch,
+      });
+      return;
+    }
+    launch();
   }
 
   async function saveDashboardDraft(): Promise<void> {
@@ -1948,6 +2003,11 @@ export function App(): ReactNode {
                 config={editSession.draft}
                 catalog={editSession.componentCatalog}
                 diagnostics={editSession.validation.diagnostics}
+                projectRoot={editSession.projectRoot}
+                configPath={editSession.configPath}
+                agentCommand={appSettings.dashBoredAgent}
+                agentPending={pendingAction === "component-agent:create"}
+                onBuildWithAgent={requestComponentCreationAgent}
                 onChange={(draft) => setEditSession((current) => current ? { ...current, draft } : current)}
               />
             ) : (

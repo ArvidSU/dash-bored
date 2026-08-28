@@ -133,16 +133,15 @@ chosen CLI coding agent to tailor the dashboard to the project. It uses
 **Settings → Dashboard agent**. Every rendered component has a context menu
 with Focus, Copy component path, and Change with agent. The last action shows
 the resolved command before sending and enriches your request with the owning
-dashboard and exact component path. Adjacent actions optionally expose the bundled CLI to external
-shells and run `dash-bored install-skill .`, which copies the packaged guidance
-and component-authoring reference into the cross-client Agent Skills location
-`.agents/skills/dash-bored/`. That location is discovered by Codex, Gemini CLI,
-Cursor, Copilot CLI, and OpenCode. Because Claude Code currently uses its own
-project path, the installer also creates `.claude/skills/dash-bored` as a link
-to the same canonical payload. The skill itself follows the open Agent Skills
-format and contains no agent-specific commands; `agents/openai.yaml` is optional
-Codex presentation metadata that other clients ignore. Repeated installs are
-safe, and modified installed files or conflicting paths are never overwritten.
+dashboard and exact component path. Adjacent actions optionally expose the
+bundled CLI to external shells, install the skill globally with
+`dash-bored install-skill --global`, or install it for this project with
+`dash-bored install-skill .`. The global form writes the portable guidance and
+component-authoring reference to `~/.agents/skills/dash-bored/`; the project
+form writes to `.agents/skills/dash-bored/`. Both create
+`.claude/skills/dash-bored` as a link to the same canonical payload. Repeated
+installs are safe, and modified installed files or conflicting paths are never
+overwritten.
 You can also create these files without
 opening the app by running
 `dash-bored init .`; unlike `open`, explicit initialization fails if a

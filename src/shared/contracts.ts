@@ -94,6 +94,21 @@ export interface ComponentAgentRequest {
   prompt: string;
 }
 
+export interface DashboardInsertionTarget {
+  parentPath: Array<{
+    slot: string;
+    index: number;
+  }>;
+  slot: string;
+  index: number;
+}
+
+export interface ComponentCreationAgentRequest {
+  configPath: string;
+  target: DashboardInsertionTarget;
+  prompt: string;
+}
+
 export interface ComponentAgentLaunch {
   command: string;
   componentPath: string;
