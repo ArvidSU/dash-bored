@@ -67,6 +67,27 @@ the Bun bundler at runtime. Vite builds the renderer. Electrobun's projected SDK
 is prepared through Hutch and aliased into Vite. The application uses native
 system webviews and does not bundle CEF.
 
+Packaged built-in renderers are resolved through a synchronous registry, but a
+registry entry may be a React `lazy` boundary. This keeps the component lookup
+and node-rendering contract unchanged while allowing implementation modules to
+load only when a live node needs them. The loading state is local to the
+component surface, so one deferred built-in does not block unrelated dashboard
+content. Heavy dependencies and component-owned CSS stay in the implementation
+module rather than in the eager registry module. The first verified boundary is
+`@dash-bored/command`, whose renderer lives in
+`src/renderer/builtins/command.tsx`; its xterm runtime and CSS are emitted in a
+separate async chunk and are not present in the main renderer chunk until the
+command renderer is requested.
+
+This is a renderer loading optimization only. The main-process built-in
+manifests, schemas, permissions, and resource contracts remain eager and
+authoritative; lazy loading must not change catalog discovery, validation,
+trust, process ownership, or the persistent PTY lifecycle. A new lazy boundary
+must be verified in the browser fixture both before and after insertion, and
+the production build must retain the default Vite chunk warning as a regression
+signal. Manual chunk grouping alone does not count as lazy loading because
+static imports can still make every grouped module part of startup.
+
 `ui-harness.html` is a development-only renderer proof surface. It selects an
 in-memory `DashboardHost` before mounting the normal application entrypoint,
 then renders the same App, CSS, packaged components, composition, and sidebar

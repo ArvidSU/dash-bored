@@ -481,4 +481,33 @@ describe("renderer fixture interactions", () => {
     expect(await currentPage().getByRole("region", { name: "Dashboard editor" }).count()).toBe(1);
     expect(await persistedTextCount()).toBe(2);
   }, 20_000);
+
+  test("lazy-loads the interactive command renderer only when it is inserted", async () => {
+    const active = currentPage();
+    await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    await active.getByRole("dialog", { name: "Discard dashboard changes?" }).getByRole("button", { name: "Discard changes", exact: true }).click();
+    const commandModuleRequested = async (): Promise<boolean> => active.evaluate(() =>
+      performance.getEntriesByType("resource").some((entry) =>
+        entry.name.includes("builtins/command") || entry.name.includes("/assets/command-"),
+      ));
+
+    expect(await commandModuleRequested()).toBe(false);
+    await active.getByRole("button", { name: "Open component library" }).click();
+    await active.getByRole("button", { name: "Insert Command", exact: true }).click();
+
+    const dialog = active.getByRole("dialog", { name: "Add component" });
+    await dialog.waitFor();
+    await dialog.getByLabel(/^command/i).fill("printf fixture");
+    await dialog.getByRole("button", { name: "Add component", exact: true }).click();
+
+    await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+    await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
+    await active.getByText("Revision 6", { exact: true }).waitFor();
+    await active.waitForTimeout(500);
+    await active.getByRole("tab", { name: "Item 4", exact: true }).click();
+    await active.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
+    expect(await commandModuleRequested()).toBe(true);
+    await active.getByRole("button", { name: "Open terminal", exact: true }).click();
+    await active.locator(".command__terminal .xterm").waitFor();
+  }, 20_000);
 });

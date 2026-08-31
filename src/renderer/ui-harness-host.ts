@@ -121,7 +121,7 @@ const initialConfig: DashboardConfig = {
   },
 };
 
-const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "status", "text"].map((name) => ({
+const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "status", "text", "command"].map((name) => ({
   reference: `@dash-bored/${name}`,
   source: "builtin" as const,
   available: true,
@@ -133,6 +133,7 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
     description: `Fixture ${name} component.`,
     entry: `builtin:${name}`,
     ...(name === "group" || name === "tabs" ? { renderMode: "layout" as const } : {}),
+    ...(name === "command" ? { permissions: ["process:execute" as const] } : {}),
     propsSchema: name === "text" || name === "markdown"
       ? { type: "object", additionalProperties: false, properties: { content: { type: "string" } }, required: ["content"] }
       : name === "status"
@@ -141,6 +142,8 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
           ? { type: "object", additionalProperties: false, properties: { title: { type: "string" }, description: { type: "string" } } }
           : name === "tabs"
             ? { type: "object", additionalProperties: false, properties: { defaultTab: { type: "integer", minimum: 0 } } }
+            : name === "command"
+              ? { type: "object", additionalProperties: false, properties: { label: { type: "string" }, command: { type: "string", minLength: 1 } }, required: ["command"] }
             : { type: "object", additionalProperties: false },
     ...(name === "tabs" ? {
       children: {
