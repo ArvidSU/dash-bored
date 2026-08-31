@@ -68,6 +68,10 @@ describe("component library catalog helpers", () => {
     expect(filterComponentCatalog(catalog, "tiled horizontal").map((entry) => entry.reference)).toEqual(["@dash-bored/chart"]);
     expect(filterComponentCatalog(catalog, "network:http").map((entry) => entry.reference)).toEqual(["@dash-bored/chart"]);
     expect(filterComponentCatalog(catalog, "  NOTEBOOK ")).toEqual([notebook]);
+    expect(filterComponentCatalog([
+      item("group", { id: "group", name: "Group", renderMode: "layout" }),
+      chart,
+    ], "layout").map((entry) => entry.reference)).toEqual(["group"]);
   });
 
   test("keeps unavailable matching entries visible and preserves order", () => {

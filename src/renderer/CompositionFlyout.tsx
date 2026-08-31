@@ -504,6 +504,9 @@ export function CompositionFlyout({
                 <p style={{ margin: 0 }}>{manifest?.description ?? "Manifest metadata is unavailable."}</p>
                 {manifest ? (
                   <div style={{ display: "grid", gap: "0.25rem", color: "var(--text-muted, #bbb)" }}>
+                    <span>
+                      Sizing: {manifest.renderMode === "layout" ? "organizational layout" : "resizable surface"}
+                    </span>
                     {childContract(manifest)}
                     <span>
                       Permissions: {manifest.permissions?.length

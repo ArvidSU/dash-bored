@@ -72,18 +72,22 @@ Direct manipulation complements that primary workflow. The desktop app offers
 a right-hand component-library flyout for arranging existing components,
 filling their declared props, and adding or removing branches. Opening the
 flyout is read-only; the first insertion, move, removal, replacement, metadata
-edit, or ratio resize implicitly starts a draft. Save/Cancel remains the
+edit, or horizontal ratio resize implicitly starts a draft. Save/Cancel remains the
 boundary for publishing or discarding the same project-owned YAML tree, rather
 than a second layout model or a hidden application database.
 
 ## Composition direction
 
 The core application owns composition. It owns the recursive tiling topology,
-drag-and-drop, horizontal and vertical resizing, component frames, focus and
+drag-and-drop, horizontal split resizing, visible-surface height caps, component frames, focus and
 collapse, draft Save/Cancel, validation, and persistence. A tile branch is
 core composition structure, not a component. Components render inside the
 frames and may describe how their children are presented, but they do not own
 the dashboard's topology or resize semantics.
+
+Visible surfaces start at intrinsic height and may only be compressed; vertical
+organizational topology remains normal document flow so the dashboard itself
+grows with any amount of content.
 
 Every ordinary component declares one `children` contract: its minimum and
 maximum child cardinality and the axes on which children may be arranged.
@@ -205,6 +209,7 @@ Components should expose:
 - required permissions
 - one declared children contract (cardinality and allowed axes)
 - optional managed-child presentation and per-child metadata schema
+- whether it renders a visible surface or only organizes descendant layout
 - capabilities
 
 This allows:

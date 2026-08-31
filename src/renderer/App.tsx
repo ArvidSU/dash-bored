@@ -61,13 +61,22 @@ import {
   serializeCollapsedComponentIds,
 } from "./component-view-state";
 import {
+  componentHeightOverridesStorageKey,
+  componentRendersSurface,
+  MIN_COMPONENT_HEIGHT_PX,
+  normalizeComponentHeight,
+  parseComponentHeightOverrides,
+  pruneComponentHeightOverrides,
+  serializeComponentHeightOverrides,
+  type ComponentHeightOverrides,
+} from "./component-height";
+import {
   ComponentVisibilityContext,
   composeComponentChildren,
 } from "./ComponentCompositor";
 import { ComponentWebviewSurface } from "./ComponentWebviewSurface";
 import {
   normalizeSplitRatio,
-  normalizeVerticalSplitSize,
   parseSplitRatioOverrides,
   pruneSplitRatioOverrides,
   serializeSplitRatioOverrides,
@@ -128,6 +137,7 @@ import { useCompositionInteractionController } from "./composition-interaction-c
 
 const EMPTY_COLLAPSED_COMPONENT_IDS = new Set<string>();
 const EMPTY_SPLIT_RATIO_OVERRIDES: Readonly<SplitRatioOverrides> = Object.freeze({});
+const EMPTY_COMPONENT_HEIGHT_OVERRIDES: Readonly<ComponentHeightOverrides> = Object.freeze({});
 
 function replaceProcess(
   snapshot: ProjectSnapshot,
@@ -509,10 +519,13 @@ interface ComponentFrameProps {
   className: string;
   isVirtualRoot: boolean;
   collapsed: boolean;
+  height?: number;
+  heightResizable: boolean;
   role?: "alert";
   ariaLive?: "polite";
   onFocus: (nodeId: string) => void;
   onToggleCollapse: () => void;
+  onHeightChange: (height: number | null) => void;
   onCopyPath: (node: ResolvedComponentNode) => void;
   onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
@@ -543,10 +556,13 @@ function ComponentFrame({
   className,
   isVirtualRoot,
   collapsed,
+  height,
+  heightResizable,
   role,
   ariaLive,
   onFocus,
   onToggleCollapse,
+  onHeightChange,
   onCopyPath,
   onEditComponent,
   onOpenAgent,
@@ -554,6 +570,21 @@ function ComponentFrame({
 }: ComponentFrameProps): ReactNode {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [transientHeight, setTransientHeight] = useState<number | null | undefined>(undefined);
+  const [heightDragging, setHeightDragging] = useState(false);
+  const [measuredHeight, setMeasuredHeight] = useState(height ?? MIN_COMPONENT_HEIGHT_PX);
+  const [intrinsicHeight, setIntrinsicHeight] = useState(height ?? MIN_COMPONENT_HEIGHT_PX);
+  const frameRef = useRef<HTMLElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const heightDragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+    maximumHeight: number;
+    lastHeight: number | null;
+    captureTarget: HTMLElement;
+  } | null>(null);
+  const heightDragCleanup = useRef<(() => void) | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuPopoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -580,6 +611,106 @@ function ComponentFrame({
     ? compositionPayloadLabel(composition.dragging, composition.config, composition.catalog)
     : null;
   const showComponentMenu = !compositionDragActive;
+  const savedHeight = normalizeComponentHeight(height) ?? null;
+  const effectiveHeight = transientHeight === undefined ? savedHeight : transientHeight;
+  const heightCapped = heightResizable && !collapsed && effectiveHeight !== null;
+  const frameStyle = heightCapped
+    ? { "--component-max-height": `${effectiveHeight}px` } as CSSProperties
+    : undefined;
+
+  function measureIntrinsicHeight(): number {
+    const frame = frameRef.current;
+    const viewport = viewportRef.current;
+    const frameHeight = frame?.getBoundingClientRect().height ?? MIN_COMPONENT_HEIGHT_PX;
+    const surface = [...(viewport?.children ?? [])].find((candidate) => (
+      candidate instanceof HTMLElement
+      && !candidate.classList.contains("component-node__update-polish")
+      && !candidate.classList.contains("component-node__stale-warning")
+    )) as HTMLElement | undefined;
+    if (!surface) return Math.max(MIN_COMPONENT_HEIGHT_PX, Math.round(frameHeight));
+    const styles = window.getComputedStyle(surface);
+    const borderHeight = (Number.parseFloat(styles.borderTopWidth) || 0)
+      + (Number.parseFloat(styles.borderBottomWidth) || 0);
+    return Math.max(
+      MIN_COMPONENT_HEIGHT_PX,
+      Math.round(frameHeight),
+      Math.ceil(surface.scrollHeight + borderHeight),
+    );
+  }
+
+  function requestedComponentHeight(
+    startHeight: number,
+    startY: number,
+    clientY: number,
+    maximumHeight: number,
+  ): number | null {
+    const minimumHeight = Math.min(MIN_COMPONENT_HEIGHT_PX, maximumHeight);
+    const requested = Math.max(minimumHeight, Math.min(maximumHeight, startHeight + clientY - startY));
+    return requested >= maximumHeight - 1 ? null : Math.round(requested);
+  }
+
+  function finishHeightDrag(pointerId: number, clientY: number, commit: boolean): void {
+    const current = heightDragRef.current;
+    if (!current || current.pointerId !== pointerId) return;
+    const next = commit
+      ? requestedComponentHeight(
+          current.startHeight,
+          current.startY,
+          clientY,
+          current.maximumHeight,
+        )
+      : current.lastHeight;
+    heightDragRef.current = null;
+    heightDragCleanup.current?.();
+    heightDragCleanup.current = null;
+    if (current.captureTarget.hasPointerCapture(pointerId)) {
+      current.captureTarget.releasePointerCapture(pointerId);
+    }
+    setHeightDragging(false);
+    setTransientHeight(commit ? next : undefined);
+    if (commit) onHeightChange(next);
+  }
+
+  function setHeightFromKeyboard(delta: number | "minimum" | "full"): void {
+    const maximumHeight = measureIntrinsicHeight();
+    setIntrinsicHeight(maximumHeight);
+    if (delta === "full") {
+      onHeightChange(null);
+      return;
+    }
+    const currentHeight = frameRef.current?.getBoundingClientRect().height ?? maximumHeight;
+    const requested = delta === "minimum"
+      ? Math.min(MIN_COMPONENT_HEIGHT_PX, maximumHeight)
+      : currentHeight + delta;
+    const next = Math.max(Math.min(MIN_COMPONENT_HEIGHT_PX, maximumHeight), Math.min(maximumHeight, requested));
+    onHeightChange(next >= maximumHeight - 1 ? null : Math.round(next));
+  }
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || !heightResizable || collapsed) return;
+    const update = (): void => {
+      const current = Math.round(frame.getBoundingClientRect().height);
+      setMeasuredHeight(current);
+      if (!heightCapped) setIntrinsicHeight(Math.max(MIN_COMPONENT_HEIGHT_PX, current));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [collapsed, heightCapped, heightResizable]);
+
+  useEffect(() => () => {
+    heightDragCleanup.current?.();
+    heightDragCleanup.current = null;
+    heightDragRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (heightDragging || transientHeight === undefined) return;
+    const committed = normalizeComponentHeight(height) ?? null;
+    if (committed === transientHeight) setTransientHeight(undefined);
+  }, [height, heightDragging, transientHeight]);
 
   // A drag advertises only the boundary under its pointer. Rendering every
   // compatible edge of every component made nested dashboards both noisy and
@@ -748,7 +879,9 @@ function ComponentFrame({
 
   return (
     <Element
-      className={`${className}${collapsed ? " component-node--collapsed" : ""}${compositionDropZone ? " component-node--drop-ready" : ""}${compositionPath && compositionPath.length > 0 ? " component-node--composition-draggable" : ""}${compositionDragActive ? " component-node--composition-dragging" : ""}${compositionDragSource ? " component-node--composition-drag-source" : ""}`}
+      className={`${className}${collapsed ? " component-node--collapsed" : ""}${heightResizable && !collapsed ? " component-node--height-resizable" : ""}${heightCapped ? " component-node--height-capped" : ""}${heightDragging ? " component-node--height-dragging" : ""}${compositionDropZone ? " component-node--drop-ready" : ""}${compositionPath && compositionPath.length > 0 ? " component-node--composition-draggable" : ""}${compositionDragActive ? " component-node--composition-dragging" : ""}${compositionDragSource ? " component-node--composition-drag-source" : ""}`}
+      ref={(element) => { frameRef.current = element; }}
+      style={frameStyle}
       data-component={node.component}
       data-composition-drag-source={compositionDragSource ? "true" : undefined}
       data-node-id={node.id}
@@ -914,7 +1047,115 @@ function ComponentFrame({
           </span>
           <span className="component-node__collapsed-action">Expand</span>
         </button>
-      ) : children}
+      ) : (
+        <>
+          <div className="component-node__viewport" ref={viewportRef}>{children}</div>
+          {heightResizable ? (
+            <div
+              className="component-node__height-resizer"
+              role="separator"
+              tabIndex={0}
+              aria-label={`Resize ${name} height`}
+              aria-orientation="horizontal"
+              aria-valuemin={Math.min(MIN_COMPONENT_HEIGHT_PX, intrinsicHeight)}
+              aria-valuemax={intrinsicHeight}
+              aria-valuenow={Math.min(measuredHeight, intrinsicHeight)}
+              aria-valuetext={heightCapped ? `${Math.round(effectiveHeight!)} pixels maximum` : "Full height"}
+              title="Drag up to make smaller. Press Enter or double-click to restore full height."
+              onDoubleClick={() => onHeightChange(null)}
+              onFocus={() => setIntrinsicHeight(measureIntrinsicHeight())}
+              onKeyDown={(event) => {
+                const increment = event.shiftKey ? 48 : 16;
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setHeightFromKeyboard(-increment);
+                } else if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setHeightFromKeyboard(increment);
+                } else if (event.key === "Home") {
+                  event.preventDefault();
+                  setHeightFromKeyboard("minimum");
+                } else if (event.key === "End" || event.key === "Enter") {
+                  event.preventDefault();
+                  setHeightFromKeyboard("full");
+                } else if (event.key === "Escape" && heightDragRef.current) {
+                  event.preventDefault();
+                  finishHeightDrag(heightDragRef.current.pointerId, 0, false);
+                }
+              }}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                event.stopPropagation();
+                heightDragCleanup.current?.();
+                const maximumHeight = measureIntrinsicHeight();
+                const startHeight = Math.min(
+                  maximumHeight,
+                  frameRef.current?.getBoundingClientRect().height ?? maximumHeight,
+                );
+                setIntrinsicHeight(maximumHeight);
+                heightDragRef.current = {
+                  pointerId: event.pointerId,
+                  startY: event.clientY,
+                  startHeight,
+                  maximumHeight,
+                  lastHeight: effectiveHeight,
+                  captureTarget: event.currentTarget,
+                };
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setHeightDragging(true);
+                const pointerId = event.pointerId;
+                const move = (moveEvent: globalThis.PointerEvent): void => {
+                  const current = heightDragRef.current;
+                  if (!current || moveEvent.pointerId !== pointerId) return;
+                  moveEvent.preventDefault();
+                  const next = requestedComponentHeight(
+                    current.startHeight,
+                    current.startY,
+                    moveEvent.clientY,
+                    current.maximumHeight,
+                  );
+                  current.lastHeight = next;
+                  setTransientHeight(next);
+                };
+                const up = (upEvent: globalThis.PointerEvent): void => {
+                  if (upEvent.pointerId === pointerId) finishHeightDrag(pointerId, upEvent.clientY, true);
+                };
+                const cancel = (cancelEvent: globalThis.PointerEvent): void => {
+                  if (cancelEvent.pointerId === pointerId) finishHeightDrag(pointerId, 0, false);
+                };
+                const blur = (): void => finishHeightDrag(pointerId, 0, false);
+                const cleanup = (): void => {
+                  window.removeEventListener("pointermove", move);
+                  window.removeEventListener("pointerup", up);
+                  window.removeEventListener("pointercancel", cancel);
+                  window.removeEventListener("blur", blur);
+                };
+                heightDragCleanup.current = cleanup;
+                window.addEventListener("pointermove", move, { passive: false });
+                window.addEventListener("pointerup", up);
+                window.addEventListener("pointercancel", cancel);
+                window.addEventListener("blur", blur);
+              }}
+              onPointerUp={(event) => finishHeightDrag(event.pointerId, event.clientY, true)}
+              onPointerCancel={(event) => finishHeightDrag(event.pointerId, 0, false)}
+              onLostPointerCapture={() => {
+                const current = heightDragRef.current;
+                if (!current) return;
+                const next = current.lastHeight;
+                heightDragRef.current = null;
+                heightDragCleanup.current?.();
+                heightDragCleanup.current = null;
+                setHeightDragging(false);
+                setTransientHeight(next);
+                onHeightChange(next);
+              }}
+            >
+              <span className="component-node__height-resizer-line" aria-hidden="true" />
+            </div>
+          ) : null}
+        </>
+      )}
     </Element>
   );
 }
@@ -929,6 +1170,7 @@ interface NodeRendererProps {
   updateBatch: ComponentUpdateBatch | null;
   collapsedNodeIds: ReadonlySet<string>;
   splitRatioOverrides: Readonly<SplitRatioOverrides>;
+  componentHeightOverrides: Readonly<ComponentHeightOverrides>;
   onFocus: (nodeId: string) => void;
   onToggleCollapse: (nodeId: string) => void;
   onSplitRatioChange: (
@@ -937,8 +1179,8 @@ interface NodeRendererProps {
     ratio: number | null,
     node: ResolvedComponentNode,
     splitPath: readonly LayoutBranch[],
-    verticalSize?: number,
   ) => void;
+  onComponentHeightChange: (nodeId: string, height: number | null) => void;
   onCopyPath: (node: ResolvedComponentNode) => void;
   onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
@@ -979,9 +1221,11 @@ function NodeRenderer({
   updateBatch,
   collapsedNodeIds,
   splitRatioOverrides,
+  componentHeightOverrides,
   onFocus,
   onToggleCollapse,
   onSplitRatioChange,
+  onComponentHeightChange,
   onCopyPath,
   onEditComponent,
   onOpenAgent,
@@ -997,6 +1241,11 @@ function NodeRenderer({
     [actionRegistry, actionScope, node.id],
   );
   const collapsed = collapsedNodeIds.has(node.id);
+  const frameHeightProps = {
+    height: componentHeightOverrides[node.id],
+    heightResizable: componentRendersSurface(node),
+    onHeightChange: (height: number | null) => onComponentHeightChange(node.id, height),
+  };
   const renderedChildren = collapsed
     ? undefined
     : composeComponentChildren({
@@ -1015,9 +1264,11 @@ function NodeRenderer({
             updateBatch={updateBatch}
             collapsedNodeIds={collapsedNodeIds}
             splitRatioOverrides={splitRatioOverrides}
+            componentHeightOverrides={componentHeightOverrides}
             onFocus={onFocus}
             onToggleCollapse={onToggleCollapse}
             onSplitRatioChange={onSplitRatioChange}
+            onComponentHeightChange={onComponentHeightChange}
             onCopyPath={onCopyPath}
             onEditComponent={onEditComponent}
             onOpenAgent={onOpenAgent}
@@ -1029,6 +1280,7 @@ function NodeRenderer({
     const Component = packagedComponent(node.component);
     return (
       <ComponentFrame
+        {...frameHeightProps}
         node={node}
         className="component-node"
         isVirtualRoot={isVirtualRoot}
@@ -1059,6 +1311,7 @@ function NodeRenderer({
     const name = node.configName?.trim() || node.component;
     return (
       <ComponentFrame
+        {...frameHeightProps}
         as="section"
         node={node}
         className="component-node config-link"
@@ -1094,6 +1347,7 @@ function NodeRenderer({
   if (!trusted) {
     return (
       <ComponentFrame
+        {...frameHeightProps}
         node={node}
         className="component-node component-state component-state--locked"
         isVirtualRoot={isVirtualRoot}
@@ -1121,6 +1375,7 @@ function NodeRenderer({
   if (!componentId) {
     return (
       <ComponentFrame
+        {...frameHeightProps}
         node={node}
         className="component-node component-state component-state--error"
         isVirtualRoot={isVirtualRoot}
@@ -1145,6 +1400,7 @@ function NodeRenderer({
   if (!loaded || (loaded.loading && !loaded.component)) {
     return (
       <ComponentFrame
+        {...frameHeightProps}
         node={node}
         className="component-node component-state"
         isVirtualRoot={isVirtualRoot}
@@ -1170,6 +1426,7 @@ function NodeRenderer({
   if (!loaded.component) {
     return (
       <ComponentFrame
+        {...frameHeightProps}
         node={node}
         className="component-node component-state component-state--error"
         isVirtualRoot={isVirtualRoot}
@@ -1195,6 +1452,7 @@ function NodeRenderer({
   const Component = loaded.component;
   return (
     <ComponentFrame
+      {...frameHeightProps}
       node={node}
       className="component-node component-node--local"
       isVirtualRoot={isVirtualRoot}
@@ -1607,6 +1865,8 @@ export function App(): ReactNode {
   const [collapsedComponentIds, setCollapsedComponentIds] = useState<Set<string>>(new Set());
   const [splitRatioDashboardPath, setSplitRatioDashboardPath] = useState<string | null>(null);
   const [splitRatioOverrides, setSplitRatioOverrides] = useState<SplitRatioOverrides>({});
+  const [componentHeightDashboardPath, setComponentHeightDashboardPath] = useState<string | null>(null);
+  const [componentHeightOverrides, setComponentHeightOverrides] = useState<ComponentHeightOverrides>({});
   const compositionInteraction = useCompositionInteractionController();
   const {
     libraryOpen: componentLibraryOpen,
@@ -1935,8 +2195,9 @@ export function App(): ReactNode {
       try {
         window.localStorage.removeItem(virtualRootStorageKey(request.project.configPath));
         window.localStorage.removeItem(splitRatioOverridesStorageKey(request.project.configPath));
+        window.localStorage.removeItem(componentHeightOverridesStorageKey(request.project.configPath));
       } catch {
-        // The in-memory focus and split state have already been cleared.
+        // The in-memory focus, split, and component-height state has already been cleared.
       }
 
       if (wasActive) {
@@ -2165,6 +2426,9 @@ export function App(): ReactNode {
   const activeSplitRatioOverrides = splitRatioDashboardPath === dashboardPath
     ? splitRatioOverrides
     : EMPTY_SPLIT_RATIO_OVERRIDES;
+  const activeComponentHeightOverrides = componentHeightDashboardPath === dashboardPath
+    ? componentHeightOverrides
+    : EMPTY_COMPONENT_HEIGHT_OVERRIDES;
   const virtualRoot = snapshot?.tree
     ? resolveVirtualRoot(snapshot.tree, storedVirtualRoot ?? null)
     : null;
@@ -2323,6 +2587,44 @@ export function App(): ReactNode {
   }, [dashboardPath, snapshot?.tree, splitRatioDashboardPath]);
 
   useEffect(() => {
+    if (!dashboardPath) {
+      setComponentHeightDashboardPath(null);
+      setComponentHeightOverrides({});
+      return;
+    }
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(componentHeightOverridesStorageKey(dashboardPath));
+    } catch {
+      // Local storage can be unavailable; height caps remain session-only.
+    }
+    setComponentHeightOverrides(parseComponentHeightOverrides(saved));
+    setComponentHeightDashboardPath(dashboardPath);
+  }, [dashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || componentHeightDashboardPath !== dashboardPath) return;
+    try {
+      window.localStorage.setItem(
+        componentHeightOverridesStorageKey(dashboardPath),
+        serializeComponentHeightOverrides(componentHeightOverrides),
+      );
+    } catch {
+      // Height caps remain available for this session when persistence is unavailable.
+    }
+  }, [componentHeightDashboardPath, componentHeightOverrides, dashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || componentHeightDashboardPath !== dashboardPath || !snapshot?.tree) return;
+    setComponentHeightOverrides((current) => {
+      const next = pruneComponentHeightOverrides(current, snapshot.tree!);
+      return serializeComponentHeightOverrides(next) === serializeComponentHeightOverrides(current)
+        ? current
+        : next;
+    });
+  }, [componentHeightDashboardPath, dashboardPath, snapshot?.tree]);
+
+  useEffect(() => {
     if (!dashboardPath || Object.hasOwn(virtualRoots, dashboardPath)) return;
     let saved: string | null = null;
     try {
@@ -2395,13 +2697,11 @@ export function App(): ReactNode {
     branchKey: string,
     defaultRatio: number,
     ratio: number | null,
-    verticalSize?: number,
   ): void {
     if (!dashboardPath || splitRatioDashboardPath !== dashboardPath) return;
     const normalizedDefault = normalizeSplitRatio(defaultRatio);
     setSplitRatioOverrides((current) => {
-      const normalizedVerticalSize = normalizeVerticalSplitSize(verticalSize);
-      if (ratio === null || (splitRatioMatches(ratio, normalizedDefault) && normalizedVerticalSize === undefined)) {
+      if (ratio === null || splitRatioMatches(ratio, normalizedDefault)) {
         const next = Object.fromEntries(Object.entries(current));
         if (!Object.hasOwn(next, branchKey)) return current;
         delete next[branchKey];
@@ -2412,17 +2712,31 @@ export function App(): ReactNode {
       if (
         existing &&
         splitRatioMatches(existing.ratio, normalizedRatio) &&
-        splitRatioMatches(existing.defaultRatio, normalizedDefault) &&
-        existing.verticalSize === normalizedVerticalSize
+        splitRatioMatches(existing.defaultRatio, normalizedDefault)
       ) return current;
       return {
         ...current,
         [branchKey]: {
           ratio: normalizedRatio,
           defaultRatio: normalizedDefault,
-          ...(normalizedVerticalSize === undefined ? {} : { verticalSize: normalizedVerticalSize }),
         },
       };
+    });
+  }
+
+  function updateComponentHeight(nodeId: string, height: number | null): void {
+    if (!dashboardPath) return;
+    setComponentHeightOverrides((current) => {
+      const next = Object.fromEntries(Object.entries(current));
+      const normalized = normalizeComponentHeight(height);
+      if (height === null || normalized === undefined) {
+        if (!Object.hasOwn(next, nodeId)) return current;
+        delete next[nodeId];
+        return next;
+      }
+      if (next[nodeId] === normalized) return current;
+      next[nodeId] = normalized;
+      return next;
     });
   }
 
@@ -2778,7 +3092,6 @@ export function App(): ReactNode {
     ratio: number | null,
     node: ResolvedComponentNode,
     splitPath: readonly LayoutBranch[],
-    verticalSize?: number,
   ): void {
     if (editingComposition && editSession) {
       const path = nodePathById(editSession.draft.root, node.id);
@@ -2815,7 +3128,7 @@ export function App(): ReactNode {
       });
       return;
     }
-    updateSplitRatio(branchKey, defaultRatio, ratio, verticalSize);
+    updateSplitRatio(branchKey, defaultRatio, ratio);
   }
 
   function applyCompositionDraft(next: DashboardConfig): void {
@@ -3280,9 +3593,11 @@ export function App(): ReactNode {
                       updateBatch={componentUpdateBatch}
                       collapsedNodeIds={activeCollapsedComponentIds}
                       splitRatioOverrides={editingComposition ? EMPTY_SPLIT_RATIO_OVERRIDES : activeSplitRatioOverrides}
+                      componentHeightOverrides={activeComponentHeightOverrides}
                       onFocus={focusComponent}
                       onToggleCollapse={toggleComponentCollapse}
                       onSplitRatioChange={handleCompositionSplitRatio}
+                      onComponentHeightChange={updateComponentHeight}
                       onCopyPath={(node) => void copyComponentPath(node)}
                       onEditComponent={(node) => void editCompositionNode(node)}
                       onOpenAgent={setAgentDialog}

@@ -23,8 +23,12 @@ describe("ui harness host", () => {
     expect(new Set(nodeIds).size).toBe(nodeIds.length);
     expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/group")?.manifest?.children)
       .toEqual({ min: 0, presentation: { type: "tiled", axes: "both" } });
+    expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/group")?.manifest?.renderMode)
+      .toBe("layout");
     expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/tabs")?.manifest?.children?.presentation)
       .toEqual({ type: "managed" });
+    expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/tabs")?.manifest?.renderMode)
+      .toBe("layout");
     expect(await host.listProjects()).toEqual([{
       projectRoot: "/ui-harness/dash-bored",
       configPath: "/ui-harness/dash-bored/dash-bored.yaml",

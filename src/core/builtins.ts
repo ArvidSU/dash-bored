@@ -34,6 +34,7 @@ const manifests: ComponentManifest[] = [
     name: "Tabs",
     description: "Switches between labeled dashboard panels.",
     entry: "builtin:tabs",
+    renderMode: "layout",
     propsSchema: objectSchema({ defaultTab: { type: "integer", minimum: 0 } }),
     children: {
       min: 1,
@@ -47,6 +48,7 @@ const manifests: ComponentManifest[] = [
     name: "Group",
     description: "Provides a neutral composition boundary for tiled dashboard content.",
     entry: "builtin:group",
+    renderMode: "layout",
     propsSchema: objectSchema({}),
     children: {
       min: 0,

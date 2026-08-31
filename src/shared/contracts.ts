@@ -101,6 +101,8 @@ export interface ComponentManifest {
   name: string;
   description: string;
   entry: string;
+  /** Whether this node owns a resizable surface or follows descendant layout. */
+  renderMode?: "surface" | "layout";
   propsSchema: Record<string, unknown>;
   children?: ComponentChildrenDefinition;
   /** App-owned resources configured declaratively from component props. */

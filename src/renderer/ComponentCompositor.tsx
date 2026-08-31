@@ -26,7 +26,6 @@ interface ComponentCompositorProps {
     ratio: number | null,
     node: ResolvedComponentNode,
     splitPath: readonly LayoutBranch[],
-    verticalSize?: number,
   ) => void;
   renderNode: (node: ResolvedComponentNode) => ReactNode;
 }
@@ -101,11 +100,13 @@ export function composeComponentChildren({
         second={renderLayout(layout.second, [...path, "second"])}
         ratio={effectiveSplitRatio(defaultRatio, runtimeOverride)}
         defaultRatio={defaultRatio}
-        verticalSize={layout.axis === "vertical" ? runtimeOverride?.verticalSize : undefined}
         minFirstPx={DEFAULT_SPLIT_MIN_PX}
         minSecondPx={DEFAULT_SPLIT_MIN_PX}
+        resizable={layout.axis === "horizontal"}
         label={`${childDisplayName(node)} ${path.length ? path.join(" ") : "root"} tiles`}
-        onRatioChange={(ratio, verticalSize) => onSplitRatioChange(branchKey, defaultRatio, ratio, node, path, verticalSize)}
+        onRatioChange={layout.axis === "horizontal"
+          ? (ratio) => onSplitRatioChange(branchKey, defaultRatio, ratio, node, path)
+          : undefined}
         onRatioReset={() => onSplitRatioChange(branchKey, defaultRatio, null, node, path)}
       />
     );

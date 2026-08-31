@@ -2264,6 +2264,83 @@ img.sidebar__project-icon {
   isolation: isolate;
 }
 
+.component-node__viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  max-height: inherit;
+}
+
+.component-node--height-capped {
+  max-height: var(--component-max-height);
+}
+
+.component-node--height-capped > .component-node__viewport {
+  max-height: var(--component-max-height);
+  overflow: hidden;
+}
+
+.component-node--height-capped:not(.component-state) > .component-node__viewport > :not(.component-node__update-polish, .component-node__stale-warning) {
+  box-sizing: border-box;
+  max-height: var(--component-max-height);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.component-state > .component-node__viewport {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: inherit;
+  align-items: inherit;
+  justify-content: inherit;
+  gap: inherit;
+}
+
+.component-node--height-capped.component-state {
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.component-node__height-resizer {
+  position: absolute;
+  z-index: 7;
+  right: 14px;
+  bottom: -5px;
+  left: 14px;
+  height: 10px;
+  border: 0;
+  outline: none;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.component-node__height-resizer-line {
+  position: absolute;
+  top: 4px;
+  right: 22%;
+  left: 22%;
+  height: 1px;
+  border-radius: 999px;
+  background: rgb(142 153 169 / 0%);
+  transition: background 120ms ease;
+}
+
+.component-node__height-resizer:hover > .component-node__height-resizer-line,
+.component-node__height-resizer:focus-visible > .component-node__height-resizer-line,
+.component-node--height-dragging > .component-node__height-resizer > .component-node__height-resizer-line {
+  background: rgb(142 153 169 / 68%);
+}
+
+.component-node--height-dragging {
+  cursor: ns-resize;
+  user-select: none;
+}
+
 .component-node--composition-draggable :is(header, h1, h2, h3, [data-component-drag-header]) {
   cursor: grab;
   touch-action: none;
@@ -2899,30 +2976,10 @@ img.sidebar__project-icon {
   column-gap: 0;
 }
 
-.split--vertical.split--content-sized {
+.split--vertical {
   display: flex;
   flex-direction: column;
   row-gap: 14px;
-}
-
-.split--vertical.split--content-sized.split--resizable {
-  row-gap: 0;
-}
-
-.split--vertical.split--ratio-sized {
-  max-height: 100%;
-  grid-template-rows:
-    minmax(0, var(--split-first-size, 50fr))
-    minmax(0, var(--split-second-size, 50fr));
-  row-gap: 14px;
-}
-
-.split--vertical.split--ratio-sized.split--resizable {
-  grid-template-rows:
-    minmax(0, var(--split-first-size, 50fr))
-    var(--split-separator-size, 12px)
-    minmax(0, var(--split-second-size, 50fr));
-  row-gap: 0;
 }
 
 .split__pane {
@@ -2931,15 +2988,11 @@ img.sidebar__project-icon {
 }
 
 .split--vertical .split__pane {
-  overflow: auto;
-  scrollbar-width: thin;
-}
-
-.split--vertical.split--content-sized .split__pane {
-  /* Default to every child’s intrinsic height so the dashboard grows and the
-   * window scrolls. A user resize switches the branch to ratio-sized grid
-   * tracks, where panes intentionally become constrained and scrollable. */
+  /* Vertical topology is document flow. Visible component surfaces own any
+   * user height cap and internal scrolling, so layout panes never add another
+   * scrollbar or stretch a sibling to consume a fixed total. */
   flex: 0 0 auto;
+  overflow: visible;
 }
 
 .split__separator {
@@ -2955,16 +3008,6 @@ img.sidebar__project-icon {
   -webkit-app-region: no-drag;
 }
 
-.split--vertical .split__separator {
-  min-width: 0;
-  min-height: var(--split-separator-size, 12px);
-  cursor: row-resize;
-}
-
-.split--vertical.split--content-sized .split__separator {
-  flex: 0 0 var(--split-separator-size, 12px);
-}
-
 .split__separator-line {
   position: absolute;
   top: 12px;
@@ -2977,16 +3020,6 @@ img.sidebar__project-icon {
   transition: background 120ms ease;
 }
 
-.split--vertical .split__separator-line {
-  top: 50%;
-  right: 12px;
-  bottom: auto;
-  left: 12px;
-  width: auto;
-  height: 1px;
-  transform: translateY(-50%);
-}
-
 .split__separator:hover > .split__separator-line,
 .split__separator:focus-visible > .split__separator-line,
 .split--dragging .split__separator > .split__separator-line {
@@ -2996,10 +3029,6 @@ img.sidebar__project-icon {
 .split--dragging {
   cursor: col-resize;
   user-select: none;
-}
-
-.split--vertical.split--dragging {
-  cursor: row-resize;
 }
 
 @container dash-bored-split (max-width: 640px) {

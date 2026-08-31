@@ -500,8 +500,11 @@ export function DashboardEditor({
           defaultRatio={ratio}
           minFirstPx={DEFAULT_SPLIT_MIN_PX}
           minSecondPx={DEFAULT_SPLIT_MIN_PX}
+          resizable={layout.axis === "horizontal"}
           label={`${manifest?.name ?? node.component} draft tiles`}
-          onRatioChange={(next) => apply(() => updateTiledSplitRatio(config, path, layoutPath, next), path)}
+          onRatioChange={layout.axis === "horizontal"
+            ? (next) => apply(() => updateTiledSplitRatio(config, path, layoutPath, next), path)
+            : undefined}
         />
       );
     };

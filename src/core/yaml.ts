@@ -126,6 +126,7 @@ const manifestSchema = {
     name: { type: "string", minLength: 1 },
     description: { type: "string", minLength: 1 },
     entry: { type: "string", pattern: "^\\./", minLength: 3 },
+    renderMode: { enum: ["surface", "layout"] },
     propsSchema: { type: "object" },
     children: {
       type: "object",

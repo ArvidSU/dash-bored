@@ -29,6 +29,7 @@ function manifestSearchText(manifest: ComponentManifest | null): string {
     manifest.id,
     manifest.name,
     manifest.description,
+    manifest.renderMode ?? "surface",
     componentContractLabel({ manifest }),
     ...(manifest.permissions ?? []).flatMap((permission) => [permission, PERMISSION_LABELS[permission]]),
   ].join(" ");
@@ -55,6 +56,7 @@ function manifestShape(manifest: ComponentManifest): string {
     "name",
     "description",
     "entry",
+    "renderMode",
     "propsSchema",
     "children",
     "resources",

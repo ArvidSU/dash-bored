@@ -231,8 +231,8 @@ dash-bored inspect .
 `validate` exits non-zero when it finds errors. `inspect` emits JSON containing
 the resolved tree, requested permissions, diagnostics, and a `componentCatalog`
 for every built-in and discovered local component. Each catalog manifest is the
-machine-readable contract for its JSON Schema props, children contract, and
-required permissions. Agents use this version-matched catalog instead of guessing from
+machine-readable contract for its rendering mode, JSON Schema props, children
+contract, and required permissions. Agents use this version-matched catalog instead of guessing from
 examples; invalid local components remain in the catalog with diagnostics.
 
 `validate` and `inspect` accept a project root, a standalone bundle directory,
@@ -328,13 +328,14 @@ These shipped components are examples of the public component contracts, not
 privileged types. Local components can declare the same child contracts,
 process resources, references, and permissions.
 
-`@dash-bored/group` is an ordinary transparent component boundary: it accepts
+`@dash-bored/group` is an ordinary transparent component boundary with
+`renderMode: layout`: it accepts
 the core-tiled child surface and projects those children without becoming a
 layout engine. Use it when a multi-component panel needs a component boundary;
 card is not required. Split topology and resize behavior remain app-owned.
 
-Core-owned split branches use a drag and keyboard separator while retaining a
-checked-in default:
+Core-owned horizontal split branches use a drag and keyboard separator while
+retaining a checked-in default:
 
 ```yaml
 children:
@@ -347,13 +348,22 @@ children:
     second: { type: child, child: { node: ... } }
 ```
 
-Normal dashboard drags are a resettable per-user override. Opening the
+Normal horizontal split drags are a resettable per-user override. Opening the
 component-library flyout is read-only; the first composition change starts a
 draft. The same separator then changes the draft `ratio`, which becomes the
 project default only after Save. Arrow keys resize by small steps, Shift-arrow
 uses a larger step, Home/End move to the allowed extremes, and Enter or
-double-click resets. Narrow split containers stack automatically, so nested
-horizontal/vertical splits can form tiled layouts without grid coordinates.
+double-click resets. Narrow horizontal split containers stack automatically.
+Vertical branches remain intrinsic-height document flow and never add a nested
+pane scrollbar.
+
+Visible component surfaces start at their full intrinsic height. Their bottom
+edge can be dragged upward, or adjusted with Arrow Up/Down, to set a smaller
+per-user maximum height; a surface never expands beyond its content. Enter,
+End, or double-click restores full height. The surface chrome remains fixed and
+its content scrolls inside it. Transparent `renderMode: layout` components and
+linked-config boundaries have no height control, and the dashboard document
+continues growing as more components are added.
 
 `@dash-bored/env` takes a relative `path` prop, reads a project-local dotenv
 file, and provides a key-value editor with a bulk/raw mode. Saving requires
@@ -429,9 +439,10 @@ Hover or focus a component to reveal its compact toolbar. **Add** opens the
 available insertion positions with labels tied to nearby components instead of
 covering the dashboard with every possible action. While dragging, compatible
 frames are outlined and the nearest left, right, above, below, or inside region
-becomes the visible drop target. Split grips remain visible while composing;
-hover, focus, or drag one to see the current first-pane percentage, and use the
-same pointer and keyboard controls for horizontal or vertical size adjustment.
+becomes the visible drop target. Horizontal split grips remain visible while
+composing; hover, focus, or drag one to see the current first-pane percentage.
+Visible component surfaces expose their own bottom-edge control for
+downward-only height compression; layout-only boundaries do not.
 
 Pick up an existing component from anywhere on its frame to move it. During a
 component drag, the fly-out becomes a 20%-wide dotted trash target with
@@ -445,7 +456,7 @@ child. If search finds no suitable catalog entry, the flyout retains the
 **Build with agent** path.
 
 Opening or closing a clean flyout does not create a draft. The first insertion,
-move, removal, replacement, metadata edit, or separator resize creates a
+move, removal, replacement, metadata edit, or horizontal separator resize creates a
 renderer-only draft. **Save dashboard** validates the whole owning tree,
 checks the source revision, and atomically writes it; **Cancel** discards the
 whole draft. If `dash-bored.yaml` changes outside the app, save is rejected
@@ -506,6 +517,7 @@ id: service-health
 name: Service health
 description: Checks the development service.
 entry: ./index.tsx
+renderMode: surface
 propsSchema:
   type: object
   additionalProperties: false
@@ -523,6 +535,10 @@ children:
 permissions:
   - network:http
 ```
+
+`renderMode` defaults to `surface`. Declare `layout` when the component is an
+organizational boundary whose height follows its descendants rather than an
+independently resizable surface.
 
 Implement the browser component with the virtual runtime API:
 

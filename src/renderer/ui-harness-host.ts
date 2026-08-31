@@ -132,6 +132,7 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
     name: name[0]!.toUpperCase() + name.slice(1),
     description: `Fixture ${name} component.`,
     entry: `builtin:${name}`,
+    ...(name === "group" || name === "tabs" ? { renderMode: "layout" as const } : {}),
     propsSchema: name === "text" || name === "markdown"
       ? { type: "object", additionalProperties: false, properties: { content: { type: "string" } }, required: ["content"] }
       : name === "status"

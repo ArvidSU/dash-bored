@@ -526,6 +526,7 @@ export async function resolveComponentTree(
           name: configName ?? node.component,
           description: "Renders another standalone dashboard configuration.",
           entry: "config:link",
+          renderMode: "layout",
           propsSchema: { type: "object", additionalProperties: false },
           children: {
             min: 0,

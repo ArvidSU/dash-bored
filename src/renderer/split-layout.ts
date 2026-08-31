@@ -8,7 +8,6 @@ export const DEFAULT_SPLIT_MIN_PX = 180;
 export const MIN_SPLIT_MIN_PX = 80;
 export const MAX_SPLIT_MIN_PX = 1_200;
 export const SPLIT_SEPARATOR_PX = 12;
-export const MAX_VERTICAL_SPLIT_SIZE = 100_000;
 
 const MAX_SPLIT_RATIO_OVERRIDES = 2_000;
 const SPLIT_RATIO_PRECISION = 1_000;
@@ -16,8 +15,6 @@ const SPLIT_RATIO_PRECISION = 1_000;
 export interface SplitRatioOverride {
   ratio: number;
   defaultRatio: number;
-  /** A vertical runtime resize needs its containing height as well as its ratio. */
-  verticalSize?: number;
 }
 
 export type SplitRatioOverrides = Record<string, SplitRatioOverride>;
@@ -45,12 +42,6 @@ export function normalizeSplitMinPx(value: unknown): number {
     MIN_SPLIT_MIN_PX,
     MAX_SPLIT_MIN_PX,
   ));
-}
-
-export function normalizeVerticalSplitSize(value: unknown): number | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-  if (value <= SPLIT_SEPARATOR_PX || value > MAX_VERTICAL_SPLIT_SIZE) return undefined;
-  return Math.round(value);
 }
 
 export function clampSplitRatioForSize(
@@ -94,8 +85,7 @@ function isSplitRatioOverride(value: unknown): value is SplitRatioOverride {
     typeof item.defaultRatio === "number" &&
     Number.isFinite(item.defaultRatio) &&
     item.defaultRatio >= MIN_SPLIT_RATIO &&
-    item.defaultRatio <= MAX_SPLIT_RATIO &&
-    (item.verticalSize === undefined || normalizeVerticalSplitSize(item.verticalSize) !== undefined)
+    item.defaultRatio <= MAX_SPLIT_RATIO
   );
 }
 
@@ -111,9 +101,6 @@ export function parseSplitRatioOverrides(raw: string | null): SplitRatioOverride
         .map(([id, value]) => [id, {
           ratio: normalizeSplitRatio(value.ratio),
           defaultRatio: normalizeSplitRatio(value.defaultRatio),
-          ...(normalizeVerticalSplitSize(value.verticalSize) === undefined
-            ? {}
-            : { verticalSize: normalizeVerticalSplitSize(value.verticalSize) }),
         }]),
     );
   } catch {
@@ -155,7 +142,9 @@ export function collectResizableSplitDefaults(
     path: LayoutBranch[] = [],
   ): void {
     if (layout.type === "child") return;
-    defaults.set(layoutBranchKey(nodeId, path), normalizeSplitRatio(layout.ratio));
+    if (layout.axis === "horizontal") {
+      defaults.set(layoutBranchKey(nodeId, path), normalizeSplitRatio(layout.ratio));
+    }
     visitLayout(nodeId, layout.first, [...path, "first"]);
     visitLayout(nodeId, layout.second, [...path, "second"]);
   }

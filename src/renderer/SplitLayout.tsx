@@ -7,7 +7,6 @@ import type {
 import {
   clampSplitRatioForSize,
   normalizeSplitRatio,
-  normalizeVerticalSplitSize,
   SPLIT_SEPARATOR_PX,
 } from "./split-layout";
 
@@ -21,8 +20,7 @@ interface SplitLayoutProps {
   minSecondPx: number;
   resizable?: boolean;
   label: string;
-  verticalSize?: number;
-  onRatioChange?: (ratio: number, verticalSize?: number) => void;
+  onRatioChange?: (ratio: number) => void;
   onRatioReset?: () => void;
 }
 
@@ -36,7 +34,6 @@ export function SplitLayout({
   minSecondPx,
   resizable = true,
   label,
-  verticalSize: savedVerticalSize,
   onRatioChange,
   onRatioReset,
 }: SplitLayoutProps): ReactNode {
@@ -46,44 +43,20 @@ export function SplitLayout({
   const draggingPointer = useRef<number | null>(null);
   const dragCleanup = useRef<(() => void) | null>(null);
   const lastDragRatio = useRef<number | null>(null);
-  const pinnedVerticalSize = useRef<number | null>(
-    axis === "vertical" ? normalizeVerticalSplitSize(savedVerticalSize) ?? null : null,
-  );
   const [transientRatio, setTransientRatio] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [verticalSize, setVerticalSize] = useState<number | null>(pinnedVerticalSize.current);
   const instanceId = useId().replaceAll(":", "");
   const firstId = `${instanceId}-first`;
   const secondId = `${instanceId}-second`;
   const effectiveRatio = normalizeSplitRatio(transientRatio ?? ratio);
-  const enabled = resizable && onRatioChange !== undefined;
+  const enabled = axis === "horizontal" && resizable && onRatioChange !== undefined;
   const percent = Math.round(effectiveRatio * 100);
   const defaultPercent = Math.round(normalizeSplitRatio(defaultRatio) * 100);
-  const verticalRatioSized = axis === "vertical" && verticalSize !== null;
   const style = {
     "--split-first-size": `${effectiveRatio * 100}fr`,
     "--split-second-size": `${(1 - effectiveRatio) * 100}fr`,
     "--split-separator-size": `${SPLIT_SEPARATOR_PX}px`,
-    ...(axis === "vertical" && verticalSize !== null
-      ? { height: `${verticalSize}px` }
-      : {}),
   } as CSSProperties;
-
-  useEffect(() => {
-    const next = axis === "vertical" ? normalizeVerticalSplitSize(savedVerticalSize) ?? null : null;
-    pinnedVerticalSize.current = next;
-    setVerticalSize(next);
-  }, [axis, savedVerticalSize]);
-
-  function pinVerticalHeight(): number | undefined {
-    if (axis !== "vertical") return undefined;
-    const height = splitRef.current?.getBoundingClientRect().height ?? 0;
-    if (height <= SPLIT_SEPARATOR_PX) return pinnedVerticalSize.current ?? undefined;
-    const next = Math.round(height);
-    pinnedVerticalSize.current = next;
-    setVerticalSize(next);
-    return next;
-  }
 
   function ratioAt(clientX: number, clientY: number): number {
     const rect = splitRef.current?.getBoundingClientRect();
@@ -129,7 +102,7 @@ export function SplitLayout({
     }
     dragCleanup.current?.();
     dragCleanup.current = null;
-    if (next !== null) onRatioChange?.(next, pinnedVerticalSize.current ?? undefined);
+    if (next !== null) onRatioChange?.(next);
     setTransientRatio(null);
   }
 
@@ -142,30 +115,25 @@ export function SplitLayout({
 
   function setFromKeyboard(next: number): void {
     const rect = splitRef.current?.getBoundingClientRect();
-    const size = axis === "horizontal" ? rect?.width ?? 0 : rect?.height ?? 0;
-    const verticalSize = axis === "vertical" ? pinVerticalHeight() : undefined;
+    const size = rect?.width ?? 0;
     onRatioChange?.(clampSplitRatioForSize(
       next,
       size,
       minFirstPx,
       minSecondPx,
-    ), verticalSize);
+    ));
   }
 
   function resetSplit(): void {
-    if (axis === "vertical") {
-      pinnedVerticalSize.current = null;
-      setVerticalSize(null);
-    }
     onRatioReset?.();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     const increment = event.shiftKey ? 0.1 : 0.02;
-    if ((axis === "horizontal" && event.key === "ArrowLeft") || (axis === "vertical" && event.key === "ArrowUp")) {
+    if (event.key === "ArrowLeft") {
       event.preventDefault();
       setFromKeyboard(effectiveRatio - increment);
-    } else if ((axis === "horizontal" && event.key === "ArrowRight") || (axis === "vertical" && event.key === "ArrowDown")) {
+    } else if (event.key === "ArrowRight") {
       event.preventDefault();
       setFromKeyboard(effectiveRatio + increment);
     } else if (event.key === "Home") {
@@ -186,7 +154,7 @@ export function SplitLayout({
   return (
     <div className="split-container" ref={containerRef}>
       <div
-        className={`split split--${axis}${axis === "vertical" ? (verticalRatioSized ? " split--ratio-sized" : " split--content-sized") : ""}${enabled ? " split--resizable" : ""}${dragging ? " split--dragging" : ""}`}
+        className={`split split--${axis}${enabled ? " split--resizable" : ""}${dragging ? " split--dragging" : ""}`}
         ref={splitRef}
         style={style}
       >
@@ -213,7 +181,6 @@ export function SplitLayout({
               if (event.button !== 0) return;
               event.preventDefault();
               dragCleanup.current?.();
-              pinVerticalHeight();
               draggingPointer.current = event.pointerId;
               event.currentTarget.setPointerCapture(event.pointerId);
               setDragging(true);

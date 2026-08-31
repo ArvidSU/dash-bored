@@ -289,14 +289,15 @@ dashboard metadata, not component-tree nodes.
 ### In-app structural editing and composition contract
 
 The core application owns the recursive tiling topology and every operation
-that changes it: drag-and-drop, horizontal and vertical resize, component
+that changes it: drag-and-drop, horizontal split resize, visible-surface height caps, component
 frames, focus, collapse, draft validation, and atomic Save/Cancel persistence.
 A tile branch is composition structure, not a component node. YAML recursively
 stores the topology and component content as the sole source of truth; there
 is no hidden grid database or parallel coordinate store.
 
-An ordinary component manifest declares exactly one `children` contract with
-minimum and maximum cardinality and allowed axes. A complex container may
+An ordinary component manifest declares whether it renders a visible `surface`
+(the default) or is a transparent `layout` boundary, plus exactly one `children`
+contract with minimum and maximum cardinality and allowed axes. A complex container may
 declare managed child presentation and a schema for metadata on each
 parent-child edge. The runtime passes generic child handles, read-only child
 descriptors, and a render/visibility projection to components. Tabs and
@@ -307,11 +308,11 @@ Packaged and project-local components implement the same manifest, render,
 host, children, and capability contracts. Provenance and trust are the only
 difference: packaged app code is pretrusted; project-local code requires
 project trust. Validation, editor, and runtime code never branches on a
-component ID. All variation is declarative through schemas, formats, and
-capabilities.
+component ID. All variation is declarative through manifest rendering mode,
+schemas, formats, and capabilities.
 
 The right-hand component-library flyout is read-only when it opens. The first
-insertion, move, removal, replacement, edge-metadata edit, or ratio resize
+insertion, move, removal, replacement, edge-metadata edit, or horizontal ratio resize
 creates the renderer's draft from the authoritative owning YAML. Save validates
 the complete owning tree and atomically publishes it, while Cancel discards the
 draft; opening or closing a clean flyout never creates a draft.
@@ -355,17 +356,24 @@ dotted trash drop target containing only an accessible trash icon. Component
 menus and composition controls are omitted for the duration, and a drop routes
 through the existing confirmed removal and draft mutation path.
 
-A horizontal or vertical tile branch exposes its core-owned separator in the
-structural preview. Vertical branches are content-sized until the user first
-resizes them; that interaction pins the branch's current height so the ratio
-can move the separator without introducing synthetic blank space. Runtime
-vertical overrides retain that pinned height alongside the ratio, while legacy
-ratio-only entries return to content-sized layout. Dragging or using keyboard
-controls updates only the draft topology and normalized pane geometry;
-Save/Cancel persists or discards the complete YAML change. Runtime split
-overrides remain local to the user and keyed by config path and split branch,
-while YAML remains the project default. The editor never writes a parallel
-coordinate model.
+A horizontal tile branch exposes its core-owned ratio separator. Runtime
+horizontal ratios remain local to the user and keyed by config path and split
+branch; while composing, the same interaction updates the draft and becomes the
+project default only after Save. Vertical branches are ordered document flow:
+they never pin a shared height, stretch one child when another shrinks, or own
+scrollbars.
+
+Every manifest defaults to `renderMode: surface`; organizational components
+whose height follows their descendants declare `renderMode: layout`. Only visible surfaces expose a bottom
+height control. A surface is initially uncapped at its full intrinsic height.
+Dragging or using the keyboard may set a smaller per-user maximum height, never
+a larger one, and reset removes the cap. The component's own outer box stays in
+place while its content becomes the scroll container, so rounded top and bottom
+chrome remain visible. Height caps are renderer presentation state keyed by
+config path and stable node ID; layout boundaries and linked-config boundaries
+remain auto-sized. The document is the sole outer vertical scroller and grows
+with any number of components. The editor never writes a parallel coordinate
+model.
 
 Drafts may temporarily omit required props or children. The renderer requests
 debounced validation from the main process and disables Save while errors
@@ -467,6 +475,7 @@ id: service-health
 name: Service health
 description: Shows project service health.
 entry: ./index.tsx
+renderMode: surface
 propsSchema:
   type: object
   additionalProperties: false
@@ -480,8 +489,11 @@ permissions:
   - network:http
 ```
 
-`propsSchema` and, for managed children, `children.metadataSchema` are JSON
-Schema. A component that accepts children declares one contract with minimum
+`renderMode` defaults to `surface`; use `layout` when the component is an
+organizational boundary whose height must follow its descendants rather than an
+independently resizable surface. `propsSchema` and,
+for managed children, `children.metadataSchema` are JSON Schema. A component
+that accepts children declares one contract with minimum
 and maximum cardinality plus either app-owned tiled axes or managed
 presentation. Managed presentation uses generic child handles and read-only
 descriptors plus edge metadata. Supported permission names are:
@@ -797,8 +809,8 @@ process, so collapsing a command or terminal does not stop a running command.
 Focusing a collapsed node expands it first. This runtime state is separate from
 the structural editor's temporary tree-branch collapse state.
 
-Core-owned horizontal and vertical tile branches support runtime resizing.
-Their project-owned topology contains a normalized first-pane `ratio` between
+Core-owned horizontal tile branches support runtime ratio resizing. Their
+project-owned topology contains a normalized first-pane `ratio` between
 `0.1` and `0.9`; the renderer applies shared minimum pane sizes while dragging. The
 separator is a real grid track with pointer capture, keyboard arrows, Home/End,
 and Enter/double-click reset behavior. Runtime drags persist a per-user override
@@ -810,20 +822,19 @@ React keys or unmounting either child.
 Each split establishes an inline-size container. A horizontal split stacks its
 two panes and removes the separator when that specific container becomes
 narrow, including when it is nested inside another split; this is independent
-of the application window breakpoint. Vertical branches are content-sized by
-default; after a resize or a valid saved vertical geometry entry, the renderer
-pins the branch's saved height and constrains that height to its containing
-frame. A legacy ratio-only entry never reconstructs a height from a transient
-constrained layout.
-When composition changes alter a branch's descendant structure, its stateful
-layout remounts and measures the new content instead of carrying stale geometry
-into the new tree. If a vertical pane is smaller than its child's intrinsic
-content, the pane owns the overflow and scrolls it instead of allowing content
-to paint over the neighboring pane.
-The real separator gutter also avoids placing DOM drag input beneath
-a native webview surface; Electrobun's overlay resize observer follows pane
-geometry while the existing explicit visibility synchronization remains in
-force.
+of the application window breakpoint. Vertical branches are content-sized flex
+flow with no separator, fixed total, or pane overflow. Legacy runtime vertical
+ratio/height entries are discarded because they cannot satisfy the surface-only
+compression contract.
+
+Resizable surface caps use the same config-path/stable-ID presentation boundary
+as collapse state. Pointer movement is retained with window-level move, release,
+cancel, blur, and lost-capture cleanup. A cap is applied as `max-height`, so a
+component whose content later becomes shorter contracts naturally instead of
+showing empty space. The component's direct surface owns unavoidable internal
+overflow; organizational ancestors never add another scrollbar. Electrobun's
+overlay resize observer follows the resulting surface geometry while the
+existing explicit visibility synchronization remains in force.
 
 Change with agent opens a composer that visibly presents the resolved app-wide
 command, user text in quotes, and Send as one invocation. The renderer sends

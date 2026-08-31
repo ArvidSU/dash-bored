@@ -113,6 +113,60 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTextCount()).toBe(0);
   }, 20_000);
 
+  test("visible components resize only downward from intrinsic height and keep their frame chrome visible", async () => {
+    const active = currentPage();
+    await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });
+    expect(await active.getByRole("separator", { name: "Resize Group height" }).count()).toBe(0);
+    expect(await active.locator(".split--vertical > .split__separator").count()).toBe(0);
+
+    const frame = active.locator('[data-node-id="renderer-proof-card"]');
+    const card = frame.locator(":scope > .component-node__viewport > .card");
+    const handle = active.getByRole("separator", { name: "Resize Renderer proof height" });
+    await frame.scrollIntoViewIfNeeded();
+    const initial = await frame.boundingBox();
+    const handleBox = await handle.boundingBox();
+    if (!initial || !handleBox) throw new Error("Component resize geometry is unavailable.");
+
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await active.mouse.down();
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y - 48, { steps: 4 });
+    await active.mouse.up();
+
+    const compressed = await frame.boundingBox();
+    const compressedCard = await card.boundingBox();
+    if (!compressed || !compressedCard) throw new Error("Compressed component geometry is unavailable.");
+    expect(compressed.height).toBeLessThan(initial.height - 30);
+    expect(compressedCard.y).toBeCloseTo(compressed.y, 0);
+    expect(compressedCard.y + compressedCard.height).toBeCloseTo(compressed.y + compressed.height, 0);
+    expect(await card.evaluate((element) => getComputedStyle(element).overflowY)).toBe("auto");
+    expect(await active.locator(".split--vertical .split__pane").evaluateAll((panes) => (
+      panes.every((pane) => getComputedStyle(pane).overflowY === "visible")
+    ))).toBeTrue();
+
+    const compressedHandleBox = await handle.boundingBox();
+    if (!compressedHandleBox) throw new Error("Compressed resize control is unavailable.");
+    await active.mouse.move(compressedHandleBox.x + compressedHandleBox.width / 2, compressedHandleBox.y + compressedHandleBox.height / 2);
+    await active.mouse.down();
+    await active.mouse.move(compressedHandleBox.x + compressedHandleBox.width / 2, compressedHandleBox.y + initial.height, { steps: 5 });
+    await active.mouse.up();
+
+    const restored = await frame.boundingBox();
+    if (!restored) throw new Error("Restored component geometry is unavailable.");
+    expect(restored.height).toBeCloseTo(initial.height, 0);
+    expect(restored.height).toBeLessThanOrEqual(initial.height + 1);
+    expect(await handle.getAttribute("aria-valuetext")).toBe("Full height");
+
+    await handle.press("Home");
+    const minimum = await frame.boundingBox();
+    if (!minimum) throw new Error("Minimum component geometry is unavailable.");
+    expect(minimum.height).toBeLessThan(restored.height);
+    await handle.press("End");
+    expect((await frame.boundingBox())?.height).toBeCloseTo(initial.height, 0);
+    expect(await active.evaluate(() => window.localStorage.getItem(
+      "dash-bored:component-heights:/ui-harness/dash-bored/dash-bored.yaml",
+    ))).toBe("{}");
+  }, 20_000);
+
   test("right-click menu edits a component and stays above dashboard content", async () => {
     const active = currentPage();
     const card = active.locator('[data-node-id="renderer-proof-card"]');
@@ -290,6 +344,7 @@ describe("renderer fixture interactions", () => {
     const active = currentPage();
     const source = active.locator('[data-node-id="renderer-proof-card"]');
     const dragHeader = source.locator("header").first();
+    await dragHeader.scrollIntoViewIfNeeded();
     const headerBox = await dragHeader.boundingBox();
     if (!headerBox) throw new Error("Removal header geometry is unavailable.");
 
@@ -350,6 +405,7 @@ describe("renderer fixture interactions", () => {
 
     const card = active.locator('[data-node-id="renderer-proof-card"]');
     const dragHeader = card.locator("header").first();
+    await dragHeader.scrollIntoViewIfNeeded();
     const headerBox = await dragHeader.boundingBox();
     if (!headerBox) throw new Error("Removal header geometry is unavailable.");
     await active.mouse.move(headerBox.x + headerBox.width / 2, headerBox.y + headerBox.height / 2);
