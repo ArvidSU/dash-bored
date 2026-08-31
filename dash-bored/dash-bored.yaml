@@ -41,31 +41,9 @@ root:
                 ratio: 0.15
                 first:
                   type: split
-                  axis: horizontal
+                  axis: vertical
                   ratio: 0.5
                   first:
-                    type: split
-                    axis: vertical
-                    ratio: 0.5
-                    first:
-                      type: child
-                      child:
-                        node:
-                          id: card
-                          component: "@dash-bored/card"
-                          props:
-                            title: The drop target to add a component under this one should be in the empty space below it
-                            description: Not on this component
-                    second:
-                      type: child
-                      child:
-                        node:
-                          id: card-2
-                          component: "@dash-bored/card"
-                          props:
-                            title: rstrst
-                            description: rstsrt
-                  second:
                     type: child
                     child:
                       node:
@@ -89,6 +67,15 @@ root:
                                     Open the command palette and search for **Focus** to jump to
                                     a component or return to the full dashboard. The focus is
                                     temporary and does not change the YAML configuration.
+                  second:
+                    type: child
+                    child:
+                      node:
+                        id: card
+                        component: "@dash-bored/card"
+                        props:
+                          title: The drop target to add a component under this one should be in the empty space below it
+                          description: Not on this component
                 second:
                   type: split
                   axis: vertical

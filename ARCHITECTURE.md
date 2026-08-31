@@ -358,6 +358,12 @@ listeners rather than depending on native HTML5 drop delivery. Once the gesture
 activates, the flyout becomes translucent and non-hit-testing so a dashboard
 target underneath it remains discoverable; the resulting pointer coordinates
 still resolve through the same generic placement and draft mutation path.
+All renderer pointer gestures use one active, cancellation-safe pointer session:
+its window listeners are installed only for the active gesture, preserve pointer
+capture and WebKit mouse-release fallback, and are removed on release, cancel,
+blur, lost capture, replacement, or owner unmount. Gesture-specific commit
+semantics remain local to node movement, library insertion, split resizing, and
+height resizing.
 Dashboard component frames are the native node drag sources rather than a small
 move handle. During a node drag, the open flyout becomes 20% of the viewport
 dotted trash drop target containing only an accessible trash icon. Component

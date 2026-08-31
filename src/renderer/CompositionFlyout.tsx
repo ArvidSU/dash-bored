@@ -11,6 +11,7 @@ import { filterComponentCatalog } from "./component-library";
 import { compositionPayloadFromDragEvent } from "./composition-dnd";
 import type { CompositionDragPayload } from "./composition-context";
 import type { NodePath } from "./dashboard-editor";
+import { usePointerSession } from "./pointer-session";
 
 export { filterComponentCatalog } from "./component-library";
 
@@ -142,6 +143,7 @@ export function CompositionFlyout({
     button: HTMLButtonElement;
     active: boolean;
   } | null>(null);
+  const pointerSession = usePointerSession();
   const suppressClickRef = useRef(false);
   const [query, setQuery] = useState("");
   const [draggingReference, setDraggingReference] = useState<string | null>(null);
@@ -270,6 +272,7 @@ export function CompositionFlyout({
 
   useEffect(() => {
     if (open) return;
+    pointerSession.cancel();
     const current = pointerDragRef.current;
     if (!current) return;
     pointerDragRef.current = null;
@@ -279,7 +282,7 @@ export function CompositionFlyout({
     suppressClickRef.current = false;
     setDraggingReference(null);
     onDragStateChange?.(null);
-  }, [onDragStateChange, open]);
+  }, [onDragStateChange, open, pointerSession]);
 
   useEffect(() => {
     if (removalMode) return;
@@ -300,6 +303,25 @@ export function CompositionFlyout({
       button: event.currentTarget,
       active: false,
     };
+    pointerSession.start({
+      pointerId: event.pointerId,
+      onMove: (moveEvent) => {
+        if (movePointerDrag({
+          pointerId: moveEvent.pointerId,
+          clientX: moveEvent.clientX,
+          clientY: moveEvent.clientY,
+        })) moveEvent.preventDefault();
+      },
+      onFinish: (finishEvent, reason) => {
+        const current = pointerDragRef.current;
+        if (!current) return;
+        finishPointerDrag({
+          pointerId: current.pointerId,
+          clientX: finishEvent?.clientX ?? current.startX,
+          clientY: finishEvent?.clientY ?? current.startY,
+        }, reason !== "up");
+      },
+    });
   };
 
   const movePointerDrag = (point: PointerDragPoint): boolean => {
@@ -345,54 +367,6 @@ export function CompositionFlyout({
     }
     if (!cancelled) current.button.focus();
   };
-
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerMove = (event: globalThis.PointerEvent): void => {
-      const active = movePointerDrag({
-        pointerId: event.pointerId,
-        clientX: event.clientX,
-        clientY: event.clientY,
-      });
-      if (active) event.preventDefault();
-    };
-    const handlePointerUp = (event: globalThis.PointerEvent): void => {
-      const active = pointerDragRef.current?.pointerId === event.pointerId
-        && pointerDragRef.current.active;
-      if (active) event.preventDefault();
-      finishPointerDrag({
-        pointerId: event.pointerId,
-        clientX: event.clientX,
-        clientY: event.clientY,
-      }, false);
-    };
-    const handlePointerCancel = (event: globalThis.PointerEvent): void => {
-      finishPointerDrag({
-        pointerId: event.pointerId,
-        clientX: event.clientX,
-        clientY: event.clientY,
-      }, true);
-    };
-    const handleWindowBlur = (): void => {
-      const current = pointerDragRef.current;
-      if (!current) return;
-      finishPointerDrag({
-        pointerId: current.pointerId,
-        clientX: current.startX,
-        clientY: current.startY,
-      }, true);
-    };
-    window.addEventListener("pointermove", handlePointerMove, { passive: false });
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("pointercancel", handlePointerCancel);
-    window.addEventListener("blur", handleWindowBlur);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("pointercancel", handlePointerCancel);
-      window.removeEventListener("blur", handleWindowBlur);
-    };
-  }, [finishPointerDrag, movePointerDrag, onDragStateChange, onPointerDragMove, onPointerDrop, open]);
 
   if (!rendered) return null;
 
@@ -543,11 +517,9 @@ export function CompositionFlyout({
                     onInsert(entry);
                   }}
                   onPointerDown={(event) => beginPointerDrag(event, entry)}
-                  onLostPointerCapture={(event) => finishPointerDrag({
-                    pointerId: event.pointerId,
-                    clientX: event.clientX,
-                    clientY: event.clientY,
-                  }, true)}
+                  onPointerUp={(event) => pointerSession.finish(event.pointerId, event.nativeEvent)}
+                  onPointerCancel={(event) => pointerSession.finish(event.pointerId, event.nativeEvent, "cancel")}
+                  onLostPointerCapture={(event) => pointerSession.finish(event.pointerId, event.nativeEvent, "lost")}
                 >
                   {dragging ? `Dragging ${name}` : `Insert ${name}`}
                 </button>

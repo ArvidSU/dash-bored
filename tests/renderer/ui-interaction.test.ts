@@ -113,6 +113,25 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTextCount()).toBe(0);
   }, 20_000);
 
+  test("mounting nested frames leaves global pointer gesture listeners idle", async () => {
+    const active = currentPage();
+    await active.addInitScript(() => {
+      const original = window.addEventListener;
+      const observed: string[] = [];
+      window.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+        if (["pointermove", "pointerup", "mouseup"].includes(type)) observed.push(type);
+        return original.call(window, type, listener, options);
+      }) as typeof window.addEventListener;
+      (window as Window & { __pointerSessionListeners?: string[] }).__pointerSessionListeners = observed;
+    });
+    await active.reload();
+    await active.getByRole("button", { name: "Open component library" }).waitFor();
+    expect(await active.locator("[data-node-id]").count()).toBeGreaterThan(1);
+    expect(await active.evaluate(() => (
+      (window as Window & { __pointerSessionListeners?: string[] }).__pointerSessionListeners ?? []
+    ))).toEqual([]);
+  }, 20_000);
+
   test("shell controls expand navigation and open the command palette", async () => {
     const active = currentPage();
     const shell = active.locator(".app-shell");

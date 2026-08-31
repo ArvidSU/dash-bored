@@ -134,6 +134,7 @@ import {
   compositionPayloadFromDragEvent,
 } from "./composition-dnd";
 import { useCompositionInteractionController } from "./composition-interaction-controller";
+import { usePointerSession } from "./pointer-session";
 
 const EMPTY_COLLAPSED_COMPONENT_IDS = new Set<string>();
 const EMPTY_SPLIT_RATIO_OVERRIDES: Readonly<SplitRatioOverrides> = Object.freeze({});
@@ -509,7 +510,6 @@ function ComponentFrame({
     lastHeight: number | null;
     captureTarget: HTMLElement;
   } | null>(null);
-  const heightDragCleanup = useRef<(() => void) | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuPopoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -523,6 +523,8 @@ function ComponentFrame({
     active: boolean;
     captureTarget: HTMLElement;
   } | null>(null);
+  const compositionPointerSession = usePointerSession();
+  const heightPointerSession = usePointerSession();
   compositionRef.current = composition;
   const Element = as;
   const name = node.configName?.trim() || nodeLabel(node, false);
@@ -574,20 +576,23 @@ function ComponentFrame({
     return requested >= maximumHeight - 1 ? null : Math.round(requested);
   }
 
-  function finishHeightDrag(pointerId: number, clientY: number, commit: boolean): void {
+  function finishHeightDrag(
+    pointerId: number,
+    clientY: number | null,
+    commit: boolean,
+    useLastHeight = false,
+  ): void {
     const current = heightDragRef.current;
     if (!current || current.pointerId !== pointerId) return;
     const next = commit
-      ? requestedComponentHeight(
+      ? (useLastHeight ? current.lastHeight : requestedComponentHeight(
           current.startHeight,
           current.startY,
-          clientY,
+          clientY ?? current.startY,
           current.maximumHeight,
-        )
+        ))
       : current.lastHeight;
     heightDragRef.current = null;
-    heightDragCleanup.current?.();
-    heightDragCleanup.current = null;
     if (current.captureTarget.hasPointerCapture(pointerId)) {
       current.captureTarget.releasePointerCapture(pointerId);
     }
@@ -624,12 +629,6 @@ function ComponentFrame({
     observer.observe(frame);
     return () => observer.disconnect();
   }, [collapsed, heightCapped, heightResizable]);
-
-  useEffect(() => () => {
-    heightDragCleanup.current?.();
-    heightDragCleanup.current = null;
-    heightDragRef.current = null;
-  }, []);
 
   useEffect(() => {
     if (heightDragging || transientHeight === undefined) return;
@@ -670,7 +669,36 @@ function ComponentFrame({
       active: false,
       captureTarget: event.currentTarget,
     };
-  }, []);
+    compositionPointerSession.start({
+      pointerId: event.pointerId,
+      onMove: (moveEvent) => {
+        const current = pointerMoveRef.current;
+        const activeComposition = compositionRef.current;
+        if (!current || !activeComposition) return;
+        if (!current.active) {
+          if (Math.hypot(moveEvent.clientX - current.startX, moveEvent.clientY - current.startY) < 6) return;
+          current.active = true;
+          activeComposition.onNodeDragStart(current.path);
+        }
+        moveEvent.preventDefault();
+        activeComposition.onNodePointerDragMove(current.path, moveEvent);
+      },
+      onFinish: (finishEvent, reason) => {
+        const current = pointerMoveRef.current;
+        const activeComposition = compositionRef.current;
+        if (!current) return;
+        pointerMoveRef.current = null;
+        if (current.captureTarget.hasPointerCapture(current.pointerId)) {
+          current.captureTarget.releasePointerCapture(current.pointerId);
+        }
+        if (current.active && reason === "up" && finishEvent instanceof PointerEvent) {
+          finishEvent.preventDefault();
+          activeComposition?.onNodePointerDrop(current.path, finishEvent);
+        }
+        if (current.active) activeComposition?.onNodeDragEnd();
+      },
+    });
+  }, [compositionPointerSession]);
 
   function compositionPointerDrop(event: ReactDragEvent<HTMLElement>): {
     payload: CompositionDragPayload;
@@ -746,56 +774,6 @@ function ComponentFrame({
       window.removeEventListener("scroll", closeOnViewportChange, true);
     };
   }, [open]);
-
-  useEffect(() => {
-    const move = (event: globalThis.PointerEvent): void => {
-      const current = pointerMoveRef.current;
-      const activeComposition = compositionRef.current;
-      if (!current || !activeComposition || current.pointerId !== event.pointerId) return;
-      if (!current.active) {
-        if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) < 6) return;
-        current.active = true;
-        activeComposition.onNodeDragStart(current.path);
-      }
-      event.preventDefault();
-      activeComposition.onNodePointerDragMove(current.path, event);
-    };
-    const finish = (event: globalThis.PointerEvent, cancelled: boolean): void => {
-      const current = pointerMoveRef.current;
-      const activeComposition = compositionRef.current;
-      if (!current || !activeComposition || current.pointerId !== event.pointerId) return;
-      if (current.active && !cancelled) {
-        event.preventDefault();
-        activeComposition.onNodePointerDrop(current.path, event);
-      }
-      pointerMoveRef.current = null;
-      if (current.captureTarget.hasPointerCapture(current.pointerId)) {
-        current.captureTarget.releasePointerCapture(current.pointerId);
-      }
-      if (current.active) activeComposition.onNodeDragEnd();
-    };
-    const blur = (): void => {
-      const current = pointerMoveRef.current;
-      if (!current) return;
-      pointerMoveRef.current = null;
-      if (current.captureTarget.hasPointerCapture(current.pointerId)) {
-        current.captureTarget.releasePointerCapture(current.pointerId);
-      }
-      if (current.active) compositionRef.current?.onNodeDragEnd();
-    };
-    const pointerUp = (event: globalThis.PointerEvent): void => finish(event, false);
-    const pointerCancel = (event: globalThis.PointerEvent): void => finish(event, true);
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", pointerUp);
-    window.addEventListener("pointercancel", pointerCancel);
-    window.addEventListener("blur", blur);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", pointerUp);
-      window.removeEventListener("pointercancel", pointerCancel);
-      window.removeEventListener("blur", blur);
-    };
-  }, []);
 
   function choose(action: () => void): void {
     setOpen(false);
@@ -1012,7 +990,6 @@ function ComponentFrame({
                 if (event.button !== 0) return;
                 event.preventDefault();
                 event.stopPropagation();
-                heightDragCleanup.current?.();
                 const maximumHeight = measureIntrinsicHeight();
                 const startHeight = Math.min(
                   maximumHeight,
@@ -1029,10 +1006,11 @@ function ComponentFrame({
                 };
                 event.currentTarget.setPointerCapture(event.pointerId);
                 setHeightDragging(true);
-                const pointerId = event.pointerId;
-                const move = (moveEvent: globalThis.PointerEvent): void => {
+                heightPointerSession.start({
+                  pointerId: event.pointerId,
+                  onMove: (moveEvent) => {
                   const current = heightDragRef.current;
-                  if (!current || moveEvent.pointerId !== pointerId) return;
+                  if (!current) return;
                   moveEvent.preventDefault();
                   const next = requestedComponentHeight(
                     current.startHeight,
@@ -1042,38 +1020,20 @@ function ComponentFrame({
                   );
                   current.lastHeight = next;
                   setTransientHeight(next);
-                };
-                const up = (upEvent: globalThis.PointerEvent): void => {
-                  if (upEvent.pointerId === pointerId) finishHeightDrag(pointerId, upEvent.clientY, true);
-                };
-                const cancel = (cancelEvent: globalThis.PointerEvent): void => {
-                  if (cancelEvent.pointerId === pointerId) finishHeightDrag(pointerId, 0, false);
-                };
-                const blur = (): void => finishHeightDrag(pointerId, 0, false);
-                const cleanup = (): void => {
-                  window.removeEventListener("pointermove", move);
-                  window.removeEventListener("pointerup", up);
-                  window.removeEventListener("pointercancel", cancel);
-                  window.removeEventListener("blur", blur);
-                };
-                heightDragCleanup.current = cleanup;
-                window.addEventListener("pointermove", move, { passive: false });
-                window.addEventListener("pointerup", up);
-                window.addEventListener("pointercancel", cancel);
-                window.addEventListener("blur", blur);
+                  },
+                  onFinish: (finishEvent, reason) => {
+                    if (reason === "up" && finishEvent) finishHeightDrag(event.pointerId, finishEvent.clientY, true);
+                    else if (reason === "lost") finishHeightDrag(event.pointerId, null, true, true);
+                    else finishHeightDrag(event.pointerId, null, false);
+                  },
+                });
               }}
-              onPointerUp={(event) => finishHeightDrag(event.pointerId, event.clientY, true)}
-              onPointerCancel={(event) => finishHeightDrag(event.pointerId, 0, false)}
+              onPointerUp={(event) => heightPointerSession.finish(event.pointerId, event.nativeEvent)}
+              onPointerCancel={(event) => heightPointerSession.finish(event.pointerId, event.nativeEvent, "cancel")}
               onLostPointerCapture={() => {
                 const current = heightDragRef.current;
                 if (!current) return;
-                const next = current.lastHeight;
-                heightDragRef.current = null;
-                heightDragCleanup.current?.();
-                heightDragCleanup.current = null;
-                setHeightDragging(false);
-                setTransientHeight(next);
-                onHeightChange(next);
+                heightPointerSession.finish(current.pointerId, null, "lost");
               }}
             >
               <span className="component-node__height-resizer-line" aria-hidden="true" />

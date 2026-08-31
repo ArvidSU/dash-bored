@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type {
   CSSProperties,
   KeyboardEvent,
@@ -9,6 +9,7 @@ import {
   normalizeSplitRatio,
   SPLIT_SEPARATOR_PX,
 } from "./split-layout";
+import { usePointerSession } from "./pointer-session";
 
 interface SplitLayoutProps {
   axis: "horizontal" | "vertical";
@@ -41,8 +42,8 @@ export function SplitLayout({
   const splitRef = useRef<HTMLDivElement>(null);
   const separatorRef = useRef<HTMLDivElement>(null);
   const draggingPointer = useRef<number | null>(null);
-  const dragCleanup = useRef<(() => void) | null>(null);
   const lastDragRatio = useRef<number | null>(null);
+  const pointerSession = usePointerSession();
   const [transientRatio, setTransientRatio] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const instanceId = useId().replaceAll(":", "");
@@ -100,18 +101,9 @@ export function SplitLayout({
     if (separator?.hasPointerCapture(pointerId)) {
       separator.releasePointerCapture(pointerId);
     }
-    dragCleanup.current?.();
-    dragCleanup.current = null;
     if (next !== null) onRatioChange?.(next);
     setTransientRatio(null);
   }
-
-  useEffect(() => () => {
-    dragCleanup.current?.();
-    dragCleanup.current = null;
-    draggingPointer.current = null;
-    lastDragRatio.current = null;
-  }, []);
 
   function setFromKeyboard(next: number): void {
     const rect = splitRef.current?.getBoundingClientRect();
@@ -180,53 +172,38 @@ export function SplitLayout({
             onPointerDown={(event) => {
               if (event.button !== 0) return;
               event.preventDefault();
-              dragCleanup.current?.();
               draggingPointer.current = event.pointerId;
               event.currentTarget.setPointerCapture(event.pointerId);
               setDragging(true);
               updateDrag(event.clientX, event.clientY);
-              const pointerId = event.pointerId;
-              const finishFromPointer = (finishEvent: globalThis.PointerEvent): void => {
-                if (finishEvent.pointerId !== pointerId) return;
-                finishDrag(pointerId, finishEvent.clientX, finishEvent.clientY, true);
-              };
-              const finishFromMouse = (finishEvent: MouseEvent): void => {
-                if (finishEvent.button !== 0) return;
-                finishDrag(pointerId, finishEvent.clientX, finishEvent.clientY, true);
-              };
-              const updateFromPointer = (moveEvent: globalThis.PointerEvent): void => {
-                if (moveEvent.pointerId !== pointerId) return;
-                moveEvent.preventDefault();
-                updateDrag(moveEvent.clientX, moveEvent.clientY);
-              };
-              const cancelFromPointer = (cancelEvent: globalThis.PointerEvent): void => {
-                if (cancelEvent.pointerId !== pointerId) return;
-                finishDrag(pointerId, cancelEvent.clientX, cancelEvent.clientY, false);
-              };
-              const cancelFromBlur = (): void => finishDrag(pointerId, 0, 0, false);
-              const cleanup = (): void => {
-                window.removeEventListener("pointermove", updateFromPointer);
-                window.removeEventListener("pointerup", finishFromPointer);
-                window.removeEventListener("pointercancel", cancelFromPointer);
-                window.removeEventListener("mouseup", finishFromMouse);
-                window.removeEventListener("blur", cancelFromBlur);
-              };
-              dragCleanup.current = cleanup;
-              window.addEventListener("pointermove", updateFromPointer, { passive: false });
-              window.addEventListener("pointerup", finishFromPointer);
-              window.addEventListener("pointercancel", cancelFromPointer);
-              window.addEventListener("mouseup", finishFromMouse);
-              window.addEventListener("blur", cancelFromBlur);
+              pointerSession.start({
+                pointerId: event.pointerId,
+                mouseUpFallback: true,
+                onMove: (moveEvent) => {
+                  moveEvent.preventDefault();
+                  updateDrag(moveEvent.clientX, moveEvent.clientY);
+                },
+                onFinish: (finishEvent, reason) => {
+                  const commit = reason === "up" || reason === "lost";
+                  finishDrag(
+                    event.pointerId,
+                    finishEvent?.clientX ?? 0,
+                    finishEvent?.clientY ?? 0,
+                    commit,
+                    reason === "lost",
+                  );
+                },
+              });
             }}
-            onPointerUp={(event) => finishDrag(event.pointerId, event.clientX, event.clientY, true)}
-            onPointerCancel={(event) => finishDrag(event.pointerId, event.clientX, event.clientY, false)}
+            onPointerUp={(event) => pointerSession.finish(event.pointerId, event.nativeEvent)}
+            onPointerCancel={(event) => pointerSession.finish(event.pointerId, event.nativeEvent, "cancel")}
             onLostPointerCapture={() => {
               const pointerId = draggingPointer.current;
               if (pointerId === null) return;
               // Keep the last valid position if the host drops capture before
               // dispatching pointerup, rather than snapping back or leaking a
               // stuck dragging state.
-              finishDrag(pointerId, 0, 0, true, true);
+              pointerSession.finish(pointerId, null, "lost");
             }}
           >
             <span className="split__separator-line" aria-hidden="true" />
