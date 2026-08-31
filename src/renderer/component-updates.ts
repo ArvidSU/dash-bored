@@ -1,4 +1,5 @@
 import type { ResolvedComponentNode } from "../shared/contracts";
+import { childLocators, edgeAtLocator, locatorKey } from "./component-children";
 
 interface IndexedNode {
   node: ResolvedComponentNode;
@@ -51,10 +52,8 @@ function indexTree(tree: ResolvedComponentNode): TreeIndex {
       position,
     });
     order.push(node.id);
-    for (const slotName of Object.keys(node.slots).sort()) {
-      node.slots[slotName]?.forEach((child, index) => {
-        visit(child, node.id, `${slotName}:${index}`);
-      });
+    for (const locator of childLocators(node.children)) {
+      visit(edgeAtLocator(node.children, locator).node, node.id, locatorKey(locator));
     }
   };
 

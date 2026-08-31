@@ -11,22 +11,22 @@ const leaf: ResolvedComponentNode = {
   id: "only-button",
   component: "@dash-bored/command",
   props: { label: "Deploy" },
-  slots: {},
   source: "builtin",
 };
 
 const tree: ResolvedComponentNode = {
   id: "root",
-  component: "@dash-bored/stack",
+  component: "@dash-bored/group",
   props: {},
-  slots: {
-    children: [{
+  children: {
+    type: "tiled",
+    layout: { type: "child", child: { node: {
       id: "card",
       component: "@dash-bored/card",
       props: { title: "Operations" },
-      slots: { children: [leaf] },
+      children: { type: "tiled", layout: { type: "child", child: { node: leaf } } },
       source: "builtin",
-    }],
+    } } },
   },
   source: "builtin",
 };

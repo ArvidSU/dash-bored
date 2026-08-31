@@ -5,14 +5,20 @@ import { stringify } from "yaml";
 import type { DashboardConfig, DashboardLock } from "../../src/shared/contracts";
 
 export const defaultConfig: DashboardConfig = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "Test project",
   root: {
-    component: "@dash-bored/stack",
-    slots: {
-      children: {
-        component: "@dash-bored/markdown",
-        props: { content: "# Ready" },
+    component: "@dash-bored/group",
+    children: {
+      type: "tiled",
+      layout: {
+        type: "child",
+        child: {
+          node: {
+            component: "@dash-bored/markdown",
+            props: { content: "# Ready" },
+          },
+        },
       },
     },
   },
@@ -46,23 +52,31 @@ export async function writeLocalComponent(
   root: string,
   name: string,
   source: string,
-  options: { css?: string; permissions?: string[] } = {},
+  options: {
+    css?: string;
+    permissions?: string[];
+    resources?: Record<string, unknown>;
+    references?: Record<string, unknown>;
+    propsSchema?: Record<string, unknown>;
+  } = {},
 ): Promise<void> {
   const directory = join(root, "dash-bored", "components", name);
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, "component.yaml"),
     stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: name,
       name,
       description: `${name} component`,
       entry: "./index.tsx",
-      propsSchema: {
+      propsSchema: options.propsSchema ?? {
         type: "object",
         additionalProperties: false,
         properties: { message: { type: "string" } },
       },
+      ...(options.resources === undefined ? {} : { resources: options.resources }),
+      ...(options.references === undefined ? {} : { references: options.references }),
       ...(options.permissions === undefined ? {} : { permissions: options.permissions }),
     }),
     "utf8",

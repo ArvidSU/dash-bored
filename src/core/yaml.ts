@@ -21,34 +21,89 @@ const componentNodeSchema: Record<string, unknown> = {
     id: { type: "string", minLength: 1, maxLength: 128 },
     component: { type: "string", minLength: 1 },
     props: { type: "object" },
-    slots: {
-      type: "object",
-      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
-      additionalProperties: {
-        anyOf: [
-          { $ref: "#/$defs/componentNode" },
-          {
-            type: "array",
-            maxItems: 256,
-            items: { $ref: "#/$defs/componentNode" },
-          },
-        ],
-      },
-    },
+    children: { $ref: "#/$defs/componentChildren" },
   },
 };
+
+const componentChildEdgeSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["node"],
+  properties: {
+    node: { $ref: "#/$defs/componentNode" },
+    metadata: { type: "object" },
+  },
+} as const;
+
+const componentChildLayoutSchema = {
+  oneOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["type", "child"],
+      properties: {
+        type: { const: "child" },
+        child: { $ref: "#/$defs/componentChildEdge" },
+      },
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["type", "axis", "ratio", "first", "second"],
+      properties: {
+        type: { const: "split" },
+        axis: { enum: ["horizontal", "vertical"] },
+        ratio: { type: "number", minimum: 0.1, maximum: 0.9 },
+        first: { $ref: "#/$defs/componentChildLayout" },
+        second: { $ref: "#/$defs/componentChildLayout" },
+      },
+    },
+  ],
+} as const;
+
+const componentChildrenSchema = {
+  oneOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["type", "layout"],
+      properties: {
+        type: { const: "tiled" },
+        layout: { $ref: "#/$defs/componentChildLayout" },
+      },
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["type", "items"],
+      properties: {
+        type: { const: "managed" },
+        items: {
+          type: "array",
+          maxItems: 256,
+          items: { $ref: "#/$defs/componentChildEdge" },
+        },
+      },
+    },
+  ],
+} as const;
 
 const configSchema = {
   type: "object",
   additionalProperties: false,
   required: ["schemaVersion", "name", "root"],
   properties: {
-    schemaVersion: { const: 1 },
+    schemaVersion: { const: 2 },
     name: { type: "string", minLength: 1, maxLength: 200 },
     icon: { type: "string", minLength: 1, maxLength: 2048 },
     root: { $ref: "#/$defs/componentNode" },
   },
-  $defs: { componentNode: componentNodeSchema },
+  $defs: {
+    componentNode: componentNodeSchema,
+    componentChildEdge: componentChildEdgeSchema,
+    componentChildLayout: componentChildLayoutSchema,
+    componentChildren: componentChildrenSchema,
+  },
 } as const;
 
 const lockSchema = {
@@ -66,28 +121,71 @@ const manifestSchema = {
   additionalProperties: false,
   required: ["schemaVersion", "id", "name", "description", "entry", "propsSchema"],
   properties: {
-    schemaVersion: { const: 1 },
+    schemaVersion: { const: 2 },
     id: { type: "string", minLength: 1 },
     name: { type: "string", minLength: 1 },
     description: { type: "string", minLength: 1 },
     entry: { type: "string", pattern: "^\\./", minLength: 3 },
     propsSchema: { type: "object" },
-    slots: {
+    children: {
+      type: "object",
+      additionalProperties: false,
+      required: ["min", "presentation"],
+      properties: {
+        min: { type: "integer", minimum: 0, maximum: 256 },
+        max: { type: "integer", minimum: 0, maximum: 256 },
+        presentation: {
+          oneOf: [
+            {
+              type: "object",
+              additionalProperties: false,
+              required: ["type", "axes"],
+              properties: {
+                type: { const: "tiled" },
+                axes: { enum: ["horizontal", "vertical", "both"] },
+              },
+            },
+            {
+              type: "object",
+              additionalProperties: false,
+              required: ["type"],
+              properties: { type: { const: "managed" } },
+            },
+          ],
+        },
+        metadataSchema: { type: "object" },
+      },
+    },
+    resources: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        process: {
+          type: "object",
+          additionalProperties: false,
+          required: ["commandProp"],
+          properties: {
+            commandProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+            cwdProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+            envProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+          },
+        },
+      },
+    },
+    references: {
       type: "object",
       propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
       additionalProperties: {
         type: "object",
         additionalProperties: false,
-        properties: {
-          required: { type: "boolean" },
-          multiple: { type: "boolean" },
-        },
+        required: ["resource"],
+        properties: { resource: { const: "process" } },
       },
     },
     permissions: {
       type: "array",
       uniqueItems: true,
-      items: { enum: ["filesystem:read", "filesystem:write", "network:http", "process:execute"] },
+      items: { enum: ["filesystem:read", "filesystem:write", "network:http", "process:execute", "process:observe", "webview:embed"] },
     },
   },
 } as const;
@@ -261,6 +359,64 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
           path: "/propsSchema",
         }),
       ],
+    };
+  }
+  try {
+    if (result.value.children?.metadataSchema !== undefined) {
+      ajv.compile(result.value.children.metadataSchema);
+    }
+  } catch (error) {
+    return {
+      value: null,
+      diagnostics: [
+        diagnostic({
+          code: "MANIFEST_CHILD_METADATA_SCHEMA_INVALID",
+          message: errorMessage(error),
+          file,
+          path: "/children/metadataSchema",
+        }),
+      ],
+    };
+  }
+  if (
+    result.value.children?.max !== undefined &&
+    result.value.children.max < result.value.children.min
+  ) {
+    return {
+      value: null,
+      diagnostics: [diagnostic({
+        code: "MANIFEST_CHILD_CARDINALITY_INVALID",
+        message: "Children max must be greater than or equal to min.",
+        file,
+        path: "/children/max",
+      })],
+    };
+  }
+  const permissions = new Set(result.value.permissions ?? []);
+  if (result.value.resources?.process && !permissions.has("process:execute")) {
+    return {
+      value: null,
+      diagnostics: [diagnostic({
+        code: "MANIFEST_RESOURCE_PERMISSION_MISSING",
+        message: "A process resource requires the process:execute permission.",
+        file,
+        path: "/permissions",
+      })],
+    };
+  }
+  if (
+    Object.values(result.value.references ?? {}).some((reference) => reference.resource === "process")
+    && !permissions.has("process:observe")
+    && !permissions.has("process:execute")
+  ) {
+    return {
+      value: null,
+      diagnostics: [diagnostic({
+        code: "MANIFEST_REFERENCE_PERMISSION_MISSING",
+        message: "A process reference requires process:observe or process:execute.",
+        file,
+        path: "/permissions",
+      })],
     };
   }
   return result;

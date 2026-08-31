@@ -29,50 +29,44 @@ const chartCommonProperties = {
 
 const manifests: ComponentManifest[] = [
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/tabs",
     name: "Tabs",
     description: "Switches between labeled dashboard panels.",
     entry: "builtin:tabs",
-    propsSchema: objectSchema({
-      labels: { type: "array", items: { type: "string" } },
-      defaultTab: { type: "integer", minimum: 0 },
-      label: { type: "string", minLength: 1 },
-    }),
-    slots: { children: { required: true, multiple: true } },
-  },
-  {
-    schemaVersion: 1,
-    id: "@dash-bored/split",
-    name: "Split",
-    description: "Arranges two panels horizontally or vertically.",
-    entry: "builtin:split",
-    propsSchema: objectSchema({ direction: { enum: ["horizontal", "vertical"] } }),
-    slots: {
-      first: { required: true, multiple: false },
-      second: { required: true, multiple: false },
+    propsSchema: objectSchema({ defaultTab: { type: "integer", minimum: 0 } }),
+    children: {
+      min: 1,
+      presentation: { type: "managed" },
+      metadataSchema: objectSchema({ label: string }, ["label"]),
     },
   },
   {
-    schemaVersion: 1,
-    id: "@dash-bored/stack",
-    name: "Stack",
-    description: "Arranges dashboard content in a vertical stack.",
-    entry: "builtin:stack",
-    propsSchema: objectSchema({ gap: { enum: ["none", "small", "medium", "large"] } }),
-    slots: { children: { multiple: true } },
+    schemaVersion: 2,
+    id: "@dash-bored/group",
+    name: "Group",
+    description: "Provides a neutral composition boundary for tiled dashboard content.",
+    entry: "builtin:group",
+    propsSchema: objectSchema({}),
+    children: {
+      min: 0,
+      presentation: { type: "tiled", axes: "both" },
+    },
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/card",
     name: "Card",
     description: "Frames dashboard content with an optional title.",
     entry: "builtin:card",
     propsSchema: objectSchema({ title: { type: "string" }, description: { type: "string" } }),
-    slots: { children: { multiple: true } },
+    children: {
+      min: 0,
+      presentation: { type: "tiled", axes: "both" },
+    },
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/text",
     name: "Text",
     description: "Displays plain text.",
@@ -86,7 +80,7 @@ const manifests: ComponentManifest[] = [
     ),
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/markdown",
     name: "Markdown",
     description: "Displays Markdown with raw HTML disabled.",
@@ -94,7 +88,7 @@ const manifests: ComponentManifest[] = [
     propsSchema: objectSchema({ content: { type: "string" } }, ["content"]),
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/status",
     name: "Status",
     description: "Displays a labeled status indicator.",
@@ -109,7 +103,7 @@ const manifests: ComponentManifest[] = [
     ),
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/chart",
     name: "Chart",
     description: "Plots static line or bar data declared in dashboard YAML.",
@@ -134,7 +128,7 @@ const manifests: ComponentManifest[] = [
     ),
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/live-chart",
     name: "Live chart",
     description: "Polls a JSON endpoint and plots its chart-shaped response.",
@@ -151,7 +145,7 @@ const manifests: ComponentManifest[] = [
     permissions: ["network:http"],
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/command",
     name: "Command",
     description: "Starts or stops an explicitly configured project command.",
@@ -165,18 +159,27 @@ const manifests: ComponentManifest[] = [
       },
       ["label", "command"],
     ),
+    resources: {
+      process: {
+        commandProp: "command",
+        cwdProp: "cwd",
+        envProp: "env",
+      },
+    },
     permissions: ["process:execute"],
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/terminal",
     name: "Terminal output",
     description: "Displays bounded output from a configured command.",
     entry: "builtin:terminal",
     propsSchema: objectSchema({ processId: string }, ["processId"]),
+    references: { processId: { resource: "process" } },
+    permissions: ["process:observe"],
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/file",
     name: "File",
     description: "Displays a bounded UTF-8 project file.",
@@ -185,7 +188,7 @@ const manifests: ComponentManifest[] = [
     permissions: ["filesystem:read"],
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/env",
     name: "Environment editor",
     description: "Edits a project-local .env file as key-value pairs or raw text.",
@@ -194,7 +197,7 @@ const manifests: ComponentManifest[] = [
     permissions: ["filesystem:read", "filesystem:write"],
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/todo-list",
     name: "YAML todo list",
     description: "Keeps a small todo list in a project-owned YAML file.",
@@ -203,13 +206,13 @@ const manifests: ComponentManifest[] = [
     permissions: ["filesystem:read", "filesystem:write"],
   },
   {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: "@dash-bored/webview",
     name: "Webview",
     description: "Embeds an HTTP or HTTPS application page.",
     entry: "builtin:webview",
     propsSchema: objectSchema({ url: { type: "string", pattern: "^https?://" } }, ["url"]),
-    permissions: ["network:http"],
+    permissions: ["webview:embed"],
   },
 ];
 

@@ -15,6 +15,7 @@
     "dev": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && concurrently --kill-others-on-fail \"vite --host 127.0.0.1\" \"electrobun dev --watch\"'",
     "dev:desktop": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun dev --watch'",
     "build:cli": "bun ./scripts/build-cli.ts",
+    "ui:fixture": "vite --host 127.0.0.1 --port ${DASH_BORED_UI_PORT:-5488} --strictPort",
     "build:renderer": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build'",
     "build": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun build --env=canary'",
     "build:release": "DASH_BORED_RELEASE=1 sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun build --env=canary && bun ./scripts/repair-macos-release-artifacts.ts'",
@@ -23,6 +24,9 @@
     "typecheck": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && tsc --noEmit'",
     "qa:fast": "sh ./scripts/with-worktree-env.sh sh -c 'tsc --noEmit && bun test && vite build && bun run build:cli'",
     "test": "bun test",
+    "test:renderer-ui": "bun test tests/renderer/ui-interaction.test.ts",
+    "native:probe": "bun test tests/renderer/native-webview-contract.test.ts && bun run native:probe:open",
+    "native:probe:open": "bun ./scripts/native-webview-probe.ts",
     "qa": "bun run typecheck && bun test && bun run build:renderer && bun run build:cli"
   },
   "dependencies": {
@@ -39,6 +43,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.2.1",
     "electrobun": "2.0.1",
+    "playwright-core": "^1.55.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.3"
   }

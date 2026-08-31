@@ -1,6 +1,9 @@
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readdir, realpath, stat } from "node:fs/promises";
 import type {
+  ComponentChildEdge,
+  ComponentChildLayout,
+  ComponentChildren,
   ComponentCatalogItem,
   ComponentManifest,
   ComponentNode,
@@ -50,20 +53,23 @@ export interface ResolvedTreeResult {
   diagnostics: Diagnostic[];
 }
 
-function pathForChild(parent: string, slot: string, index: number): string {
-  return `${parent}.${slot}.${index}`;
+function pathForChild(parent: string, index: number): string {
+  return `${parent}.children.${index}`;
 }
 
-function sourcePathForNodePath(nodePath: string): string {
-  if (nodePath === "root") return nodePath;
-  const segments = nodePath.split(".");
-  let sourcePath = segments.shift() ?? "root";
-  while (segments.length >= 2) {
-    const slot = segments.shift();
-    const index = segments.shift();
-    sourcePath += `.slots.${slot}[${index}]`;
-  }
-  return sourcePath;
+function childEdges<Node>(children: ComponentChildren<Node> | undefined): ComponentChildEdge<Node>[] {
+  if (children === undefined) return [];
+  if (children.type === "managed") return children.items;
+  const edges: ComponentChildEdge<Node>[] = [];
+  const collect = (layout: ComponentChildLayout<Node>): void => {
+    if (layout.type === "child") edges.push(layout.child);
+    else {
+      collect(layout.first);
+      collect(layout.second);
+    }
+  };
+  collect(children.layout);
+  return edges;
 }
 
 function propsDiagnosticPath(nodePath: string, instancePath: string): string {
@@ -100,7 +106,7 @@ function namespaceLinkedTree(
   const ids = new Map<string, string>();
   const collect = (node: ResolvedComponentNode): void => {
     ids.set(node.id, `${prefix}::${node.id}`);
-    for (const children of Object.values(node.slots)) for (const child of children) collect(child);
+    for (const edge of childEdges(node.children)) collect(edge.node);
   };
   collect(tree);
 
@@ -109,20 +115,58 @@ function namespaceLinkedTree(
       ? undefined
       : { ...node.manifest, id: `${prefix}::${node.manifest.id}` };
     const props = { ...node.props };
-    if (node.component === "@dash-bored/terminal" && typeof props.processId === "string") {
-      props.processId = ids.get(props.processId) ?? props.processId;
+    for (const propName of Object.keys(node.manifest?.references ?? {})) {
+      if (typeof props[propName] === "string") {
+        props[propName] = ids.get(props[propName]) ?? props[propName];
+      }
     }
     return {
       ...node,
       id: ids.get(node.id)!,
       props,
-      slots: Object.fromEntries(
-        Object.entries(node.slots).map(([slot, children]) => [slot, children.map(copy)]),
-      ),
+      ...(node.children === undefined
+        ? {}
+        : { children: mapChildren(node.children, copy) }),
       ...(manifest === undefined ? {} : { manifest }),
     };
   };
   return { tree: copy(tree), ids };
+}
+
+function mapLayout<Node, Mapped>(
+  layout: ComponentChildLayout<Node>,
+  mapNode: (node: Node) => Mapped,
+): ComponentChildLayout<Mapped> {
+  if (layout.type === "child") {
+    return {
+      type: "child",
+      child: {
+        node: mapNode(layout.child.node),
+        ...(layout.child.metadata === undefined ? {} : { metadata: { ...layout.child.metadata } }),
+      },
+    };
+  }
+  return {
+    ...layout,
+    first: mapLayout(layout.first, mapNode),
+    second: mapLayout(layout.second, mapNode),
+  };
+}
+
+function mapChildren<Node, Mapped>(
+  children: ComponentChildren<Node>,
+  mapNode: (node: Node) => Mapped,
+): ComponentChildren<Mapped> {
+  if (children.type === "tiled") {
+    return { type: "tiled", layout: mapLayout(children.layout, mapNode) };
+  }
+  return {
+    type: "managed",
+    items: children.items.map((edge) => ({
+      node: mapNode(edge.node),
+      ...(edge.metadata === undefined ? {} : { metadata: { ...edge.metadata } }),
+    })),
+  };
 }
 
 export async function discoverComponentCatalog(
@@ -353,6 +397,7 @@ export async function resolveComponentTree(
   const visit = async (
     node: ComponentNode,
     nodePath: string,
+    sourcePath: string,
     depth: number,
   ): Promise<ResolvedComponentNode | null> => {
     nodeCount += 1;
@@ -395,6 +440,13 @@ export async function resolveComponentTree(
       }
       permissionsByNode.set(id, new Set());
       projectRootsByNode.set(id, location.projectRoot);
+      if (node.children !== undefined) {
+        diagnostics.push(diagnostic({
+          code: "CONFIG_LINK_CHILDREN_UNSUPPORTED",
+          message: "Config links expose their linked dashboard and cannot declare additional children.",
+          path: `${nodePath}.children`,
+        }));
+      }
 
       let configPath: string | undefined;
       let configName: string | undefined;
@@ -457,10 +509,30 @@ export async function resolveComponentTree(
         id,
         component: node.component,
         props: node.props ?? {},
-        slots: linkedTree ? { content: [linkedTree] } : {},
+        ...(linkedTree
+          ? {
+              children: {
+                type: "managed" as const,
+                items: [{ node: linkedTree }],
+              },
+            }
+          : {}),
         source: "config",
         sourceConfigPath: location.configPath,
-        sourcePath: sourcePathForNodePath(nodePath),
+        sourcePath,
+        manifest: {
+          schemaVersion: 2,
+          id: `config:${node.component}`,
+          name: configName ?? node.component,
+          description: "Renders another standalone dashboard configuration.",
+          entry: "config:link",
+          propsSchema: { type: "object", additionalProperties: false },
+          children: {
+            min: 0,
+            max: 1,
+            presentation: { type: "managed" },
+          },
+        },
         ...(configPath === undefined ? {} : { configPath }),
         ...(configName === undefined ? {} : { configName }),
         ...(configError === undefined ? {} : { configError }),
@@ -494,11 +566,11 @@ export async function resolveComponentTree(
     } else {
       ids.add(id);
     }
-    if (node.component === "@dash-bored/command" && node.id === undefined) {
+    if (manifest.resources && Object.keys(manifest.resources).length > 0 && node.id === undefined) {
       diagnostics.push(
         diagnostic({
           code: "NODE_ID_REQUIRED",
-          message: "Command components require an explicit id so their process remains stable across reloads.",
+          message: `${manifest.name} provides app-owned resources and requires an explicit id so they remain stable across reloads.`,
           path: nodePath,
         }),
       );
@@ -515,64 +587,195 @@ export async function resolveComponentTree(
       );
     }
 
+    const processResource = manifest.resources?.process;
+    if (processResource) {
+      const command = props[processResource.commandProp];
+      if (typeof command !== "string" || command.trim() === "") {
+        diagnostics.push(diagnostic({
+          code: "COMPONENT_PROCESS_COMMAND_INVALID",
+          message: `${manifest.name}'s ${processResource.commandProp} prop must contain a command.`,
+          path: `${nodePath}.props.${processResource.commandProp}`,
+        }));
+      }
+      if (processResource.cwdProp) {
+        const cwd = props[processResource.cwdProp];
+        if (cwd !== undefined && (typeof cwd !== "string" || cwd.trim() === "")) {
+          diagnostics.push(diagnostic({
+            code: "COMPONENT_PROCESS_CWD_INVALID",
+            message: `${manifest.name}'s ${processResource.cwdProp} prop must be a non-empty directory path.`,
+            path: `${nodePath}.props.${processResource.cwdProp}`,
+          }));
+        }
+      }
+      if (processResource.envProp) {
+        const env = props[processResource.envProp];
+        if (
+          env !== undefined
+          && (
+            typeof env !== "object"
+            || env === null
+            || Array.isArray(env)
+            || Object.values(env).some((value) => typeof value !== "string")
+          )
+        ) {
+          diagnostics.push(diagnostic({
+            code: "COMPONENT_PROCESS_ENV_INVALID",
+            message: `${manifest.name}'s ${processResource.envProp} prop must contain string-valued environment variables.`,
+            path: `${nodePath}.props.${processResource.envProp}`,
+          }));
+        }
+      }
+    }
+
     const nodePermissions = new Set(manifest.permissions ?? []);
     permissionsByNode.set(id, nodePermissions);
     projectRootsByNode.set(id, location.projectRoot);
     for (const permission of nodePermissions) requestedPermissions.add(permission);
 
-    const declaredSlots = manifest.slots ?? {};
-    const configuredSlots = node.slots ?? {};
-    for (const slotName of Object.keys(configuredSlots)) {
-      if (!Object.hasOwn(declaredSlots, slotName)) {
-        diagnostics.push(
-          diagnostic({
-            code: "COMPONENT_SLOT_UNKNOWN",
-            message: `${manifest.name} does not declare a ${slotName} slot.`,
-            path: `${nodePath}.slots.${slotName}`,
-          }),
-        );
+    const definition = manifest.children;
+    const configuredChildren = node.children;
+    const configuredEdges = childEdges(configuredChildren);
+    if (definition === undefined && configuredChildren !== undefined) {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_CHILDREN_UNSUPPORTED",
+        message: `${manifest.name} does not accept children.`,
+        path: `${nodePath}.children`,
+      }));
+    }
+    if (
+      definition !== undefined &&
+      configuredChildren !== undefined &&
+      definition.presentation.type !== configuredChildren.type
+    ) {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_CHILD_PRESENTATION_INVALID",
+        message: `${manifest.name} requires ${definition.presentation.type} children.`,
+        path: `${nodePath}.children.type`,
+      }));
+    }
+    if (definition !== undefined && configuredEdges.length < definition.min) {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_CHILD_CARDINALITY",
+        message: `${manifest.name} requires at least ${definition.min} child${definition.min === 1 ? "" : "ren"}.`,
+        path: `${nodePath}.children`,
+      }));
+    }
+    if (
+      definition?.max !== undefined &&
+      configuredEdges.length > definition.max
+    ) {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_CHILD_CARDINALITY",
+        message: `${manifest.name} accepts at most ${definition.max} child${definition.max === 1 ? "" : "ren"}.`,
+        path: `${nodePath}.children`,
+      }));
+    }
+
+    if (configuredChildren?.type === "tiled") {
+      const validateLayout = (layout: ComponentChildLayout, layoutPath: string): void => {
+        if (layout.type === "child") return;
+        if (layout.ratio < 0.1 || layout.ratio > 0.9) {
+          diagnostics.push(diagnostic({
+            code: "COMPONENT_CHILD_RATIO_INVALID",
+            message: "Tiled split ratios must be between 0.1 and 0.9.",
+            path: `${layoutPath}.ratio`,
+          }));
+        }
+        if (
+          definition?.presentation.type === "tiled" &&
+          definition.presentation.axes !== "both" &&
+          layout.axis !== definition.presentation.axes
+        ) {
+          diagnostics.push(diagnostic({
+            code: "COMPONENT_CHILD_AXIS_INVALID",
+            message: `${manifest.name} only allows ${definition.presentation.axes} tiled splits.`,
+            path: `${layoutPath}.axis`,
+          }));
+        }
+        validateLayout(layout.first, `${layoutPath}.first`);
+        validateLayout(layout.second, `${layoutPath}.second`);
+      };
+      validateLayout(configuredChildren.layout, `${nodePath}.children.layout`);
+    }
+
+    for (const [index, edge] of configuredEdges.entries()) {
+      if (definition?.metadataSchema === undefined) {
+        if (edge.metadata !== undefined) {
+          diagnostics.push(diagnostic({
+            code: "COMPONENT_CHILD_METADATA_UNSUPPORTED",
+            message: `${manifest.name} does not declare child metadata.`,
+            path: `${pathForChild(nodePath, index)}.metadata`,
+          }));
+        }
+        continue;
+      }
+      for (const error of validatePropsSchema(definition.metadataSchema, edge.metadata ?? {})) {
+        diagnostics.push(diagnostic({
+          code: "COMPONENT_CHILD_METADATA_INVALID",
+          message: error.message ?? "Invalid child metadata.",
+          path: `${pathForChild(nodePath, index)}.metadata${error.instancePath.replaceAll("/", ".")}`,
+        }));
       }
     }
 
-    const resolvedSlots: Record<string, ResolvedComponentNode[]> = {};
-    for (const [slotName, definition] of Object.entries(declaredSlots)) {
-      const configured = Object.hasOwn(configuredSlots, slotName)
-        ? configuredSlots[slotName]
-        : undefined;
-      const children = configured === undefined ? [] : Array.isArray(configured) ? configured : [configured];
-      if (definition.required === true && children.length === 0) {
-        diagnostics.push(
-          diagnostic({
-            code: "COMPONENT_SLOT_REQUIRED",
-            message: `${manifest.name} requires its ${slotName} slot.`,
-            path: `${nodePath}.slots.${slotName}`,
-          }),
-        );
-      }
-      if (definition.multiple !== true && children.length > 1) {
-        diagnostics.push(
-          diagnostic({
-            code: "COMPONENT_SLOT_CARDINALITY",
-            message: `${manifest.name}'s ${slotName} slot accepts only one child.`,
-            path: `${nodePath}.slots.${slotName}`,
-          }),
-        );
-      }
-      const resolvedChildren = await Promise.all(
-        children.map((child, index) => visit(child, pathForChild(nodePath, slotName, index), depth + 1)),
+    let nextChildIndex = 0;
+    const resolveEdge = async (
+      edge: ComponentChildEdge,
+      edgeSourcePath: string,
+    ): Promise<ComponentChildEdge<ResolvedComponentNode> | null> => {
+      const index = nextChildIndex++;
+      const resolved = await visit(
+        edge.node,
+        pathForChild(nodePath, index),
+        `${edgeSourcePath}.node`,
+        depth + 1,
       );
-      resolvedSlots[slotName] = resolvedChildren.filter(
-        (child): child is ResolvedComponentNode => child !== null,
-      );
-    }
+      if (resolved === null) return null;
+      return {
+        node: resolved,
+        ...(edge.metadata === undefined ? {} : { metadata: { ...edge.metadata } }),
+      };
+    };
+    const resolveLayout = async (
+      layout: ComponentChildLayout,
+      layoutSourcePath: string,
+    ): Promise<ComponentChildLayout<ResolvedComponentNode> | null> => {
+      if (layout.type === "child") {
+        const child = await resolveEdge(layout.child, `${layoutSourcePath}.child`);
+        return child === null ? null : { type: "child", child };
+      }
+      const [first, second] = await Promise.all([
+        resolveLayout(layout.first, `${layoutSourcePath}.first`),
+        resolveLayout(layout.second, `${layoutSourcePath}.second`),
+      ]);
+      if (first === null || second === null) return null;
+      return {
+        type: "split",
+        axis: layout.axis,
+        ratio: layout.ratio,
+        first,
+        second,
+      };
+    };
 
-    // Visit unknown-slot children too, so users receive useful nested diagnostics.
-    for (const [slotName, configured] of Object.entries(configuredSlots)) {
-      if (Object.hasOwn(declaredSlots, slotName)) continue;
-      const children = Array.isArray(configured) ? configured : [configured];
-      await Promise.all(
-        children.map((child, index) => visit(child, pathForChild(nodePath, slotName, index), depth + 1)),
+    let resolvedChildren: ComponentChildren<ResolvedComponentNode> | undefined;
+    if (configuredChildren?.type === "managed") {
+      const items = await Promise.all(
+        configuredChildren.items.map((edge, index) =>
+          resolveEdge(edge, `${sourcePath}.children.items[${index}]`)),
       );
+      resolvedChildren = {
+        type: "managed",
+        items: items.filter(
+          (edge): edge is ComponentChildEdge<ResolvedComponentNode> => edge !== null,
+        ),
+      };
+    } else if (configuredChildren?.type === "tiled") {
+      const layout = await resolveLayout(
+        configuredChildren.layout,
+        `${sourcePath}.children.layout`,
+      );
+      if (layout !== null) resolvedChildren = { type: "tiled", layout };
     }
 
     visiting.delete(node);
@@ -580,74 +783,54 @@ export async function resolveComponentTree(
       id,
       component: node.component,
       props,
-      slots: resolvedSlots,
+      ...(resolvedChildren === undefined ? {} : { children: resolvedChildren }),
       source: node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? "local" : "builtin",
       sourceConfigPath: location.configPath,
-      sourcePath: sourcePathForNodePath(nodePath),
-      ...(node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? { manifest } : {}),
+      sourcePath,
+      manifest,
     };
   };
 
-  const tree = await visit(config.root, "root", 0);
+  const tree = await visit(config.root, "root", "root", 0);
   if (tree !== null) {
-    const commandIds = new Set<string>();
-    const terminalNodes: ResolvedComponentNode[] = [];
     const allNodes: ResolvedComponentNode[] = [];
+    const resourceProviders = new Map<string, Set<string>>();
     const collect = (node: ResolvedComponentNode): void => {
       allNodes.push(node);
-      if (node.component === "@dash-bored/command") commandIds.add(node.id);
-      if (node.component === "@dash-bored/terminal") terminalNodes.push(node);
-      for (const children of Object.values(node.slots)) {
-        for (const child of children) collect(child);
+      for (const resource of Object.keys(node.manifest?.resources ?? {})) {
+        const providers = resourceProviders.get(resource) ?? new Set<string>();
+        providers.add(node.id);
+        resourceProviders.set(resource, providers);
       }
+      for (const edge of childEdges(node.children)) collect(edge.node);
     };
     collect(tree);
 
-    for (const node of terminalNodes) {
-      const processId = String(node.props.processId);
-      if (!commandIds.has(processId)) {
-        diagnostics.push(
-          diagnostic({
-            code: "TERMINAL_PROCESS_UNKNOWN",
-            message: `Terminal references unknown command node: ${processId}`,
-            path: `${node.id}.props.processId`,
-          }),
-        );
-      }
-    }
     for (const node of allNodes) {
-      if (node.component === "@dash-bored/command" && typeof node.props.cwd === "string") {
+      for (const [propName, reference] of Object.entries(node.manifest?.references ?? {})) {
+        const targetId = node.props[propName];
+        if (typeof targetId !== "string" || !resourceProviders.get(reference.resource)?.has(targetId)) {
+          diagnostics.push(diagnostic({
+            code: "COMPONENT_RESOURCE_REFERENCE_UNKNOWN",
+            message: `${node.manifest?.name ?? node.component} references unknown ${reference.resource} resource node: ${String(targetId)}`,
+            path: `${node.id}.props.${propName}`,
+          }));
+        }
+      }
+
+      const processResource = node.manifest?.resources?.process;
+      const cwd = processResource?.cwdProp === undefined
+        ? undefined
+        : node.props[processResource.cwdProp];
+      if (typeof cwd === "string") {
         try {
-          await resolveContainedPath(location.projectRoot, node.props.cwd, { kind: "directory" });
+          await resolveContainedPath(location.projectRoot, cwd, { kind: "directory" });
         } catch (error) {
           diagnostics.push(
             diagnostic({
-              code: "COMMAND_CWD_INVALID",
+              code: "COMPONENT_PROCESS_CWD_INVALID",
               message: errorMessage(error),
-              path: `${node.id}.props.cwd`,
-            }),
-          );
-        }
-      }
-      if (node.component === "@dash-bored/tabs") {
-        const children = node.slots.children ?? [];
-        const labels = node.props.labels;
-        if (Array.isArray(labels) && labels.length !== children.length) {
-          diagnostics.push(
-            diagnostic({
-              code: "TABS_LABEL_COUNT_INVALID",
-              message: "Tabs labels must contain one label for each child.",
-              path: `${node.id}.props.labels`,
-            }),
-          );
-        }
-        const defaultTab = node.props.defaultTab;
-        if (typeof defaultTab === "number" && defaultTab >= children.length) {
-          diagnostics.push(
-            diagnostic({
-              code: "TABS_DEFAULT_INVALID",
-              message: "Tabs defaultTab must refer to an existing child.",
-              path: `${node.id}.props.defaultTab`,
+              path: `${node.id}.props.${processResource!.cwdProp}`,
             }),
           );
         }

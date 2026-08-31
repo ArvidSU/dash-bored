@@ -22,6 +22,7 @@ import type {
   ShellRunResult,
 } from "../shared/contracts";
 import type { DashboardRPC } from "../shared/rpc";
+import { createUiHarnessHost } from "./ui-harness-host";
 
 export type HostEvent =
   | { type: "snapshot"; snapshot: ProjectSnapshot }
@@ -29,6 +30,34 @@ export type HostEvent =
   | { type: "open-command-palette" };
 
 type HostEventListener = (event: HostEvent) => void;
+
+export interface DashboardHost {
+  subscribe(listener: HostEventListener): () => void;
+  getSnapshot(): Promise<ProjectSnapshot>;
+  getAppSettings(): Promise<AppSettings>;
+  updateAppSettings(settings: AppSettings): Promise<AppSettings>;
+  runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
+  runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
+  listProjects(): Promise<ProjectListItem[]>;
+  getProjectOutline(project: ProjectListItem): Promise<ProjectOutline>;
+  chooseProject(): Promise<ProjectSnapshot>;
+  openProject(project: ProjectTarget): Promise<ProjectSnapshot>;
+  getProjectDeletionPreview(project: ProjectListItem): Promise<ProjectDeletionPreview>;
+  deleteProject(project: ProjectListItem, removeFiles: boolean): Promise<ProjectSnapshot>;
+  trustProject(): Promise<ProjectSnapshot>;
+  revokeTrust(): Promise<ProjectSnapshot>;
+  reloadProject(): Promise<ProjectSnapshot>;
+  getDashboardConfigSource(configPath?: string): Promise<DashboardConfigSource>;
+  validateDashboardDraft(config: DashboardConfig, configPath?: string): Promise<DashboardDraftValidation>;
+  validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
+  saveDashboardConfig(config: DashboardConfig, expectedConfigRevision: string, configPath?: string): Promise<ProjectSnapshot>;
+  startProcess(nodeId: string): Promise<ProcessSnapshot>;
+  stopProcess(nodeId: string): Promise<ProcessSnapshot>;
+  readTextFile(request: FileReadRequest): Promise<string>;
+  writeTextFile(request: FileWriteRequest): Promise<void>;
+  httpRequest(request: HttpRequest): Promise<HttpResponsePayload>;
+  runShell(request: ShellRunRequest): Promise<ShellRunResult>;
+}
 
 const listeners = new Set<HostEventListener>();
 
@@ -75,7 +104,7 @@ async function snapshotRequest(
   return snapshot;
 }
 
-export const host = {
+const liveHost: DashboardHost = {
   subscribe(listener: HostEventListener): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);
@@ -226,3 +255,21 @@ export const host = {
     return rpc.request.runShell(request);
   },
 };
+
+declare global {
+  interface Window {
+    __DASH_BORED_UI_HARNESS__?: boolean;
+    /** Present only on ui-harness.html so browser interaction tests can inspect host state. */
+    __DASH_BORED_UI_HARNESS_HOST__?: ReturnType<typeof createUiHarnessHost>;
+  }
+}
+
+/**
+ * The visual fixture runs the actual renderer with deterministic, inert data.
+ * It is deliberately selected only by ui-harness.html; production renderer
+ * pages keep the Electrobun transport guard above.
+ */
+const uiHarnessHost = window.__DASH_BORED_UI_HARNESS__ ? createUiHarnessHost() : null;
+if (uiHarnessHost) window.__DASH_BORED_UI_HARNESS_HOST__ = uiHarnessHost;
+
+export const host: DashboardHost = uiHarnessHost ?? liveHost;

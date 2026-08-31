@@ -8,7 +8,6 @@ import Electrobun, {
 import { join } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import type {
-  ComponentNode,
   DashboardConfigSource,
   DashboardInsertionTarget,
   ProjectSnapshot,
@@ -17,8 +16,8 @@ import {
   buildComponentAgentPrompt,
   buildComponentCreationAgentPrompt,
   componentPath,
-  dashboardInsertionPath,
   findResolvedNode,
+  resolveDashboardInsertionPath,
 } from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
 import { AppSettingsStore } from "./app-settings";
@@ -41,7 +40,11 @@ async function mainViewUrl(): Promise<string> {
     for (let attempt = 0; attempt < DEV_SERVER_ATTEMPTS; attempt += 1) {
       try {
         const response = await fetch(DEV_SERVER_URL, { method: "HEAD" });
-        if (response.ok) return DEV_SERVER_URL;
+        if (response.ok) {
+          return process.env.DASH_BORED_NATIVE_PROBE === "1"
+            ? `${DEV_SERVER_URL}/native-probe.html`
+            : DEV_SERVER_URL;
+        }
       } catch {
         // Vite and Electrobun start concurrently in development.
       }
@@ -117,12 +120,6 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
   });
 }
 
-function configuredSlotChildren(node: ComponentNode, slot: string): ComponentNode[] {
-  const configured = node.slots?.[slot];
-  if (configured === undefined) return [];
-  return Array.isArray(configured) ? configured : [configured];
-}
-
 function validatedInsertionPath(
   source: DashboardConfigSource,
   target: DashboardInsertionTarget,
@@ -133,24 +130,7 @@ function validatedInsertionPath(
       "That component insertion point is no longer present. Reopen the dashboard editor and try again.",
     );
   };
-  const validIndex = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
-  let parent = source.config.root;
-  for (const segment of target.parentPath) {
-    if (!segment.slot || !validIndex(segment.index)) invalid();
-    const child = configuredSlotChildren(parent, segment.slot)[segment.index];
-    parent = child ?? invalid();
-  }
-  if (!target.slot || !validIndex(target.index)) invalid();
-
-  const children = configuredSlotChildren(parent, target.slot);
-  const manifest = source.componentCatalog.find(
-    (item) => item.reference === parent.component,
-  )?.manifest;
-  const slot = manifest?.slots?.[target.slot];
-  if (!slot && parent.slots?.[target.slot] === undefined) invalid();
-  if (slot?.multiple !== true && children.length > 0) invalid();
-  if (target.index > children.length) invalid();
-  return dashboardInsertionPath(target);
+  return resolveDashboardInsertionPath(source, target) ?? invalid();
 }
 
 async function runComponentCreationAgent(

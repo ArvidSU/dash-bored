@@ -1,21 +1,17 @@
 import {
-  createContext,
   useContext,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
-import type { WebviewTagElement } from "electrobun/view";
 import type {
-  ProcessSnapshot,
-  ResolvedComponentNode,
+  ComponentRenderedChildren,
+  LocalComponentHost,
 } from "../shared/contracts";
-import { host } from "./rpc-client";
 import { safeMarkdownUrl } from "./safe-url";
 import {
   CHART_COLORS,
@@ -38,16 +34,16 @@ import {
   updateEnvEntry,
   type EnvDocument,
 } from "./env";
+import { ComponentVisibilityContext } from "./ComponentCompositor";
 import { TodoList } from "./todo-list";
 
-export type RenderedSlots = Record<string, ReactNode[]>;
-
-export interface BuiltinRendererProps {
-  node: ResolvedComponentNode;
-  slots: RenderedSlots;
-  trusted: boolean;
-  processes: ReadonlyMap<string, ProcessSnapshot>;
+export interface ComponentRendererProps {
+  props: Record<string, unknown>;
+  children?: ComponentRenderedChildren;
+  host: LocalComponentHost;
 }
+
+export type PackagedComponent = (props: ComponentRendererProps) => ReactNode;
 
 function stringProp(
   props: Record<string, unknown>,
@@ -60,11 +56,13 @@ function stringProp(
   return fallback;
 }
 
-function allChildren(slots: RenderedSlots): ReactNode[] {
-  return Object.values(slots).flat();
+function childSurface(children: ComponentRenderedChildren | undefined): ReactNode {
+  return children?.type === "tiled" ? children.surface : null;
 }
 
-const PanelVisibilityContext = createContext(true);
+function Group({ children }: ComponentRendererProps): ReactNode {
+  return childSurface(children);
+}
 
 function CapabilityGate({
   title,
@@ -84,12 +82,9 @@ function CapabilityGate({
   );
 }
 
-function Tabs({ node, slots }: BuiltinRendererProps): ReactNode {
-  const panels = slots.children ?? [];
-  const parentVisible = useContext(PanelVisibilityContext);
-  const rawLabels = node.props.labels;
-  const labels = Array.isArray(rawLabels) ? rawLabels : [];
-  const requestedDefault = node.props.defaultTab;
+function Tabs({ props, children }: ComponentRendererProps): ReactNode {
+  const panels = children?.type === "managed" ? children.items : [];
+  const requestedDefault = props.defaultTab;
   const defaultIndex =
     typeof requestedDefault === "number" &&
     Number.isInteger(requestedDefault) &&
@@ -133,14 +128,14 @@ function Tabs({ node, slots }: BuiltinRendererProps): ReactNode {
 
   return (
     <section className="tabs">
-      <div className="tabs__list" role="tablist" aria-label={stringProp(node.props, ["label"], "Dashboard sections")}>
-        {panels.map((_, index) => {
+      <div className="tabs__list" role="tablist" aria-label={stringProp(props, ["label"], "Dashboard sections")}>
+        {panels.map((panel, index) => {
           const selected = index === active;
           return (
             <button
               className="tabs__tab"
               id={`${id}-tab-${index}`}
-              key={index}
+              key={panel.id}
               type="button"
               role="tab"
               aria-selected={selected}
@@ -149,7 +144,9 @@ function Tabs({ node, slots }: BuiltinRendererProps): ReactNode {
               onClick={() => setActive(index)}
               onKeyDown={(event) => selectFromKeyboard(event, index)}
             >
-              {typeof labels[index] === "string" ? labels[index] : `Tab ${index + 1}`}
+              {typeof panel.metadata.label === "string" && panel.metadata.label.trim()
+                ? panel.metadata.label
+                : panel.displayName}
             </button>
           );
         })}
@@ -158,47 +155,21 @@ function Tabs({ node, slots }: BuiltinRendererProps): ReactNode {
         <div
           className="tabs__panel"
           id={`${id}-panel-${index}`}
-          key={index}
+          key={panel.id}
           role="tabpanel"
           aria-labelledby={`${id}-tab-${index}`}
           hidden={index !== active}
         >
-          <PanelVisibilityContext.Provider value={parentVisible && index === active}>
-            {panel}
-          </PanelVisibilityContext.Provider>
+          {panel.render({ visible: index === active })}
         </div>
       ))}
     </section>
   );
 }
 
-function Split({ node, slots }: BuiltinRendererProps): ReactNode {
-  const direction = stringProp(node.props, ["direction"], "horizontal");
-  const normalizedDirection = direction === "vertical" ? "vertical" : "horizontal";
-
-  return (
-    <div className={`split split--${normalizedDirection}`}>
-      {Object.entries(slots).map(([name, children]) => (
-        <div className="split__pane" data-slot={name} key={name}>
-          {children}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Stack({ node, slots }: BuiltinRendererProps): ReactNode {
-  const requestedGap = stringProp(node.props, ["gap"], "medium");
-  const gap = ["none", "small", "medium", "large"].includes(requestedGap)
-    ? requestedGap
-    : "medium";
-
-  return <div className={`stack stack--${gap}`}>{allChildren(slots)}</div>;
-}
-
-function Card({ node, slots }: BuiltinRendererProps): ReactNode {
-  const title = stringProp(node.props, ["title"]);
-  const description = stringProp(node.props, ["description"]);
+function Card({ props, children }: ComponentRendererProps): ReactNode {
+  const title = stringProp(props, ["title"]);
+  const description = stringProp(props, ["description"]);
 
   return (
     <section className="card">
@@ -208,14 +179,14 @@ function Card({ node, slots }: BuiltinRendererProps): ReactNode {
           {description ? <p>{description}</p> : null}
         </header>
       ) : null}
-      <div className="card__body">{allChildren(slots)}</div>
+      <div className="card__body">{childSurface(children)}</div>
     </section>
   );
 }
 
-function Text({ node }: BuiltinRendererProps): ReactNode {
-  const content = stringProp(node.props, ["content", "text"]);
-  const requestedVariant = stringProp(node.props, ["variant"], "body");
+function Text({ props }: ComponentRendererProps): ReactNode {
+  const content = stringProp(props, ["content", "text"]);
+  const requestedVariant = stringProp(props, ["variant"], "body");
   const variant = ["title", "heading", "body", "muted", "code"].includes(
     requestedVariant,
   )
@@ -228,8 +199,8 @@ function Text({ node }: BuiltinRendererProps): ReactNode {
   return <p className={`text text--${variant}`}>{content}</p>;
 }
 
-function Markdown({ node }: BuiltinRendererProps): ReactNode {
-  const content = stringProp(node.props, ["content", "markdown"]);
+function Markdown({ props }: ComponentRendererProps): ReactNode {
+  const content = stringProp(props, ["content", "markdown"]);
 
   return (
     <div className="markdown">
@@ -255,10 +226,10 @@ function Markdown({ node }: BuiltinRendererProps): ReactNode {
   );
 }
 
-function Status({ node }: BuiltinRendererProps): ReactNode {
-  const label = stringProp(node.props, ["label", "name"], "Status");
-  const value = stringProp(node.props, ["state", "status", "value"], "unknown");
-  const detail = stringProp(node.props, ["detail", "description"]);
+function Status({ props }: ComponentRendererProps): ReactNode {
+  const label = stringProp(props, ["label", "name"], "Status");
+  const value = stringProp(props, ["state", "status", "value"], "unknown");
+  const detail = stringProp(props, ["detail", "description"]);
   const normalized = value.toLowerCase();
   const tone = ["ok", "online", "healthy", "success", "ready"].includes(normalized)
     ? "positive"
@@ -523,29 +494,30 @@ function ChartPanel({
   );
 }
 
-function Chart({ node }: BuiltinRendererProps): ReactNode {
-  const rawData = parseChartData({ labels: node.props.labels, series: node.props.series });
+function Chart({ props }: ComponentRendererProps): ReactNode {
+  const rawData = parseChartData({ labels: props.labels, series: props.series });
   const data = rawData
-    ? limitChartData(rawData, numberProp(node.props, "maxPoints", 60))
+    ? limitChartData(rawData, numberProp(props, "maxPoints", 60))
     : null;
   return (
     <ChartPanel
       data={data}
-      status={chartType(node.props)}
-      title={chartTitle(node.props, "Chart")}
-      type={chartType(node.props)}
+      status={chartType(props)}
+      title={chartTitle(props, "Chart")}
+      type={chartType(props)}
     />
   );
 }
 
-function LiveChart({ node, trusted }: BuiltinRendererProps): ReactNode {
-  const endpoint = stringProp(node.props, ["endpoint"]);
-  const dataPath = stringProp(node.props, ["dataPath"]);
-  const pollIntervalMs = numberProp(node.props, "pollIntervalMs", 5000);
-  const maxPoints = numberProp(node.props, "maxPoints", 60);
-  const title = chartTitle(node.props, "Live chart");
-  const type = chartType(node.props);
-  const panelVisible = useContext(PanelVisibilityContext);
+function LiveChart({ props, host: componentHost }: ComponentRendererProps): ReactNode {
+  const http = componentHost.http;
+  const endpoint = stringProp(props, ["endpoint"]);
+  const dataPath = stringProp(props, ["dataPath"]);
+  const pollIntervalMs = numberProp(props, "pollIntervalMs", 5000);
+  const maxPoints = numberProp(props, "maxPoints", 60);
+  const title = chartTitle(props, "Live chart");
+  const type = chartType(props);
+  const panelVisible = useContext(ComponentVisibilityContext);
   const [data, setData] = useState<ChartData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -559,7 +531,8 @@ function LiveChart({ node, trusted }: BuiltinRendererProps): ReactNode {
 
   useEffect(() => {
     const requestEndpoint = resolvedEndpoint;
-    if (!trusted || !panelVisible || requestEndpoint === null) return;
+    if (!http || !panelVisible || requestEndpoint === null) return;
+    const client = http;
     const requestUrl: string = requestEndpoint;
     let cancelled = false;
     let timer: number | undefined;
@@ -567,7 +540,7 @@ function LiveChart({ node, trusted }: BuiltinRendererProps): ReactNode {
     async function load(): Promise<void> {
       setLoading(true);
       try {
-        const response = await host.httpRequest({ nodeId: node.id, url: requestUrl });
+        const response = await client.request({ url: requestUrl });
         if (response.status < 200 || response.status >= 300) {
           throw new Error(`Endpoint returned HTTP ${response.status}.`);
         }
@@ -596,9 +569,9 @@ function LiveChart({ node, trusted }: BuiltinRendererProps): ReactNode {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [dataPath, maxPoints, node.id, panelVisible, pollIntervalMs, refreshKey, resolvedEndpoint, trusted]);
+  }, [dataPath, http, maxPoints, panelVisible, pollIntervalMs, refreshKey, resolvedEndpoint]);
 
-  if (!trusted) {
+  if (!http) {
     return (
       <CapabilityGate title={title}>
         Trust this project to make the configured HTTP request.
@@ -631,14 +604,16 @@ function LiveChart({ node, trusted }: BuiltinRendererProps): ReactNode {
   );
 }
 
-function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode {
-  const process = processes.get(node.id);
+function Command({ props, host: componentHost }: ComponentRendererProps): ReactNode {
+  const processApi = componentHost.processes;
+  const process = processApi?.get();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
-  const label = stringProp(node.props, ["label", "title"], "Run command");
-  const command = stringProp(node.props, ["command"]);
+  const outputId = useId().replaceAll(":", "");
+  const label = stringProp(props, ["label", "title"], "Run command");
+  const command = stringProp(props, ["command"]);
   const running = process?.phase === "running" || process?.phase === "stopping";
   const hasOutput = (process?.logs.length ?? 0) > 0;
 
@@ -648,7 +623,7 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
     if (output) output.scrollTop = output.scrollHeight;
   }, [process?.logs.length, showOutput]);
 
-  if (!trusted) {
+  if (!processApi?.start || !processApi.stop) {
     return (
       <CapabilityGate title={label}>
         Trust this project to run its configured command.
@@ -657,11 +632,14 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
   }
 
   async function toggle(): Promise<void> {
+    const start = processApi?.start;
+    const stop = processApi?.stop;
+    if (!start || !stop) return;
     setPending(true);
     setError(null);
     try {
-      if (running) await host.stopProcess(node.id);
-      else await host.startProcess(node.id);
+      if (running) await stop();
+      else await start();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -683,7 +661,7 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
           className="button button--quiet button--small command__output-toggle"
           type="button"
           aria-expanded={showOutput}
-          aria-controls={`${node.id}-output`}
+          aria-controls={`${outputId}-output`}
           onClick={() => setShowOutput((value) => !value)}
         >
           {showOutput ? "Hide output" : "Show output"}
@@ -699,7 +677,7 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
       </div>
       {showOutput ? (
         <div
-          id={`${node.id}-output`}
+          id={`${outputId}-output`}
           className="command__output"
           ref={outputRef}
           tabIndex={0}
@@ -723,10 +701,10 @@ function Command({ node, trusted, processes }: BuiltinRendererProps): ReactNode 
   );
 }
 
-function Terminal({ node, trusted, processes }: BuiltinRendererProps): ReactNode {
-  const requestedProcessId = stringProp(node.props, ["processId", "commandId"]);
-  const processId = requestedProcessId || node.id;
-  const process = processes.get(processId);
+function Terminal({ props, host: componentHost }: ComponentRendererProps): ReactNode {
+  const requestedProcessId = stringProp(props, ["processId", "commandId"]);
+  const processId = requestedProcessId;
+  const process = componentHost.processes?.get(processId);
   const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -734,7 +712,7 @@ function Terminal({ node, trusted, processes }: BuiltinRendererProps): ReactNode
     if (output) output.scrollTop = output.scrollHeight;
   }, [process?.logs.length]);
 
-  if (!trusted) {
+  if (!componentHost.processes) {
     return (
       <CapabilityGate title="Process output">
         Trust this project to view command output.
@@ -766,8 +744,9 @@ function Terminal({ node, trusted, processes }: BuiltinRendererProps): ReactNode
   );
 }
 
-function FileViewer({ node, trusted }: BuiltinRendererProps): ReactNode {
-  const path = stringProp(node.props, ["path"]);
+function FileViewer({ props, host: componentHost }: ComponentRendererProps): ReactNode {
+  const filesystem = componentHost.filesystem;
+  const path = stringProp(props, ["path"]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -775,12 +754,12 @@ function FileViewer({ node, trusted }: BuiltinRendererProps): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
-    if (!trusted || !path) return;
+    if (!filesystem || !path) return;
 
     setLoading(true);
     setError(null);
-    void host
-      .readTextFile({ nodeId: node.id, path })
+    void filesystem
+      .readText(path)
       .then((text) => {
         if (!cancelled) setContent(text);
       })
@@ -796,9 +775,9 @@ function FileViewer({ node, trusted }: BuiltinRendererProps): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [node.id, path, refresh, trusted]);
+  }, [filesystem, path, refresh]);
 
-  if (!trusted) {
+  if (!filesystem) {
     return (
       <CapabilityGate title={path || "File viewer"}>
         Trust this project to read workspace files.
@@ -820,8 +799,10 @@ function FileViewer({ node, trusted }: BuiltinRendererProps): ReactNode {
   );
 }
 
-function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
-  const path = stringProp(node.props, ["path"]);
+function EnvEditor({ props, host: componentHost }: ComponentRendererProps): ReactNode {
+  const filesystem = componentHost.filesystem;
+  const editorId = useId().replaceAll(":", "");
+  const path = stringProp(props, ["path"]);
   const [document, setDocument] = useState<EnvDocument>(() => parseEnv(""));
   const [rawSource, setRawSource] = useState("");
   const [savedSource, setSavedSource] = useState("");
@@ -833,12 +814,12 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
-    if (!trusted || !path) return;
+    if (!filesystem || !path) return;
 
     setLoading(true);
     setError(null);
-    void host
-      .readTextFile({ nodeId: node.id, path })
+    void filesystem
+      .readText(path)
       .then((source) => {
         if (cancelled) return;
         setDocument(parseEnv(source));
@@ -856,7 +837,7 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [node.id, path, refresh, trusted]);
+  }, [filesystem, path, refresh]);
 
   const tableSource = serializeEnv(document);
   const content = mode === "raw" ? rawSource : tableSource;
@@ -906,7 +887,8 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
     setSaving(true);
     setError(null);
     try {
-      await host.writeTextFile({ nodeId: node.id, path, content });
+      if (!filesystem?.writeText) throw new Error("This component does not have file-write access.");
+      await filesystem.writeText(path, content);
       setSavedSource(content);
       if (mode === "table") setRawSource(content);
     } catch (cause) {
@@ -916,7 +898,7 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
     }
   }
 
-  if (!trusted) {
+  if (!filesystem?.writeText) {
     return (
       <CapabilityGate title="Environment editor">
         Trust this project to read and write the configured environment file.
@@ -972,9 +954,9 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
       {error ? <div className="component-state component-state--error" role="alert">{error}</div> : null}
       {mode === "raw" ? (
         <div className="env-editor__raw-wrap">
-          <label className="visually-hidden" htmlFor={`${node.id}-env-raw`}>Raw environment file</label>
+          <label className="visually-hidden" htmlFor={`${editorId}-env-raw`}>Raw environment file</label>
           <textarea
-            id={`${node.id}-env-raw`}
+            id={`${editorId}-env-raw`}
             className="env-editor__raw"
             value={rawSource}
             onChange={(event) => {
@@ -1050,106 +1032,37 @@ function EnvEditor({ node, trusted }: BuiltinRendererProps): ReactNode {
   );
 }
 
-function Webview({ node, trusted }: BuiltinRendererProps): ReactNode {
-  const url = stringProp(node.props, ["url", "src"]);
-  const panelVisible = useContext(PanelVisibilityContext);
-  const ref = useRef<WebviewTagElement>(null);
-  const [nativeViewMounted, setNativeViewMounted] = useState(panelVisible && trusted);
-  const validUrl = useMemo(() => {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }, [url]);
-
-  useLayoutEffect(() => {
-    if (!trusted) {
-      setNativeViewMounted(false);
-    } else if (panelVisible) {
-      // Do not initialize a native child webview while its tab is hidden. Its
-      // first DOM rect would be 0x0, and the native overlay has no DOM parent
-      // that can hide it later.
-      setNativeViewMounted(true);
-    }
-  }, [panelVisible, trusted]);
-
-  useLayoutEffect(() => {
-    const view = ref.current;
-    if (!view) return;
-    view.toggleHidden(!panelVisible);
-    if (panelVisible) view.syncDimensions(true);
-  }, [nativeViewMounted, panelVisible]);
-
-  if (!trusted) {
+function Webview({ props, host: componentHost }: ComponentRendererProps): ReactNode {
+  const url = stringProp(props, ["url", "src"]);
+  if (!componentHost.webview) {
     return (
       <CapabilityGate title="Embedded page">
         Trust this project to load its configured web page.
       </CapabilityGate>
     );
   }
-
-  if (!validUrl) {
-    return (
-      <div className="component-state component-state--error" role="alert">
-        The webview requires an absolute HTTP or HTTPS URL.
-      </div>
-    );
-  }
-
-  return (
-    <section className="webview-shell">
-      <header className="webview-shell__header">
-        <span className="webview-shell__url" title={url}>{url}</span>
-        <button className="button button--quiet" type="button" onClick={() => ref.current?.reload()}>
-          Reload
-        </button>
-      </header>
-      {nativeViewMounted ? (
-        <electrobun-webview ref={ref} className="webview-shell__view" renderer="native" sandbox src={url} />
-      ) : null}
-    </section>
-  );
+  return componentHost.webview.render({ url });
 }
 
-export function BuiltinRenderer(props: BuiltinRendererProps): ReactNode {
-  switch (props.node.component) {
-    case "@dash-bored/tabs":
-      return <Tabs {...props} />;
-    case "@dash-bored/split":
-      return <Split {...props} />;
-    case "@dash-bored/stack":
-      return <Stack {...props} />;
-    case "@dash-bored/card":
-      return <Card {...props} />;
-    case "@dash-bored/text":
-      return <Text {...props} />;
-    case "@dash-bored/markdown":
-      return <Markdown {...props} />;
-    case "@dash-bored/status":
-      return <Status {...props} />;
-    case "@dash-bored/chart":
-      return <Chart {...props} />;
-    case "@dash-bored/live-chart":
-      return <LiveChart {...props} />;
-    case "@dash-bored/command":
-      return <Command {...props} />;
-    case "@dash-bored/terminal":
-      return <Terminal {...props} />;
-    case "@dash-bored/file":
-      return <FileViewer {...props} />;
-    case "@dash-bored/env":
-      return <EnvEditor {...props} />;
-    case "@dash-bored/todo-list":
-      return <TodoList node={props.node} trusted={props.trusted} />;
-    case "@dash-bored/webview":
-      return <Webview {...props} />;
-    default:
-      return (
-        <div className="component-state component-state--error" role="alert">
-          Unknown built-in component <code>{props.node.component}</code>.
-        </div>
-      );
-  }
+const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.freeze({
+  "@dash-bored/group": Group,
+  "@dash-bored/tabs": Tabs,
+  "@dash-bored/card": Card,
+  "@dash-bored/text": Text,
+  "@dash-bored/markdown": Markdown,
+  "@dash-bored/status": Status,
+  "@dash-bored/chart": Chart,
+  "@dash-bored/live-chart": LiveChart,
+  "@dash-bored/command": Command,
+  "@dash-bored/terminal": Terminal,
+  "@dash-bored/file": FileViewer,
+  "@dash-bored/env": EnvEditor,
+  "@dash-bored/todo-list": ({ props, host: componentHost }) => (
+    <TodoList props={props} host={componentHost} />
+  ),
+  "@dash-bored/webview": Webview,
+});
+
+export function packagedComponent(reference: string): PackagedComponent | undefined {
+  return PACKAGED_COMPONENTS[reference];
 }

@@ -1,4 +1,5 @@
 import type { ResolvedComponentNode } from "../shared/contracts";
+import { childNodes } from "./component-children";
 
 export interface VirtualRootCrumb {
   id: string;
@@ -24,11 +25,9 @@ export function findVirtualRootPath(
   ): VirtualRootCrumb[] | null {
     const next = [...path, { id: node.id, label: nodeLabel(node, isRoot), node }];
     if (node.id === nodeId) return next;
-    for (const children of Object.values(node.slots)) {
-      for (const child of children) {
-        const found = visit(child, next, false);
-        if (found) return found;
-      }
+    for (const child of childNodes(node)) {
+      const found = visit(child, next, false);
+      if (found) return found;
     }
     return null;
   }

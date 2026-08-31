@@ -1,6 +1,7 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
 import type { ResolvedComponentNode } from "../shared/contracts";
+import { childNodes } from "./component-children";
 import { nodeLabel } from "./virtual-root";
 
 interface OutlineBranchProps {
@@ -10,7 +11,7 @@ interface OutlineBranchProps {
 }
 
 function OutlineBranch({ node, root = false, onSelect }: OutlineBranchProps): ReactNode {
-  const children = Object.values(node.slots).flat();
+  const children = childNodes(node);
   const label = nodeLabel(node, root);
   return (
     <li className="sidebar-tree__item" role="treeitem">

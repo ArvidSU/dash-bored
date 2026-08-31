@@ -42,18 +42,29 @@ function action(
 function commandTree(): ResolvedComponentNode {
   return {
     id: "root",
-    component: "@dash-bored/stack",
+    component: "@dash-bored/group",
     props: {},
-    slots: {
-      children: [
-        {
+    children: {
+      type: "tiled",
+      layout: {
+        type: "child",
+        child: { node: {
           id: "server",
           component: "@dash-bored/command",
           props: { label: "Development server", command: "bun run dev" },
-          slots: {},
           source: "builtin",
-        },
-      ],
+          manifest: {
+            schemaVersion: 2,
+            id: "@dash-bored/command",
+            name: "Command",
+            description: "Runs a supervised command.",
+            entry: "builtin:command",
+            propsSchema: { type: "object" },
+            resources: { process: { commandProp: "command" } },
+            permissions: ["process:execute"],
+          },
+        } },
+      },
     },
     source: "builtin",
   };
@@ -366,11 +377,11 @@ describe("application action providers", () => {
     });
     expect(idle.find((item) => item.id === "project:edit")).toMatchObject({
       enabled: true,
-      label: "Edit dashboard",
+      label: "Open component library",
     });
     expect(idle.find((item) => item.id === "project:save-draft")).toMatchObject({
       enabled: false,
-      disabledReason: "Enter dashboard edit mode first.",
+      disabledReason: "Make a dashboard change first.",
     });
 
     const editing = buildApplicationActions({
@@ -381,8 +392,8 @@ describe("application action providers", () => {
       savingDraft: false,
     });
     expect(editing.find((item) => item.id === "project:edit")).toMatchObject({
-      enabled: false,
-      disabledReason: "The dashboard is already in edit mode.",
+      enabled: true,
+      label: "Open component library",
     });
     expect(editing.find((item) => item.id === "project:save-draft")).toMatchObject({
       enabled: true,

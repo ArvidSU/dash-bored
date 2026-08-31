@@ -1,4 +1,4 @@
-schemaVersion: 1
+schemaVersion: 2
 id: package-scripts
 name: Package scripts
 description: Reads a package.json file and exposes its scripts as runnable actions.

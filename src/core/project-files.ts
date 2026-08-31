@@ -11,7 +11,12 @@ import {
 } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
 import { stringify } from "yaml";
-import type { DashboardConfig, DashboardLock } from "../shared/contracts";
+import type {
+  ComponentChildLayout,
+  ComponentNode,
+  DashboardConfig,
+  DashboardLock,
+} from "../shared/contracts";
 import { CONFIG_DIRECTORY } from "../shared/contracts";
 import {
   assertProjectLocationContained,
@@ -144,126 +149,131 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     "Keep the dashboard project-owned and task-focused: expose important status, documentation, and repeatable workflows with built-in components where possible, and add small local components only when they are genuinely useful.",
     "Follow AGENTS.md and the project's own instructions, preserve unrelated changes, validate the finished dashboard, and summarize what you changed.",
   ].join(" ");
+  const child = (node: ComponentNode): ComponentChildLayout => ({
+    type: "child",
+    child: { node },
+  });
+  const vertical = (nodes: ComponentNode[]): ComponentChildLayout => {
+    if (nodes.length === 1) return child(nodes[0]!);
+    const middle = Math.ceil(nodes.length / 2);
+    return {
+      type: "split",
+      axis: "vertical",
+      ratio: middle / nodes.length,
+      first: vertical(nodes.slice(0, middle)),
+      second: vertical(nodes.slice(middle)),
+    };
+  };
+  const tiled = (layout: ComponentChildLayout) => ({ type: "tiled" as const, layout });
+  const howItWorks: ComponentNode = {
+    id: "how-it-works",
+    component: "@dash-bored/card",
+    props: {
+      title: "How it works",
+      description: "A small YAML tree becomes your project cockpit.",
+    },
+    children: tiled(child({
+      component: "@dash-bored/markdown",
+      props: {
+        content: "1. Compose generic components in `dash-bored/dash-bored.yaml`.\n2. Trust the project when it needs files, network access, or commands.\n3. Keep improving the dashboard as project friction appears.\n",
+      },
+    })),
+  };
+  const availableComponents: ComponentNode = {
+    id: "available-components",
+    component: "@dash-bored/card",
+    props: {
+      title: "What you can add",
+      description: "Start with built-ins; generate a local component for project-specific needs.",
+    },
+    children: tiled(child({
+      component: "@dash-bored/markdown",
+      props: {
+        content: "**Layout:** recursive horizontal and vertical tiles, tabs, and cards  \n**Display:** Markdown, text, status, files, and webviews  \n**Workflow:** commands, live output, and environment editing  \n**Custom:** React components under `dash-bored/components/`\n",
+      },
+    })),
+  };
+  const agentSetupChildren: ComponentNode[] = [
+    {
+      component: "@dash-bored/markdown",
+      props: {
+        content: "Choose your CLI agent once in application Settings. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Install the portable Agent Skill globally for all projects, or only in this project so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
+      },
+    },
+    { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
+    {
+      id: "install-dash-bored-cli",
+      component: "@dash-bored/command",
+      props: {
+        label: "Install dash-bored CLI in ~/.local/bin",
+        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli',
+        cwd: ".",
+      },
+    },
+    {
+      id: "install-dash-bored-global-skill",
+      component: "@dash-bored/command",
+      props: {
+        label: "Install dash-bored skill globally",
+        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global',
+        cwd: ".",
+      },
+    },
+    {
+      id: "install-dash-bored-skill",
+      component: "@dash-bored/command",
+      props: {
+        label: "Install portable dash-bored skill for this project",
+        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .',
+        cwd: ".",
+      },
+    },
+    {
+      id: "setup-dashboard-with-agent",
+      component: "@dash-bored/command",
+      props: {
+        label: "Set up this dashboard",
+        command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"',
+        cwd: ".",
+        env: { DASH_BORED_AGENT_PROMPT: agentPrompt },
+      },
+    },
+  ];
+  const rootNodes: ComponentNode[] = [
+    {
+      id: "welcome",
+      component: "@dash-bored/markdown",
+      props: {
+        content: `# ${projectName}\n\nThis dashboard lives with your project. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to find dashboard actions, or choose **Components** to arrange components and configure their props.\n`,
+      },
+    },
+    {
+      id: "getting-started",
+      component: "@dash-bored/group",
+      children: tiled({
+        type: "split",
+        axis: "horizontal",
+        ratio: 0.42,
+        first: child(howItWorks),
+        second: child(availableComponents),
+      }),
+    },
+    {
+      id: "agent-setup",
+      component: "@dash-bored/card",
+      props: {
+        title: "Make it yours",
+        description: "Hand the repetitive setup work to your CLI coding agent.",
+      },
+      children: tiled(vertical(agentSetupChildren)),
+    },
+  ];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: projectName,
     root: {
-      component: "@dash-bored/stack",
-      props: { gap: "large" },
-      slots: {
-        children: [
-          {
-            id: "welcome",
-            component: "@dash-bored/markdown",
-            props: {
-              content: `# ${projectName}\n\nThis dashboard lives with your project. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to find dashboard actions, or choose **Edit dashboard** to arrange components and configure their props.\n`,
-            },
-          },
-          {
-            id: "getting-started",
-            component: "@dash-bored/split",
-            props: { direction: "horizontal" },
-            slots: {
-              first: {
-                id: "how-it-works",
-                component: "@dash-bored/card",
-                props: {
-                  title: "How it works",
-                  description: "A small YAML tree becomes your project cockpit.",
-                },
-                slots: {
-                  children: {
-                    component: "@dash-bored/markdown",
-                    props: {
-                      content: "1. Compose generic components in `dash-bored/dash-bored.yaml`.\n2. Trust the project when it needs files, network access, or commands.\n3. Keep improving the dashboard as project friction appears.\n",
-                    },
-                  },
-                },
-              },
-              second: {
-                id: "available-components",
-                component: "@dash-bored/card",
-                props: {
-                  title: "What you can add",
-                  description: "Start with built-ins; generate a local component for project-specific needs.",
-                },
-                slots: {
-                  children: {
-                    component: "@dash-bored/markdown",
-                    props: {
-                      content: "**Layout:** tabs, splits, stacks, and cards  \n**Display:** Markdown, text, status, files, and webviews  \n**Workflow:** commands, live output, and environment editing  \n**Custom:** React components under `dash-bored/components/`\n",
-                    },
-                  },
-                },
-              },
-            },
-          },
-          {
-            id: "agent-setup",
-            component: "@dash-bored/card",
-            props: {
-              title: "Make it yours",
-              description: "Hand the repetitive setup work to your CLI coding agent.",
-            },
-            slots: {
-              children: [
-                {
-                  component: "@dash-bored/markdown",
-                  props: {
-                    content: "Choose your CLI agent once in application Settings. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Install the portable Agent Skill globally for all projects, or only in this project so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
-                  },
-                },
-                {
-                  id: "dashboard-environment",
-                  component: "@dash-bored/env",
-                  props: {
-                    path: environmentPath,
-                  },
-                },
-                {
-                  id: "install-dash-bored-cli",
-                  component: "@dash-bored/command",
-                  props: {
-                    label: "Install dash-bored CLI in ~/.local/bin",
-                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli',
-                    cwd: ".",
-                  },
-                },
-                {
-                  id: "install-dash-bored-global-skill",
-                  component: "@dash-bored/command",
-                  props: {
-                    label: "Install dash-bored skill globally",
-                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global',
-                    cwd: ".",
-                  },
-                },
-                {
-                  id: "install-dash-bored-skill",
-                  component: "@dash-bored/command",
-                  props: {
-                    label: "Install portable dash-bored skill for this project",
-                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .',
-                    cwd: ".",
-                  },
-                },
-                {
-                  id: "setup-dashboard-with-agent",
-                  component: "@dash-bored/command",
-                  props: {
-                    label: "Set up this dashboard",
-                    command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"',
-                    cwd: ".",
-                    env: {
-                      DASH_BORED_AGENT_PROMPT: agentPrompt,
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      },
+      component: "@dash-bored/group",
+      children: tiled(vertical(rootNodes)),
     },
   };
 }

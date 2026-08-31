@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -6,9 +8,16 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { createPortal } from "react-dom";
+import type {
+  CSSProperties,
+  DragEvent as ReactDragEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode,
+} from "react";
 import type {
   AppSettings,
+  ComponentNode,
   DashboardConfig,
   DashboardDraftValidation,
   Diagnostic,
@@ -22,7 +31,11 @@ import type {
   ProjectTarget,
   ResolvedComponentNode,
 } from "../shared/contracts";
-import { componentPath } from "../shared/component-agent";
+import {
+  buildComponentCreationAgentPrompt,
+  componentPath,
+  dashboardInsertionPath,
+} from "../shared/component-agent";
 import {
   buildApplicationActions,
   buildNodeFocusActions,
@@ -33,8 +46,7 @@ import {
 import type { AppView } from "./action-providers";
 import { ActionExecutor, ActionRegistry } from "./actions";
 import type { PaletteAction } from "./actions";
-import { BuiltinRenderer } from "./builtins";
-import type { RenderedSlots } from "./builtins";
+import { packagedComponent } from "./builtins";
 import { writeClipboardText } from "./clipboard";
 import { CommandPalette } from "./CommandPalette";
 import {
@@ -48,13 +60,53 @@ import {
   parseCollapsedComponentIds,
   serializeCollapsedComponentIds,
 } from "./component-view-state";
+import {
+  ComponentVisibilityContext,
+  composeComponentChildren,
+} from "./ComponentCompositor";
+import { ComponentWebviewSurface } from "./ComponentWebviewSurface";
+import {
+  normalizeSplitRatio,
+  normalizeVerticalSplitSize,
+  parseSplitRatioOverrides,
+  pruneSplitRatioOverrides,
+  serializeSplitRatioOverrides,
+  splitRatioMatches,
+  splitRatioOverridesStorageKey,
+  type SplitRatioOverrides,
+} from "./split-layout";
 import { DashboardOutlineTree } from "./DashboardOutlineTree";
 import {
   DashboardEditor,
+  ComponentDialog,
   DashboardEditorToolbar,
   EditorModal,
 } from "./DashboardEditor";
-import type { SlotTarget } from "./dashboard-editor";
+import {
+  catalogManifest,
+  countNodes,
+  defaultChildMetadata,
+  nodeAtPath,
+  pathEquals,
+  nodePathFromSourcePath,
+  nodePathById,
+  removeNode,
+  updateTiledSplitRatio,
+  type InsertionTarget,
+  type NodePath,
+} from "./dashboard-editor";
+import {
+  childEdges,
+  edgeAtLocator,
+  type LayoutBranch,
+} from "./component-children";
+import {
+  deriveInsertionTargets,
+} from "./composition-placement";
+import { buildCompositionPreviewTree } from "./composition-preview";
+import { planCompositionOperation } from "./composition-operation";
+import { CompositionFlyout } from "./CompositionFlyout";
+import type { ComponentPointerDragPoint } from "./CompositionFlyout";
 import {
   LocalComponentErrorBoundary,
   useLocalComponents,
@@ -62,8 +114,20 @@ import {
 import type { LoadedLocalComponent } from "./local-components";
 import { host } from "./rpc-client";
 import { nodeLabel, resolveVirtualRoot, virtualRootStorageKey } from "./virtual-root";
+import {
+  CompositionContext,
+  type CompositionDragPayload,
+  type CompositionDropZone,
+  type CompositionTarget,
+} from "./composition-context";
+import {
+  compatibleCompositionDropZones,
+  compositionPayloadFromDragEvent,
+} from "./composition-dnd";
+import { useCompositionInteractionController } from "./composition-interaction-controller";
 
 const EMPTY_COLLAPSED_COMPONENT_IDS = new Set<string>();
+const EMPTY_SPLIT_RATIO_OVERRIDES: Readonly<SplitRatioOverrides> = Object.freeze({});
 
 function replaceProcess(
   snapshot: ProjectSnapshot,
@@ -82,6 +146,18 @@ function errorMessage(error: unknown): string {
 
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
+function resolvedNodeById(
+  root: ResolvedComponentNode,
+  id: string,
+): ResolvedComponentNode | null {
+  if (root.id === id) return root;
+  for (const edge of childEdges(root.children)) {
+    const match = resolvedNodeById(edge.node, id);
+    if (match) return match;
+  }
+  return null;
 }
 
 function rememberProject(
@@ -119,13 +195,159 @@ interface ActionNotice {
   message: string;
 }
 
+interface DashboardEditSession {
+  projectRoot: string;
+  configPath: string;
+  componentCatalog: ComponentCatalogItem[];
+  original: DashboardConfig;
+  draft: DashboardConfig;
+  expectedConfigRevision: string;
+  validation: DashboardDraftValidation;
+}
+
+interface DashboardCompositionSource {
+  projectRoot: string;
+  activeDashboardPath: string;
+  focusedSourcePath: string;
+  snapshotRevision: number;
+  configPath: string;
+  componentCatalog: ComponentCatalogItem[];
+  config: DashboardConfig;
+}
+
+function compositionTargetId(target: CompositionTarget): string {
+  return JSON.stringify(target);
+}
+
+function isRootCompositionTarget(
+  target: CompositionTarget,
+): target is { type: "root-replacement"; path: [] } {
+  return "type" in target && target.type === "root-replacement";
+}
+
+function findResolvedConfigRoot(
+  node: ResolvedComponentNode,
+  configPath: string,
+): ResolvedComponentNode | null {
+  if (node.sourceConfigPath === configPath && node.sourcePath === "root") return node;
+  for (const edge of childEdges(node.children)) {
+    const match = findResolvedConfigRoot(edge.node, configPath);
+    if (match) return match;
+  }
+  return null;
+}
+
+function linkedComponentIdNamespace(
+  template: ResolvedComponentNode,
+  rawRoot: ComponentNode,
+): string | undefined {
+  const rawRootId = rawRoot.id ?? "root";
+  const suffix = `::${rawRootId}`;
+  if (template.id.endsWith(suffix)) return template.id.slice(0, -suffix.length);
+  const separator = template.id.lastIndexOf("::");
+  return separator > 0 ? template.id.slice(0, separator) : undefined;
+}
+
+function compositionTargetLabel(target: CompositionTarget): string {
+  if (isRootCompositionTarget(target)) return "Replace dashboard root";
+  const placement = target.placement;
+  if (placement.type === "managed") return `Insert child ${placement.index + 1}`;
+  if (placement.axis === "horizontal") return placement.position === "first" ? "Tile left" : "Tile right";
+  return placement.position === "first" ? "Tile above" : "Tile below";
+}
+
+function configuredNodeLabel(
+  node: ComponentNode,
+  catalog: readonly ComponentCatalogItem[],
+  metadata: Record<string, unknown> = {},
+): string {
+  const edgeLabel = metadata.label;
+  if (typeof edgeLabel === "string" && edgeLabel.trim()) return edgeLabel.trim();
+  const title = node.props?.title ?? node.props?.label ?? node.props?.name;
+  if (typeof title === "string" && title.trim()) return title.trim();
+  return catalogManifest(catalog, node.component)?.name
+    ?? node.component.replace(/^@dash-bored\//, "");
+}
+
+/** A compact label for the thing currently being placed, not its destination. */
+function compositionPayloadLabel(
+  payload: CompositionDragPayload,
+  config: DashboardConfig,
+  catalog: readonly ComponentCatalogItem[],
+): string {
+  if (payload.type === "component") {
+    return catalogManifest(catalog, payload.reference)?.name
+      ?? payload.reference.replace(/^@dash-bored\//, "");
+  }
+  try {
+    return configuredNodeLabel(nodeAtPath(config.root, payload.path), catalog);
+  } catch {
+    // The move planner will reject an out-of-date source. Keep the transient
+    // preview descriptive without treating the stale path as a valid node.
+    return "Component";
+  }
+}
+
+function contextualInsertionLabel(
+  parent: ComponentNode,
+  target: InsertionTarget,
+  catalog: readonly ComponentCatalogItem[],
+): string {
+  const placement = target.placement;
+  const parentLabel = configuredNodeLabel(parent, catalog);
+  if (!parent.children) return `Add inside ${parentLabel}`;
+  if (placement.type === "managed") {
+    if (parent.children.type !== "managed") return compositionTargetLabel(target);
+    const before = parent.children.items[placement.index - 1];
+    const after = parent.children.items[placement.index];
+    if (!before && after) {
+      return `Insert before ${configuredNodeLabel(after.node, catalog, after.metadata)}`;
+    }
+    if (before && !after) {
+      return `Insert after ${configuredNodeLabel(before.node, catalog, before.metadata)}`;
+    }
+    if (before && after) {
+      return `Insert between ${configuredNodeLabel(before.node, catalog, before.metadata)} and ${configuredNodeLabel(after.node, catalog, after.metadata)}`;
+    }
+    return `Add inside ${parentLabel}`;
+  }
+  try {
+    const edge = edgeAtLocator(parent.children, { type: "tiled", path: placement.path });
+    const childLabel = configuredNodeLabel(edge.node, catalog, edge.metadata);
+    if (placement.axis === "horizontal") {
+      return placement.position === "first"
+        ? `Tile left of ${childLabel}`
+        : `Tile right of ${childLabel}`;
+    }
+    return placement.position === "first"
+      ? `Tile above ${childLabel}`
+      : `Tile below ${childLabel}`;
+  } catch {
+    return compositionTargetLabel(target);
+  }
+}
+
+function compositionDropZoneSide(
+  target: InsertionTarget,
+  targetChildPath: NodePath[number] | undefined,
+): CompositionDropZone["side"] {
+  const placement = target.placement;
+  if (placement.type === "managed") {
+    return targetChildPath?.type === "managed" && placement.index <= targetChildPath.index
+      ? "left"
+      : "right";
+  }
+  if (placement.axis === "horizontal") return placement.position === "first" ? "left" : "right";
+  return placement.position === "first" ? "top" : "bottom";
+}
+
 function outlineError(outline: Pick<ProjectOutline, "tree" | "diagnostics">): string | null {
   if (outline.tree) return null;
   return outline.diagnostics.find((item) => item.severity === "error")?.message
     ?? "The dashboard tree is unavailable.";
 }
 
-type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit" | "tree" | "trash";
+type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit" | "library" | "tree" | "trash";
 
 function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
   if (name === "project") {
@@ -161,6 +383,16 @@ function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
       </svg>
     );
   }
+  if (name === "library") {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <rect x="3" y="4" width="5" height="5" rx="1" />
+        <rect x="12" y="4" width="5" height="5" rx="1" />
+        <rect x="3" y="11" width="5" height="5" rx="1" />
+        <rect x="12" y="11" width="5" height="5" rx="1" />
+      </svg>
+    );
+  }
   if (name === "tree") {
     return (
       <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -189,6 +421,8 @@ function createLocalHost(
   node: ResolvedComponentNode,
   actionRegistry: ActionRegistry,
   actionScope: string,
+  trusted: boolean,
+  processes: ReadonlyMap<string, ProcessSnapshot>,
 ): LocalComponentHost {
   const permissions = new Set(node.manifest?.permissions ?? []);
   const actionOwner = {
@@ -240,6 +474,32 @@ function createLocalHost(
     };
   }
 
+  if (permissions.has("process:execute") || permissions.has("process:observe")) {
+    componentHost.processes = {
+      get(nodeId = node.id) {
+        return processes.get(nodeId);
+      },
+      ...(permissions.has("process:execute")
+        ? {
+            start() {
+              return host.startProcess(node.id);
+            },
+            stop() {
+              return host.stopProcess(node.id);
+            },
+          }
+        : {}),
+    };
+  }
+
+  if (trusted && permissions.has("webview:embed")) {
+    componentHost.webview = {
+      render(request) {
+        return <ComponentWebviewSurface url={request.url} title={request.title} />;
+      },
+    };
+  }
+
   return componentHost;
 }
 
@@ -254,8 +514,27 @@ interface ComponentFrameProps {
   onFocus: (nodeId: string) => void;
   onToggleCollapse: () => void;
   onCopyPath: (node: ResolvedComponentNode) => void;
+  onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
   children: ReactNode;
+}
+
+function canStartCompositionHeaderDrag(
+  event: ReactPointerEvent<HTMLElement>,
+  nodeId: string,
+): boolean {
+  if (event.button !== 0) return false;
+  const target = event.target instanceof globalThis.Element ? event.target : null;
+  if (!target) return false;
+  // A frame can contain another component frame. Only the nearest frame owns
+  // a direct-manipulation gesture, otherwise dragging a nested card would move
+  // every ancestor that happens to receive the bubbled pointer event.
+  if (target.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId !== nodeId) return false;
+  // A component's own header is its only direct-manipulation affordance. This
+  // keeps normal content (including inputs and live controls) untouched while
+  // avoiding a second editor toolbar around every frame.
+  if (!target.closest("header, h1, h2, h3, [data-component-drag-header]")) return false;
+  return !target.closest("button, a, input, select, textarea, [contenteditable='true'], [role='button'], [role='slider'], [role='tab']");
 }
 
 function ComponentFrame({
@@ -269,20 +548,99 @@ function ComponentFrame({
   onFocus,
   onToggleCollapse,
   onCopyPath,
+  onEditComponent,
   onOpenAgent,
   children,
 }: ComponentFrameProps): ReactNode {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuPopoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const composition = useContext(CompositionContext);
+  const compositionRef = useRef(composition);
+  const pointerMoveRef = useRef<{
+    pointerId: number;
+    path: NodePath;
+    startX: number;
+    startY: number;
+    active: boolean;
+    captureTarget: HTMLElement;
+  } | null>(null);
+  compositionRef.current = composition;
   const Element = as;
   const name = node.configName?.trim() || nodeLabel(node, false);
   const descendantCount = countComponentDescendants(node);
+  const compositionPath = composition?.active ? composition.pathForNode(node) : null;
+  const compositionDragActive = composition !== null && composition.dragging !== null;
+  const compositionDragSource = composition?.dragging?.type === "node"
+    && compositionPath !== null
+    && pathEquals(compositionPath, composition.dragging.path);
+  const compositionDragLabel = composition?.dragging
+    ? compositionPayloadLabel(composition.dragging, composition.config, composition.catalog)
+    : null;
+  const showComponentMenu = !compositionDragActive;
+
+  // A drag advertises only the boundary under its pointer. Rendering every
+  // compatible edge of every component made nested dashboards both noisy and
+  // expensive to paint.
+  const compositionDropZone = useMemo(() => {
+    if (
+      !composition?.dragging
+      || composition.pointer?.nodeId !== node.id
+      || !composition.pointer.zoneId
+    ) return null;
+    return composition.dropZonesForNode(node, composition.dragging)
+      .find((zone) => zone.id === composition.pointer?.zoneId) ?? null;
+  }, [composition, node]);
+
+  const beginCompositionPointerMove = useCallback((
+    event: ReactPointerEvent<HTMLElement>,
+    path: NodePath,
+  ): void => {
+    if (event.button !== 0) return;
+    // Pointer capture keeps a move initiated from a component frame alive when
+    // its controls fade during the drag, including in the native WebKit host.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Window listeners below are the cross-host fallback.
+    }
+    pointerMoveRef.current = {
+      pointerId: event.pointerId,
+      path,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      captureTarget: event.currentTarget,
+    };
+  }, []);
+
+  function compositionPointerDrop(event: ReactDragEvent<HTMLElement>): {
+    payload: CompositionDragPayload;
+    zone: CompositionDropZone;
+  } | null {
+    if (!composition?.active) return null;
+    const eventTarget = event.target instanceof globalThis.Element ? event.target : null;
+    if (eventTarget?.closest("[data-composition-controls]")) return null;
+    const nearestNode = eventTarget?.closest<HTMLElement>("[data-node-id]");
+    if (nearestNode?.dataset.nodeId && nearestNode.dataset.nodeId !== node.id) return null;
+    const payload = compositionPayloadFromDragEvent(event.dataTransfer, composition.dragging);
+    if (!payload) return null;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const zone = composition.pointerDropZoneForNode(
+      node,
+      (event.clientX - rect.left) / rect.width,
+      (event.clientY - rect.top) / rect.height,
+      payload,
+    );
+    return zone && composition.canDrop(zone.target, payload) ? { payload, zone } : null;
+  }
 
   function positionMenu(anchorX: number, anchorY: number, alignRight: boolean): void {
     const width = Math.min(224, window.innerWidth - 24);
-    const height = 168;
+    const height = 208;
     const requestedLeft = alignRight ? anchorX - width : anchorX;
     setMenuPosition({
       left: Math.max(12, Math.min(requestedLeft, window.innerWidth - width - 12)),
@@ -301,9 +659,15 @@ function ComponentFrame({
   }
 
   useEffect(() => {
+    if (showComponentMenu) return;
+    setOpen(false);
+  }, [showComponentMenu]);
+
+  useEffect(() => {
     if (!open) return;
     const closeOutside = (event: PointerEvent): void => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !menuPopoverRef.current?.contains(target)) setOpen(false);
     };
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== "Escape") return;
@@ -317,7 +681,7 @@ function ComponentFrame({
     window.addEventListener("resize", closeOnViewportChange);
     window.addEventListener("scroll", closeOnViewportChange, true);
     requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']:not(:disabled)")?.focus();
+      menuPopoverRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']:not(:disabled)")?.focus();
     });
     return () => {
       document.removeEventListener("pointerdown", closeOutside);
@@ -327,6 +691,56 @@ function ComponentFrame({
     };
   }, [open]);
 
+  useEffect(() => {
+    const move = (event: globalThis.PointerEvent): void => {
+      const current = pointerMoveRef.current;
+      const activeComposition = compositionRef.current;
+      if (!current || !activeComposition || current.pointerId !== event.pointerId) return;
+      if (!current.active) {
+        if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) < 6) return;
+        current.active = true;
+        activeComposition.onNodeDragStart(current.path);
+      }
+      event.preventDefault();
+      activeComposition.onNodePointerDragMove(current.path, event);
+    };
+    const finish = (event: globalThis.PointerEvent, cancelled: boolean): void => {
+      const current = pointerMoveRef.current;
+      const activeComposition = compositionRef.current;
+      if (!current || !activeComposition || current.pointerId !== event.pointerId) return;
+      if (current.active && !cancelled) {
+        event.preventDefault();
+        activeComposition.onNodePointerDrop(current.path, event);
+      }
+      pointerMoveRef.current = null;
+      if (current.captureTarget.hasPointerCapture(current.pointerId)) {
+        current.captureTarget.releasePointerCapture(current.pointerId);
+      }
+      if (current.active) activeComposition.onNodeDragEnd();
+    };
+    const blur = (): void => {
+      const current = pointerMoveRef.current;
+      if (!current) return;
+      pointerMoveRef.current = null;
+      if (current.captureTarget.hasPointerCapture(current.pointerId)) {
+        current.captureTarget.releasePointerCapture(current.pointerId);
+      }
+      if (current.active) compositionRef.current?.onNodeDragEnd();
+    };
+    const pointerUp = (event: globalThis.PointerEvent): void => finish(event, false);
+    const pointerCancel = (event: globalThis.PointerEvent): void => finish(event, true);
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", pointerUp);
+    window.addEventListener("pointercancel", pointerCancel);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", pointerUp);
+      window.removeEventListener("pointercancel", pointerCancel);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
+
   function choose(action: () => void): void {
     setOpen(false);
     action();
@@ -334,20 +748,84 @@ function ComponentFrame({
 
   return (
     <Element
-      className={`${className}${collapsed ? " component-node--collapsed" : ""}`}
+      className={`${className}${collapsed ? " component-node--collapsed" : ""}${compositionDropZone ? " component-node--drop-ready" : ""}${compositionPath && compositionPath.length > 0 ? " component-node--composition-draggable" : ""}${compositionDragActive ? " component-node--composition-dragging" : ""}${compositionDragSource ? " component-node--composition-drag-source" : ""}`}
       data-component={node.component}
+      data-composition-drag-source={compositionDragSource ? "true" : undefined}
       data-node-id={node.id}
       data-collapsed={collapsed ? "true" : "false"}
+      aria-grabbed={compositionDragSource || undefined}
       role={role}
       aria-live={ariaLive}
+      onPointerDown={(event) => {
+        if (!composition?.active || composition.dragging !== null || !compositionPath || compositionPath.length === 0) return;
+        if (canStartCompositionHeaderDrag(event, node.id)) {
+          // Selection starts on pointerdown, before the movement threshold is
+          // crossed. Suppress that native default now so dragging a header
+          // never paints a text selection through the dashboard.
+          event.preventDefault();
+          window.getSelection()?.removeAllRanges();
+          beginCompositionPointerMove(event, compositionPath);
+        }
+      }}
+      onDragOver={(event) => {
+        if (!composition?.active) return;
+        const knownPayload = compositionPayloadFromDragEvent(event.dataTransfer, composition.dragging);
+        if (!knownPayload) {
+          // Keep the first WebKit dragover alive while dragstart state catches
+          // up, but do not advertise an unknown frame as a real target.
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "none";
+          composition.onDragTarget(null, null);
+          return;
+        }
+        const drop = compositionPointerDrop(event);
+        if (!drop) {
+          event.dataTransfer.dropEffect = "none";
+          composition.onDragTarget(null, null);
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = drop.payload.type === "node" ? "move" : "copy";
+        composition.onDragTarget(node.id, drop.zone);
+      }}
+      onDragEnter={(event) => {
+        if (!composition?.active) return;
+        const knownPayload = compositionPayloadFromDragEvent(event.dataTransfer, composition.dragging);
+        if (!knownPayload) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "none";
+          return;
+        }
+        const drop = compositionPointerDrop(event);
+        if (!drop) {
+          composition.onDragTarget(null, null);
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = drop.payload.type === "node" ? "move" : "copy";
+        composition.onDragTarget(node.id, drop.zone);
+      }}
+      onDragLeave={(event) => {
+        const related = event.relatedTarget;
+        if (related instanceof globalThis.Node && event.currentTarget.contains(related)) return;
+        composition?.onDragTarget(null, null);
+      }}
+      onDrop={(event) => {
+        const drop = compositionPointerDrop(event);
+        if (!drop) return;
+        event.preventDefault();
+        composition?.onDragTarget(null, null);
+        composition?.onDrop(drop.zone.target, drop.payload);
+      }}
       onContextMenu={(event) => {
+        if (!showComponentMenu) return;
         event.preventDefault();
         event.stopPropagation();
         positionMenu(event.clientX, event.clientY, false);
         setOpen(true);
       }}
     >
-      <div className="component-node__menu" ref={menuRef}>
+      {showComponentMenu ? <div className="component-node__menu" ref={menuRef}>
         <button
           className="component-node__menu-trigger"
           ref={triggerRef}
@@ -364,9 +842,10 @@ function ComponentFrame({
             <circle cx="16" cy="10" r="1.25" />
           </svg>
         </button>
-        {open ? (
+        {open && typeof document !== "undefined" ? createPortal(
           <div
             className="component-node__menu-popover"
+            ref={menuPopoverRef}
             role="menu"
             aria-label={`${name} component actions`}
             style={menuPosition}
@@ -380,6 +859,9 @@ function ComponentFrame({
             >
               <span>Focus component</span>
               {isVirtualRoot ? <small>Focused</small> : null}
+            </button>
+            <button type="button" role="menuitem" onClick={() => choose(() => onEditComponent(node))}>
+              Edit component
             </button>
             <button
               type="button"
@@ -396,9 +878,25 @@ function ComponentFrame({
             <button type="button" role="menuitem" onClick={() => choose(() => onOpenAgent(node))}>
               Change with agent…
             </button>
-          </div>
+          </div>,
+          document.body,
         ) : null}
-      </div>
+      </div> : null}
+      {compositionDropZone ? (
+        <div
+          className={`composition-drop-indicator composition-drop-indicator--${compositionDropZone.side}`}
+          data-composition-placement-preview
+          aria-hidden="true"
+        >
+          <div className="composition-drop-indicator__preview">
+            <span className="composition-drop-indicator__mode">
+              {composition?.dragging?.type === "node" ? "Moving" : "Adding"}
+            </span>
+            <strong>{compositionDragLabel ?? "Component"}</strong>
+            <span className="composition-drop-indicator__target">{compositionDropZone.label}</span>
+          </div>
+        </div>
+      ) : null}
       {collapsed ? (
         <button
           className="component-node__collapsed"
@@ -430,9 +928,19 @@ interface NodeRendererProps {
   actionScope: string;
   updateBatch: ComponentUpdateBatch | null;
   collapsedNodeIds: ReadonlySet<string>;
+  splitRatioOverrides: Readonly<SplitRatioOverrides>;
   onFocus: (nodeId: string) => void;
   onToggleCollapse: (nodeId: string) => void;
+  onSplitRatioChange: (
+    branchKey: string,
+    defaultRatio: number,
+    ratio: number | null,
+    node: ResolvedComponentNode,
+    splitPath: readonly LayoutBranch[],
+    verticalSize?: number,
+  ) => void;
   onCopyPath: (node: ResolvedComponentNode) => void;
+  onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
   isVirtualRoot?: boolean;
 }
@@ -470,48 +978,55 @@ function NodeRenderer({
   actionScope,
   updateBatch,
   collapsedNodeIds,
+  splitRatioOverrides,
   onFocus,
   onToggleCollapse,
+  onSplitRatioChange,
   onCopyPath,
+  onEditComponent,
   onOpenAgent,
   isVirtualRoot = false,
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const localHost = useMemo(
-    () => createLocalHost(node, actionRegistry, actionScope),
-    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey],
+    () => createLocalHost(node, actionRegistry, actionScope, trusted, processes),
+    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processes, trusted],
   );
   useEffect(
     () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
     [actionRegistry, actionScope, node.id],
   );
   const collapsed = collapsedNodeIds.has(node.id);
-  const slots: RenderedSlots = collapsed
-    ? {}
-    : Object.fromEntries(
-        Object.entries(node.slots).map(([name, children]) => [
-          name,
-          children.map((child) => (
-            <NodeRenderer
-              key={child.id}
-              node={child}
-              trusted={trusted}
-              processes={processes}
-              localComponents={localComponents}
-              actionRegistry={actionRegistry}
-              actionScope={actionScope}
-              updateBatch={updateBatch}
-              collapsedNodeIds={collapsedNodeIds}
-              onFocus={onFocus}
-              onToggleCollapse={onToggleCollapse}
-              onCopyPath={onCopyPath}
-              onOpenAgent={onOpenAgent}
-            />
-          )),
-        ]),
-      );
+  const renderedChildren = collapsed
+    ? undefined
+    : composeComponentChildren({
+        node,
+        splitRatioOverrides,
+        onSplitRatioChange,
+        renderNode: (child) => (
+          <NodeRenderer
+            key={child.id}
+            node={child}
+            trusted={trusted}
+            processes={processes}
+            localComponents={localComponents}
+            actionRegistry={actionRegistry}
+            actionScope={actionScope}
+            updateBatch={updateBatch}
+            collapsedNodeIds={collapsedNodeIds}
+            splitRatioOverrides={splitRatioOverrides}
+            onFocus={onFocus}
+            onToggleCollapse={onToggleCollapse}
+            onSplitRatioChange={onSplitRatioChange}
+            onCopyPath={onCopyPath}
+            onEditComponent={onEditComponent}
+            onOpenAgent={onOpenAgent}
+          />
+        ),
+      });
 
   if (node.source === "builtin") {
+    const Component = packagedComponent(node.component);
     return (
       <ComponentFrame
         node={node}
@@ -521,16 +1036,18 @@ function NodeRenderer({
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
+        onEditComponent={onEditComponent}
         onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
-            <BuiltinRenderer
-              node={node}
-              slots={slots}
-              trusted={trusted}
-              processes={processes}
-            />
+            {Component ? (
+              <Component props={node.props} children={renderedChildren} host={localHost} />
+            ) : (
+              <div className="component-state component-state--error" role="alert">
+                Unknown packaged component <code>{node.component}</code>.
+              </div>
+            )}
             <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
           </>
         ) : null}
@@ -550,6 +1067,7 @@ function NodeRenderer({
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
+        onEditComponent={onEditComponent}
         onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
@@ -561,7 +1079,9 @@ function NodeRenderer({
                 <code>{node.configPath ?? node.component}</code>
               </div>
             ) : (
-              <div className="config-link__content">{slots.content}</div>
+              <div className="config-link__content">
+                {renderedChildren?.type === "tiled" ? renderedChildren.surface : null}
+              </div>
             )}
             <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
           </>
@@ -581,6 +1101,7 @@ function NodeRenderer({
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
+        onEditComponent={onEditComponent}
         onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
@@ -608,6 +1129,7 @@ function NodeRenderer({
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
+        onEditComponent={onEditComponent}
         onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
@@ -631,6 +1153,7 @@ function NodeRenderer({
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
+        onEditComponent={onEditComponent}
         onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
@@ -655,6 +1178,7 @@ function NodeRenderer({
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
         onCopyPath={onCopyPath}
+        onEditComponent={onEditComponent}
         onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
@@ -678,6 +1202,7 @@ function NodeRenderer({
       onFocus={onFocus}
       onToggleCollapse={() => onToggleCollapse(node.id)}
       onCopyPath={onCopyPath}
+      onEditComponent={onEditComponent}
       onOpenAgent={onOpenAgent}
     >
       {!collapsed ? (
@@ -686,7 +1211,7 @@ function NodeRenderer({
             name={name}
             resetKey={`${node.id}:${loaded.revision}`}
           >
-            <Component props={node.props} slots={slots} host={localHost} />
+            <Component props={node.props} children={renderedChildren} host={localHost} />
           </LocalComponentErrorBoundary>
           {loaded.error ? (
             <span
@@ -1080,15 +1605,19 @@ export function App(): ReactNode {
   const [virtualRoots, setVirtualRoots] = useState<Record<string, string | null>>({});
   const [collapsedDashboardPath, setCollapsedDashboardPath] = useState<string | null>(null);
   const [collapsedComponentIds, setCollapsedComponentIds] = useState<Set<string>>(new Set());
-  const [editSession, setEditSession] = useState<{
-    projectRoot: string;
-    configPath: string;
-    componentCatalog: ComponentCatalogItem[];
-    original: DashboardConfig;
-    draft: DashboardConfig;
-    expectedConfigRevision: string;
-    validation: DashboardDraftValidation;
-  } | null>(null);
+  const [splitRatioDashboardPath, setSplitRatioDashboardPath] = useState<string | null>(null);
+  const [splitRatioOverrides, setSplitRatioOverrides] = useState<SplitRatioOverrides>({});
+  const compositionInteraction = useCompositionInteractionController();
+  const {
+    libraryOpen: componentLibraryOpen,
+    dragging: compositionDrag,
+    pointer: compositionPointer,
+    selectedTarget: compositionTarget,
+    dialog: compositionDialog,
+    removePath: compositionRemovePath,
+  } = compositionInteraction;
+  const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
+  const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [discardConfirmation, setDiscardConfirmation] = useState<{
     message: string;
@@ -1098,6 +1627,11 @@ export function App(): ReactNode {
     project: ProjectListItem;
     preview: ProjectDeletionPreview;
     removeFiles: boolean;
+  } | null>(null);
+  const compositionPointerFrame = useRef<number | null>(null);
+  const pendingCompositionPointer = useRef<{
+    payload: CompositionDragPayload;
+    point: ComponentPointerDragPoint;
   } | null>(null);
   const [agentDialog, setAgentDialog] = useState<ResolvedComponentNode | null>(null);
   const localComponents = useLocalComponents(
@@ -1124,6 +1658,12 @@ export function App(): ReactNode {
     actionExecutor.subscribe,
     actionExecutor.getSnapshot,
   );
+
+  useEffect(() => () => {
+    if (compositionPointerFrame.current !== null) {
+      cancelAnimationFrame(compositionPointerFrame.current);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1246,6 +1786,11 @@ export function App(): ReactNode {
     setActionNotice({ id: nextActionNoticeId.current, message });
   }
 
+  function resetCompositionUi(): void {
+    compositionInteraction.reset();
+    setCompositionSource(null);
+  }
+
   function editSessionDirty(): boolean {
     return Boolean(editSession && JSON.stringify(editSession.original) !== JSON.stringify(editSession.draft));
   }
@@ -1253,6 +1798,7 @@ export function App(): ReactNode {
   function requireDiscard(message: string, continueAction: () => void): boolean {
     if (!editSessionDirty()) {
       setEditSession(null);
+      resetCompositionUi();
       return true;
     }
     setDiscardConfirmation({ message, continueAction });
@@ -1367,6 +1913,7 @@ export function App(): ReactNode {
       setEditSession((current) =>
         current?.configPath === request.project.configPath ? null : current,
       );
+      if (editSession?.configPath === request.project.configPath) resetCompositionUi();
       setVirtualRoots((current) => {
         if (!Object.hasOwn(current, request.project.configPath)) return current;
         const next = { ...current };
@@ -1387,8 +1934,9 @@ export function App(): ReactNode {
       });
       try {
         window.localStorage.removeItem(virtualRootStorageKey(request.project.configPath));
+        window.localStorage.removeItem(splitRatioOverridesStorageKey(request.project.configPath));
       } catch {
-        // The in-memory focus state has already been cleared.
+        // The in-memory focus and split state have already been cleared.
       }
 
       if (wasActive) {
@@ -1407,44 +1955,74 @@ export function App(): ReactNode {
     }
   }
 
-  async function startProjectEditor(project: ProjectTarget): Promise<void> {
-    await perform(`edit:${project.configPath}`, async () => {
-      if (snapshot?.configPath !== project.configPath) await host.openProject(project);
-      const focusedSource = snapshot?.configPath === project.configPath
-        ? virtualRoot?.node.sourceConfigPath
-        : undefined;
+  async function loadCompositionSource(): Promise<void> {
+    if (!snapshot?.projectRoot || !snapshot.configPath) return;
+    const focusedSource = virtualRoot?.node.sourceConfigPath;
+    if (!focusedSource || focusedSource === snapshot.configPath) {
+      setCompositionSource(null);
+      return;
+    }
+    const request = {
+      projectRoot: snapshot.projectRoot,
+      activeDashboardPath: snapshot.configPath,
+      focusedSourcePath: focusedSource,
+      snapshotRevision: snapshot.revision,
+      configPath: focusedSource,
+    };
+    setCompositionSource(null);
+    try {
+      const source = await host.getDashboardConfigSource(focusedSource);
+      if (source.configPath !== request.configPath) return;
+      setCompositionSource({
+        ...request,
+        config: source.config,
+        componentCatalog: source.componentCatalog,
+      });
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
+  }
+
+  function toggleCompositionLibrary(): void {
+    compositionInteraction.toggleLibrary();
+  }
+
+  async function ensureCurrentDashboardEdit(): Promise<DashboardEditSession | null> {
+    if (!snapshot?.projectRoot || !snapshot.configPath) return null;
+    if (editSession?.projectRoot === snapshot.projectRoot) {
+      return editSession;
+    }
+    if (editSession) {
+      setActionError("Finish the current dashboard draft before composing another dashboard.");
+      return null;
+    }
+
+    let loaded: DashboardEditSession | null = null;
+    await perform(`edit:${snapshot.configPath}`, async () => {
+      const focusedSource = virtualRoot?.node.sourceConfigPath;
       const source = await host.getDashboardConfigSource(focusedSource);
       const validation = await host.validateDashboardDraft(source.config, source.configPath);
-      setActiveView("dashboard");
-      setEditSession({
-        projectRoot: project.projectRoot,
+      loaded = {
+        projectRoot: snapshot.projectRoot!,
         configPath: source.configPath,
         componentCatalog: source.componentCatalog,
         original: structuredClone(source.config),
         draft: structuredClone(source.config),
         expectedConfigRevision: source.configRevision,
         validation,
-      });
+      };
+      setActiveView("dashboard");
+      setEditSession(loaded);
     });
+    return loaded;
   }
 
   function cancelDashboardEdit(): void {
     if (!editSession) return;
     if (requireDiscard("Discard the unsaved dashboard changes and exit edit mode?", () => undefined)) {
       setEditSession(null);
+      resetCompositionUi();
     }
-  }
-
-  async function toggleProjectEditor(project: ProjectTarget): Promise<void> {
-    if (editSession?.configPath === project.configPath) {
-      cancelDashboardEdit();
-      return;
-    }
-    if (editSession && editSession.configPath !== project.configPath && !requireDiscard(
-      "Discard the unsaved dashboard changes and edit another project?",
-      () => void startProjectEditor(project),
-    )) return;
-    await startProjectEditor(project);
   }
 
   function showSettings(): void {
@@ -1491,7 +2069,7 @@ export function App(): ReactNode {
 
   async function runComponentCreationAgent(
     configPath: string,
-    target: SlotTarget,
+    target: InsertionTarget,
     prompt: string,
   ): Promise<void> {
     setPendingAction("component-agent:create");
@@ -1500,6 +2078,7 @@ export function App(): ReactNode {
     try {
       const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
       setEditSession(null);
+      resetCompositionUi();
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
     } catch (error) {
       setActionError(errorMessage(error));
@@ -1508,7 +2087,7 @@ export function App(): ReactNode {
     }
   }
 
-  function requestComponentCreationAgent(target: SlotTarget, prompt: string): void {
+  function requestComponentCreationAgent(target: InsertionTarget, prompt: string): void {
     if (!editSession || pendingAction !== null) return;
     const configPath = editSession.configPath;
     const launch = (): void => {
@@ -1535,6 +2114,7 @@ export function App(): ReactNode {
         editSession.configPath,
       );
       setEditSession(null);
+      resetCompositionUi();
     } catch (error) {
       setActionError(errorMessage(error));
     } finally {
@@ -1542,9 +2122,9 @@ export function App(): ReactNode {
     }
   }
 
-  const editingCurrentProject = Boolean(editSession && editSession.configPath === snapshot?.configPath);
-  const draftDirty = editingCurrentProject && editSessionDirty();
-  const draftValid = editingCurrentProject && Boolean(
+  const editingActiveProject = Boolean(editSession && editSession.projectRoot === snapshot?.projectRoot);
+  const draftDirty = Boolean(editSession && editSessionDirty());
+  const draftValid = Boolean(editSession &&
     editSession?.validation.diagnostics.every((item) => item.severity !== "error"),
   );
   const applicationActions = buildApplicationActions({
@@ -1553,7 +2133,7 @@ export function App(): ReactNode {
     activeView,
     sidebarExpanded,
     pendingAction,
-    editing: editingCurrentProject,
+    editing: editingActiveProject,
     draftDirty,
     draftValid,
     savingDraft,
@@ -1563,9 +2143,7 @@ export function App(): ReactNode {
       toggleSidebar: () => setSidebarExpanded((expanded) => !expanded),
       addDashboard,
       openProject: selectProject,
-      editDashboard: () => snapshot?.projectRoot && snapshot.configPath
-        ? toggleProjectEditor({ projectRoot: snapshot.projectRoot, configPath: snapshot.configPath })
-        : undefined,
+      editDashboard: toggleCompositionLibrary,
       saveDashboard: () => saveDashboardDraft(),
       cancelDashboard: cancelDashboardEdit,
       reloadProject: () => perform("reload", host.reloadProject),
@@ -1584,9 +2162,88 @@ export function App(): ReactNode {
   const activeCollapsedComponentIds = collapsedDashboardPath === dashboardPath
     ? collapsedComponentIds
     : EMPTY_COLLAPSED_COMPONENT_IDS;
+  const activeSplitRatioOverrides = splitRatioDashboardPath === dashboardPath
+    ? splitRatioOverrides
+    : EMPTY_SPLIT_RATIO_OVERRIDES;
   const virtualRoot = snapshot?.tree
     ? resolveVirtualRoot(snapshot.tree, storedVirtualRoot ?? null)
     : null;
+  const compositionPreviewTree = useMemo(() => {
+    if (!snapshot?.tree) return null;
+    const source = compositionSource
+      && compositionSource.projectRoot === snapshot.projectRoot
+      && compositionSource.activeDashboardPath === snapshot.configPath
+      && compositionSource.focusedSourcePath === virtualRoot?.node.sourceConfigPath
+      && compositionSource.snapshotRevision === snapshot.revision
+      ? compositionSource
+      : null;
+    if (!editSession) {
+      if (!source || source.configPath === snapshot.configPath) return snapshot.tree;
+      const template = findResolvedConfigRoot(snapshot.tree, source.configPath);
+      return template
+        ? buildCompositionPreviewTree(
+            source.config,
+            template,
+            source.componentCatalog,
+            source.configPath,
+            linkedComponentIdNamespace(template, source.config.root),
+          )
+        : null;
+    }
+    if (!editSession.configPath) return null;
+    const template = editSession.configPath === snapshot.configPath
+      ? snapshot.tree
+      : findResolvedConfigRoot(snapshot.tree, editSession.configPath);
+    return template
+      ? buildCompositionPreviewTree(
+          editSession.draft,
+          template,
+          editSession.componentCatalog,
+          editSession.configPath,
+          editSession.configPath === snapshot.configPath
+            ? undefined
+            : linkedComponentIdNamespace(template, editSession.draft.root),
+        )
+      : null;
+  }, [
+    compositionSource,
+    editSession,
+    snapshot?.configPath,
+    snapshot?.projectRoot,
+    snapshot?.tree,
+    virtualRoot?.node.sourceConfigPath,
+  ]);
+  const compositionVirtualRoot = compositionPreviewTree
+    ? resolveVirtualRoot(compositionPreviewTree, storedVirtualRoot ?? null)
+    : null;
+  const activeCompositionSource = compositionSource
+    && compositionSource.projectRoot === snapshot?.projectRoot
+    && compositionSource.activeDashboardPath === snapshot?.configPath
+    && compositionSource.focusedSourcePath === virtualRoot?.node.sourceConfigPath
+    && compositionSource.snapshotRevision === snapshot?.revision
+    ? compositionSource
+    : null;
+  const compositionConfig = editSession
+    ? editSession.draft
+    : activeCompositionSource?.config ?? snapshot?.config ?? null;
+  const compositionCatalog = editSession
+    ? editSession.componentCatalog
+    : activeCompositionSource?.componentCatalog ?? snapshot?.componentCatalog ?? [];
+  const compositionSourcePending = Boolean(
+    componentLibraryOpen
+    && !editSession
+    && virtualRoot?.node.sourceConfigPath
+    && snapshot?.configPath
+    && virtualRoot.node.sourceConfigPath !== snapshot.configPath
+    && !activeCompositionSource,
+  );
+  const editingComposition = Boolean(editSession && editingActiveProject && compositionPreviewTree);
+
+  function compositionSourceIsReady(): boolean {
+    if (!compositionSourcePending) return true;
+    setActionError("Loading the focused dashboard bundle before composing.");
+    return false;
+  }
 
   useEffect(() => {
     if (!dashboardPath) {
@@ -1625,6 +2282,45 @@ export function App(): ReactNode {
       return next.size === current.size && [...next].every((id) => current.has(id)) ? current : next;
     });
   }, [collapsedDashboardPath, dashboardPath, snapshot?.tree]);
+
+  useEffect(() => {
+    if (!dashboardPath) {
+      setSplitRatioDashboardPath(null);
+      setSplitRatioOverrides({});
+      return;
+    }
+
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(splitRatioOverridesStorageKey(dashboardPath));
+    } catch {
+      // Local storage can be unavailable; split overrides remain session-only.
+    }
+    setSplitRatioOverrides(parseSplitRatioOverrides(saved));
+    setSplitRatioDashboardPath(dashboardPath);
+  }, [dashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || splitRatioDashboardPath !== dashboardPath) return;
+    try {
+      window.localStorage.setItem(
+        splitRatioOverridesStorageKey(dashboardPath),
+        serializeSplitRatioOverrides(splitRatioOverrides),
+      );
+    } catch {
+      // Split overrides remain available for this session when persistence is unavailable.
+    }
+  }, [dashboardPath, splitRatioDashboardPath, splitRatioOverrides]);
+
+  useEffect(() => {
+    if (!dashboardPath || splitRatioDashboardPath !== dashboardPath || !snapshot?.tree) return;
+    setSplitRatioOverrides((current) => {
+      const next = pruneSplitRatioOverrides(current, snapshot.tree!);
+      return serializeSplitRatioOverrides(next) === serializeSplitRatioOverrides(current)
+        ? current
+        : next;
+    });
+  }, [dashboardPath, snapshot?.tree, splitRatioDashboardPath]);
 
   useEffect(() => {
     if (!dashboardPath || Object.hasOwn(virtualRoots, dashboardPath)) return;
@@ -1695,10 +2391,537 @@ export function App(): ReactNode {
     });
   }
 
+  function updateSplitRatio(
+    branchKey: string,
+    defaultRatio: number,
+    ratio: number | null,
+    verticalSize?: number,
+  ): void {
+    if (!dashboardPath || splitRatioDashboardPath !== dashboardPath) return;
+    const normalizedDefault = normalizeSplitRatio(defaultRatio);
+    setSplitRatioOverrides((current) => {
+      const normalizedVerticalSize = normalizeVerticalSplitSize(verticalSize);
+      if (ratio === null || (splitRatioMatches(ratio, normalizedDefault) && normalizedVerticalSize === undefined)) {
+        const next = Object.fromEntries(Object.entries(current));
+        if (!Object.hasOwn(next, branchKey)) return current;
+        delete next[branchKey];
+        return next;
+      }
+      const normalizedRatio = normalizeSplitRatio(ratio);
+      const existing = current[branchKey];
+      if (
+        existing &&
+        splitRatioMatches(existing.ratio, normalizedRatio) &&
+        splitRatioMatches(existing.defaultRatio, normalizedDefault) &&
+        existing.verticalSize === normalizedVerticalSize
+      ) return current;
+      return {
+        ...current,
+        [branchKey]: {
+          ratio: normalizedRatio,
+          defaultRatio: normalizedDefault,
+          ...(normalizedVerticalSize === undefined ? {} : { verticalSize: normalizedVerticalSize }),
+        },
+      };
+    });
+  }
+
+  function compositionPathForNode(node: ResolvedComponentNode): NodePath | null {
+    if (!compositionConfig) return null;
+    const owningConfigPath = editSession?.configPath
+      ?? activeCompositionSource?.configPath
+      ?? snapshot?.configPath;
+    if (owningConfigPath && node.sourceConfigPath === owningConfigPath && node.sourcePath) {
+      const sourcePath = nodePathFromSourcePath(node.sourcePath);
+      if (sourcePath) return sourcePath;
+    }
+    try {
+      return nodePathById(compositionConfig.root, node.id);
+    } catch {
+      return null;
+    }
+  }
+
+  function decorateCompositionInsertionTarget(
+    target: InsertionTarget,
+    manifest: ComponentCatalogItem["manifest"],
+    childCount: number,
+  ): InsertionTarget {
+    const metadata = manifest ? defaultChildMetadata(manifest, target.placement.type === "managed"
+      ? target.placement.index
+      : childCount) : {};
+    return Object.keys(metadata).length === 0
+      ? target
+      : { ...target, placement: { ...target.placement, metadata } };
+  }
+
+  function compositionDropZonesForNode(
+    node: ResolvedComponentNode,
+    payload: CompositionDragPayload | null = compositionDrag,
+  ): CompositionDropZone[] {
+    if (!compositionConfig) return [];
+    const path = compositionPathForNode(node);
+    if (!path) return [];
+    try {
+      if (path.length === 0) {
+        const rawRoot = nodeAtPath(compositionConfig.root, path);
+        if (rawRoot.children) return [];
+        const manifest = catalogManifest(compositionCatalog, rawRoot.component);
+        return compatibleCompositionDropZones(
+          deriveInsertionTargets({
+            target: rawRoot,
+            manifest,
+            parentPath: path,
+            currentChildCount: childEdges(rawRoot.children).length,
+          }).map((target) => {
+            const decorated = decorateCompositionInsertionTarget(target, manifest, 0);
+            return {
+              id: compositionTargetId(decorated),
+              label: contextualInsertionLabel(rawRoot, decorated, compositionCatalog),
+              side: "inside" as const,
+              target: decorated,
+            };
+          }),
+          payload,
+          compositionTargetIsValid,
+        );
+      }
+      const parentPath = path.slice(0, -1);
+      const targetChildPath = path.at(-1);
+      if (!targetChildPath) return [];
+      const parent = nodeAtPath(compositionConfig.root, parentPath);
+      const manifest = catalogManifest(compositionCatalog, parent.component);
+      const childCount = childEdges(parent.children).length;
+      return compatibleCompositionDropZones(
+        deriveInsertionTargets({
+          target: parent,
+          manifest,
+          parentPath,
+          targetChildPath,
+          currentChildCount: childCount,
+        }).map((target) => {
+          const decorated = decorateCompositionInsertionTarget(target, manifest, childCount);
+          return {
+            id: compositionTargetId(decorated),
+            label: contextualInsertionLabel(parent, decorated, compositionCatalog),
+            side: compositionDropZoneSide(decorated, targetChildPath),
+            target: decorated,
+          };
+        }),
+        payload,
+        compositionTargetIsValid,
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  function compositionPointerDropZone(
+    node: ResolvedComponentNode,
+    xRatio: number,
+    yRatio: number,
+    payload: CompositionDragPayload | null = compositionDrag,
+  ): CompositionDropZone | null {
+    if (
+      !Number.isFinite(xRatio)
+      || !Number.isFinite(yRatio)
+      || xRatio < 0
+      || xRatio > 1
+      || yRatio < 0
+      || yRatio > 1
+    ) return null;
+    const zones = compositionDropZonesForNode(node, payload);
+    const inside = zones.find((zone) => zone.side === "inside");
+    if (inside) return inside;
+    const distance = (zone: CompositionDropZone): number => {
+      if (zone.side === "left") return xRatio;
+      if (zone.side === "right") return 1 - xRatio;
+      if (zone.side === "top") return yRatio;
+      if (zone.side === "bottom") return 1 - yRatio;
+      return Number.POSITIVE_INFINITY;
+    };
+    return [...zones].sort((left, right) => distance(left) - distance(right))[0] ?? null;
+  }
+
+  function compositionPointerTargetAt(
+    point: ComponentPointerDragPoint,
+    payload: CompositionDragPayload,
+  ): { node: ResolvedComponentNode; zone: CompositionDropZone } | null {
+    if (!compositionPreviewTree) return null;
+    const eventTarget = document.elementFromPoint(point.clientX, point.clientY);
+    if (!(eventTarget instanceof globalThis.Element)) return null;
+    if (eventTarget.closest("[data-composition-controls]")) return null;
+    const nodeElement = eventTarget.closest<HTMLElement>("[data-node-id]");
+    const nodeId = nodeElement?.dataset.nodeId;
+    if (!nodeId || !nodeElement) return null;
+    const node = resolvedNodeById(compositionPreviewTree, nodeId);
+    if (!node) return null;
+    const rect = nodeElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const zone = compositionPointerDropZone(
+      node,
+      (point.clientX - rect.left) / rect.width,
+      (point.clientY - rect.top) / rect.height,
+      payload,
+    );
+    return zone && compositionTargetIsValid(zone.target, payload) ? { node, zone } : null;
+  }
+
+  function updateCompositionPointerDrag(
+    payload: CompositionDragPayload,
+    point: ComponentPointerDragPoint,
+  ): void {
+    const target = compositionPointerTargetAt(point, payload);
+    compositionInteraction.updatePointer(target ? {
+      nodeId: target.node.id,
+      zoneId: target.zone.id,
+      clientX: point.clientX,
+      clientY: point.clientY,
+    } : null);
+  }
+
+  function scheduleCompositionPointerDrag(
+    payload: CompositionDragPayload,
+    point: ComponentPointerDragPoint,
+  ): void {
+    pendingCompositionPointer.current = { payload, point };
+    if (compositionPointerFrame.current !== null) return;
+    compositionPointerFrame.current = requestAnimationFrame(() => {
+      compositionPointerFrame.current = null;
+      const pending = pendingCompositionPointer.current;
+      pendingCompositionPointer.current = null;
+      if (pending) updateCompositionPointerDrag(pending.payload, pending.point);
+    });
+  }
+
+  function clearPendingCompositionPointer(): void {
+    pendingCompositionPointer.current = null;
+    if (compositionPointerFrame.current !== null) {
+      cancelAnimationFrame(compositionPointerFrame.current);
+      compositionPointerFrame.current = null;
+    }
+  }
+
+  function dropCompositionPointer(
+    payload: CompositionDragPayload,
+    point: ComponentPointerDragPoint,
+  ): void {
+    const target = compositionPointerTargetAt(point, payload);
+    clearPendingCompositionPointer();
+    compositionInteraction.updatePointer(null);
+    if (target) {
+      handleCompositionDrop(target.zone.target, payload);
+      return;
+    }
+    const removalTarget = document.elementFromPoint(point.clientX, point.clientY)
+      ?.closest("[data-composition-removal-target]");
+    if (payload.type === "node" && removalTarget) {
+      void removeCompositionNode(payload.path);
+    }
+  }
+
+  function handleCompositionPointerDragMove(
+    reference: string,
+    point: ComponentPointerDragPoint,
+  ): void {
+    scheduleCompositionPointerDrag({ type: "component", reference }, point);
+  }
+
+  function handleCompositionPointerDrop(
+    reference: string,
+    point: ComponentPointerDragPoint,
+  ): void {
+    dropCompositionPointer({ type: "component", reference }, point);
+  }
+
+  function compositionTargetIsValid(
+    target: CompositionTarget,
+    payload: CompositionDragPayload,
+  ): boolean {
+    if (!compositionConfig) return false;
+    return planCompositionOperation({
+      config: compositionConfig,
+      catalog: compositionCatalog,
+      payload,
+      target,
+    }).status === "planned";
+  }
+
+  function defaultCompositionTarget(): CompositionTarget | null {
+    if (!compositionConfig) return null;
+    const manifest = catalogManifest(compositionCatalog, compositionConfig.root.component);
+    const insertion = deriveInsertionTargets({
+      target: compositionConfig.root,
+      manifest,
+      parentPath: [],
+      currentChildCount: childEdges(compositionConfig.root.children).length,
+    })[0];
+    if (!insertion) return { type: "root-replacement", path: [] };
+    const metadata = manifest ? defaultChildMetadata(manifest, childEdges(compositionConfig.root.children).length) : {};
+    return Object.keys(metadata).length === 0
+      ? insertion
+      : { ...insertion, placement: { ...insertion.placement, metadata } };
+  }
+
+  async function openCompositionDialog(
+    target: CompositionTarget,
+    reference?: string,
+  ): Promise<void> {
+    if (!compositionSourceIsReady()) return;
+    if (!compositionConfig || !snapshot?.tree) return;
+    const payload: CompositionDragPayload = {
+      type: "component",
+      reference: reference ?? "",
+    };
+    if (!reference || !compositionTargetIsValid(target, payload)) {
+      setActionError("Choose a valid component and insertion target before composing.");
+      return;
+    }
+    const session = await ensureCurrentDashboardEdit();
+    if (!session) return;
+      compositionInteraction.showDialog(isRootCompositionTarget(target)
+        ? { mode: "replace", reference }
+        : { mode: "add", target, reference });
+  }
+
+  function handleCompositionInsert(entry: ComponentCatalogItem): void {
+    if (!compositionSourceIsReady()) return;
+    const target = compositionTarget ?? defaultCompositionTarget();
+    if (!target) {
+      setActionError("No dashboard insertion target is available.");
+      return;
+    }
+    void openCompositionDialog(target, entry.reference);
+  }
+
+  async function handleCompositionAgent(description: string): Promise<void> {
+    if (!compositionSourceIsReady()) return;
+    let target = compositionTarget ?? defaultCompositionTarget();
+    if (!target || isRootCompositionTarget(target)) {
+      const fallback = defaultCompositionTarget();
+      target = fallback && !isRootCompositionTarget(fallback) ? fallback : null;
+    }
+    if (!target || isRootCompositionTarget(target) || !snapshot?.projectRoot) {
+      setActionError("Choose a component insertion target before asking the agent to build one.");
+      return;
+    }
+    const session = await ensureCurrentDashboardEdit();
+    if (!session) return;
+    const parent = nodeAtPath(session.draft.root, target.parentPath);
+    const insertionPath = dashboardInsertionPath(
+      target,
+      target.placement.type === "tiled" && !parent.children ? "empty" : "split",
+    );
+    const prompt = buildComponentCreationAgentPrompt({
+      projectRoot: session.projectRoot,
+      configPath: session.configPath,
+      insertionPath,
+    }, description);
+    const dirty = JSON.stringify(session.original) !== JSON.stringify(session.draft);
+    if (dirty) {
+      setDiscardConfirmation({
+        message: "Discard the dashboard draft and ask the configured agent to build this component?",
+        continueAction: () => void runComponentCreationAgent(session.configPath, target!, prompt),
+      });
+      return;
+    }
+    void runComponentCreationAgent(session.configPath, target, prompt);
+  }
+
+  async function removeCompositionNode(path: NodePath): Promise<void> {
+    const session = await ensureCurrentDashboardEdit();
+    if (!session || path.length === 0) return;
+    try {
+      nodeAtPath(session.draft.root, path);
+    } catch {
+      setActionError("The component moved before removal could be confirmed.");
+      return;
+    }
+    compositionInteraction.requestRemoval(path);
+  }
+
+  function handleCompositionDrop(target: CompositionTarget, payload: CompositionDragPayload): void {
+    if (!compositionSourceIsReady()) return;
+    if (!compositionTargetIsValid(target, payload)) return;
+    if (payload.type === "component") {
+      void openCompositionDialog(target, payload.reference);
+      return;
+    }
+    void ensureCurrentDashboardEdit().then((session) => {
+      if (!session || isRootCompositionTarget(target)) return;
+      const planned = planCompositionOperation({
+        config: session.draft,
+        catalog: session.componentCatalog,
+        payload,
+        target,
+      });
+      if (planned.status !== "planned") {
+        setActionError(planned.message);
+        return;
+      }
+      try {
+        const next = planned.nextConfig;
+        setEditSession((current) => current && current.configPath === session.configPath
+          ? { ...current, draft: next }
+          : current);
+        compositionInteraction.endDrag();
+        compositionInteraction.clearTarget();
+      } catch (error) {
+        setActionError(errorMessage(error));
+      }
+    });
+  }
+
+  function handleCompositionSplitRatio(
+    branchKey: string,
+    defaultRatio: number,
+    ratio: number | null,
+    node: ResolvedComponentNode,
+    splitPath: readonly LayoutBranch[],
+    verticalSize?: number,
+  ): void {
+    if (editingComposition && editSession) {
+      const path = nodePathById(editSession.draft.root, node.id);
+      if (!path) {
+        setActionError("The tiled component moved before its split could be updated.");
+        return;
+      }
+      try {
+        const next = ratio === null
+          ? editSession.draft
+          : updateTiledSplitRatio(editSession.draft, path, splitPath, ratio);
+        setEditSession({ ...editSession, draft: next });
+      } catch (error) {
+        setActionError(errorMessage(error));
+      }
+      return;
+    }
+    if (componentLibraryOpen) {
+      void ensureCurrentDashboardEdit().then((session) => {
+        if (!session) return;
+        const path = nodePathById(session.draft.root, node.id);
+        if (!path) {
+          setActionError("The tiled component moved before its split could be updated.");
+          return;
+        }
+        try {
+          const next = updateTiledSplitRatio(session.draft, path, splitPath, ratio ?? defaultRatio);
+          setEditSession((current) => current && current.configPath === session.configPath
+            ? { ...current, draft: next }
+            : current);
+        } catch (error) {
+          setActionError(errorMessage(error));
+        }
+      });
+      return;
+    }
+    updateSplitRatio(branchKey, defaultRatio, ratio, verticalSize);
+  }
+
+  function applyCompositionDraft(next: DashboardConfig): void {
+    setEditSession((current) => current ? { ...current, draft: next } : current);
+    compositionInteraction.dismissDialog();
+    compositionInteraction.clearTarget();
+  }
+
+  // Composition is always ready for direct header drags. A drag itself opens
+  // the flyout and begins a draft only after a valid move or removal.
+  const compositionContextValue = compositionConfig && compositionPreviewTree
+    ? {
+        active: true,
+        dragging: compositionDrag,
+        pointer: compositionPointer,
+        config: compositionConfig,
+        catalog: compositionCatalog,
+        pathForNode: compositionPathForNode,
+        dropZonesForNode: compositionDropZonesForNode,
+        pointerDropZoneForNode: compositionPointerDropZone,
+        canDrop: compositionTargetIsValid,
+        onNodeDragStart: compositionInteraction.beginNodeDrag,
+        onNodeDragEnd: () => {
+          clearPendingCompositionPointer();
+          compositionInteraction.endDrag();
+        },
+        onNodePointerDragMove: (path: NodePath, point: ComponentPointerDragPoint) => {
+          scheduleCompositionPointerDrag({ type: "node", path }, point);
+        },
+        onNodePointerDrop: (path: NodePath, point: ComponentPointerDragPoint) => {
+          dropCompositionPointer({ type: "node", path }, point);
+        },
+        onLibraryDragStart: compositionInteraction.beginLibraryDrag,
+        onLibraryDragEnd: () => {
+          clearPendingCompositionPointer();
+          compositionInteraction.endDrag();
+        },
+        onDragTarget: (nodeId: string | null, zone: CompositionDropZone | null) => {
+          compositionInteraction.updatePointer(zone && nodeId ? {
+            nodeId,
+            zoneId: zone.id,
+            clientX: 0,
+            clientY: 0,
+          } : null);
+        },
+        onDrop: handleCompositionDrop,
+      }
+    : null;
+
+  useEffect(() => {
+    if (!componentLibraryOpen || editSession || !snapshot?.projectRoot || !snapshot.configPath) return;
+    const focusedSource = virtualRoot?.node.sourceConfigPath;
+    if (!focusedSource || focusedSource === snapshot.configPath) {
+      if (compositionSource !== null) setCompositionSource(null);
+      return;
+    }
+    if (
+      compositionSource?.projectRoot === snapshot.projectRoot
+      && compositionSource.activeDashboardPath === snapshot.configPath
+      && compositionSource.focusedSourcePath === focusedSource
+      && compositionSource.snapshotRevision === snapshot.revision
+      && compositionSource.configPath === focusedSource
+    ) return;
+    void loadCompositionSource();
+  }, [
+    componentLibraryOpen,
+    compositionSource,
+    editSession,
+    snapshot?.configPath,
+    snapshot?.projectRoot,
+    snapshot?.revision,
+    virtualRoot?.node.sourceConfigPath,
+  ]);
+
+  const compositionUiActive = componentLibraryOpen
+    || compositionDialog !== null
+    || compositionRemovePath !== null
+    || discardConfirmation !== null
+    || deletionDialog !== null
+    || agentDialog !== null
+    || paletteOpen
+    || (editingComposition && (draftDirty || compositionDrag !== null));
+
   function focusComponent(nodeId: string): void {
     if (!dashboardPath) return;
     expandComponent(dashboardPath, nodeId);
     storeVirtualRoot(dashboardPath, nodeId);
+  }
+
+  async function editCompositionNode(node: ResolvedComponentNode): Promise<void> {
+    if (!compositionSourceIsReady()) return;
+    const sourcePath = compositionPathForNode(node);
+    if (!sourcePath) {
+      setActionError("The component could not be located in its dashboard configuration.");
+      return;
+    }
+    const session = await ensureCurrentDashboardEdit();
+    if (!session) return;
+    const path = nodePathById(session.draft.root, node.id) ?? sourcePath;
+    try {
+      nodeAtPath(session.draft.root, path);
+    } catch {
+      setActionError("The component moved before editing could be opened.");
+      return;
+    }
+    compositionInteraction.showDialog({ mode: "configure", path });
   }
 
   async function focusProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
@@ -1728,7 +2951,7 @@ export function App(): ReactNode {
   const nodeFocusActions = buildNodeFocusActions(
     snapshot,
     virtualRoot?.node.id ?? null,
-    editingCurrentProject,
+    editingActiveProject,
     (nodeId) => {
       setActiveView("dashboard");
       focusComponent(nodeId);
@@ -1778,6 +3001,27 @@ export function App(): ReactNode {
     typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
       ? "⌘K"
       : "Ctrl K";
+  const visibleVirtualRoot = editingComposition ? compositionVirtualRoot : virtualRoot;
+  const compositionExisting = compositionDialog?.mode === "configure"
+    && editSession
+    && compositionDialog.path
+    ? (() => {
+        try {
+          return { path: compositionDialog.path, node: nodeAtPath(editSession.draft.root, compositionDialog.path) };
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const compositionRemoving = compositionRemovePath && editSession
+    ? (() => {
+        try {
+          return nodeAtPath(editSession.draft.root, compositionRemovePath);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
   return (
     <div className="app-window">
       <div className="window-chrome" aria-hidden="true" />
@@ -1888,7 +3132,7 @@ export function App(): ReactNode {
       </aside>
 
       <div className="app-frame">
-        <header className={`app-header${editingCurrentProject ? " app-header--editing" : ""}`}>
+        <header className={`app-header${editingActiveProject ? " app-header--editing" : ""}`}>
           <div className="app-header__identity">
             <div>
               <span className="app-header__title">{headerTitle}</span>
@@ -1917,7 +3161,7 @@ export function App(): ReactNode {
             </button>
             {activeView === "dashboard" && headerProjectRoot ? (
               <>
-                {editSession && editingCurrentProject ? (
+                {editSession && editingActiveProject ? (
                   <div className="app-header__editor-toolbar">
                     <DashboardEditorToolbar
                       diagnostics={editSession.validation.diagnostics}
@@ -1928,26 +3172,18 @@ export function App(): ReactNode {
                     />
                   </div>
                 ) : null}
-                {!editingCurrentProject ? (
-                  <button
-                    className="button button--quiet dashboard-edit-toggle"
-                    type="button"
-                    aria-label="Edit dashboard"
-                    title="Edit dashboard"
-                    disabled={pendingAction !== null}
-                    onClick={() => {
-                      if (headerProjectRoot && snapshot?.configPath) {
-                        void toggleProjectEditor({
-                          projectRoot: headerProjectRoot,
-                          configPath: snapshot.configPath,
-                        });
-                      }
-                    }}
-                  >
-                    <ShellIcon name="edit" />
-                    <span>Edit dashboard</span>
-                  </button>
-                ) : null}
+                <button
+                  className="button button--quiet composition-library-trigger"
+                  type="button"
+                  aria-label={componentLibraryOpen ? "Close component library" : "Open component library"}
+                  aria-expanded={componentLibraryOpen}
+                  title={componentLibraryOpen ? "Close component library" : "Open component library"}
+                  disabled={pendingAction !== null}
+                  onClick={toggleCompositionLibrary}
+                >
+                  <ShellIcon name="library" />
+                  <span>{componentLibraryOpen ? "Close library" : "Components"}</span>
+                </button>
               </>
             ) : null}
           </div>
@@ -1998,7 +3234,7 @@ export function App(): ReactNode {
           <EmptyProject pending={pendingAction === "choose"} onChoose={() => void addDashboard()} />
         ) : (
           <main className="workspace">
-            {editSession && editSession.projectRoot === snapshot.projectRoot ? (
+            {editSession && editSession.projectRoot === snapshot.projectRoot && !compositionPreviewTree ? (
               <DashboardEditor
                 config={editSession.draft}
                 catalog={editSession.componentCatalog}
@@ -2020,33 +3256,40 @@ export function App(): ReactNode {
 
             {snapshot.tree ? (
               <section className="dashboard" aria-label={`${title} dashboard`}>
-                {virtualRoot && virtualRoot.crumbs.length > 1 ? (
+                {visibleVirtualRoot && visibleVirtualRoot.crumbs.length > 1 ? (
                   <nav className="dashboard-breadcrumbs" aria-label="Focused component path">
-                    {virtualRoot.crumbs.map((crumb, index) => (
+                    {visibleVirtualRoot.crumbs.map((crumb, index) => (
                       <span className="dashboard-breadcrumbs__item" key={crumb.id}>
-                        {index < virtualRoot.crumbs.length - 1 ? (
+                        {index < visibleVirtualRoot.crumbs.length - 1 ? (
                           <button type="button" onClick={() => focusComponent(crumb.id)}>{crumb.label}</button>
                         ) : <span aria-current="page">{crumb.label}</span>}
-                        {index < virtualRoot.crumbs.length - 1 ? <span aria-hidden="true">/</span> : null}
+                        {index < visibleVirtualRoot.crumbs.length - 1 ? <span aria-hidden="true">/</span> : null}
                       </span>
                     ))}
                   </nav>
                 ) : null}
-                <NodeRenderer
-                  node={virtualRoot?.node ?? snapshot.tree}
-                  trusted={snapshot.trusted}
-                  processes={processes}
-                  localComponents={localComponents}
-                  actionRegistry={actionRegistry}
-                  actionScope={actionScope}
-                  updateBatch={componentUpdateBatch}
-                  collapsedNodeIds={activeCollapsedComponentIds}
-                  onFocus={focusComponent}
-                  onToggleCollapse={toggleComponentCollapse}
-                  onCopyPath={(node) => void copyComponentPath(node)}
-                  onOpenAgent={setAgentDialog}
-                  isVirtualRoot
-                />
+                <ComponentVisibilityContext.Provider value={!compositionUiActive}>
+                  <CompositionContext.Provider value={compositionContextValue}>
+                    <NodeRenderer
+                      node={visibleVirtualRoot?.node ?? snapshot.tree}
+                      trusted={snapshot.trusted}
+                      processes={processes}
+                      localComponents={localComponents}
+                      actionRegistry={actionRegistry}
+                      actionScope={actionScope}
+                      updateBatch={componentUpdateBatch}
+                      collapsedNodeIds={activeCollapsedComponentIds}
+                      splitRatioOverrides={editingComposition ? EMPTY_SPLIT_RATIO_OVERRIDES : activeSplitRatioOverrides}
+                      onFocus={focusComponent}
+                      onToggleCollapse={toggleComponentCollapse}
+                      onSplitRatioChange={handleCompositionSplitRatio}
+                      onCopyPath={(node) => void copyComponentPath(node)}
+                      onEditComponent={(node) => void editCompositionNode(node)}
+                      onOpenAgent={setAgentDialog}
+                      isVirtualRoot
+                    />
+                  </CompositionContext.Provider>
+                </ComponentVisibilityContext.Provider>
               </section>
             ) : (
               <section className="empty-dashboard">
@@ -2075,6 +3318,83 @@ export function App(): ReactNode {
         onDismiss={() => setPaletteOpen(false)}
         onExecute={(id) => void executePaletteAction(id)}
       />
+      <CompositionFlyout
+        open={componentLibraryOpen}
+        dragging={compositionDrag}
+        catalog={compositionCatalog}
+        onClose={compositionInteraction.closeLibrary}
+        onInsert={handleCompositionInsert}
+        onRemoveDrop={(path) => void removeCompositionNode(path)}
+        onBuildWithAgent={(description) => void handleCompositionAgent(description)}
+        onPointerDragMove={handleCompositionPointerDragMove}
+        onPointerDrop={handleCompositionPointerDrop}
+        onDragStateChange={(entry) => {
+          if (entry) {
+            compositionInteraction.beginLibraryDrag(entry.reference);
+          } else {
+            clearPendingCompositionPointer();
+            compositionInteraction.endDrag();
+          }
+        }}
+        agentPending={pendingAction === "component-agent:create"}
+        loading={compositionSourcePending}
+      />
+      {compositionDialog && editSession && editingActiveProject && compositionDialog.mode === "configure" && compositionExisting ? (
+        <ComponentDialog
+          catalog={editSession.componentCatalog}
+          config={editSession.draft}
+          existing={compositionExisting}
+          onApply={applyCompositionDraft}
+          onDismiss={compositionInteraction.dismissDialog}
+        />
+      ) : null}
+      {compositionDialog && editSession && editingActiveProject && compositionDialog.mode === "replace" ? (
+        <ComponentDialog
+          catalog={editSession.componentCatalog}
+          config={editSession.draft}
+          replace={editSession.draft.root}
+          initialReference={compositionDialog.reference}
+          onApply={applyCompositionDraft}
+          onDismiss={compositionInteraction.dismissDialog}
+        />
+      ) : null}
+      {compositionDialog && editSession && editingActiveProject && compositionDialog.mode === "add" && compositionDialog.target ? (
+        <ComponentDialog
+          catalog={editSession.componentCatalog}
+          config={editSession.draft}
+          target={compositionDialog.target}
+          initialReference={compositionDialog.reference}
+          projectRoot={editSession.projectRoot}
+          configPath={editSession.configPath}
+          agentCommand={appSettings.dashBoredAgent}
+          agentPending={pendingAction === "component-agent:create"}
+          onBuildWithAgent={requestComponentCreationAgent}
+          onApply={applyCompositionDraft}
+          onDismiss={compositionInteraction.dismissDialog}
+        />
+      ) : null}
+      {compositionRemovePath && compositionRemoving && editSession && editingActiveProject ? (
+        <EditorModal title="Remove component?" onDismiss={compositionInteraction.dismissRemoval}>
+          <div className="remove-confirmation">
+            <p>Remove <strong>{catalogManifest(editSession.componentCatalog, compositionRemoving.component)?.name ?? compositionRemoving.component}</strong>?</p>
+            {countNodes(compositionRemoving) > 1 ? <p>This also removes {countNodes(compositionRemoving) - 1} nested components.</p> : null}
+            <p>The change remains recoverable until you save the dashboard.</p>
+            <footer className="editor-modal__actions">
+              <button className="button button--quiet" type="button" onClick={compositionInteraction.dismissRemoval}>Cancel</button>
+              <button className="button button--danger" type="button" onClick={() => {
+                try {
+                  const next = removeNode(editSession.draft, compositionRemovePath, editSession.componentCatalog);
+                  setEditSession({ ...editSession, draft: next });
+                  compositionInteraction.dismissRemoval();
+                  compositionInteraction.clearTarget();
+                } catch (error) {
+                  setActionError(errorMessage(error));
+                }
+              }}>Remove</button>
+            </footer>
+          </div>
+        </EditorModal>
+      ) : null}
       {agentDialog ? (
         <EditorModal
           title={`Change ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
@@ -2103,6 +3423,7 @@ export function App(): ReactNode {
                 const continueAction = discardConfirmation.continueAction;
                 setDiscardConfirmation(null);
                 setEditSession(null);
+                resetCompositionUi();
                 queueMicrotask(continueAction);
               }}>Discard changes</button>
             </footer>

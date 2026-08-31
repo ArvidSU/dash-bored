@@ -231,12 +231,26 @@ describe("dash-bored command arguments", () => {
     expect(todoList.available).toBeTrue();
     expect(todoList.manifest.propsSchema.required).toEqual(["path"]);
     expect(todoList.manifest.permissions).toEqual(["filesystem:read", "filesystem:write"]);
-    const split = result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/split",
+    const group = result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/group",
     );
-    expect(split.manifest.slots).toEqual({
-      first: { required: true, multiple: false },
-      second: { required: true, multiple: false },
+    expect(group.manifest.children).toEqual({
+      min: 0,
+      presentation: { type: "tiled", axes: "both" },
     });
+    const tabs = result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/tabs",
+    );
+    expect(tabs.manifest.children).toMatchObject({
+      min: 1,
+      presentation: { type: "managed" },
+      metadataSchema: { required: ["label"] },
+    });
+    expect(result.componentCatalog.some(
+      (item: { reference: string }) => item.reference === "@dash-bored/split",
+    )).toBeFalse();
+    expect(result.componentCatalog.some(
+      (item: { reference: string }) => item.reference === "@dash-bored/stack",
+    )).toBeFalse();
   });
 });

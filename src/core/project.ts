@@ -91,19 +91,36 @@ async function buildProjectDefinition(
             source: "config",
             available: node.configError === undefined,
             manifest: {
-              schemaVersion: 1,
+              schemaVersion: 2,
               id: `config:${node.component}`,
               name: node.configName ?? node.component,
               description: "Renders another standalone dashboard configuration.",
               entry: "config:link",
               propsSchema: { type: "object", additionalProperties: false },
+              children: {
+                min: 0,
+                max: 1,
+                presentation: { type: "managed" },
+              },
             },
             diagnostics: node.configError === undefined
               ? []
               : [diagnostic({ code: "CONFIG_LINK_UNAVAILABLE", message: node.configError, path: node.component })],
           });
         }
-        for (const children of Object.values(node.slots)) for (const child of children) visitConfigLinks(child);
+        const children = node.children;
+        if (children?.type === "managed") {
+          for (const edge of children.items) visitConfigLinks(edge.node);
+        } else if (children?.type === "tiled") {
+          const visitLayout = (layout: typeof children.layout): void => {
+            if (layout.type === "child") visitConfigLinks(layout.child.node);
+            else {
+              visitLayout(layout.first);
+              visitLayout(layout.second);
+            }
+          };
+          visitLayout(children.layout);
+        }
       };
       visitConfigLinks(resolvedTree.tree);
     }

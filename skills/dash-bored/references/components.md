@@ -1,8 +1,9 @@
 # Component authoring reference
 
-Use this reference when the built-in catalog from `dash-bored inspect .` does
-not cover a project-specific need. The catalog is authoritative for built-in
-props and slots; this document defines the local component contract.
+Use this reference when the catalog from `dash-bored inspect .` does not cover
+a project-specific need. Packaged and local components use the same manifest,
+render props, child handles, and permission-shaped host contract; this document
+defines the local component contract.
 
 ## Dashboard nodes
 
@@ -13,17 +14,55 @@ component: "@dash-bored/card"
 id: service-health
 props:
   title: Service health
-slots:
-  children:
-    component: "./components/service-health"
-    props:
-      endpoint: http://127.0.0.1:3000/health
+children:
+  type: tiled
+  layout:
+    type: child
+    child:
+      node:
+        component: "./components/service-health"
+        props:
+          endpoint: http://127.0.0.1:3000/health
 ```
 
 `component` is required. `id` is optional, but it must be explicit and unique
 for stateful or actionable nodes. `props` is validated against the component's
-JSON Schema. A slot accepts one node or a list according to the manifest's
-`multiple` declaration.
+JSON Schema. Tiled layouts use child leaves or split branches; managed layouts
+use an `items` list. Child entries may carry `metadata` on the parent-child edge.
+
+## Transparent child-surface grouping
+
+`@dash-bored/group` is an ordinary transparent component boundary that accepts
+and projects a core-tiled child surface. It is useful when a multi-component
+panel needs a component boundary; it is not a layout engine, and it does not
+own split topology or resize behavior. A card is not required for grouping.
+
+## Tiled split layouts
+
+Use a core-owned split branch when two child components should share one
+rectangle. Horizontal and vertical splits can be resized directly:
+
+```yaml
+children:
+  type: tiled
+  layout:
+    type: split
+    axis: horizontal
+    ratio: 0.4
+    first: { type: child, child: { node: ... } }
+    second: { type: child, child: { node: ... } }
+```
+
+`ratio` is the project default fraction for the first pane and must be between
+`0.1` and `0.9`. The renderer applies shared minimum pane sizes while dragging.
+Normal-view resizing is a resettable personal override; editor resizing changes the draft
+and follows Save/Cancel. A narrow split stacks its children according to its own
+container width. Nest horizontal and vertical splits to create tiled layouts;
+vertical splits use the same core resize contract.
+
+Local component roots placed in a split should use fluid sizing: avoid fixed
+widths, set `min-width: 0`, and put overflow on an internal scrolling region
+when content cannot shrink.
 
 ## Local component layout
 
@@ -39,7 +78,7 @@ dash-bored/components/service-health/
 Reference the directory as `./components/service-health`. A minimal manifest is:
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 id: service-health
 name: Service health
 description: Shows whether a project service responds.
@@ -53,21 +92,56 @@ propsSchema:
       pattern: ^https?://
   required:
     - endpoint
-slots:
-  children:
-    required: false
-    multiple: true
+children:
+  min: 0
+  max: 10
+  presentation:
+    type: tiled
+    axes: both
 permissions:
   - network:http
 ```
 
-`propsSchema` is JSON Schema. Each slot may set `required` and `multiple`.
+Any component can declare a supervised process resource. `commandProp` is
+required; `cwdProp` and `envProp` are optional:
+
+```yaml
+resources:
+  process:
+    commandProp: command
+    cwdProp: cwd
+    envProp: env
+permissions:
+  - process:execute
+```
+
+A process-observing component can reference that resource generically:
+
+```yaml
+references:
+  processId:
+    resource: process
+permissions:
+  - process:observe
+```
+
+Resource nodes require stable IDs. References are validated across the
+resolved tree, including config links, and command-palette actions are derived
+from resources rather than component IDs.
+
+`propsSchema` and `children.metadataSchema` are JSON Schema. `children` is
+optional; when present it declares `min`, optional `max`, and a presentation
+of `{type: tiled, axes: horizontal|vertical|both}` or `{type: managed}`.
 Declare only capabilities the implementation uses:
 
 - `filesystem:read` exposes `host.filesystem.readText`.
 - `filesystem:write` also exposes `host.filesystem.writeText`.
 - `network:http` exposes `host.http.request`.
-- `process:execute` exposes `host.shell.run`.
+- `process:execute` exposes `host.shell.run` and, for a declared process
+  resource, `host.processes.start` and `host.processes.stop`.
+- `process:observe` exposes `host.processes.get` snapshots for a referenced
+  process.
+- `webview:embed` exposes `host.webview.render` for native webview embedding.
 
 All file paths and command working directories remain contained by the project
 root associated with the component instance.
@@ -122,7 +196,7 @@ interface Props {
   endpoint: string;
 }
 
-export default defineComponent<Props>(({ props, slots, host }) => {
+export default defineComponent<Props>(({ props, host }) => {
   const [status, setStatus] = useState("Waiting");
 
   const refresh = async () => {
@@ -143,13 +217,14 @@ export default defineComponent<Props>(({ props, slots, host }) => {
   return (
     <section className="service-health">
       <strong>{status}</strong>
-      {slots.children}
+      {/* Render projected children through the generic child surface. */}
     </section>
   );
 });
 ```
 
-The callback receives typed `props`, rendered slot arrays, and `host`:
+The callback receives typed `props`, a generic child surface (handles,
+read-only descriptors, and render/visibility projection), and `host`:
 
 ```ts
 interface LocalComponentHost {
@@ -161,8 +236,22 @@ interface LocalComponentHost {
   };
   http?: { request(request: HttpRequest): Promise<HttpResponsePayload> };
   shell?: { run(request: ShellRunRequest): Promise<ShellRunResult> };
+  processes?: {
+    get(nodeId?: string): ProcessSnapshot | undefined;
+    start?(): Promise<ProcessSnapshot>;
+    stop?(): Promise<ProcessSnapshot>;
+  };
+  webview?: {
+    render(request: { url: string; title?: string }): ReactNode;
+  };
 }
 ```
+
+The callback always receives exactly `LocalComponentRenderProps`: `props`,
+generic rendered children/handles, and `host`. Shipped examples such as
+`@dash-bored/command`, `@dash-bored/terminal`, and `@dash-bored/webview` are
+not special component types; local components may declare the same resources and
+permissions.
 
 `host.actions.register` returns an effect cleanup function. Action IDs start
 with a letter and contain only letters, digits, underscores, or hyphens.

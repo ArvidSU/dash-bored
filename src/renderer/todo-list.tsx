@@ -5,8 +5,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { ResolvedComponentNode } from "../shared/contracts";
-import { host } from "./rpc-client";
+import type { LocalComponentHost } from "../shared/contracts";
 import {
   filterTodos,
   parseTodoYaml,
@@ -17,8 +16,8 @@ import {
 import type { TodoItem } from "./todo";
 
 interface TodoListProps {
-  node: ResolvedComponentNode;
-  trusted: boolean;
+  props: Record<string, unknown>;
+  host: LocalComponentHost;
 }
 
 type EditField = "description" | "tags";
@@ -54,8 +53,9 @@ function TodoCapabilityGate(): ReactNode {
   );
 }
 
-export function TodoList({ node, trusted }: TodoListProps): ReactNode {
-  const path = stringProp(node.props, "path");
+export function TodoList({ props, host }: TodoListProps): ReactNode {
+  const filesystem = host.filesystem;
+  const path = stringProp(props, "path");
   const [items, setItems] = useState<TodoItem[]>([]);
   const [filterTag, setFilterTag] = useState("");
   const [description, setDescription] = useState("");
@@ -71,7 +71,7 @@ export function TodoList({ node, trusted }: TodoListProps): ReactNode {
   const editActionRef = useRef<"idle" | "committing" | "cancelled">("idle");
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (!trusted || path === "") {
+    if (!filesystem || path === "") {
       setLoading(false);
       return;
     }
@@ -79,7 +79,7 @@ export function TodoList({ node, trusted }: TodoListProps): ReactNode {
     setError(null);
     setMissing(false);
     try {
-      const source = await host.readTextFile({ nodeId: node.id, path });
+      const source = await filesystem.readText(path);
       setItems(parseTodoYaml(source));
       setLoaded(true);
     } catch (cause) {
@@ -90,29 +90,25 @@ export function TodoList({ node, trusted }: TodoListProps): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [node.id, path, trusted]);
+  }, [filesystem, path]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const persist = useCallback(async (nextItems: TodoItem[]): Promise<boolean> => {
-    if (!trusted || path === "") {
+    if (!filesystem?.writeText || path === "") {
       setError("Trust this project and configure a YAML path before editing the todo list.");
       return false;
     }
     setSaving(true);
     setError(null);
     try {
-      await host.writeTextFile({
-        nodeId: node.id,
-        path,
-        content: serializeTodoYaml(nextItems),
-      });
+      await filesystem.writeText(path, serializeTodoYaml(nextItems));
       setItems(nextItems);
       setLoaded(true);
       setMissing(false);
-      await host.reloadProject();
+      await host.dashboard.reload();
       return true;
     } catch (cause) {
       setError(errorMessage(cause));
@@ -120,7 +116,7 @@ export function TodoList({ node, trusted }: TodoListProps): ReactNode {
     } finally {
       setSaving(false);
     }
-  }, [node.id, path, trusted]);
+  }, [filesystem, host.dashboard, path]);
 
   const addTodo = async (): Promise<void> => {
     const nextDescription = description.trim();
@@ -155,7 +151,7 @@ export function TodoList({ node, trusted }: TodoListProps): ReactNode {
     void persist(items.filter((_, candidateIndex) => candidateIndex !== index));
   };
 
-  const canWrite = trusted && path !== "" && (loaded || missing) && !saving;
+  const canWrite = Boolean(filesystem?.writeText) && path !== "" && (loaded || missing) && !saving;
 
   const beginEdit = (index: number, field: EditField): void => {
     if (!canWrite) return;
@@ -212,7 +208,7 @@ export function TodoList({ node, trusted }: TodoListProps): ReactNode {
   const visibleItems = sortTodos(filterTodos(items, filterTag));
   const openCount = items.filter((item) => !item.done).length;
 
-  if (!trusted) return <TodoCapabilityGate />;
+  if (!filesystem?.writeText) return <TodoCapabilityGate />;
   if (path === "") {
     return (
       <div className="component-state component-state--error" role="alert">

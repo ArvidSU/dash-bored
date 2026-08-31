@@ -21,12 +21,13 @@ Instead, the project should expose its workflows through a persistent, composabl
 
 The dashboard is not a collection of built-in integrations.
 
-The dashboard is a runtime for composing interfaces from components.
+The dashboard is a runtime for composing interfaces from components and a
+core-owned tiling topology.
 
 The application provides:
 
-- a component tree model
-- a layout system
+- a recursive composition and tiling model
+- drag-and-drop and horizontal/vertical layout manipulation
 - component loading
 - an action registry and command palette
 - configuration handling
@@ -61,17 +62,48 @@ the generated dashboard, the agent's discovery commands, and the component
 contract do not depend on a separate global dash-bored installation.
 
 Every rendered component should make that workflow immediate through a small
-context menu. Alongside Focus, users can collapse or expand a component to keep
-large dashboards compact, copy an exact config-and-tree locator, or describe a
-wanted change and send it to the app-wide configured
+context menu. Alongside Focus, users can edit a component's declared props,
+collapse or expand it to keep large dashboards compact, copy an exact
+config-and-tree locator, or describe a wanted change and send it to the app-wide configured
 `DASH_BORED_AGENT`. The app enriches that request with dash-bored, project, and
 component context; it does not hide which external CLI command will run.
 
-Direct manipulation complements that primary workflow. The desktop app may
-offer a focused structural editor for arranging existing components, filling
-their declared props, and adding or removing nodes. It should edit the same
-project-owned component tree rather than introduce a second layout model or a
-hidden application database.
+Direct manipulation complements that primary workflow. The desktop app offers
+a right-hand component-library flyout for arranging existing components,
+filling their declared props, and adding or removing branches. Opening the
+flyout is read-only; the first insertion, move, removal, replacement, metadata
+edit, or ratio resize implicitly starts a draft. Save/Cancel remains the
+boundary for publishing or discarding the same project-owned YAML tree, rather
+than a second layout model or a hidden application database.
+
+## Composition direction
+
+The core application owns composition. It owns the recursive tiling topology,
+drag-and-drop, horizontal and vertical resizing, component frames, focus and
+collapse, draft Save/Cancel, validation, and persistence. A tile branch is
+core composition structure, not a component. Components render inside the
+frames and may describe how their children are presented, but they do not own
+the dashboard's topology or resize semantics.
+
+Every ordinary component declares one `children` contract: its minimum and
+maximum child cardinality and the axes on which children may be arranged.
+Complex containers may additionally declare managed child presentation and a
+schema for metadata attached to each child. Components receive generic child
+handles, read-only descriptors, and a projected render/visibility interface;
+tabs, accordions, and similar presentations therefore need no app-level,
+component-ID-specific behavior. A tab label is metadata on the parent-child
+edge, not a special component prop.
+
+YAML is the only source of truth. It recursively describes both the topology
+and component composition; no hidden grid database or parallel coordinate
+model exists. Packaged and project-local components use exactly the same
+manifest, render, host, children, and capability contract. They differ only by
+provenance and trust: packaged app code is pretrusted, while project code
+requires project trust.
+
+Validation, editor behavior, and runtime behavior are generic. No logic is
+keyed to a component ID; differences come from declarative schemas, formats,
+and capabilities.
 
 ## Design Principles
 
@@ -171,7 +203,8 @@ Components should expose:
 - description
 - configuration schema
 - required permissions
-- available slots
+- one declared children contract (cardinality and allowed axes)
+- optional managed-child presentation and per-child metadata schema
 - capabilities
 
 This allows:
@@ -191,12 +224,13 @@ Components register actions while they are mounted. The palette makes those
 actions easier to find; it does not bypass project trust or add capabilities.
 Privileged work still flows through the component's declared host APIs.
 
-### 7. Components are the unit of presentation
+### 7. Components render within core-owned composition
 
-The application provides space in which to show a component. Any component may
-be the root of a dashboard, including a single button, and any rendered
-component may be focused as a temporary virtual root. Layout components are
-useful composition tools, not required wrappers.
+The application provides the frames, space, and topology in which components
+render. Any component may be the root of a dashboard, including a single
+button or display, and any rendered component may be focused as a temporary
+virtual root. Composition branches are not themselves components, and
+components cannot claim app-level layout or persistence special cases.
 
 ## Success Criteria
 

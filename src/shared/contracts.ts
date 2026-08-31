@@ -9,17 +9,48 @@ export type Permission =
   | "filesystem:read"
   | "filesystem:write"
   | "network:http"
-  | "process:execute";
+  | "process:execute"
+  | "process:observe"
+  | "webview:embed";
 
 export interface ComponentNode {
   id?: string;
   component: string;
   props?: Record<string, unknown>;
-  slots?: Record<string, ComponentNode | ComponentNode[]>;
+  children?: ComponentChildren;
 }
 
+export interface ComponentChildEdge<Node = ComponentNode> {
+  node: Node;
+  metadata?: Record<string, unknown>;
+}
+
+export type ComponentChildLayout<Node = ComponentNode> =
+  | {
+      type: "child";
+      child: ComponentChildEdge<Node>;
+    }
+  | {
+      type: "split";
+      axis: "horizontal" | "vertical";
+      /** Fraction of available space assigned to the first branch. */
+      ratio: number;
+      first: ComponentChildLayout<Node>;
+      second: ComponentChildLayout<Node>;
+    };
+
+export type ComponentChildren<Node = ComponentNode> =
+  | {
+      type: "tiled";
+      layout: ComponentChildLayout<Node>;
+    }
+  | {
+      type: "managed";
+      items: ComponentChildEdge<Node>[];
+    };
+
 export interface DashboardConfig {
-  schemaVersion: 1;
+  schemaVersion: 2;
   name: string;
   /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
   icon?: string;
@@ -31,19 +62,51 @@ export interface DashboardLock {
   components: Record<string, never>;
 }
 
-export interface SlotDefinition {
-  required?: boolean;
-  multiple?: boolean;
+export type ComponentChildPresentation =
+  | {
+      type: "tiled";
+      axes: "horizontal" | "vertical" | "both";
+    }
+  | {
+      type: "managed";
+    };
+
+export interface ComponentChildrenDefinition {
+  min: number;
+  max?: number;
+  presentation: ComponentChildPresentation;
+  metadataSchema?: Record<string, unknown>;
+}
+
+export interface ComponentProcessResourceDefinition {
+  /** Prop containing the supervised command string. */
+  commandProp: string;
+  /** Optional prop containing a project-relative working directory. */
+  cwdProp?: string;
+  /** Optional prop containing string-valued environment variables. */
+  envProp?: string;
+}
+
+export interface ComponentResourceDefinitions {
+  process?: ComponentProcessResourceDefinition;
+}
+
+export interface ComponentReferenceDefinition {
+  resource: "process";
 }
 
 export interface ComponentManifest {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   name: string;
   description: string;
   entry: string;
   propsSchema: Record<string, unknown>;
-  slots?: Record<string, SlotDefinition>;
+  children?: ComponentChildrenDefinition;
+  /** App-owned resources configured declaratively from component props. */
+  resources?: ComponentResourceDefinitions;
+  /** Props that reference resources supplied by other component nodes. */
+  references?: Record<string, ComponentReferenceDefinition>;
   permissions?: Permission[];
 }
 
@@ -71,7 +134,7 @@ export interface ResolvedComponentNode {
   id: string;
   component: string;
   props: Record<string, unknown>;
-  slots: Record<string, ResolvedComponentNode[]>;
+  children?: ComponentChildren<ResolvedComponentNode>;
   source: "builtin" | "local" | "config";
   manifest?: ComponentManifest;
   /** Canonical source path for a standalone config-link component. */
@@ -94,13 +157,28 @@ export interface ComponentAgentRequest {
   prompt: string;
 }
 
+export type ComponentChildLocator =
+  | { type: "managed"; index: number }
+  | { type: "tiled"; path: Array<"first" | "second"> };
+
+export type ComponentChildPlacement =
+  | {
+      type: "managed";
+      index: number;
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      type: "tiled";
+      path: Array<"first" | "second">;
+      axis: "horizontal" | "vertical";
+      position: "first" | "second";
+      ratio?: number;
+      metadata?: Record<string, unknown>;
+    };
+
 export interface DashboardInsertionTarget {
-  parentPath: Array<{
-    slot: string;
-    index: number;
-  }>;
-  slot: string;
-  index: number;
+  parentPath: ComponentChildLocator[];
+  placement: ComponentChildPlacement;
 }
 
 export interface ComponentCreationAgentRequest {
@@ -289,9 +367,21 @@ export interface ShellRunResult {
   timedOut: boolean;
 }
 
+export interface ComponentChildHandle {
+  id: string;
+  reference: string;
+  displayName: string;
+  metadata: Record<string, unknown>;
+  render(options?: { visible?: boolean }): ReactNode;
+}
+
+export type ComponentRenderedChildren =
+  | { type: "tiled"; surface: ReactNode }
+  | { type: "managed"; items: ComponentChildHandle[] };
+
 export interface LocalComponentRenderProps<Props = Record<string, unknown>> {
   props: Props;
-  slots: Record<string, ReactNode[]>;
+  children?: ComponentRenderedChildren;
   host: LocalComponentHost;
 }
 
@@ -321,4 +411,12 @@ export interface LocalComponentHost {
   };
   http?: { request(request: Omit<HttpRequest, "nodeId">): Promise<HttpResponsePayload> };
   shell?: { run(request: Omit<ShellRunRequest, "nodeId">): Promise<ShellRunResult> };
+  processes?: {
+    get(nodeId?: string): ProcessSnapshot | undefined;
+    start?(): Promise<ProcessSnapshot>;
+    stop?(): Promise<ProcessSnapshot>;
+  };
+  webview?: {
+    render(request: { url: string; title?: string }): ReactNode;
+  };
 }

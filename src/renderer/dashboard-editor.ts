@@ -1,33 +1,88 @@
 import type {
   ComponentCatalogItem,
+  ComponentChildEdge,
+  ComponentChildLayout,
+  ComponentChildLocator,
+  ComponentChildPlacement,
+  ComponentChildrenDefinition,
   ComponentManifest,
   ComponentNode,
   DashboardConfig,
+  DashboardInsertionTarget,
 } from "../shared/contracts";
+import {
+  childEdges,
+  childLocators,
+  componentPathKey,
+  edgeAtLayoutPath,
+  edgeAtLocator,
+  layoutEdges,
+  type LayoutBranch,
+} from "./component-children";
+import { normalizeSplitRatio } from "./split-layout";
 
-export interface NodePathSegment {
-  slot: string;
-  index: number;
-}
+export type NodePath = ComponentChildLocator[];
+export type InsertionTarget = DashboardInsertionTarget;
+export type ChildPlacement = ComponentChildPlacement;
 
-export type NodePath = NodePathSegment[];
-
-export interface SlotTarget {
-  parentPath: NodePath;
-  slot: string;
-  index: number;
-}
-
-function sameSegment(left: NodePathSegment, right: NodePathSegment): boolean {
-  return left.slot === right.slot && left.index === right.index;
+function sameLocator(left: ComponentChildLocator, right: ComponentChildLocator): boolean {
+  if (left.type !== right.type) return false;
+  if (left.type === "managed" && right.type === "managed") return left.index === right.index;
+  if (left.type === "tiled" && right.type === "tiled") {
+    return left.path.length === right.path.length
+      && left.path.every((segment, index) => segment === right.path[index]);
+  }
+  return false;
 }
 
 export function pathEquals(left: NodePath, right: NodePath): boolean {
-  return left.length === right.length && left.every((segment, index) => sameSegment(segment, right[index]!));
+  return left.length === right.length
+    && left.every((segment, index) => sameLocator(segment, right[index]!));
 }
 
 export function pathStartsWith(path: NodePath, prefix: NodePath): boolean {
-  return prefix.length <= path.length && prefix.every((segment, index) => sameSegment(segment, path[index]!));
+  return prefix.length <= path.length
+    && prefix.every((segment, index) => sameLocator(segment, path[index]!));
+}
+
+export function pathKey(path: NodePath): string {
+  return componentPathKey(path);
+}
+
+/**
+ * Convert the resolver's YAML-style source locator back into a structural
+ * path. Resolved linked nodes may have namespaced IDs, and nodes without an
+ * explicit YAML id use generated resolver IDs, so sourcePath is the stable
+ * locator for composition actions.
+ */
+export function nodePathFromSourcePath(sourcePath: string): NodePath | null {
+  if (sourcePath === "root") return [];
+  if (!sourcePath.startsWith("root")) return null;
+
+  const path: NodePath = [];
+  let offset = "root".length;
+  while (offset < sourcePath.length) {
+    const managed = sourcePath.slice(offset).match(/^\.children\.items\[(\d+)\]\.node/);
+    if (managed) {
+      path.push({ type: "managed", index: Number(managed[1]) });
+      offset += managed[0].length;
+      continue;
+    }
+
+    if (!sourcePath.startsWith(".children.layout", offset)) return null;
+    offset += ".children.layout".length;
+    const branches: LayoutBranch[] = [];
+    while (true) {
+      const branch = sourcePath.slice(offset).match(/^\.(first|second)/);
+      if (!branch) break;
+      branches.push(branch[1] as LayoutBranch);
+      offset += branch[0].length;
+    }
+    if (!sourcePath.startsWith(".child.node", offset)) return null;
+    offset += ".child.node".length;
+    path.push({ type: "tiled", path: branches });
+  }
+  return path;
 }
 
 export function catalogManifest(
@@ -37,62 +92,16 @@ export function catalogManifest(
   return catalog.find((item) => item.reference === reference)?.manifest ?? null;
 }
 
-export function slotAcceptsMultiple(
+export function childrenDefinition(
   catalog: readonly ComponentCatalogItem[],
   node: ComponentNode,
-  slot: string,
-): boolean {
-  return catalogManifest(catalog, node.component)?.slots?.[slot]?.multiple === true;
-}
-
-export function slotNames(
-  catalog: readonly ComponentCatalogItem[],
-  node: ComponentNode,
-): string[] {
-  return [...new Set([
-    ...Object.keys(catalogManifest(catalog, node.component)?.slots ?? {}),
-    ...Object.keys(node.slots ?? {}),
-  ])];
-}
-
-export function slotChildren(node: ComponentNode, slot: string): ComponentNode[] {
-  const configured = node.slots?.[slot];
-  if (configured === undefined) return [];
-  return Array.isArray(configured) ? configured : [configured];
-}
-
-export function defaultTabLabel(index: number): string {
-  return `Tab ${index + 1}`;
-}
-
-export function tabLabels(node: ComponentNode): string[] {
-  const configured = Array.isArray(node.props?.labels) ? node.props.labels : [];
-  return slotChildren(node, "children").map((_, index) => {
-    const label = configured[index];
-    return typeof label === "string" && label.trim().length > 0
-      ? label
-      : defaultTabLabel(index);
-  });
-}
-
-function isTabChildrenSlot(node: ComponentNode, slot: string): boolean {
-  return node.component === "@dash-bored/tabs" && slot === "children";
-}
-
-function setTabLabels(node: ComponentNode, labels: string[]): void {
-  const props = { ...(node.props ?? {}) };
-  if (labels.length === 0) delete props.labels;
-  else props.labels = labels;
-  node.props = Object.keys(props).length === 0 ? undefined : props;
+): ComponentChildrenDefinition | undefined {
+  return catalogManifest(catalog, node.component)?.children;
 }
 
 export function nodeAtPath(root: ComponentNode, path: NodePath): ComponentNode {
   let node = root;
-  for (const segment of path) {
-    const child = slotChildren(node, segment.slot)[segment.index];
-    if (!child) throw new Error("The dashboard changed while an edit action was in progress.");
-    node = child;
-  }
+  for (const locator of path) node = edgeAtLocator(node.children, locator).node;
   return node;
 }
 
@@ -102,12 +111,10 @@ export function nodePathById(
   path: NodePath = [],
 ): NodePath | null {
   if (root.id === id) return path;
-  for (const [slot, value] of Object.entries(root.slots ?? {})) {
-    const children = Array.isArray(value) ? value : [value];
-    for (const [index, child] of children.entries()) {
-      const match = nodePathById(child, id, [...path, { slot, index }]);
-      if (match) return match;
-    }
+  for (const locator of childLocators(root.children)) {
+    const child = edgeAtLocator(root.children, locator).node;
+    const match = nodePathById(child, id, [...path, locator]);
+    if (match) return match;
   }
   return null;
 }
@@ -116,91 +123,177 @@ export function collapsibleNodePaths(
   root: ComponentNode,
   path: NodePath = [],
 ): NodePath[] {
-  const paths: NodePath[] = [];
-  const entries = Object.entries(root.slots ?? {});
-  if (entries.some(([, value]) => (Array.isArray(value) ? value.length : 1) > 0)) {
-    paths.push(path);
-  }
-  for (const [slot, value] of entries) {
-    const children = Array.isArray(value) ? value : [value];
-    children.forEach((child, index) => {
-      paths.push(...collapsibleNodePaths(child, [...path, { slot, index }]));
-    });
+  const paths = childEdges(root.children).length > 0 ? [path] : [];
+  for (const locator of childLocators(root.children)) {
+    const child = edgeAtLocator(root.children, locator).node;
+    paths.push(...collapsibleNodePaths(child, [...path, locator]));
   }
   return paths;
 }
 
-function setSlotChildren(
-  node: ComponentNode,
-  slot: string,
-  children: ComponentNode[],
-  multiple: boolean,
-): void {
-  const slots = { ...(node.slots ?? {}) };
-  if (children.length === 0) delete slots[slot];
-  else slots[slot] = multiple ? children : children[0]!;
-  node.slots = Object.keys(slots).length === 0 ? undefined : slots;
-}
-
 function parentOf(root: ComponentNode, path: NodePath): {
   parent: ComponentNode;
-  segment: NodePathSegment;
+  locator: ComponentChildLocator;
 } {
-  const segment = path.at(-1);
-  if (!segment) throw new Error("The dashboard root cannot be moved or removed.");
-  return { parent: nodeAtPath(root, path.slice(0, -1)), segment };
+  const locator = path.at(-1);
+  if (!locator) throw new Error("The dashboard root cannot be moved or removed.");
+  return { parent: nodeAtPath(root, path.slice(0, -1)), locator };
 }
 
-function adjustPathAfterRemoval(path: NodePath, removed: NodePath): NodePath {
-  const removedSegment = removed.at(-1);
-  if (!removedSegment) return path;
-  const removedParent = removed.slice(0, -1);
-  const adjusted = path.map((segment) => ({ ...segment }));
-  if (!pathStartsWith(adjusted, removedParent) || adjusted.length <= removedParent.length) {
-    return adjusted;
+function removeLayoutEdge(
+  layout: ComponentChildLayout,
+  path: readonly LayoutBranch[],
+): { layout?: ComponentChildLayout; removed: ComponentChildEdge } {
+  if (path.length === 0) {
+    if (layout.type !== "child") throw new Error("The selected tile is no longer a component.");
+    return { removed: layout.child };
   }
-  const affected = adjusted[removedParent.length]!;
-  if (affected.slot === removedSegment.slot && affected.index > removedSegment.index) {
-    affected.index -= 1;
+  if (layout.type !== "split") throw new Error("The selected tile no longer exists.");
+  const [branch, ...rest] = path;
+  const result = removeLayoutEdge(layout[branch!], rest);
+  if (!result.layout) {
+    return {
+      layout: layout[branch === "first" ? "second" : "first"],
+      removed: result.removed,
+    };
   }
-  return adjusted;
+  return {
+    layout: { ...layout, [branch!]: result.layout },
+    removed: result.removed,
+  };
 }
 
-function removeFromConfig(
-  config: DashboardConfig,
-  path: NodePath,
+function removeFromConfig(config: DashboardConfig, path: NodePath): ComponentChildEdge {
+  const { parent, locator } = parentOf(config.root, path);
+  if (!parent.children || parent.children.type !== locator.type) {
+    throw new Error("The component's child presentation changed while editing.");
+  }
+  if (locator.type === "managed") {
+    if (parent.children.type !== "managed") throw new Error("The child presentation changed.");
+    const [removed] = parent.children.items.splice(locator.index, 1);
+    if (!removed) throw new Error("The component no longer exists.");
+    if (parent.children.items.length === 0) delete parent.children;
+    return removed;
+  }
+  if (parent.children.type !== "tiled") throw new Error("The child presentation changed.");
+  const result = removeLayoutEdge(parent.children.layout, locator.path);
+  if (result.layout) parent.children.layout = result.layout;
+  else delete parent.children;
+  return result.removed;
+}
+
+function assertCardinality(
+  definition: ComponentChildrenDefinition | undefined,
+  count: number,
+): ComponentChildrenDefinition {
+  if (!definition) throw new Error("This component does not accept children.");
+  if (definition.max !== undefined && count >= definition.max) {
+    throw new Error(`This component accepts at most ${definition.max} children.`);
+  }
+  return definition;
+}
+
+function axisAllowed(
+  definition: ComponentChildrenDefinition,
+  axis: "horizontal" | "vertical",
+): boolean {
+  return definition.presentation.type === "tiled"
+    && (definition.presentation.axes === "both" || definition.presentation.axes === axis);
+}
+
+function replaceLayoutLeaf(
+  layout: ComponentChildLayout,
+  path: readonly LayoutBranch[],
+  replacement: ComponentChildLayout,
+): ComponentChildLayout {
+  if (path.length === 0) {
+    if (layout.type !== "child") throw new Error("Select a component tile as the drop target.");
+    return replacement;
+  }
+  if (layout.type !== "split") throw new Error("The selected tile no longer exists.");
+  const [branch, ...rest] = path;
+  return { ...layout, [branch!]: replaceLayoutLeaf(layout[branch!], rest, replacement) };
+}
+
+function tiledLayoutUsesAllowedAxes(
+  layout: ComponentChildLayout,
+  axes: "horizontal" | "vertical" | "both",
+): boolean {
+  if (layout.type === "child") return true;
+  return (axes === "both" || layout.axis === axes)
+    && tiledLayoutUsesAllowedAxes(layout.first, axes)
+    && tiledLayoutUsesAllowedAxes(layout.second, axes);
+}
+
+function canPreserveRootChildren(
+  children: ComponentNode["children"],
+  definition: ComponentManifest["children"] | undefined,
+): boolean {
+  if (!children || !definition || children.type !== definition.presentation.type) return false;
+  if (definition.max !== undefined && childEdges(children).length > definition.max) return false;
+  return children.type !== "tiled"
+    || definition.presentation.type !== "tiled"
+    || tiledLayoutUsesAllowedAxes(children.layout, definition.presentation.axes);
+}
+
+function insertEdge(
+  parent: ComponentNode,
+  placement: ComponentChildPlacement,
+  edge: ComponentChildEdge,
   catalog: readonly ComponentCatalogItem[],
-): ComponentNode {
-  const { parent, segment } = parentOf(config.root, path);
-  const children = slotChildren(parent, segment.slot);
-  const labels = isTabChildrenSlot(parent, segment.slot) ? tabLabels(parent) : null;
-  const [removed] = children.splice(segment.index, 1);
-  if (!removed) throw new Error("The component no longer exists.");
-  setSlotChildren(parent, segment.slot, children, slotAcceptsMultiple(catalog, parent, segment.slot));
-  if (labels) {
-    labels.splice(segment.index, 1);
-    setTabLabels(parent, labels);
+): void {
+  const definition = assertCardinality(
+    childrenDefinition(catalog, parent),
+    childEdges(parent.children).length,
+  );
+  const inserted: ComponentChildEdge = {
+    node: structuredClone(edge.node),
+    ...(placement.metadata ?? edge.metadata
+      ? { metadata: structuredClone(placement.metadata ?? edge.metadata ?? {}) }
+      : {}),
+  };
+  if (placement.type === "managed") {
+    if (definition.presentation.type !== "managed") {
+      throw new Error("This component uses tiled child presentation.");
+    }
+    if (!parent.children) parent.children = { type: "managed", items: [] };
+    if (parent.children.type !== "managed") throw new Error("The child presentation is invalid.");
+    const index = Math.max(0, Math.min(placement.index, parent.children.items.length));
+    parent.children.items.splice(index, 0, inserted);
+    return;
   }
-  return removed;
+
+  if (!axisAllowed(definition, placement.axis)) {
+    throw new Error(`This component does not allow ${placement.axis} tiling.`);
+  }
+  const newLeaf: ComponentChildLayout = { type: "child", child: inserted };
+  if (!parent.children) {
+    parent.children = { type: "tiled", layout: newLeaf };
+    return;
+  }
+  if (parent.children.type !== "tiled") throw new Error("The child presentation is invalid.");
+  const target = edgeAtLayoutPath(parent.children.layout, placement.path);
+  const oldLeaf: ComponentChildLayout = { type: "child", child: target };
+  const split: ComponentChildLayout = {
+    type: "split",
+    axis: placement.axis,
+    ratio: normalizeSplitRatio(placement.ratio),
+    first: placement.position === "first" ? newLeaf : oldLeaf,
+    second: placement.position === "second" ? newLeaf : oldLeaf,
+  };
+  parent.children.layout = replaceLayoutLeaf(parent.children.layout, placement.path, split);
 }
 
 export function removeNode(
   config: DashboardConfig,
   path: NodePath,
-  catalog: readonly ComponentCatalogItem[],
+  _catalog?: readonly ComponentCatalogItem[],
 ): DashboardConfig {
   const next = structuredClone(config);
-  removeFromConfig(next, path, catalog);
+  removeFromConfig(next, path);
   return next;
 }
 
-/**
- * Replace the required dashboard root with a new component. A root cannot be
- * left empty, so replacing it is the root-level equivalent of remove + add.
- * Children whose slot still exists on the replacement are carried across;
- * incompatible children remain absent from the draft rather than producing an
- * invalid tree.
- */
 export function replaceRoot(
   config: DashboardConfig,
   item: ComponentCatalogItem,
@@ -209,20 +302,9 @@ export function replaceRoot(
   const next = structuredClone(config);
   const replacement = createNode(next, item, props);
   if (config.root.id) replacement.id = config.root.id;
-
-  const declaredSlots = item.manifest?.slots ?? {};
-  const carriedSlots: Record<string, ComponentNode | ComponentNode[]> = {};
-  for (const [slot, value] of Object.entries(config.root.slots ?? {})) {
-    const definition = declaredSlots[slot];
-    if (!definition) continue;
-    const children = slotChildren(config.root, slot);
-    if (children.length === 0) continue;
-    carriedSlots[slot] = definition.multiple === true
-      ? structuredClone(value)
-      : structuredClone(children[0]!);
-  }
-  const slots = { ...(replacement.slots ?? {}), ...carriedSlots };
-  replacement.slots = Object.keys(slots).length === 0 ? undefined : slots;
+  const oldChildren = config.root.children;
+  const definition = item.manifest?.children;
+  if (canPreserveRootChildren(oldChildren, definition)) replacement.children = structuredClone(oldChildren);
   next.root = replacement;
   return next;
 }
@@ -231,46 +313,34 @@ export function countDiscardedRootNodes(
   config: DashboardConfig,
   item: ComponentCatalogItem,
 ): number {
-  const declaredSlots = item.manifest?.slots ?? {};
-  return Object.entries(config.root.slots ?? {}).reduce((total, [slot, value]) => {
-    const children = Array.isArray(value) ? value : [value];
-    const definition = declaredSlots[slot];
-    if (!definition) return total + children.reduce((sum, child) => sum + countNodes(child), 0);
-    const preserved = definition.multiple === true ? children.length : Math.min(children.length, 1);
-    return total + children
-      .slice(preserved)
-      .reduce((sum, child) => sum + countNodes(child), 0);
-  }, 0);
+  const definition = item.manifest?.children;
+  const edges = childEdges(config.root.children);
+  if (!canPreserveRootChildren(config.root.children, definition)) {
+    return edges.reduce((sum, edge) => sum + countNodes(edge.node), 0);
+  }
+  return 0;
 }
 
 export function insertNode(
   config: DashboardConfig,
-  target: SlotTarget,
+  target: InsertionTarget,
   node: ComponentNode,
   catalog: readonly ComponentCatalogItem[],
 ): DashboardConfig {
   const next = structuredClone(config);
-  const parent = nodeAtPath(next.root, target.parentPath);
-  const multiple = slotAcceptsMultiple(catalog, parent, target.slot);
-  const children = slotChildren(parent, target.slot);
-  if (!multiple && children.length > 0) {
-    throw new Error("That slot already contains a component. Remove it before adding another.");
-  }
-  const insertionIndex = Math.max(0, Math.min(target.index, children.length));
-  const labels = isTabChildrenSlot(parent, target.slot) ? tabLabels(parent) : null;
-  children.splice(insertionIndex, 0, structuredClone(node));
-  setSlotChildren(parent, target.slot, children, multiple);
-  if (labels) {
-    labels.splice(insertionIndex, 0, defaultTabLabel(insertionIndex));
-    setTabLabels(parent, labels);
-  }
+  insertEdge(nodeAtPath(next.root, target.parentPath), target.placement, { node }, catalog);
   return next;
+}
+
+function directLocatorById(parent: ComponentNode, id: string): ComponentChildLocator | null {
+  return childLocators(parent.children).find((locator) =>
+    edgeAtLocator(parent.children, locator).node.id === id) ?? null;
 }
 
 export function moveNode(
   config: DashboardConfig,
   source: NodePath,
-  target: SlotTarget,
+  target: InsertionTarget,
   catalog: readonly ComponentCatalogItem[],
 ): DashboardConfig {
   if (source.length === 0) throw new Error("The dashboard root cannot be moved.");
@@ -278,61 +348,47 @@ export function moveNode(
     throw new Error("A component cannot be moved into itself or one of its descendants.");
   }
 
-  const next = structuredClone(config);
-  const sourceSegment = source.at(-1)!;
-  const sourceParentPath = source.slice(0, -1);
-  const sourceParentNode = nodeAtPath(next.root, sourceParentPath);
-  const movedTabLabel = isTabChildrenSlot(sourceParentNode, sourceSegment.slot)
-    ? tabLabels(sourceParentNode)[sourceSegment.index]
+  const originalParent = nodeAtPath(config.root, target.parentPath);
+  const targetParentId = originalParent.id;
+  const targetTileId = target.placement.type === "tiled" && originalParent.children?.type === "tiled"
+    ? edgeAtLayoutPath(originalParent.children.layout, target.placement.path).node.id
     : undefined;
-  const moved = removeFromConfig(next, source, catalog);
-  const adjustedParentPath = adjustPathAfterRemoval(target.parentPath, source);
-  const sourceParent = source.slice(0, -1);
-  let targetIndex = target.index;
-  if (
-    pathEquals(sourceParent, target.parentPath) &&
-    sourceSegment.slot === target.slot &&
-    sourceSegment.index < targetIndex
-  ) {
-    targetIndex -= 1;
+  const sourceParentPath = source.slice(0, -1);
+  const sourceLocator = source.at(-1)!;
+  const sameManagedParent = pathEquals(sourceParentPath, target.parentPath)
+    && sourceLocator.type === "managed"
+    && target.placement.type === "managed";
+
+  const next = structuredClone(config);
+  const edge = removeFromConfig(next, source);
+  let parentPath = target.parentPath;
+  if (targetParentId) parentPath = nodePathById(next.root, targetParentId) ?? parentPath;
+  const parent = nodeAtPath(next.root, parentPath);
+  const placement = structuredClone(target.placement);
+  // A move carries the existing parent-child edge, including its metadata.
+  // Metadata changes have their own explicit operation.
+  delete placement.metadata;
+  if (placement.type === "managed" && sameManagedParent && sourceLocator.type === "managed") {
+    if (sourceLocator.index < placement.index) placement.index -= 1;
+  } else if (placement.type === "tiled" && targetTileId) {
+    const locator = directLocatorById(parent, targetTileId);
+    if (!locator || locator.type !== "tiled") {
+      throw new Error("The target tile was removed with the moved component.");
+    }
+    placement.path = locator.path;
   }
-  const parent = nodeAtPath(next.root, adjustedParentPath);
-  const multiple = slotAcceptsMultiple(catalog, parent, target.slot);
-  const children = slotChildren(parent, target.slot);
-  if (!multiple && children.length > 0) {
-    throw new Error("That slot already contains a component. Remove it before moving another one there.");
-  }
-  const insertionIndex = Math.max(0, Math.min(targetIndex, children.length));
-  const labels = isTabChildrenSlot(parent, target.slot) ? tabLabels(parent) : null;
-  children.splice(insertionIndex, 0, moved);
-  setSlotChildren(parent, target.slot, children, multiple);
-  if (labels) {
-    labels.splice(insertionIndex, 0, movedTabLabel ?? defaultTabLabel(insertionIndex));
-    setTabLabels(parent, labels);
-  }
+  insertEdge(parent, placement, edge, catalog);
   return next;
 }
 
-export function renameTab(
+export function updateChildMetadata(
   config: DashboardConfig,
   path: NodePath,
-  index: number,
-  label: string,
+  metadata: Record<string, unknown>,
 ): DashboardConfig {
   const next = structuredClone(config);
-  const node = nodeAtPath(next.root, path);
-  if (node.component !== "@dash-bored/tabs") {
-    throw new Error("Only a tabs component can rename its tabs.");
-  }
-  const children = slotChildren(node, "children");
-  if (index < 0 || index >= children.length) {
-    throw new Error("The tab no longer exists.");
-  }
-  const trimmed = label.trim();
-  if (!trimmed) throw new Error("Tab names cannot be empty.");
-  const labels = tabLabels(node);
-  labels[index] = trimmed;
-  setTabLabels(node, labels);
+  const { parent, locator } = parentOf(next.root, path);
+  edgeAtLocator(parent.children, locator).metadata = structuredClone(metadata);
   return next;
 }
 
@@ -347,56 +403,61 @@ export function updateNodeProps(
   return next;
 }
 
+export function updateTiledSplitRatio(
+  config: DashboardConfig,
+  parentPath: NodePath,
+  splitPath: readonly LayoutBranch[],
+  ratio: number,
+): DashboardConfig {
+  const next = structuredClone(config);
+  const parent = nodeAtPath(next.root, parentPath);
+  if (parent.children?.type !== "tiled") throw new Error("The tiled layout no longer exists.");
+  let layout = parent.children.layout;
+  for (const branch of splitPath) {
+    if (layout.type !== "split") throw new Error("The split no longer exists.");
+    layout = layout[branch];
+  }
+  if (layout.type !== "split") throw new Error("The split no longer exists.");
+  layout.ratio = normalizeSplitRatio(ratio);
+  return next;
+}
+
 export type DashboardMetadataField = "name" | "icon";
 
-/** Update dashboard identity without mutating the active draft. */
 export function updateDashboardMetadata(
   config: DashboardConfig,
   field: DashboardMetadataField,
   value: string,
 ): DashboardConfig {
   const next = structuredClone(config);
-  if (field === "name") {
-    next.name = value;
-    return next;
-  }
-
-  const icon = value.trim();
-  if (icon.length === 0) delete next.icon;
-  else next.icon = icon;
+  if (field === "name") next.name = value;
+  else if (value.trim().length === 0) delete next.icon;
+  else next.icon = value.trim();
   return next;
 }
 
 export function countNodes(node: ComponentNode): number {
-  return 1 + Object.values(node.slots ?? {}).reduce((total, value) => {
-    const children = Array.isArray(value) ? value : [value];
-    return total + children.reduce((sum, child) => sum + countNodes(child), 0);
-  }, 0);
+  return 1 + childEdges(node.children).reduce((sum, edge) => sum + countNodes(edge.node), 0);
 }
 
 function collectIds(node: ComponentNode, ids: Set<string>, nodePath = "root"): void {
   ids.add(node.id ?? nodePath);
-  for (const [slot, value] of Object.entries(node.slots ?? {})) {
-    const children = Array.isArray(value) ? value : [value];
-    children.forEach((child, index) => collectIds(child, ids, `${nodePath}.${slot}.${index}`));
-  }
+  childLocators(node.children).forEach((locator) => {
+    collectIds(edgeAtLocator(node.children, locator).node, ids, `${nodePath}.${componentPathKey([locator])}`);
+  });
 }
 
 export function generateNodeId(config: DashboardConfig, manifest: ComponentManifest): string {
   const ids = new Set<string>();
   collectIds(config.root, ids);
   const raw = manifest.id.replace(/^@dash-bored\//, "");
-  const normalized = raw
-    .toLowerCase()
+  const normalized = raw.toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^[^a-z]+/, "")
     .replace(/-+$/g, "") || "component";
   let candidate = normalized;
   let suffix = 2;
-  while (ids.has(candidate)) {
-    candidate = `${normalized}-${suffix}`;
-    suffix += 1;
-  }
+  while (ids.has(candidate)) candidate = `${normalized}-${suffix++}`;
   return candidate;
 }
 
@@ -405,18 +466,34 @@ export function createNode(
   item: ComponentCatalogItem,
   props: Record<string, unknown>,
 ): ComponentNode {
-  if (!item.available || item.manifest === null) {
-    throw new Error("That component is not available.");
-  }
+  if (!item.available || item.manifest === null) throw new Error("That component is not available.");
   return {
     id: generateNodeId(config, item.manifest),
     component: item.reference,
-    ...(Object.keys(props).length === 0 ? {} : { props: structuredClone(props) }),
+    ...(Object.keys(props).length > 0 ? { props: structuredClone(props) } : {}),
   };
 }
 
-export function pathKey(path: NodePath): string {
-  return path.length === 0
-    ? "root"
-    : path.map((segment) => `${segment.slot}:${segment.index}`).join("/");
+export function defaultChildMetadata(
+  manifest: ComponentManifest,
+  index: number,
+): Record<string, unknown> {
+  const schema = manifest.children?.metadataSchema;
+  const properties = schema && typeof schema.properties === "object" && schema.properties !== null
+    ? schema.properties as Record<string, Record<string, unknown>>
+    : {};
+  const metadata: Record<string, unknown> = {};
+  for (const [name, property] of Object.entries(properties)) {
+    if ("default" in property) metadata[name] = structuredClone(property.default);
+    else if (name === "label") metadata[name] = `Item ${index + 1}`;
+  }
+  return metadata;
+}
+
+export function managedChildEdges(node: ComponentNode): ComponentChildEdge[] {
+  return node.children?.type === "managed" ? node.children.items : [];
+}
+
+export function tiledChildEdges(node: ComponentNode): ComponentChildEdge[] {
+  return node.children?.type === "tiled" ? layoutEdges(node.children.layout) : [];
 }

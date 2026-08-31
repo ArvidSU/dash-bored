@@ -3,7 +3,13 @@ import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from "nod
 import { join } from "node:path";
 import { stringify } from "yaml";
 import { ProcessManager, ProjectRuntime, TrustStore } from "../../src/core";
-import type { DashboardConfig, ProjectSnapshot } from "../../src/shared/contracts";
+import type {
+  ComponentChildLayout,
+  ComponentNode,
+  DashboardConfig,
+  ProjectSnapshot,
+  ResolvedComponentNode,
+} from "../../src/shared/contracts";
 import {
   createProject,
   removeTemporaryDirectory,
@@ -15,6 +21,40 @@ import {
 const cleanup: string[] = [];
 const managers: ProcessManager[] = [];
 const runtimes: ProjectRuntime[] = [];
+
+function child(node: ComponentNode): ComponentChildLayout {
+  return { type: "child", child: { node } };
+}
+
+function tiled(nodes: readonly ComponentNode[]) {
+  if (nodes.length === 1) return { type: "tiled" as const, layout: child(nodes[0]!) };
+  return {
+    type: "tiled" as const,
+    layout: {
+      type: "split" as const,
+      axis: "vertical" as const,
+      ratio: 0.5,
+      first: child(nodes[0]!),
+      second: child(nodes[1]!),
+    },
+  };
+}
+
+function resolvedChildren(node: ResolvedComponentNode | null | undefined): ResolvedComponentNode[] {
+  const children = node?.children;
+  if (children === undefined) return [];
+  if (children.type === "managed") return children.items.map((edge) => edge.node);
+  const nodes: ResolvedComponentNode[] = [];
+  const visit = (layout: typeof children.layout): void => {
+    if (layout.type === "child") nodes.push(layout.child.node);
+    else {
+      visit(layout.first);
+      visit(layout.second);
+    }
+  };
+  visit(children.layout);
+  return nodes;
+}
 
 afterEach(async () => {
   await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
@@ -60,24 +100,22 @@ describe("ProcessManager", () => {
 
 describe("ProjectRuntime", () => {
   const processConfig: DashboardConfig = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "Runtime",
     root: {
-      component: "@dash-bored/stack",
-      slots: {
-        children: [
-          {
-            id: "server",
-            component: "@dash-bored/command",
-            props: { label: "Server", command: "sleep 30" },
-          },
-          {
-            id: "logs",
-            component: "@dash-bored/terminal",
-            props: { processId: "server" },
-          },
-        ],
-      },
+      component: "@dash-bored/group",
+      children: tiled([
+        {
+          id: "server",
+          component: "@dash-bored/command",
+          props: { label: "Server", command: "sleep 30" },
+        },
+        {
+          id: "logs",
+          component: "@dash-bored/terminal",
+          props: { processId: "server" },
+        },
+      ]),
     },
   };
 
@@ -155,7 +193,7 @@ describe("ProjectRuntime", () => {
     await runtime.load(root);
     runtime.watch();
     const changed = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Changed",
       root: { component: "@dash-bored/text", props: { content: "updated" } },
     } as const;
@@ -222,7 +260,7 @@ describe("ProjectRuntime", () => {
     runtimes.push(runtime);
     const loaded = await runtime.load(root, { inputKind: "project-root" });
 
-    expect(loaded.tree?.component).toBe("@dash-bored/stack");
+    expect(loaded.tree?.component).toBe("@dash-bored/group");
     expect((await stat(join(root, "dash-bored", "components"))).isDirectory()).toBeTrue();
     await expect(access(join(root, "dash-bored.yaml"))).rejects.toThrow();
     expect(() => runtime.watch()).not.toThrow();
@@ -233,7 +271,7 @@ describe("ProjectRuntime", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Canonical",
       root: { component: "@dash-bored/text", props: { content: "Canonical" } },
     });
@@ -243,7 +281,7 @@ describe("ProjectRuntime", () => {
       writeFile(
         join(named, "dash-bored.yaml"),
         stringify({
-          schemaVersion: 1,
+          schemaVersion: 2,
           name: "Arvid",
           root: { component: "@dash-bored/text", props: { content: "Personal" } },
         }),
@@ -282,12 +320,10 @@ describe("ProjectRuntime", () => {
       ...loaded.config!,
       name: "Edited in app",
       root: {
-        component: "@dash-bored/stack",
-        slots: {
-          children: [
-            { id: "message", component: "@dash-bored/text", props: { content: "Saved" } },
-          ],
-        },
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "message", component: "@dash-bored/text", props: { content: "Saved" } },
+        ]),
       },
     };
 
@@ -326,7 +362,7 @@ describe("ProjectRuntime", () => {
     expect(trusted.trusted).toBeTrue();
 
     const broken: DashboardConfig = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Broken",
       root: { id: "broken", component: "./components/broken" },
     };
@@ -337,13 +373,13 @@ describe("ProjectRuntime", () => {
     expect(await readFile(configPath, "utf8")).toBe(before);
 
     const command: DashboardConfig = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Command",
       root: {
-        component: "@dash-bored/stack",
-        slots: {
-          children: [{ id: "server", component: "@dash-bored/command", props: { label: "Run", command: "echo ok" } }],
-        },
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "server", component: "@dash-bored/command", props: { label: "Run", command: "echo ok" } },
+        ]),
       },
     };
     const saved = await runtime.saveDashboardConfig(command, trusted.configRevision!);
@@ -352,11 +388,54 @@ describe("ProjectRuntime", () => {
     expect(saved.processes).toEqual([]);
   });
 
+  test("supervises a process declared by a project-local component manifest", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 2,
+      name: "Local process resource",
+      root: {
+        id: "local-runner",
+        component: "./components/local-runner",
+        props: { command: "printf local-resource" },
+      },
+    });
+    await writeLocalComponent(
+      root,
+      "local-runner",
+      "export default function LocalRunner() { return null; }",
+      {
+        propsSchema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["command"],
+          properties: { command: { type: "string", minLength: 1 } },
+        },
+        permissions: ["process:execute"],
+        resources: { process: { commandProp: "command" } },
+      },
+    );
+    const runtime = new ProjectRuntime({
+      trustStore: new TrustStore(join(root, ".state", "trust.json")),
+    });
+    runtimes.push(runtime);
+
+    const loaded = await runtime.load(root);
+    expect(loaded.diagnostics).toEqual([]);
+    const trusted = await runtime.trust();
+    expect(trusted.processes.map((process) => process.id)).toEqual(["local-runner"]);
+    const finished = await runtime.startProcess("local-runner");
+    await waitFor(() => runtime.getSnapshot().processes[0]?.phase === "exited");
+    expect(finished.id).toBe("local-runner");
+    expect(runtime.getSnapshot().processes[0]?.logs.map((entry) => entry.text).join(""))
+      .toContain("local-resource");
+  });
+
   test("edits the standalone source that owns a focused linked component", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Base",
       root: { id: "personal", component: "./arvid" },
     });
@@ -364,7 +443,7 @@ describe("ProjectRuntime", () => {
     await mkdir(join(named, "components"), { recursive: true });
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name: "Arvid",
         root: { component: "@dash-bored/text", props: { content: "Before" } },
       })),
@@ -376,7 +455,7 @@ describe("ProjectRuntime", () => {
     });
     runtimes.push(runtime);
     const loaded = await runtime.load(root);
-    const linkedRoot = loaded.tree?.slots.content?.[0];
+    const linkedRoot = resolvedChildren(loaded.tree)[0];
     expect(linkedRoot?.sourceConfigPath).toBe(await realpath(join(named, "dash-bored.yaml")));
     expect(linkedRoot?.sourcePath).toBe("root");
 
@@ -390,7 +469,7 @@ describe("ProjectRuntime", () => {
       source.configRevision,
       source.configPath,
     );
-    expect(saved.tree?.slots.content?.[0]?.props.content).toBe("After");
+    expect(resolvedChildren(saved.tree)[0]?.props.content).toBe("After");
     expect(await readFile(join(named, "dash-bored.yaml"), "utf8")).toContain("After");
     expect(await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8")).toBe(baseSource);
   });

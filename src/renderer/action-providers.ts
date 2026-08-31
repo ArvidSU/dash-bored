@@ -6,6 +6,7 @@ import type {
   ResolvedComponentNode,
 } from "../shared/contracts";
 import type { PaletteAction } from "./actions";
+import { childNodes } from "./component-children";
 
 export type AppView = "dashboard" | "settings";
 
@@ -14,6 +15,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "filesystem:write": "Write workspace files",
   "network:http": "Make HTTP requests",
   "process:execute": "Run project commands",
+  "process:observe": "Observe project process output",
+  "webview:embed": "Embed native web pages",
 };
 
 export interface ApplicationActionCallbacks {
@@ -56,9 +59,7 @@ export function projectLabel(project: ProjectListItem): string {
 export function hasLocalNode(node: ResolvedComponentNode | null): boolean {
   if (!node) return false;
   if (node.source === "local") return true;
-  return Object.values(node.slots).some((children) =>
-    children.some((child) => hasLocalNode(child)),
-  );
+  return childNodes(node).some((child) => hasLocalNode(child));
 }
 
 function trustMessage(snapshot: ProjectSnapshot): string {
@@ -99,9 +100,7 @@ function dashboardNodes(
   const nextPath = [...path, label];
   return [
     { node, path: nextPath },
-    ...Object.values(node.slots).flatMap((children) =>
-      children.flatMap((child) => dashboardNodes(child, nextPath, false)),
-    ),
+    ...childNodes(node).flatMap((child) => dashboardNodes(child, nextPath, false)),
   ];
 }
 
@@ -235,13 +234,11 @@ export function buildApplicationActions(
   }
 
   if (projectOpen && snapshot) {
-    const editingBlockedReason = !editing
-      ? activeView !== "dashboard"
-        ? "Open the dashboard before editing."
-        : pendingReason
-      : "The dashboard is already in edit mode.";
+    const libraryBlockedReason = activeView !== "dashboard"
+      ? "Open the dashboard before opening its component library."
+      : pendingReason;
     const saveBlockedReason = !editing
-      ? "Enter dashboard edit mode first."
+      ? "Make a dashboard change first."
       : savingDraft
         ? "The dashboard draft is already being saved."
         : !draftDirty
@@ -250,19 +247,19 @@ export function buildApplicationActions(
             ? "Fix dashboard validation errors before saving."
             : pendingReason;
     const cancelBlockedReason = !editing
-      ? "No dashboard draft is being edited."
+      ? "No dashboard draft is active."
       : savingDraft
         ? "The dashboard draft is being saved."
         : pendingReason;
     actions.push(
       appAction({
         id: "project:edit",
-        label: "Edit dashboard",
-        description: "Open the structural editor for the active dashboard.",
-        keywords: ["editor", "draft", "configure"],
+        label: "Open component library",
+        description: "Open the component library for the active dashboard.",
+        keywords: ["components", "library", "editor", "draft", "configure"],
         group: "Dashboard editing",
-        enabled: activeView === "dashboard" && !editing && pendingAction === null,
-        ...(editingBlockedReason ? { disabledReason: editingBlockedReason } : {}),
+        enabled: activeView === "dashboard" && pendingAction === null,
+        ...(libraryBlockedReason ? { disabledReason: libraryBlockedReason } : {}),
         run: callbacks.editDashboard,
       }),
       appAction({
@@ -351,12 +348,10 @@ export function buildApplicationActions(
   return actions;
 }
 
-function commandNodes(node: ResolvedComponentNode | null): ResolvedComponentNode[] {
+function processResourceNodes(node: ResolvedComponentNode | null): ResolvedComponentNode[] {
   if (!node) return [];
-  const descendants = Object.values(node.slots).flatMap((children) =>
-    children.flatMap(commandNodes),
-  );
-  return node.component === "@dash-bored/command"
+  const descendants = childNodes(node).flatMap(processResourceNodes);
+  return node.manifest?.resources?.process
     ? [node, ...descendants]
     : descendants;
 }
@@ -373,7 +368,7 @@ export function buildProcessActions(
   const processes = new Map(
     snapshot.processes.map((process) => [process.id, process] as const),
   );
-  return commandNodes(snapshot.tree).map((node) => {
+  return processResourceNodes(snapshot.tree).map((node) => {
     const process: ProcessSnapshot | undefined = processes.get(node.id);
     const running = process?.phase === "running" || process?.phase === "stopping";
     const stopping = process?.phase === "stopping";

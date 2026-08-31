@@ -89,7 +89,37 @@ bun run build:release   # clean unsigned Apple Silicon release build
 bun run release:prepare # verify artifacts and stage release files
 bun run qa              # typecheck, tests, and renderer production build
 bun run qa:fast         # non-locking typecheck, tests, and renderer build
+bun run ui:fixture      # isolated renderer fixture at http://127.0.0.1:5488/ui-harness.html
+bun run test:renderer-ui # browser-driven pointer and keyboard verification for that fixture
+bun run native:probe    # isolated manual Electrobun webview visibility/dimensions probe
 ```
+
+### Visual UI verification
+
+`ui:fixture` runs the actual React application, CSS, component compositor, and
+dashboard chrome against a deterministic in-memory host. It needs no
+Electrobun process, does not use the worktree's Vite port, and is therefore a
+fast visual proof surface for coding agents when a desktop dev process is busy
+or inaccessible. Review it at a normal desktop viewport and at `390×844`; it
+supports sidebar, tabs, component-library, and composition interactions.
+
+`test:renderer-ui` starts and tears down its own Vite process and drives Chrome
+against the fixture. It verifies renderer interactions and the in-memory host
+contract (draft, Save, Cancel, rejected drop, and revision conflict), but it is
+still **renderer-only** evidence. It uses `/Applications/Google Chrome.app` by
+default; set `DASH_BORED_BROWSER_EXECUTABLE` when Chrome lives elsewhere.
+
+`native:probe` first checks the source-level visibility/dimension contract, then
+opens a separate Electrobun app and Vite server on port `5499` (or
+`DASH_BORED_NATIVE_PROBE_PORT`). It refuses a busy port and never attaches to,
+reuses, or terminates another developer's watcher. Toggle its native webview
+manually and confirm it hides and returns at the right dimensions. This is a
+native smoke aid, not OS-input automation; it does not establish general
+desktop interaction coverage. The repository has no native desktop-input test
+driver, and this command intentionally does not fake one. When recording other
+native evidence, confirm
+the header config path matches the checkout before recording a screenshot or
+accessibility state.
 
 GitHub Actions runs QA on an Apple Silicon macOS runner. Pushing a tag that
 exactly matches `v<package.json version>` builds and verifies the unsigned DMG,
@@ -131,8 +161,9 @@ a sampler of the available component primitives, and a command that asks your
 chosen CLI coding agent to tailor the dashboard to the project. It uses
 `codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
 **Settings → Dashboard agent**. Every rendered component has a context menu
-with Focus, Copy component path, and Change with agent. The last action shows
-the resolved command before sending and enriches your request with the owning
+with Focus, Edit component, Copy component path, and Change with agent. The
+Edit component action opens the declared props and child metadata editor. The
+last action shows the resolved command before sending and enriches your request with the owning
 dashboard and exact component path. Adjacent actions optionally expose the
 bundled CLI to external shells, install the skill globally with
 `dash-bored install-skill --global`, or install it for this project with
@@ -150,7 +181,7 @@ configuration, lock, or dashboard environment file already exists.
 Set a dashboard-specific sidebar icon directly in its `dash-bored.yaml`:
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 name: Example project
 icon: ../assets/icon.svg
 root:
@@ -162,8 +193,8 @@ root:
 The icon may be a relative or absolute image path, or an HTTP(S) URL. It is
 loaded after the project is trusted; missing or unsupported artwork falls back
 to the generic dashboard glyph. You can edit the dashboard name and this icon
-from the app's **Edit dashboard** view; clearing the icon field restores the
-generic glyph. Changes are written when you save the dashboard draft.
+from the app's dashboard editor; clearing the icon field restores the generic
+glyph. Changes are written when you save the dashboard draft.
 
 Create a standalone named dashboard for a person or workflow with:
 
@@ -200,8 +231,8 @@ dash-bored inspect .
 `validate` exits non-zero when it finds errors. `inspect` emits JSON containing
 the resolved tree, requested permissions, diagnostics, and a `componentCatalog`
 for every built-in and discovered local component. Each catalog manifest is the
-machine-readable contract for its JSON Schema props, named slots, and required
-permissions. Agents use this version-matched catalog instead of guessing from
+machine-readable contract for its JSON Schema props, children contract, and
+required permissions. Agents use this version-matched catalog instead of guessing from
 examples; invalid local components remain in the catalog with diagnostics.
 
 `validate` and `inspect` accept a project root, a standalone bundle directory,
@@ -235,25 +266,34 @@ named bundles from the same project can be switched independently.
 `dash-bored/dash-bored.yaml` contains one recursive component node:
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 name: Example project
 root:
-  component: "@dash-bored/stack"
-  props:
-    gap: medium
-  slots:
-    children:
-      - id: intro
-        component: "@dash-bored/markdown"
-        props:
-          content: |
-            # Development
-            Project controls and status live here.
-      - id: api-status
-        component: "@dash-bored/status"
-        props:
-          label: API
-          state: unknown
+  children:
+    type: tiled
+    layout:
+      type: split
+      axis: horizontal
+      ratio: 0.5
+      first:
+        type: child
+        child:
+          node:
+            id: intro
+            component: "@dash-bored/markdown"
+            props:
+              content: |
+                # Development
+                Project controls and status live here.
+      second:
+        type: child
+        child:
+          node:
+            id: api-status
+            component: "@dash-bored/status"
+            props:
+              label: API
+              state: unknown
 ```
 
 Each node supports:
@@ -262,7 +302,9 @@ Each node supports:
 - `id`: a tree-unique stable identity; optional for display-only nodes and
   required for stateful/actionable nodes.
 - `props`: data validated by the component's JSON Schema.
-- `slots`: named child nodes, either a single node or an array.
+- `children`: either tiled topology (`layout`) or managed items. Tiled leaves
+  wrap a node as `{ type: child, child: { node, metadata? } }`; managed
+  children use `{ type: managed, items: [...] }`.
 
 The `root` is a normal component node. A dashboard may use a layout tree, but
 it may just as well have one command button, status, or project component as
@@ -272,8 +314,8 @@ the YAML.
 
 The initial built-ins are:
 
-- Layout: `@dash-bored/tabs`, `@dash-bored/split`, `@dash-bored/stack`, and
-  `@dash-bored/card`.
+- Composition: `@dash-bored/group` for transparent child-surface projection,
+  plus core-owned tiled branches and managed child presentation.
 - Display: `@dash-bored/text`, `@dash-bored/markdown`, and
   `@dash-bored/status`.
 - Charts: `@dash-bored/chart` for static YAML data and
@@ -281,6 +323,37 @@ The initial built-ins are:
 - Host-backed: `@dash-bored/command`, `@dash-bored/terminal`,
   `@dash-bored/file`, `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
+
+These shipped components are examples of the public component contracts, not
+privileged types. Local components can declare the same child contracts,
+process resources, references, and permissions.
+
+`@dash-bored/group` is an ordinary transparent component boundary: it accepts
+the core-tiled child surface and projects those children without becoming a
+layout engine. Use it when a multi-component panel needs a component boundary;
+card is not required. Split topology and resize behavior remain app-owned.
+
+Core-owned split branches use a drag and keyboard separator while retaining a
+checked-in default:
+
+```yaml
+children:
+  type: tiled
+  layout:
+    type: split
+    axis: horizontal
+    ratio: 0.4
+    first: { type: child, child: { node: ... } }
+    second: { type: child, child: { node: ... } }
+```
+
+Normal dashboard drags are a resettable per-user override. Opening the
+component-library flyout is read-only; the first composition change starts a
+draft. The same separator then changes the draft `ratio`, which becomes the
+project default only after Save. Arrow keys resize by small steps, Shift-arrow
+uses a larger step, Home/End move to the allowed extremes, and Enter or
+double-click resets. Narrow split containers stack automatically, so nested
+horizontal/vertical splits can form tiled layouts without grid coordinates.
 
 `@dash-bored/env` takes a relative `path` prop, reads a project-local dotenv
 file, and provides a key-value editor with a bulk/raw mode. Saving requires
@@ -341,30 +414,48 @@ The application watches the configuration, lock file, component manifests, and
 component source. A valid edit replaces the current dashboard. An invalid edit
 leaves the last known-good dashboard visible and adds diagnostics.
 
-### Edit a dashboard in the app
+### Compose a dashboard in the app
 
-Expand the project sidebar and use the pencil button beside a dashboard to
-enter edit mode. The editor works directly with the configured component tree:
+Select **Components** in the header to open the right-hand library. It lists
+the complete packaged and project-local catalog, with search, descriptions,
+child contracts, permissions, provenance, and unavailable diagnostics. Use an
+**Insert** button for keyboard-accessible insertion or drag a card onto a
+contextual dashboard target. Drag existing component frames to move them;
+keyboard arrows provide sibling reordering. Empty boundaries, managed-child
+positions, root replacement, and horizontal/vertical/both-axis tiled targets
+come from the target manifest, so invalid targets are not offered.
 
-- drag components between declared slots or use the up/down controls;
-- use the small insertion controls, or the large `+` in an empty slot, to add
-  a built-in or discovered project-local component;
-- configure props through fields generated from `propsSchema`, with Advanced
-  JSON available for arrays, objects, and other schema shapes;
-- replace the dashboard root with any available component; compatible root
-  slots carry their children across, while incompatible nested content is
-  called out before it is removed from the draft;
-- remove a component and its subtree after confirmation.
+Hover or focus a component to reveal its compact toolbar. **Add** opens the
+available insertion positions with labels tied to nearby components instead of
+covering the dashboard with every possible action. While dragging, compatible
+frames are outlined and the nearest left, right, above, below, or inside region
+becomes the visible drop target. Split grips remain visible while composing;
+hover, focus, or drag one to see the current first-pane percentage, and use the
+same pointer and keyboard controls for horizontal or vertical size adjustment.
 
-Changes remain a renderer-only draft until **Save dashboard** is selected.
-Save is disabled while the draft has validation errors. **Cancel** discards the
-whole draft. If `dash-bored.yaml` changes outside the app after editing starts,
-the save is rejected instead of overwriting that newer source.
+Pick up an existing component from anywhere on its frame to move it. During a
+component drag, the fly-out becomes a 20%-wide dotted trash target with
+only a trash icon; dropping there opens the existing removal confirmation.
+Component menus and composition controls are hidden for the duration of this
+dropper-style interaction.
 
-The pencil edits the YAML bundle that owns the currently focused component.
-Focus content rendered from a config-link component to edit that standalone
-bundle; composition boundaries remain separate, and each save rewrites only
-the source path shown in the editor toolbar.
+Configure edits component props through `propsSchema`. New managed edges expose
+their parent's generic `children.metadataSchema`; edge metadata moves with the
+child. If search finds no suitable catalog entry, the flyout retains the
+**Build with agent** path.
+
+Opening or closing a clean flyout does not create a draft. The first insertion,
+move, removal, replacement, metadata edit, or separator resize creates a
+renderer-only draft. **Save dashboard** validates the whole owning tree,
+checks the source revision, and atomically writes it; **Cancel** discards the
+whole draft. If `dash-bored.yaml` changes outside the app, save is rejected
+instead of overwriting that newer source. Focused config-link content edits the
+linked bundle that owns it.
+
+Native webviews are hidden through their visibility contract while the flyout,
+drop targets, or dialogs are active because Electrobun surfaces are overlays,
+not DOM descendants. Ordinary DOM dashboard interaction remains available where
+it does not conflict with the composition affordances.
 
 ### Remove a dashboard
 
@@ -393,8 +484,7 @@ until the expanded permission set is trusted.
 Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
 every node in the currently selected dashboard for virtual-root focus,
-configured `@dash-bored/command` processes, and actions contributed by active
-local components.
+all declared process resources, and actions contributed by active components.
 
 ## Author a project component
 
@@ -407,11 +497,11 @@ project/dash-bored/components/service-health/
 └── styles.css                 # optional
 ```
 
-Define its metadata, props, slots, and least-privilege permissions in
+Define its metadata, props, children contract, and least-privilege permissions in
 `component.yaml`:
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 id: service-health
 name: Service health
 description: Checks the development service.
@@ -424,10 +514,12 @@ propsSchema:
   properties:
     endpoint:
       type: string
-slots:
-  children:
-    required: false
-    multiple: true
+children:
+  min: 0
+  max: 10
+  presentation:
+    type: tiled
+    axes: both
 permissions:
   - network:http
 ```
@@ -446,7 +538,7 @@ interface Props {
   endpoint: string;
 }
 
-export default defineComponent<Props>(({ props, slots, host }) => {
+export default defineComponent<Props>(({ props, host }) => {
   const [summary, setSummary] = useState("Checking…");
 
   useEffect(() => {
@@ -483,7 +575,7 @@ export default defineComponent<Props>(({ props, slots, host }) => {
   return (
     <section className="service-health">
       <strong>{summary}</strong>
-      {slots.children}
+      {/* Projected children are rendered through the generic child surface. */}
     </section>
   );
 });
@@ -514,7 +606,9 @@ declares the corresponding permission:
 | `filesystem:read` | `host.filesystem.readText(path)` | Read a bounded UTF-8 file below the project root. |
 | `filesystem:write` | `host.filesystem.writeText(path, content)` | Atomically replace a bounded UTF-8 file below the project root. |
 | `network:http` | `host.http.request(request)` | Make a bounded, timed `http:` or `https:` request. |
-| `process:execute` | `host.shell.run(request)` | Run a short, output- and time-bounded command. |
+| `process:execute` | `host.shell.run(request)` and `host.processes.start/stop` for a declared resource | Run a bounded short command or control the node's supervised process. |
+| `process:observe` | `host.processes.get(nodeId)` | Observe a declared supervised process resource. |
+| `webview:embed` | `host.webview.render(request)` | Embed a native sandboxed webview surface. |
 
 Register actions in an effect and return the disposer, as in the example.
 Local action IDs start with a letter and may contain letters, digits,
@@ -524,7 +618,7 @@ component instance is mounted and do not add permissions; action callbacks use
 the same shaped host APIs as the component UI.
 
 The desktop app asks the user to trust the project before compiling local code
-or enabling privileged built-ins. The main process checks the supplied node ID
+or enabling declared capabilities. The main process checks the supplied node ID
 and its declared capability on every host request. A reload that adds a
 requested permission requires a new trust decision; the same or a smaller
 permission set preserves the existing decision.
@@ -540,7 +634,7 @@ Local components are trusted project code running together in one renderer,
 not a hostile-code sandbox. Their per-node permissions shape the provided API
 and prevent accidental capability use, but do not isolate local components from
 one another; sufficiently adversarial trusted code could forge another node's
-ID at the internal RPC layer. Project trust is the v1 security boundary.
+ID at the internal RPC layer. Project trust is the security boundary.
 
 Use `@dash-bored/command` for a user-controlled long-running process. It starts
 only after an explicit click. Pair it with `@dash-bored/terminal` for read-only

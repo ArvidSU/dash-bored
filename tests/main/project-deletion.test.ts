@@ -53,18 +53,22 @@ async function setupRegisteredProject(
 }
 
 const processConfig: DashboardConfig = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "Process dashboard",
   root: {
-    component: "@dash-bored/stack",
-    slots: {
-      children: [
-        {
-          id: "server",
-          component: "@dash-bored/command",
-          props: { label: "Server", command: "sleep 30" },
+    component: "@dash-bored/group",
+    children: {
+      type: "tiled",
+      layout: {
+        type: "child",
+        child: {
+          node: {
+            id: "server",
+            component: "@dash-bored/command",
+            props: { label: "Server", command: "sleep 30" },
+          },
         },
-      ],
+      },
     },
   },
 };
@@ -158,7 +162,7 @@ describe("registered dashboard deletion", () => {
     cleanup.push(target, source);
     await createProject(target);
     await createProject(source, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Broken source",
       root: { component: join((await realpath(target)), "dash-bored", "missing") },
     });

@@ -2,16 +2,19 @@
 
 ## Status and architectural rules
 
-This document describes the v1 implementation. It is the source of truth for
-the system shape; [IDEA.md](./IDEA.md) is the source of truth for product
-intent. [initial_impl.md](./initial_impl.md) is historical inspiration only.
+This document describes the greenfield composition architecture. It is the
+source of truth for the system shape; [IDEA.md](./IDEA.md) is the source of
+truth for product intent. [initial_impl.md](./initial_impl.md) is historical
+inspiration only. The redesign is intentionally breaking: the contracts below
+replace the former v1 slot/layout/component-special-case model.
 
-dash-bored is a local-first component-tree runtime. A project owns a small YAML
-tree and optional project-specific React components. The desktop application
-loads that tree, validates it, resolves each component, and renders the result
-without containing project-specific integrations itself.
+dash-bored is a local-first composition runtime. A project owns recursive YAML
+composition topology and optional project-specific components. The desktop
+application owns tiling, frames, manipulation, focus/collapse, drafts,
+validation, and persistence; it resolves components and renders them inside
+that topology without containing project-specific integrations itself.
 
-The v1 implementation deliberately has three boundaries:
+The implementation deliberately has three boundaries:
 
 1. The CLI creates and inspects project configuration.
 2. The Electrobun main process owns files, trust, compilation, processes,
@@ -43,7 +46,7 @@ project/dash-bored/                 # canonical standalone bundle
           v
 Electrobun Bun main process
   - locate, parse, validate, and watch project files
-  - validate and atomically persist explicit in-app dashboard edits
+  - validate and atomically persist dashboard drafts
   - resolve built-in and local components
   - compile trusted local TSX with Bun.build()
   - enforce trust and component permissions
@@ -63,6 +66,29 @@ Vite + React renderer in the system webview
 the Bun bundler at runtime. Vite builds the renderer. Electrobun's projected SDK
 is prepared through Hutch and aliased into Vite. The application uses native
 system webviews and does not bundle CEF.
+
+`ui-harness.html` is a development-only renderer proof surface. It selects an
+in-memory `DashboardHost` before mounting the normal application entrypoint,
+then renders the same App, CSS, packaged components, composition, and sidebar
+with deterministic fixture data. The host mirrors the browser-safe dashboard
+contract: catalog/children/props validation is meaningful, accepted saves
+advance the config and snapshot revisions, publish a new resolved tree, and
+stale revisions reject. Filesystem, lock-file, local-component compilation,
+and trust remain main-process-only validation boundaries.
+
+`bun run test:renderer-ui` drives pointer and keyboard interactions in Chrome
+against that fixture and asserts both visible UI and in-memory host state. It
+is intentionally not a desktop emulator: the live RPC transport remains guarded
+on all other renderer pages, and this test cannot establish native
+webview-overlay, title-bar, or desktop-input behavior. `bun run native:probe`
+uses a different app instance and Vite port, refuses to attach to a busy port,
+and leaves no user-owned watcher under its control. It exercises a manual
+native-webview visibility/dimension smoke page plus the source-level contract;
+it does not synthesize OS input or claim general native interaction coverage.
+Native desktop input is deliberately outside this repository's automated test
+dependencies, so the probe remains an honest manual smoke boundary.
+These give agents stable renderer and native-proof boundaries without attaching
+to an ambiguous or user-owned Electrobun process.
 
 The main window uses Electrobun's `hiddenInset` title-bar style. The renderer
 uses one shared app-background surface for the sidebar and header, without a
@@ -85,7 +111,7 @@ plus bounded, containment-checked local manifest discovery. Invalid local
 manifests are represented as unavailable catalog entries with diagnostics, so
 they can be explained in the picker without breaking an otherwise valid tree.
 The CLI's `inspect` result exposes this same complete catalog, including
-`propsSchema`, slots, permissions, availability, and diagnostics. It is the
+`propsSchema`, children contract, permissions, availability, and diagnostics. It is the
 version-authoritative component-shape interface for coding agents.
 
 ## Project contract
@@ -159,58 +185,52 @@ dashboard nor adds a reference to the new bundle.
 `dash-bored.yaml` has one recursive root node:
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 name: Example project
 icon: ./assets/icon.svg
 root:
-  component: "@dash-bored/stack"
-  props:
-    gap: large
-  slots:
-    children:
-      - id: welcome
-        component: "@dash-bored/markdown"
-        props:
-          content: |
-            # Example project
-            This dashboard lives with your project.
-      - id: agent-setup
-        component: "@dash-bored/card"
-        slots:
-          children:
-            - id: dashboard-environment
-              component: "@dash-bored/env"
-              props:
-                path: dash-bored/.env
-            - id: install-dash-bored-cli
-              component: "@dash-bored/command"
-              props:
-                label: Install dash-bored CLI in ~/.local/bin
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
-            - id: install-dash-bored-global-skill
-              component: "@dash-bored/command"
-              props:
-                label: Install dash-bored skill globally
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
-            - id: install-dash-bored-skill
-              component: "@dash-bored/command"
-              props:
-                label: Install portable dash-bored skill for this project
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
-            - id: setup-dashboard-with-agent
-              component: "@dash-bored/command"
-              props:
-                label: Set up this dashboard
-                command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"'
-                env:
-                  DASH_BORED_AGENT_PROMPT: Inspect this project and customize its dash-bored dashboard.
+  id: project-layout
+  component: "@dash-bored/group"
+  children:
+    type: tiled
+    layout:
+      type: split
+      axis: horizontal
+      ratio: 0.4
+      first:
+        type: child
+        child:
+          node:
+            id: welcome
+            component: "@dash-bored/markdown"
+            props:
+              content: "# Example project"
+      second:
+        type: child
+        child:
+          node:
+            id: agent-setup
+            component: "@dash-bored/card"
+            props:
+              title: Agent setup
+            children:
+              type: tiled
+              layout:
+                type: child
+                child:
+                  node:
+                    id: install-dash-bored-skill
+                    component: "@dash-bored/command"
+                    props:
+                      label: Install the portable skill
+                      command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
 ```
 
 The public configuration types are:
 
 ```ts
 interface DashboardConfig {
-  schemaVersion: 1;
+  schemaVersion: 2;
   name: string;
   icon?: string;
   root: ComponentNode;
@@ -220,23 +240,41 @@ interface ComponentNode {
   id?: string;
   component: string;
   props?: Record<string, unknown>;
-  slots?: Record<string, ComponentNode | ComponentNode[]>;
+  children?: ComponentChildren;
 }
+
+type ComponentChildren =
+  | { type: "managed"; items: ComponentChildEdge[] }
+  | { type: "tiled"; layout: ComponentChildLayout };
+
+interface ComponentChildEdge {
+  node: ComponentNode;
+  metadata?: Record<string, unknown>;
+}
+
+type ComponentChildLayout =
+  | { type: "child"; child: ComponentChildEdge }
+  | {
+      type: "split";
+      axis: "horizontal" | "vertical";
+      ratio: number;
+      first: ComponentChildLayout;
+      second: ComponentChildLayout;
+    };
 ```
 
-The root is any `ComponentNode`; it does not need to be a layout component and
-may therefore describe a dashboard containing only one button or display.
+The root is a component rendered in a core-owned composition tree; it may be a
+single button or display. Tile branches are topology records, not components.
 Node IDs must be unique across the tree. When an ID is omitted, the loader
-derives a stable ID from the node's tree path. A stateful or actionable node,
-such as `@dash-bored/command`, must have an explicit ID so its state can be
-reconciled safely across reloads.
+derives a stable ID from the YAML path. Edge metadata (for example a tab label)
+belongs to the parent-child edge and is validated by the declaring parent's
+metadata schema.
 
 The loader rejects duplicate YAML keys, unsupported schema versions, unknown
-structural keys, malformed recursive nodes, duplicate IDs, excessive nesting,
-unknown components, invalid props, and invalid slot cardinality. Diagnostics
+structural keys, malformed recursive topology, duplicate IDs, excessive
+nesting, unknown components, invalid props, invalid child cardinality, invalid
+axis declarations, and invalid edge metadata. Diagnostics
 carry a stable code, severity, message, and file/path location where available.
-Slot names begin with an ASCII letter and contain only letters, digits,
-underscores, or hyphens.
 
 The optional top-level `icon` is an image path relative to the owning config
 bundle or an HTTP(S) URL. In trusted mode the main process bounds and
@@ -248,16 +286,86 @@ saved with the same draft as the component tree. Clearing the icon field removes
 the optional key and restores the generic project glyph. These fields are
 dashboard metadata, not component-tree nodes.
 
-### In-app structural editing
+### In-app structural editing and composition contract
 
-The renderer can create an edit-session draft from the snapshot configuration.
-The draft uses the same recursive nodes and declared slots as YAML: there is no
-separate grid model. The root toolbar exposes replacement with any catalog
-component, while descendants can move between compatible slots. Matching root
-slots carry their children across; incompatible nested content is reported
-before it is dropped from the draft. Empty slots and insertion boundaries
+The core application owns the recursive tiling topology and every operation
+that changes it: drag-and-drop, horizontal and vertical resize, component
+frames, focus, collapse, draft validation, and atomic Save/Cancel persistence.
+A tile branch is composition structure, not a component node. YAML recursively
+stores the topology and component content as the sole source of truth; there
+is no hidden grid database or parallel coordinate store.
+
+An ordinary component manifest declares exactly one `children` contract with
+minimum and maximum cardinality and allowed axes. A complex container may
+declare managed child presentation and a schema for metadata on each
+parent-child edge. The runtime passes generic child handles, read-only child
+descriptors, and a render/visibility projection to components. Tabs and
+accordions are therefore ordinary declarations: tab labels are edge metadata,
+not a tabs-specific app prop or validation branch.
+
+Packaged and project-local components implement the same manifest, render,
+host, children, and capability contracts. Provenance and trust are the only
+difference: packaged app code is pretrusted; project-local code requires
+project trust. Validation, editor, and runtime code never branches on a
+component ID. All variation is declarative through schemas, formats, and
+capabilities.
+
+The right-hand component-library flyout is read-only when it opens. The first
+insertion, move, removal, replacement, edge-metadata edit, or ratio resize
+creates the renderer's draft from the authoritative owning YAML. Save validates
+the complete owning tree and atomically publishes it, while Cancel discards the
+draft; opening or closing a clean flyout never creates a draft.
+The draft uses the same recursive topology and children contracts as YAML: there
+is no separate grid model. The root toolbar exposes replacement with any catalog
+component, while descendants can move between compatible child contracts.
+Incompatible nested content is reported before it is dropped from the draft.
+Empty child boundaries and insertion boundaries
 expose add targets; props are edited from the manifest JSON Schema with a JSON
 fallback.
+
+The flyout uses the complete snapshot catalog for packaged, project-local, and
+linked-config entries. Search, provenance, permissions, child contracts, and
+unavailable diagnostics are catalog metadata, not capability differences. Its
+drop targets are derived from the target manifest's cardinality, presentation,
+axis, and edge-metadata schema; the editor has no component-ID-specific paths.
+Every insertion, root replacement, and existing-node move is first evaluated by
+one pure composition-operation planner over the current draft, catalog, payload,
+and target. The planner returns either a stable rejection reason or the exact
+next immutable configuration; renderer eligibility (including keyboard and
+pointer drop affordances) and the final draft mutation consume that same plan.
+It reuses the authoritative tree helpers, preserves moved edge metadata, IDs,
+and props, and fails closed for stale paths, impossible placements, root moves,
+and own-descendant moves.
+Managed-child metadata moves with its edge, and a new edge is configured through
+the declaring parent's generic metadata schema. Focused linked content still
+uses the linked bundle's source config as the one atomic save target.
+Pointer geometry is used only to choose among those explicit targets; it never
+creates a second placement representation. While the flyout, a drop target, or
+a composition dialog is active, the renderer propagates visibility to native
+Electrobun webview surfaces so their separate window overlays cannot cover the
+composition UI.
+Library-card insertion uses a pointer gesture with window-level move and release
+listeners rather than depending on native HTML5 drop delivery. Once the gesture
+activates, the flyout becomes translucent and non-hit-testing so a dashboard
+target underneath it remains discoverable; the resulting pointer coordinates
+still resolve through the same generic placement and draft mutation path.
+Dashboard component frames are the native node drag sources rather than a small
+move handle. During a node drag, the open flyout becomes 20% of the viewport
+dotted trash drop target containing only an accessible trash icon. Component
+menus and composition controls are omitted for the duration, and a drop routes
+through the existing confirmed removal and draft mutation path.
+
+A horizontal or vertical tile branch exposes its core-owned separator in the
+structural preview. Vertical branches are content-sized until the user first
+resizes them; that interaction pins the branch's current height so the ratio
+can move the separator without introducing synthetic blank space. Runtime
+vertical overrides retain that pinned height alongside the ratio, while legacy
+ratio-only entries return to content-sized layout. Dragging or using keyboard
+controls updates only the draft topology and normalized pane geometry;
+Save/Cancel persists or discards the complete YAML change. Runtime split
+overrides remain local to the user and keyed by config path and split branch,
+while YAML remains the project default. The editor never writes a parallel
+coordinate model.
 
 Drafts may temporarily omit required props or children. The renderer requests
 debounced validation from the main process and disables Save while errors
@@ -290,18 +398,21 @@ components: {}
 ```
 
 Built-ins and files below the project's `components/` directory are not locked.
-External npm and Git components are intentionally unavailable in v1, so any
+External npm and Git components are intentionally unavailable in this
+architecture, so any
 non-empty external component entry is reported as unsupported rather than
 silently ignored. This keeps the file format ready for reproducible external
 resolution without pretending that resolution exists today.
 
 ## Component system
 
-The built-in catalog includes layout primitives, inline display components,
-`@dash-bored/chart` for YAML-defined static line or bar data, and
+The built-in catalog includes inline display and managed-container components,
+including `@dash-bored/chart` for YAML-defined static line or bar data and
 `@dash-bored/live-chart` for polling a JSON chart model through the
 `network:http` capability. These chart components share a dependency-free SVG
 renderer and keep the last valid live result when a refresh fails.
+Core composition branches are YAML topology and do not appear in the component
+catalog.
 
 ### Standalone dashboard paths
 
@@ -351,7 +462,7 @@ components/service-health/
 Its manifest is self-describing:
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 id: service-health
 name: Service health
 description: Shows project service health.
@@ -359,21 +470,28 @@ entry: ./index.tsx
 propsSchema:
   type: object
   additionalProperties: false
-slots:
-  children:
-    required: false
-    multiple: true
+children:
+  min: 0
+  max: 10
+  presentation:
+    type: tiled
+    axes: both
 permissions:
   - network:http
 ```
 
-`propsSchema` is JSON Schema. Each slot declares whether it is required and
-whether it accepts multiple nodes. Supported permission names are:
+`propsSchema` and, for managed children, `children.metadataSchema` are JSON
+Schema. A component that accepts children declares one contract with minimum
+and maximum cardinality plus either app-owned tiled axes or managed
+presentation. Managed presentation uses generic child handles and read-only
+descriptors plus edge metadata. Supported permission names are:
 
 - `filesystem:read`
 - `filesystem:write`
 - `network:http`
 - `process:execute`
+- `process:observe`
+- `webview:embed`
 
 Chart-shaped data uses a shared model:
 
@@ -392,9 +510,9 @@ dot-separated `dataPath`; it accepts `type: line|bar`,
 `pollIntervalMs: 1000..300000`, and `maxPoints: 2..200`. Live polling stops
 while the containing tab is hidden.
 
-Generic tree validation runs before component-specific props and slots are
+Generic tree validation runs before component-specific props and children are
 validated. The requested project permission set is the union of permissions
-declared by every resolved local component and privileged built-in.
+declared by every resolved component, packaged or project-local.
 
 ### Local React contract and compilation
 
@@ -411,7 +529,7 @@ interface Props {
   endpoint: string;
 }
 
-export default defineComponent<Props>(({ props, slots, host }) => {
+export default defineComponent<Props>(({ props, children, host }) => {
   const [status, setStatus] = useState("waiting");
 
   useEffect(() => {
@@ -426,12 +544,18 @@ export default defineComponent<Props>(({ props, slots, host }) => {
     },
   }), [host.actions, host.http, props.endpoint]);
 
-  return <section>{status}{slots.children}</section>;
+  return (
+    <section>
+      {status}
+      {children?.type === "tiled" ? children.surface : null}
+    </section>
+  );
 });
 ```
 
-`defineComponent` gives the component typed props, rendered slots, and a host
-object. The virtual API re-exports the supported React hooks and ensures local
+`defineComponent` gives the component typed props, generic child handles and
+read-only descriptors, a render/visibility projection, and a host object. The
+virtual API re-exports the supported React hooks and ensures local
 bundles share the renderer's one React runtime.
 
 After the project is trusted, the main process compiles an entry with:
@@ -486,10 +610,10 @@ The main process checks both project trust and the requested node's declared
 permission on every privileged RPC.
 
 Per-node permissions shape the host API, protect against accidental use, and
-constrain built-ins. They do not isolate trusted local components from one
+constrain every component equally. They do not isolate trusted local components from one
 another: all local code shares one renderer and could forge another node ID by
 speaking the internal RPC protocol directly. Project trust is the security
-boundary for local code in v1. Strong per-component isolation would require
+boundary for local code. Strong per-component isolation would require
 separate execution realms and authenticated capability channels.
 
 Local components receive only the host methods allowed by their manifest:
@@ -519,8 +643,19 @@ interface LocalComponentHost {
   };
   http?: { request(request: HttpRequest): Promise<HttpResponsePayload> };
   shell?: { run(request: ShellRunRequest): Promise<ShellRunResult> };
+  processes?: {
+    get(nodeId?: string): ProcessSnapshot | undefined;
+    start?(): Promise<ProcessSnapshot>;
+    stop?(): Promise<ProcessSnapshot>;
+  };
+  webview?: { render(request: { url: string; title?: string }): ReactNode };
 }
 ```
+
+Packaged and local renderers receive exactly the same `LocalComponentRenderProps`
+shape: typed `props`, generic rendered `children` and handles, and a
+`LocalComponentHost`. The host is shaped solely by manifest permissions. No
+packaged component receives an API that a local component cannot declare.
 
 Action registration is renderer-local and grants no host permission. A local
 action ID begins with an ASCII letter and contains only letters, digits,
@@ -542,8 +677,8 @@ it reads a configured `package.json`, registers one action for each
 string-valued `scripts` entry, and invokes the selected package runner through
 `host.shell.run` from the manifest's containing directory. It defaults to the
 `packageManager` field when that field names Bun, npm, pnpm, or Yarn, while an
-explicit runner prop can override it. These are short bounded shell actions;
-long-running workflows should still use the built-in command/process model.
+explicit runner prop can override it. These are short bounded shell actions.
+Long-running workflows use the generic process resource model described below.
 
 Capability behavior is bounded:
 
@@ -567,9 +702,42 @@ code. Supported HTTP access goes through the checked host RPC. Embedded
 application pages use sandboxed `<electrobun-webview>` elements and receive no
 dash-bored RPC bridge.
 
+### Declarative process resources
+
+Any component may declare a supervised process resource. The manifest maps the
+resource to props containing its command and, optionally, a project-relative
+working directory and string-valued environment:
+
+```yaml
+resources:
+  process:
+    commandProp: command
+    cwdProp: cwd
+    envProp: env
+permissions:
+  - process:execute
+```
+
+Another component can reference that resource through a prop:
+
+```yaml
+references:
+  processId:
+    resource: process
+permissions:
+  - process:observe
+```
+
+The main process extracts and supervises every declared process resource
+generically. Resource nodes require stable IDs; cross-node references are
+validated against the resolved tree and IDs are remapped across config links.
+Command-palette start/stop actions are derived from these resources, never
+from component IDs or a special built-in list.
+
 ### Long-running commands
 
-`@dash-bored/command` represents an explicit user action. A command never runs
+`@dash-bored/command` is the shipped example of an explicit user-action
+component. A command never runs
 just because a project was opened, trusted, or reloaded.
 
 The main process owns each subprocess and streams stdout/stderr into a bounded
@@ -580,16 +748,17 @@ or materially changed command nodes are stopped. On application exit, the main
 process attempts graceful termination and then cleans up the whole process
 tree.
 
-## Renderer and built-ins
+## Renderer and shipped examples
 
-The initial built-in set is intentionally generic:
+The initial shipped set is intentionally generic. These are public contract
+examples, not privileged component types:
 
-- `@dash-bored/tabs`, `@dash-bored/split`, `@dash-bored/stack`, and
-  `@dash-bored/card` compose layout.
+- Core tile branches compose layout; components such as cards may declare
+  children presentation but do not own topology or resizing.
 - `@dash-bored/text`, `@dash-bored/markdown`, and `@dash-bored/status` display
   safe project information. Markdown does not enable raw HTML.
 - `@dash-bored/command` starts and stops a declared process after a user click.
-- `@dash-bored/terminal` displays bounded process logs.
+- `@dash-bored/terminal` displays bounded process logs from a referenced process.
 - `@dash-bored/file` displays a read-only project file.
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
@@ -604,12 +773,17 @@ The initial built-in set is intentionally generic:
   hide it reliably.
 
 Every rendered node exposes a keyboard-accessible context menu, also available
-through right-click. It contains Focus, Collapse or Expand component, Copy
-component path, and Change with agent. Focusing a node makes it a virtual root
+through right-click. It contains Focus, Edit component, Collapse or Expand
+component, Copy component path, and Change with agent. Edit component opens the
+same schema-driven props and child-metadata dialog used by composition editing.
+The popover is rendered in a document-level fixed overlay with viewport
+clamping, so isolated or overflowing component frames cannot paint over it.
+Focusing a node makes it a virtual root
 in the application viewport and provides breadcrumb navigation back to its
 configured ancestors; it never rewrites YAML or changes which bundle owns the
 node. Copy uses an unambiguous locator such as
-`/project/dash-bored/dash-bored.yaml#root.slots.children[0]`. Resolved nodes
+`/project/dash-bored/dash-bored.yaml#root.children.layout.first.child.node`.
+Resolved nodes
 retain both the canonical owning YAML and their YAML-style path, including
 nodes reached through standalone config links.
 
@@ -622,6 +796,34 @@ continue consuming dashboard space. Processes remain owned by the main
 process, so collapsing a command or terminal does not stop a running command.
 Focusing a collapsed node expands it first. This runtime state is separate from
 the structural editor's temporary tree-branch collapse state.
+
+Core-owned horizontal and vertical tile branches support runtime resizing.
+Their project-owned topology contains a normalized first-pane `ratio` between
+`0.1` and `0.9`; the renderer applies shared minimum pane sizes while dragging. The
+separator is a real grid track with pointer capture, keyboard arrows, Home/End,
+and Enter/double-click reset behavior. Runtime drags persist a per-user override
+under the active config path and stable layout branch key; the configured ratio remains the
+canonical project default, changing that default invalidates an older local
+override, and reset removes it. Ratio changes alter CSS tracks without changing
+React keys or unmounting either child.
+
+Each split establishes an inline-size container. A horizontal split stacks its
+two panes and removes the separator when that specific container becomes
+narrow, including when it is nested inside another split; this is independent
+of the application window breakpoint. Vertical branches are content-sized by
+default; after a resize or a valid saved vertical geometry entry, the renderer
+pins the branch's saved height and constrains that height to its containing
+frame. A legacy ratio-only entry never reconstructs a height from a transient
+constrained layout.
+When composition changes alter a branch's descendant structure, its stateful
+layout remounts and measures the new content instead of carrying stale geometry
+into the new tree. If a vertical pane is smaller than its child's intrinsic
+content, the pane owns the overflow and scrolls it instead of allowing content
+to paint over the neighboring pane.
+The real separator gutter also avoids placing DOM drag input beneath
+a native webview surface; Electrobun's overlay resize observer follows pane
+geometry while the existing explicit visibility synchronization remains in
+force.
 
 Change with agent opens a composer that visibly presents the resolved app-wide
 command, user text in quotes, and Send as one invocation. The renderer sends
@@ -636,8 +838,9 @@ action does not grant project component code a capability or embed an AI
 provider; dashboard file watching remains responsible for showing accepted
 agent edits.
 
-Tabs are keyboard accessible. Splits support horizontal and vertical layouts
-and collapse to a stacked layout in narrow windows. The application shell also
+Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
+horizontal splits may be recursively nested for tiled layouts and stack based
+on their own container width. The application shell also
 shows project identity, diagnostics, and a collapsed-by-default project
 sidebar. The header exposes the command palette and active-dashboard edit
 controls; trust and reload actions remain available from Settings. The main
@@ -675,22 +878,31 @@ dashboard when necessary and uses the existing virtual-root focus model for
 navigation. The active dashboard outline follows live snapshots; inactive
 outlines are refreshed whenever their disclosure is reopened.
 
-One application process/window runs one active dashboard at a time in v1. The
+One application process/window runs one active dashboard at a time. The
 dashboard list is navigation history, not concurrent execution; switching
 dashboards stops the prior dashboard's watcher and supervised processes before
 the next target becomes active.
 
-The active dashboard header exposes the edit toggle. Edit mode consolidates the
-Save/Cancel controls into that same header. The structural workbench keeps one
-selected component and one contextual action bar for configure, remove, root
-replacement, and keyboard-accessible same-slot movement instead of repeating
-those controls on every nested node. Component rows retain a direct drag handle.
-Nested branches start collapsed below the root and can be expanded individually
-or all at once, so large dashboards remain navigable without losing access to
-their complete tree. This editor-only tree state is independent of runtime
-component collapse. Single `children` slots omit redundant slot chrome, while
-named slots remain visible. Insertion targets have fixed geometry so revealing
-their action or dragging across them does not shift the surrounding structure.
+The header's Components button opens the right-hand library without entering a
+separate mode. The flyout keeps one searchable catalog for packaged and local
+components, offers keyboard insertion and an agent fallback, and supplies
+contextual insertion targets plus full-frame node dragging on the rendered
+composition. A node drag turns the flyout into a dotted 20%-wide trash
+target; dropping there uses the same confirmed removal path as the toolbar.
+Each component frame keeps those choices in one compact Add menu with contextual
+labels such as “Tile left of Project pulse” or “Insert between Overview and
+Configure”; opening the library never renders every possible target across the
+dashboard. During a pointer drag, valid frames receive a quiet readiness outline
+and only the nearest compatible edge under the pointer becomes a filled spatial
+drop target. The source remains in place with a picked-up treatment and the
+target renders a compact component-and-destination preview; neither changes
+layout geometry or becomes a second topology representation. Header gestures
+prevent native text selection before their movement threshold is crossed.
+Keyboard movement, Configure, Remove, root replacement, and both-axis
+separator resizing use the same topology and draft helpers as pointer
+interactions. Composition-active split separators expose a visible grip, while
+hover, focus, and drag expose the current first-pane percentage. Runtime ratio
+overrides remain local; draft ratio changes are written only to the draft YAML.
 
 Removal requires confirmation, including the size of a removed subtree. Adding
 uses the snapshot catalog; a newly selected local component is shown as metadata
@@ -702,24 +914,20 @@ When an effective `DASH_BORED_AGENT` command is configured, the add-component
 picker accepts either a catalog search or a natural-language component
 description. If no catalog entry matches non-empty text, the results contain
 one explicit agent action showing the user's description, configured command,
-and complete enriched prompt. Selecting it leaves edit mode (with the normal
-discard confirmation for an already-dirty draft), asks the main process to
+and complete enriched prompt. Selecting it closes the composition UI (with the
+normal discard confirmation for an already-dirty draft), asks the main process to
 revalidate the target against the authoritative reachable config, and launches
 the configured agent. The prompt tells the agent to use the installed
 dash-bored skill when available, build a project-local component for the owning
-dashboard, and insert its node at an exact YAML path such as
-`root.slots.children[1].slots.content[0]`. The prompt remains one
+dashboard, and insert its node at an exact YAML topology path. The prompt remains one
 environment-backed shell argument under the same launch boundary as Change
 with agent.
 
-The built-in tabs component keeps the dashboard editor structural: its preview
-shows the tab panels and their child-node controls, while Configure component
-contains the tab fields. From that modal users can add a panel through the
-normal component picker, rename a tab, and remove a tab with confirmation. Tab
-names are stored in the `labels` prop in child order. The editor keeps that
-positional list synchronized when tab children are inserted, removed, or
-reordered, while unnamed existing entries continue to render as `Tab N` until
-explicitly named.
+Managed child presentation is configured through the declaring component's
+manifest schema. A tabs-like component receives generic child handles and
+edge metadata; a tab label is stored on its parent-child edge. The editor
+validates and edits that metadata declaratively, with no tabs-specific fields,
+positional prop synchronization, or component-ID branch.
 
 ### Dashboard deletion and project-file cleanup
 
@@ -753,14 +961,14 @@ command palette merges three providers:
   state;
 - focus actions for every node in the currently selected dashboard, using the
   same virtual-root navigation as the inline Focus controls;
-- start/stop actions derived from resolved `@dash-bored/command` nodes and
-  their authoritative process snapshots;
+- start/stop actions derived from every resolved process resource and its
+  authoritative process snapshot;
 - actions registered by mounted, trusted local component instances.
 
 Known actions remain searchable when unavailable and carry a reason. For
 example, configured commands remain visible before project trust, while local
 component actions do not exist until their code mounts. Process actions call
-the same typed `startProcess` and `stopProcess` RPC used by their built-in UI;
+the same typed `startProcess` and `stopProcess` RPC used by any component UI;
 the palette never executes a shell command directly.
 
 The registry re-resolves an action by ID immediately before invocation, tracks
@@ -855,7 +1063,7 @@ dash-bored open [project]
   validation. It emits stable diagnostics and a non-zero status on errors.
 - `inspect` writes JSON describing the resolved tree, the complete component
   catalog, component metadata used by the tree, requested permissions, and
-  diagnostics. Agents read `componentCatalog[].manifest.propsSchema`, `slots`,
+  diagnostics. Agents read `componentCatalog[].manifest.propsSchema`, `children`,
   and `permissions` before editing instead of relying on static examples.
 - `open` creates any missing project artifacts, validates the resulting
   dashboard, launches the packaged desktop application when invoked by its
@@ -930,7 +1138,7 @@ as a trusted broad-consumer installer. Signing and notarization can later be
 inserted into the same build-and-verify boundary without changing the project
 or bundled-CLI contracts.
 
-## Deliberate v1 exclusions
+## Deliberate exclusions
 
 The following are not part of this architecture yet:
 

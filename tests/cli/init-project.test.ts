@@ -7,6 +7,23 @@ import { initializeProject } from "../../src/cli/init-project";
 
 const temporaryDirectories: string[] = [];
 
+function configuredNodes(root: any): any[] {
+  const nodes = [root];
+  const visitLayout = (layout: any): void => {
+    if (layout.type === "child") nodes.push(...configuredNodes(layout.child.node));
+    else {
+      visitLayout(layout.first);
+      visitLayout(layout.second);
+    }
+  };
+  if (root.children?.type === "managed") {
+    for (const item of root.children.items) nodes.push(...configuredNodes(item.node));
+  } else if (root.children?.type === "tiled") {
+    visitLayout(root.children.layout);
+  }
+  return nodes;
+}
+
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
@@ -21,15 +38,22 @@ describe("initializeProject", () => {
     const lock = parse(await readFile(result.lockPath, "utf8"));
     const environment = await readFile(result.environmentPath, "utf8");
 
-    expect(config.schemaVersion).toBe(1);
-    expect(config.root.component).toBe("@dash-bored/stack");
-    expect(config.root.slots.children[0].id).toBe("welcome");
-    expect(config.root.slots.children[1].component).toBe("@dash-bored/split");
-    const environmentEditor = config.root.slots.children[2].slots.children[1];
-    const cliCommand = config.root.slots.children[2].slots.children[2];
-    const globalSkillCommand = config.root.slots.children[2].slots.children[3];
-    const skillCommand = config.root.slots.children[2].slots.children[4];
-    const agentCommand = config.root.slots.children[2].slots.children[5];
+    expect(config.schemaVersion).toBe(2);
+    expect(config.root.component).toBe("@dash-bored/group");
+    const nodes = configuredNodes(config.root);
+    expect(nodes.find((node) => node.id === "welcome")).toBeDefined();
+    const gettingStarted = nodes.find((node) => node.id === "getting-started");
+    expect(gettingStarted.component).toBe("@dash-bored/group");
+    expect(gettingStarted.children.layout).toMatchObject({
+      type: "split",
+      axis: "horizontal",
+      ratio: 0.42,
+    });
+    const environmentEditor = nodes.find((node) => node.id === "dashboard-environment");
+    const cliCommand = nodes.find((node) => node.id === "install-dash-bored-cli");
+    const globalSkillCommand = nodes.find((node) => node.id === "install-dash-bored-global-skill");
+    const skillCommand = nodes.find((node) => node.id === "install-dash-bored-skill");
+    const agentCommand = nodes.find((node) => node.id === "setup-dashboard-with-agent");
     expect(environmentEditor.component).toBe("@dash-bored/env");
     expect(environmentEditor.props.path).toBe("dash-bored/.env");
     expect(cliCommand.id).toBe("install-dash-bored-cli");
@@ -81,7 +105,8 @@ describe("initializeProject", () => {
     expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: {} });
     expect(await readFile(result.environmentPath, "utf8")).toContain("Configure DASH_BORED_AGENT once");
     expect(
-      parse(await readFile(result.configPath, "utf8")).root.slots.children[2].slots.children[1].props.path,
+      configuredNodes(parse(await readFile(result.configPath, "utf8")).root)
+        .find((node) => node.id === "dashboard-environment").props.path,
     ).toBe("dash-bored/people/arvid/.env");
     expect((await stat(result.componentsPath)).isDirectory()).toBeTrue();
     expect((await stat(join(project, "dash-bored", "dash-bored.yaml"))).isFile()).toBeTrue();

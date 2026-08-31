@@ -70,25 +70,47 @@ function processDefinitions(
 ): ProcessDefinition[] {
   const definitions: ProcessDefinition[] = [];
   const visit = (node: ResolvedComponentNode): void => {
-    if (node.component === "@dash-bored/command") {
+    const resource = node.manifest?.resources?.process;
+    if (resource) {
+      const command = node.props[resource.commandProp];
+      const cwd = resource.cwdProp === undefined ? undefined : node.props[resource.cwdProp];
+      const env = resource.envProp === undefined ? undefined : node.props[resource.envProp];
       definitions.push({
         id: node.id,
-        command: String(node.props.command),
+        command: String(command),
         ...(projectRootsByNode.get(node.id) === undefined
           ? {}
           : { projectRoot: projectRootsByNode.get(node.id) }),
-        ...(typeof node.props.cwd === "string" ? { cwd: node.props.cwd } : {}),
-        ...(node.props.env !== undefined
-          ? { env: node.props.env as Record<string, string> }
+        ...(typeof cwd === "string" ? { cwd } : {}),
+        ...(env !== undefined
+          ? { env: env as Record<string, string> }
           : {}),
       });
     }
-    for (const children of Object.values(node.slots)) {
-      for (const child of children) visit(child);
-    }
+    visitResolvedChildren(node, visit);
   };
   visit(tree);
   return definitions;
+}
+
+function visitResolvedChildren(
+  node: ResolvedComponentNode,
+  visit: (child: ResolvedComponentNode) => void,
+): void {
+  const children = node.children;
+  if (children?.type === "managed") {
+    for (const edge of children.items) visit(edge.node);
+    return;
+  }
+  if (children?.type !== "tiled") return;
+  const visitLayout = (layout: typeof children.layout): void => {
+    if (layout.type === "child") visit(layout.child.node);
+    else {
+      visitLayout(layout.first);
+      visitLayout(layout.second);
+    }
+  };
+  visitLayout(children.layout);
 }
 
 function cloneSnapshot(snapshot: ProjectSnapshot): ProjectSnapshot {
@@ -321,7 +343,7 @@ export class ProjectRuntime {
     const reachable = new Set<string>();
     const visit = (node: ResolvedComponentNode): void => {
       if (node.sourceConfigPath) reachable.add(node.sourceConfigPath);
-      for (const children of Object.values(node.slots)) for (const child of children) visit(child);
+      visitResolvedChildren(node, visit);
     };
     if (this.snapshot.tree) visit(this.snapshot.tree);
     if (!reachable.has(requested)) {

@@ -15,7 +15,9 @@ function node(
     id,
     component,
     props,
-    slots: children.length > 0 ? { children } : {},
+    ...(children.length > 0 ? {
+      children: { type: "managed" as const, items: children.map((child) => ({ node: child })) },
+    } : {}),
     source: "builtin",
   };
 }
@@ -25,7 +27,7 @@ function localNode(id: string, componentId: string): ResolvedComponentNode {
     ...node(id, `./components/${componentId}`),
     source: "local",
     manifest: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: componentId,
       name: componentId,
       description: `${componentId} test component`,
@@ -37,23 +39,23 @@ function localNode(id: string, componentId: string): ResolvedComponentNode {
 
 describe("component update detection", () => {
   test("marks only the component whose own props changed", () => {
-    const before = node("root", "@dash-bored/stack", {}, [
+    const before = node("root", "@dash-bored/group", {}, [
       node("card", "@dash-bored/card", { title: "Before" }, [
         node("text", "@dash-bored/text", { content: "Unchanged" }),
       ]),
     ]);
     const after = structuredClone(before);
-    after.slots.children![0]!.props.title = "After";
+    if (after.children?.type === "managed") after.children.items[0]!.node.props.title = "After";
 
     expect(changedComponentIds(before, after)).toEqual(["card"]);
   });
 
   test("marks inserted and repositioned components in visual order", () => {
-    const before = node("root", "@dash-bored/stack", {}, [
+    const before = node("root", "@dash-bored/group", {}, [
       node("first", "@dash-bored/card"),
       node("second", "@dash-bored/card"),
     ]);
-    const after = node("root", "@dash-bored/stack", {}, [
+    const after = node("root", "@dash-bored/group", {}, [
       node("new", "@dash-bored/card"),
       node("first", "@dash-bored/card"),
       node("second", "@dash-bored/card"),
@@ -63,10 +65,10 @@ describe("component update detection", () => {
   });
 
   test("marks the surviving parent when a component is removed", () => {
-    const before = node("root", "@dash-bored/stack", {}, [
+    const before = node("root", "@dash-bored/group", {}, [
       node("only", "@dash-bored/card"),
     ]);
-    const after = node("root", "@dash-bored/stack");
+    const after = node("root", "@dash-bored/group");
 
     expect(changedComponentIds(before, after)).toEqual(["root"]);
   });
@@ -92,7 +94,7 @@ describe("component update detection", () => {
   });
 
   test("marks every mounted instance after its local component successfully reloads", () => {
-    const tree = node("root", "@dash-bored/stack", {}, [
+    const tree = node("root", "@dash-bored/group", {}, [
       localNode("first-pulse", "project-pulse"),
       localNode("package-scripts", "package-scripts"),
       localNode("second-pulse", "project-pulse"),

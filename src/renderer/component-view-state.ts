@@ -1,4 +1,5 @@
 import type { ResolvedComponentNode } from "../shared/contracts";
+import { childNodes } from "./component-children";
 
 const MAX_COLLAPSED_COMPONENTS = 2_000;
 
@@ -27,11 +28,8 @@ export function serializeCollapsedComponentIds(ids: ReadonlySet<string>): string
 }
 
 export function countComponentDescendants(node: ResolvedComponentNode): number {
-  return Object.values(node.slots).reduce(
-    (count, children) => count + children.reduce(
-      (childCount, child) => childCount + 1 + countComponentDescendants(child),
-      0,
-    ),
+  return childNodes(node).reduce(
+    (count, child) => count + 1 + countComponentDescendants(child),
     0,
   );
 }
@@ -41,9 +39,7 @@ export function collectComponentNodeIds(node: ResolvedComponentNode): Set<string
 
   function visit(current: ResolvedComponentNode): void {
     ids.add(current.id);
-    for (const children of Object.values(current.slots)) {
-      for (const child of children) visit(child);
-    }
+    for (const child of childNodes(current)) visit(child);
   }
 
   visit(node);

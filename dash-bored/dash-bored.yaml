@@ -1,355 +1,660 @@
-schemaVersion: 1
+schemaVersion: 2
 name: Dash Bored
 icon: ../assets/icon.svg
 root:
   id: project-cockpit
   component: "@dash-bored/tabs"
-  props:
-    label: Project cockpit
-    labels:
-      - Overview
-      - Development
-      - Release
-      - Documentation
-      - Agent setup
-      - Dogfood
-  slots:
-    children:
-      - id: overview
-        component: "@dash-bored/stack"
-        props:
-          gap: large
-        slots:
+  children:
+    type: managed
+    items:
+      - metadata:
+          label: Overview
+        node:
+          id: overview
+          component: "@dash-bored/group"
           children:
-            - id: overview-intro
-              component: "@dash-bored/markdown"
-              props:
-                content: |
-                  # dash-bored
-
-                  A local-first project cockpit for composing project workflows from
-                  small components. Use this dashboard to run the normal development
-                  loop, inspect the project contract, and exercise the runtime itself.
-
-                  Press **Command-K** to find app, command, and local-component
-                  actions from one place. You can also search for any dashboard
-                  node and focus it as the temporary dashboard root.
-            - id: command-palette-navigation-card
-              component: "@dash-bored/card"
-              props:
-                title: Command palette navigation
-                description: Focus any dashboard node without hunting through nested panels.
-              slots:
-                children:
-                  - id: command-palette-navigation-help
+            type: tiled
+            layout:
+              type: split
+              axis: vertical
+              ratio: 0.5
+              first:
+                type: child
+                child:
+                  node:
+                    id: overview-intro
                     component: "@dash-bored/markdown"
                     props:
                       content: |
-                        ### Focus any node
+                        # dash-bored
 
-                        Open the command palette and search for **Focus** to jump to
-                        a component or return to the full dashboard. The focus is
-                        temporary and does not change the YAML configuration.
-            - id: overview-layout
-              component: "@dash-bored/split"
-              props:
-                direction: horizontal
-              slots:
+                        A local-first project cockpit for composing project workflows from
+                        small components. Use this dashboard to run the normal development
+                        loop, inspect the project contract, and exercise the runtime itself.
+
+                        Press **Command-K** to find app, command, and local-component
+                        actions from one place. You can also search for any dashboard
+                        node and focus it as the temporary dashboard root.
+              second:
+                type: split
+                axis: vertical
+                ratio: 0.15
                 first:
-                  id: project-pulse-card
-                  component: "@dash-bored/card"
-                  props:
-                    title: Project pulse
-                    description: A project-defined component that reads the local package manifest.
-                  slots:
-                    children:
-                      - id: project-pulse
-                        component: ./components/project-pulse
+                  type: split
+                  axis: horizontal
+                  ratio: 0.5
+                  first:
+                    type: split
+                    axis: vertical
+                    ratio: 0.5
+                    first:
+                      type: child
+                      child:
+                        node:
+                          id: card
+                          component: "@dash-bored/card"
+                          props:
+                            title: The drop target to add a component under this one should be in the empty space below it
+                            description: Not on this component
+                    second:
+                      type: child
+                      child:
+                        node:
+                          id: card-2
+                          component: "@dash-bored/card"
+                          props:
+                            title: rstrst
+                            description: rstsrt
+                  second:
+                    type: child
+                    child:
+                      node:
+                        id: command-palette-navigation-card
+                        component: "@dash-bored/card"
                         props:
-                          packageFile: package.json
+                          title: Command palette navigation
+                          description: Focus any dashboard node without hunting through nested panels.
+                        children:
+                          type: tiled
+                          layout:
+                            type: child
+                            child:
+                              node:
+                                id: command-palette-navigation-help
+                                component: "@dash-bored/markdown"
+                                props:
+                                  content: |
+                                    ### Focus any node
+
+                                    Open the command palette and search for **Focus** to jump to
+                                    a component or return to the full dashboard. The focus is
+                                    temporary and does not change the YAML configuration.
                 second:
-                  id: dashboard-capabilities-card
-                  component: "@dash-bored/card"
-                  props:
-                    title: Dashboard capabilities
-                    description: Trust gates the project-owned runtime features below.
-                  slots:
-                    children:
-                      - id: status-config
-                        component: "@dash-bored/status"
-                        props:
-                          label: YAML configuration
-                          state: healthy
-                          detail: Project-owned and validated on each reload.
-                      - id: status-local-components
-                        component: "@dash-bored/status"
-                        props:
-                          label: Local components
-                          state: healthy
-                          detail: The Project pulse card is compiled from this repository.
-                      - id: status-trust
-                        component: "@dash-bored/status"
-                        props:
-                          label: Host capabilities
-                          state: warning
-                          detail: File reads and commands require an explicit project trust decision.
-            - id: git-branches-card
-              component: "@dash-bored/card"
-              props:
-                title: Git branches
-                description: Commits unique to each local branch, plus upstream tracking.
-              slots:
-                children:
-                  - id: git-branches
-                    component: ./components/git-branches
-                    props:
-                      cwd: .
-                      baseBranch: main
-            - id: yaml-todo-card
-              component: "@dash-bored/card"
-              props:
-                title: YAML todo list
-                description: A small stateful component whose items live in dash-bored/todos.yaml.
-              slots:
-                children:
-                  - id: yaml-todo
-                    component: "@dash-bored/todo-list"
-                    props:
-                      path: dash-bored/todos.yaml
-            - id: dashboard-lifecycle-card
-              component: "@dash-bored/card"
-              props:
-                title: Dashboard lifecycle
-                description: Safe registry removal and project-file cleanup.
-              slots:
-                children:
-                  - id: dashboard-lifecycle
+                  type: split
+                  axis: vertical
+                  ratio: 0.5
+                  first:
+                    type: child
+                    child:
+                      node:
+                        id: overview-layout
+                        component: "@dash-bored/group"
+                        children:
+                          type: tiled
+                          layout:
+                            type: split
+                            axis: horizontal
+                            ratio: 0.5
+                            first:
+                              type: child
+                              child:
+                                node:
+                                  id: project-pulse-card
+                                  component: "@dash-bored/card"
+                                  props:
+                                    title: Project pulse
+                                    description: A project-defined component that reads the local package manifest.
+                                  children:
+                                    type: tiled
+                                    layout:
+                                      type: child
+                                      child:
+                                        node:
+                                          id: project-pulse
+                                          component: ./components/project-pulse
+                                          props:
+                                            packageFile: package.json
+                            second:
+                              type: child
+                              child:
+                                node:
+                                  id: dashboard-capabilities-card
+                                  component: "@dash-bored/card"
+                                  props:
+                                    title: Dashboard capabilities
+                                    description: Trust gates the project-owned runtime features below.
+                                  children:
+                                    type: tiled
+                                    layout:
+                                      type: split
+                                      axis: vertical
+                                      ratio: 0.5
+                                      first:
+                                        type: child
+                                        child:
+                                          node:
+                                            id: status-config
+                                            component: "@dash-bored/status"
+                                            props:
+                                              label: YAML configuration
+                                              state: healthy
+                                              detail: Project-owned and validated on each reload.
+                                      second:
+                                        type: split
+                                        axis: vertical
+                                        ratio: 0.5
+                                        first:
+                                          type: child
+                                          child:
+                                            node:
+                                              id: status-local-components
+                                              component: "@dash-bored/status"
+                                              props:
+                                                label: Local components
+                                                state: healthy
+                                                detail: The Project pulse card is compiled from this repository.
+                                        second:
+                                          type: child
+                                          child:
+                                            node:
+                                              id: status-trust
+                                              component: "@dash-bored/status"
+                                              props:
+                                                label: Host capabilities
+                                                state: warning
+                                                detail: File reads and commands require an explicit project trust decision.
+                  second:
+                    type: split
+                    axis: vertical
+                    ratio: 0.5
+                    first:
+                      type: child
+                      child:
+                        node:
+                          id: git-branches-card
+                          component: "@dash-bored/card"
+                          props:
+                            title: Git branches
+                            description: Commits unique to each local branch, plus upstream tracking.
+                          children:
+                            type: tiled
+                            layout:
+                              type: child
+                              child:
+                                node:
+                                  id: git-branches
+                                  component: ./components/git-branches
+                                  props:
+                                    cwd: .
+                                    baseBranch: main
+                    second:
+                      type: split
+                      axis: vertical
+                      ratio: 0.5
+                      first:
+                        type: child
+                        child:
+                          node:
+                            id: yaml-todo-card
+                            component: "@dash-bored/card"
+                            props:
+                              title: YAML todo list
+                              description: A small stateful component whose items live in dash-bored/todos.yaml.
+                            children:
+                              type: tiled
+                              layout:
+                                type: child
+                                child:
+                                  node:
+                                    id: yaml-todo
+                                    component: "@dash-bored/todo-list"
+                                    props:
+                                      path: dash-bored/todos.yaml
+                      second:
+                        type: child
+                        child:
+                          node:
+                            id: dashboard-lifecycle-card
+                            component: "@dash-bored/card"
+                            props:
+                              title: Dashboard lifecycle
+                              description: Safe registry removal and project-file cleanup.
+                            children:
+                              type: tiled
+                              layout:
+                                type: child
+                                child:
+                                  node:
+                                    id: dashboard-lifecycle
+                                    component: "@dash-bored/markdown"
+                                    props:
+                                      content: |
+                                        ### Dashboard lifecycle
+
+                                        The expanded sidebar exposes a keyboard-accessible trash action.
+                                        Removal only forgets the dashboard by default. Before optional
+                                        cleanup, dash-bored previews direct and transitive config links;
+                                        incomplete analysis keeps file removal disabled.
+
+                                        If selected, only this project's app-owned `dash-bored/` directory
+                                        moves to the OS Trash. Source project files are never targeted.
+      - metadata:
+          label: Development
+        node:
+          id: development
+          component: "@dash-bored/group"
+          children:
+            type: tiled
+            layout:
+              type: split
+              axis: vertical
+              ratio: 0.5
+              first:
+                type: child
+                child:
+                  node:
+                    id: development-intro
                     component: "@dash-bored/markdown"
                     props:
                       content: |
-                        ### Dashboard lifecycle
+                        ## Development loop
 
-                        The expanded sidebar exposes a keyboard-accessible trash action.
-                        Removal only forgets the dashboard by default. Before optional
-                        cleanup, dash-bored previews direct and transitive config links;
-                        incomplete analysis keeps file removal disabled.
-
-                        If selected, only this project's app-owned `dash-bored/` directory
-                        moves to the OS Trash. Source project files are never targeted.
-      - id: development
-        component: "@dash-bored/stack"
-        props:
-          gap: large
-        slots:
-          children:
-            - id: development-intro
-              component: "@dash-bored/markdown"
-              props:
-                content: |
-                  ## Development loop
-
-                  Start the desktop development environment when you need live renderer
-                  and main-process updates. Run QA before handing changes off. Commands
-                  never run automatically; each is an explicit, trusted action.
-            - id: development-layout
-              component: "@dash-bored/split"
-              props:
-                direction: horizontal
-              slots:
+                        Start the desktop development environment when you need live renderer
+                        and main-process updates. Run QA before handing changes off. Commands
+                        never run automatically; each is an explicit, trusted action. For UI changes, run **ui:fixture** and inspect the normal and narrow renderer before the separate native desktop check.
+              second:
+                type: split
+                axis: vertical
+                ratio: 0.5
                 first:
-                  id: development-controls
-                  component: "@dash-bored/stack"
-                  props:
-                    gap: medium
-                  slots:
-                    children:
-                      - id: start-development
-                        component: "@dash-bored/command"
-                        props:
-                          label: Start development environment
-                          command: bun run dev
-                          cwd: .
-                      - id: run-qa
-                        component: "@dash-bored/command"
-                        props:
-                          label: Run full QA
-                          command: bun run qa
-                          cwd: .
-                      - id: validate-dashboard
-                        component: "@dash-bored/command"
-                        props:
-                          label: Validate dashboard configuration
-                          command: bun run dash-bored -- validate .
-                          cwd: .
+                  type: child
+                  child:
+                    node:
+                      id: development-layout
+                      component: "@dash-bored/group"
+                      children:
+                        type: tiled
+                        layout:
+                          type: split
+                          axis: horizontal
+                          ratio: 0.5
+                          first:
+                            type: child
+                            child:
+                              node:
+                                id: development-controls
+                                component: "@dash-bored/group"
+                                children:
+                                  type: tiled
+                                  layout:
+                                    type: split
+                                    axis: vertical
+                                    ratio: 0.5
+                                    first:
+                                      type: child
+                                      child:
+                                        node:
+                                          id: start-development
+                                          component: "@dash-bored/command"
+                                          props:
+                                            label: Start development environment
+                                            command: bun run dev
+                                            cwd: .
+                                    second:
+                                      type: split
+                                      axis: vertical
+                                      ratio: 0.5
+                                      first:
+                                        type: child
+                                        child:
+                                          node:
+                                            id: run-qa
+                                            component: "@dash-bored/command"
+                                            props:
+                                              label: Run full QA
+                                              command: bun run qa
+                                              cwd: .
+                                      second:
+                                        type: child
+                                        child:
+                                          node:
+                                            id: validate-dashboard
+                                            component: "@dash-bored/command"
+                                            props:
+                                              label: Validate dashboard configuration
+                                              command: bun run dash-bored -- validate .
+                                              cwd: .
+                          second:
+                            type: child
+                            child:
+                              node:
+                                id: development-output-card
+                                component: "@dash-bored/card"
+                                props:
+                                  title: Development output
+                                  description: Live bounded output from the development command.
+                                children:
+                                  type: tiled
+                                  layout:
+                                    type: child
+                                    child:
+                                      node:
+                                        id: development-output
+                                        component: "@dash-bored/terminal"
+                                        props:
+                                          processId: start-development
                 second:
-                  id: development-output-card
-                  component: "@dash-bored/card"
-                  props:
-                    title: Development output
-                    description: Live bounded output from the development command.
-                  slots:
-                    children:
-                      - id: development-output
-                        component: "@dash-bored/terminal"
+                  type: split
+                  axis: vertical
+                  ratio: 0.5
+                  first:
+                    type: child
+                    child:
+                      node:
+                        id: local-preview-card
+                        component: "@dash-bored/card"
                         props:
-                          processId: start-development
-            - id: local-preview-card
-              component: "@dash-bored/card"
-              props:
-                title: Renderer preview
-                description: Available after the development environment has started.
-              slots:
-                children:
-                  - id: renderer-preview
-                    component: "@dash-bored/webview"
-                    props:
-                      url: http://localhost:5173
-            - id: package-scripts-card
-              component: "@dash-bored/card"
-              props:
-                title: Package scripts
-                description: Every package.json script is available as a button and command-palette action.
-              slots:
-                children:
-                  - id: package-scripts
-                    component: ./components/package-scripts
-                    props:
-                      packageFile: package.json
-      - id: release
-        component: "@dash-bored/stack"
-        props:
-          gap: large
-        slots:
+                          title: Renderer preview
+                          description: Available after the development environment has started.
+                        children:
+                          type: tiled
+                          layout:
+                            type: child
+                            child:
+                              node:
+                                id: renderer-preview
+                                component: "@dash-bored/webview"
+                                props:
+                                  url: http://localhost:5173
+                  second:
+                    type: child
+                    child:
+                      node:
+                        id: package-scripts-card
+                        component: "@dash-bored/card"
+                        props:
+                          title: Package scripts
+                          description: Every package.json script is available as a button and command-palette action.
+                        children:
+                          type: tiled
+                          layout:
+                            type: child
+                            child:
+                              node:
+                                id: package-scripts
+                                component: ./components/package-scripts
+                                props:
+                                  packageFile: package.json
+      - metadata:
+          label: Release
+        node:
+          id: release
+          component: "@dash-bored/group"
           children:
-            - id: release-intro
-              component: "@dash-bored/markdown"
-              props:
-                content: |
-                  ## Unsigned macOS prerelease
+            type: tiled
+            layout:
+              type: split
+              axis: vertical
+              ratio: 0.5
+              first:
+                type: child
+                child:
+                  node:
+                    id: release-intro
+                    component: "@dash-bored/markdown"
+                    props:
+                      content: |
+                        ## Unsigned macOS prerelease
 
-                  Releases currently target Apple Silicon on macOS 14 or newer.
-                  Run the checks in order before pushing a tag that exactly matches
-                  `v<package.json version>`. GitHub Actions repeats these checks and
-                  creates a draft prerelease for explicit publication.
-            - id: release-layout
-              component: "@dash-bored/split"
-              props:
-                direction: horizontal
-              slots:
+                        Releases currently target Apple Silicon on macOS 14 or newer.
+                        Run the checks in order before pushing a tag that exactly matches
+                        `v<package.json version>`. GitHub Actions repeats these checks and
+                        creates a draft prerelease for explicit publication.
+              second:
+                type: split
+                axis: vertical
+                ratio: 0.5
                 first:
-                  id: release-controls
-                  component: "@dash-bored/stack"
-                  props:
-                    gap: medium
-                  slots:
-                    children:
-                      - id: run-release-qa
-                        component: "@dash-bored/command"
-                        props:
-                          label: Run release QA
-                          command: bun run qa && bun run dash-bored -- validate .
-                          cwd: .
-                      - id: build-macos-release
-                        component: "@dash-bored/command"
-                        props:
-                          label: Build clean macOS prerelease
-                          command: bun run build:release
-                          cwd: .
-                      - id: prepare-macos-release
-                        component: "@dash-bored/command"
-                        props:
-                          label: Verify and stage release assets
-                          command: bun run release:prepare
-                          cwd: .
+                  type: child
+                  child:
+                    node:
+                      id: release-layout
+                      component: "@dash-bored/group"
+                      children:
+                        type: tiled
+                        layout:
+                          type: split
+                          axis: horizontal
+                          ratio: 0.5
+                          first:
+                            type: child
+                            child:
+                              node:
+                                id: release-controls
+                                component: "@dash-bored/group"
+                                children:
+                                  type: tiled
+                                  layout:
+                                    type: split
+                                    axis: vertical
+                                    ratio: 0.5
+                                    first:
+                                      type: child
+                                      child:
+                                        node:
+                                          id: run-release-qa
+                                          component: "@dash-bored/command"
+                                          props:
+                                            label: Run release QA
+                                            command: bun run qa && bun run dash-bored -- validate .
+                                            cwd: .
+                                    second:
+                                      type: split
+                                      axis: vertical
+                                      ratio: 0.5
+                                      first:
+                                        type: child
+                                        child:
+                                          node:
+                                            id: build-macos-release
+                                            component: "@dash-bored/command"
+                                            props:
+                                              label: Build clean macOS prerelease
+                                              command: bun run build:release
+                                              cwd: .
+                                      second:
+                                        type: child
+                                        child:
+                                          node:
+                                            id: prepare-macos-release
+                                            component: "@dash-bored/command"
+                                            props:
+                                              label: Verify and stage release assets
+                                              command: bun run release:prepare
+                                              cwd: .
+                          second:
+                            type: child
+                            child:
+                              node:
+                                id: release-output-card
+                                component: "@dash-bored/card"
+                                props:
+                                  title: Release build output
+                                  description: Live bounded output from the clean Electrobun package build.
+                                children:
+                                  type: tiled
+                                  layout:
+                                    type: child
+                                    child:
+                                      node:
+                                        id: release-output
+                                        component: "@dash-bored/terminal"
+                                        props:
+                                          processId: build-macos-release
                 second:
-                  id: release-output-card
-                  component: "@dash-bored/card"
+                  type: child
+                  child:
+                    node:
+                      id: release-workflow-card
+                      component: "@dash-bored/card"
+                      props:
+                        title: GitHub release workflow
+                        description: The tag-triggered source of truth for draft prerelease publication.
+                      children:
+                        type: tiled
+                        layout:
+                          type: child
+                          child:
+                            node:
+                              id: release-workflow-file
+                              component: "@dash-bored/file"
+                              props:
+                                path: .github/workflows/release.yml
+      - metadata:
+          label: Documentation
+        node:
+          id: documentation
+          component: "@dash-bored/tabs"
+          children:
+            type: managed
+            items:
+              - metadata:
+                  label: README
+                node:
+                  id: readme-file
+                  component: "@dash-bored/file"
                   props:
-                    title: Release build output
-                    description: Live bounded output from the clean Electrobun package build.
-                  slots:
-                    children:
-                      - id: release-output
-                        component: "@dash-bored/terminal"
-                        props:
-                          processId: build-macos-release
-            - id: release-workflow-card
-              component: "@dash-bored/card"
-              props:
-                title: GitHub release workflow
-                description: The tag-triggered source of truth for draft prerelease publication.
-              slots:
-                children:
-                  - id: release-workflow-file
-                    component: "@dash-bored/file"
+                    path: README.md
+              - metadata:
+                  label: Product vision
+                node:
+                  id: idea-file
+                  component: "@dash-bored/file"
+                  props:
+                    path: IDEA.md
+              - metadata:
+                  label: Architecture
+                node:
+                  id: architecture-file
+                  component: "@dash-bored/file"
+                  props:
+                    path: ARCHITECTURE.md
+      - metadata:
+          label: Agent setup
+        node:
+          id: agent-setup
+          component: "@dash-bored/card"
+          props:
+            title: Configure with an agent
+            description: Exercise the same self-contained setup flow generated for new projects.
+          children:
+            type: tiled
+            layout:
+              type: split
+              axis: vertical
+              ratio: 0.5
+              first:
+                type: child
+                child:
+                  node:
+                    id: agent-setup-guide
+                    component: "@dash-bored/markdown"
                     props:
-                      path: .github/workflows/release.yml
-      - id: documentation
-        component: "@dash-bored/tabs"
-        props:
-          label: Project documentation
-          labels:
-            - README
-            - Product vision
-            - Architecture
-        slots:
-          children:
-            - id: readme-file
-              component: "@dash-bored/file"
-              props:
-                path: README.md
-            - id: idea-file
-              component: "@dash-bored/file"
-              props:
-                path: IDEA.md
-            - id: architecture-file
-              component: "@dash-bored/file"
-              props:
-                path: ARCHITECTURE.md
-      - id: agent-setup
-        component: "@dash-bored/card"
-        props:
-          title: Configure with an agent
-          description: Exercise the same self-contained setup flow generated for new projects.
-        slots:
-          children:
-            - id: agent-setup-guide
-              component: "@dash-bored/markdown"
-              props:
-                content: |
-                  Choose the CLI coding agent below, install the version-matched
-                  dash-bored skill globally or just for this repository, then ask the
-                  agent to inspect this repository and improve its development cockpit.
-                  The app already exposes its bundled CLI to these commands.
-            - id: agent-environment
-              component: "@dash-bored/env"
-              props:
-                path: dash-bored/.env
-            - id: install-cli-link
-              component: "@dash-bored/command"
-              props:
-                label: Install dash-bored CLI in ~/.local/bin
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
-                cwd: .
-            - id: install-agent-skill-global
-              component: "@dash-bored/command"
-              props:
-                label: Install dash-bored skill globally
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
-                cwd: .
-            - id: install-agent-skill
-              component: "@dash-bored/command"
-              props:
-                label: Install portable dash-bored skill for this project
-                command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
-                cwd: .
-            - id: configure-with-agent
-              component: "@dash-bored/command"
-              props:
-                label: Improve this dashboard with an agent
-                command: ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"
-                cwd: .
-                env:
-                  DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
-      - id: dogfood-dashboard
-        component: ./dogfood
+                      content: |
+                        Choose the CLI coding agent below, install the version-matched
+                        dash-bored skill globally or just for this repository, then ask the
+                        agent to inspect this repository and improve its development cockpit.
+                        The app already exposes its bundled CLI to these commands.
+              second:
+                type: split
+                axis: vertical
+                ratio: 0.5
+                first:
+                  type: child
+                  child:
+                    node:
+                      id: agent-environment
+                      component: "@dash-bored/env"
+                      props:
+                        path: dash-bored/.env
+                second:
+                  type: split
+                  axis: vertical
+                  ratio: 0.5
+                  first:
+                    type: child
+                    child:
+                      node:
+                        id: install-cli-link
+                        component: "@dash-bored/command"
+                        props:
+                          label: Install dash-bored CLI in ~/.local/bin
+                          command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
+                          cwd: .
+                  second:
+                    type: split
+                    axis: vertical
+                    ratio: 0.5
+                    first:
+                      type: child
+                      child:
+                        node:
+                          id: install-agent-skill-global
+                          component: "@dash-bored/command"
+                          props:
+                            label: Install dash-bored skill globally
+                            command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
+                            cwd: .
+                    second:
+                      type: split
+                      axis: vertical
+                      ratio: 0.5
+                      first:
+                        type: child
+                        child:
+                          node:
+                            id: install-agent-skill
+                            component: "@dash-bored/command"
+                            props:
+                              label: Install portable dash-bored skill for this project
+                              command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
+                              cwd: .
+                      second:
+                        type: split
+                        axis: horizontal
+                        ratio: 0.5
+                        first:
+                          type: child
+                          child:
+                            node:
+                              id: configure-with-agent
+                              component: "@dash-bored/command"
+                              props:
+                                label: Improve this dashboard with an agent
+                                command: ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"
+                                cwd: .
+                                env:
+                                  DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
+                        second:
+                          type: child
+                          child:
+                            node:
+                              id: configure-with-agent-output
+                              component: "@dash-bored/terminal"
+                              props:
+                                processId: configure-with-agent
+      - metadata:
+          label: Dogfood
+        node:
+          id: dogfood-dashboard
+          component: ./dogfood

@@ -7,7 +7,12 @@ import {
   loadProjectDefinition,
   resolveProjectLocation,
 } from "../../src/core";
-import type { DashboardConfig } from "../../src/shared/contracts";
+import type {
+  ComponentChildLayout,
+  ComponentNode,
+  DashboardConfig,
+  ResolvedComponentNode,
+} from "../../src/shared/contracts";
 import {
   createProject,
   defaultConfig,
@@ -17,6 +22,42 @@ import {
 } from "./helpers";
 
 const cleanup: string[] = [];
+
+function child(node: ComponentNode): ComponentChildLayout {
+  return { type: "child", child: { node } };
+}
+
+function vertical(nodes: readonly ComponentNode[]): ComponentChildLayout {
+  if (nodes.length === 1) return child(nodes[0]!);
+  const middle = Math.ceil(nodes.length / 2);
+  return {
+    type: "split",
+    axis: "vertical",
+    ratio: 0.5,
+    first: vertical(nodes.slice(0, middle)),
+    second: vertical(nodes.slice(middle)),
+  };
+}
+
+function tiled(nodes: readonly ComponentNode[]) {
+  return { type: "tiled" as const, layout: vertical(nodes) };
+}
+
+function resolvedChildren(node: ResolvedComponentNode | null | undefined): ResolvedComponentNode[] {
+  const children = node?.children;
+  if (children === undefined) return [];
+  if (children.type === "managed") return children.items.map((edge) => edge.node);
+  const nodes: ResolvedComponentNode[] = [];
+  const visit = (layout: typeof children.layout): void => {
+    if (layout.type === "child") nodes.push(layout.child.node);
+    else {
+      visit(layout.first);
+      visit(layout.second);
+    }
+  };
+  visit(children.layout);
+  return nodes;
+}
 
 afterEach(async () => {
   await Promise.all(cleanup.splice(0).map(removeTemporaryDirectory));
@@ -46,7 +87,7 @@ describe("project paths and YAML", () => {
     await writeFile(
       join(named, "dash-bored.yaml"),
       stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name: "Arvid",
         root: { component: "@dash-bored/text", props: { content: "Personal" } },
       }),
@@ -69,7 +110,7 @@ describe("project paths and YAML", () => {
     await createProject(root);
     await writeFile(
       join(root, "dash-bored", "dash-bored.yaml"),
-      "schemaVersion: 1\nname: First\nname: Second\nroot:\n  component: '@dash-bored/text'\n  props:\n    content: hi\n",
+      "schemaVersion: 2\nname: First\nname: Second\nroot:\n  component: '@dash-bored/text'\n  props:\n    content: hi\n",
     );
     const duplicate = await inspectProject(root);
     expect(duplicate.ok).toBeFalse();
@@ -123,7 +164,7 @@ describe("project paths and YAML", () => {
     const outside = await temporaryDirectory();
     cleanup.push(root, outside);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Unsafe",
       root: { component: "./components/escape" },
     });
@@ -144,39 +185,37 @@ describe("tree resolution and local compilation", () => {
     cleanup.push(root, external);
     const namedDirectory = join(root, "dash-bored", "arvid");
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Base",
       root: {
-        component: "@dash-bored/stack",
-        slots: {
-          children: [
-            { id: "relative", component: "./arvid" },
-            { id: "broken", component: "./moved-away" },
-            { id: "absolute", component: join(external, "dash-bored") },
-          ],
-        },
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "relative", component: "./arvid" },
+          { id: "broken", component: "./moved-away" },
+          { id: "absolute", component: join(external, "dash-bored") },
+        ]),
       },
     });
     await mkdir(join(namedDirectory, "components"), { recursive: true });
     await Promise.all([
       writeFile(join(namedDirectory, "dash-bored.yaml"), stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name: "Arvid",
         root: { component: "@dash-bored/text", props: { content: "Personal" } },
       })),
       writeFile(join(namedDirectory, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
     await createProject(external, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "External",
       root: { component: "@dash-bored/status", props: { label: "External", state: "healthy" } },
     });
 
     const result = await loadProjectDefinition(root);
     expect(result.ok).toBeTrue();
-    const children = result.tree?.slots.children ?? [];
+    const children = resolvedChildren(result.tree);
     expect(children[0]).toMatchObject({ source: "config", configName: "Arvid" });
-    expect(children[0]?.slots.content?.[0]?.component).toBe("@dash-bored/text");
+    expect(resolvedChildren(children[0])[0]?.component).toBe("@dash-bored/text");
     expect(children[1]).toMatchObject({ source: "config" });
     expect(children[1]?.configError?.length).toBeGreaterThan(0);
     expect(children[2]).toMatchObject({ source: "config", configName: "External" });
@@ -187,7 +226,7 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Base",
       root: { id: "personal", component: "./arvid" },
     });
@@ -196,13 +235,13 @@ describe("tree resolution and local compilation", () => {
     await mkdir(component, { recursive: true });
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name: "Arvid",
         root: { component: "./components/personal-button" },
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
       writeFile(join(component, "component.yaml"), stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: "personal-button",
         name: "Personal button",
         description: "A bundle-local button.",
@@ -214,7 +253,7 @@ describe("tree resolution and local compilation", () => {
 
     const result = await loadProjectDefinition(root, { compile: true });
     expect(result.ok).toBeTrue();
-    const linked = result.tree?.slots.content?.[0];
+    const linked = resolvedChildren(result.tree)[0];
     expect(linked?.source).toBe("local");
     expect(linked?.manifest?.id).toBe("personal::personal-button");
     expect(result.compiledComponents.map((item) => item.componentId)).toContain("personal::personal-button");
@@ -230,7 +269,7 @@ describe("tree resolution and local compilation", () => {
     await writeFile(join(invalid, "component.yaml"), "schemaVersion: nope\n");
 
     const result = await loadProjectDefinition(root);
-    expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/stack" && item.available)).toBeTrue();
+    expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/group" && item.available)).toBeTrue();
     expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/env" && item.available)).toBeTrue();
     expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/todo-list" && item.available)).toBeTrue();
     expect(result.componentCatalog.some((item) => item.reference === "./components/available" && item.available)).toBeTrue();
@@ -243,16 +282,14 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const config: DashboardConfig = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Ids",
       root: {
-        component: "@dash-bored/stack",
-        slots: {
-          children: [
-            { id: "same", component: "@dash-bored/text", props: { content: "one" } },
-            { id: "same", component: "@dash-bored/text", props: { content: "two" } },
-          ],
-        },
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "same", component: "@dash-bored/text", props: { content: "one" } },
+          { id: "same", component: "@dash-bored/text", props: { content: "two" } },
+        ]),
       },
     };
     await createProject(root, config);
@@ -260,70 +297,66 @@ describe("tree resolution and local compilation", () => {
     expect(duplicate.ok).toBeFalse();
     expect(duplicate.diagnostics.map((item) => item.code)).toContain("NODE_ID_DUPLICATE");
 
-    config.root.slots = {
-      children: [{ component: "@dash-bored/text", props: { content: "one" } }],
-    };
+    config.root.children = tiled([
+      { component: "@dash-bored/text", props: { content: "one" } },
+    ]);
     await writeFile(join(root, "dash-bored", "dash-bored.yaml"), stringify(config));
     const generated = await inspectProject(root);
     expect(generated.ok).toBeTrue();
-    expect(generated.tree?.slots.children?.[0]?.id).toBe("root.children.0");
+    expect(resolvedChildren(generated.tree)[0]?.id).toBe("root.children.0");
   });
 
   test("requires command ids and validates terminal references", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Processes",
       root: {
-        component: "@dash-bored/stack",
-        slots: {
-          children: [
-            {
-              component: "@dash-bored/command",
-              props: { label: "Run", command: "echo ok" },
-            },
-            {
-              component: "@dash-bored/terminal",
-              props: { processId: "missing" },
-            },
-          ],
-        },
+        component: "@dash-bored/group",
+        children: tiled([
+          {
+            component: "@dash-bored/command",
+            props: { label: "Run", command: "echo ok" },
+          },
+          {
+            component: "@dash-bored/terminal",
+            props: { processId: "missing" },
+          },
+        ]),
       },
     });
     const result = await inspectProject(root);
     expect(result.ok).toBeFalse();
     expect(result.diagnostics.map((item) => item.code)).toContain("NODE_ID_REQUIRED");
-    expect(result.diagnostics.map((item) => item.code)).toContain("TERMINAL_PROCESS_UNKNOWN");
+    expect(result.diagnostics.map((item) => item.code)).toContain("COMPONENT_RESOURCE_REFERENCE_UNKNOWN");
   });
 
-  test("does not treat inherited object properties as declared slots", async () => {
+  test("rejects inherited-looking keys in the generic children topology", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
-      name: "Slots",
+      schemaVersion: 2,
+      name: "Children",
       root: {
-        component: "@dash-bored/stack",
-        slots: {
-          constructor: {
-            component: "@dash-bored/text",
-            props: { content: "hidden" },
-          },
-        },
+        component: "@dash-bored/group",
+        children: {
+          ...tiled([{ component: "@dash-bored/text", props: { content: "visible" } }]),
+          constructor: { component: "@dash-bored/text", props: { content: "hidden" } },
+        } as DashboardConfig["root"]["children"],
       },
     });
 
     const result = await inspectProject(root);
     expect(result.ok).toBeFalse();
-    expect(result.diagnostics.map((item) => item.code)).toContain("COMPONENT_SLOT_UNKNOWN");
+    expect(result.diagnostics.map((item) => item.code)).toContain("CONFIG_SCHEMA_INVALID");
   });
 
   test("compiles local TSX and CSS against the renderer runtime global", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Local",
       root: { component: "./components/example", props: { message: "Hello" } },
     });
@@ -359,7 +392,7 @@ export default defineComponent(({ props, host }) => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Restricted",
       root: { component: "./components/restricted" },
     });
@@ -378,7 +411,7 @@ export default defineComponent(({ props, host }) => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Reserved",
       root: { component: "./components/reserved" },
     });

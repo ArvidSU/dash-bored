@@ -3,7 +3,12 @@ import { chmod, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises
 import { join, relative } from "node:path";
 import { stringify } from "yaml";
 import { inspectProjectDeletion } from "../../src/core";
-import type { DashboardConfig, ProjectListItem } from "../../src/shared/contracts";
+import type {
+  ComponentChildLayout,
+  ComponentNode,
+  DashboardConfig,
+  ProjectListItem,
+} from "../../src/shared/contracts";
 import {
   createProject,
   removeTemporaryDirectory,
@@ -13,22 +18,39 @@ import {
 
 const cleanup: string[] = [];
 
+function child(node: ComponentNode): ComponentChildLayout {
+  return { type: "child", child: { node } };
+}
+
+function vertical(nodes: readonly ComponentNode[]): ComponentChildLayout {
+  if (nodes.length === 1) return child(nodes[0]!);
+  const middle = Math.ceil(nodes.length / 2);
+  return {
+    type: "split",
+    axis: "vertical",
+    ratio: 0.5,
+    first: vertical(nodes.slice(0, middle)),
+    second: vertical(nodes.slice(middle)),
+  };
+}
+
 afterEach(async () => {
   await Promise.all(cleanup.splice(0).map(removeTemporaryDirectory));
 });
 
 function linkConfig(name: string, references: readonly string[]): DashboardConfig {
+  const nodes = references.map((component, index) => ({
+    id: `link-${index}`,
+    component,
+  }));
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     root: {
-      component: "@dash-bored/stack",
-      slots: {
-        children: references.map((component, index) => ({
-          id: `link-${index}`,
-          component,
-        })),
-      },
+      component: "@dash-bored/group",
+      ...(nodes.length === 0
+        ? {}
+        : { children: { type: "tiled", layout: vertical(nodes) } }),
     },
   };
 }
@@ -179,7 +201,7 @@ describe("project deletion dependency analysis", () => {
     const target = join(source, "new-dashboard");
     cleanup.push(source);
     await createProject(source, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Local source",
       root: { component: "./components/reader" },
     });
@@ -205,7 +227,7 @@ describe("project deletion dependency analysis", () => {
     await createProject(target);
     await mkdir(source, { recursive: true });
     await createProject(source, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Local source",
       root: { component: "./components/reader" },
     });
