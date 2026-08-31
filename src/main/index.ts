@@ -222,6 +222,10 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       saveDashboardConfig: ({ config, expectedConfigRevision, configPath }) =>
         runtime.saveDashboardConfig(config, expectedConfigRevision, configPath),
       startProcess: ({ nodeId }) => runtime.startProcess(nodeId),
+      openProcessTerminal: ({ nodeId }) => runtime.openProcessTerminal(nodeId),
+      runProcessQuickAction: ({ nodeId }) => runtime.runProcessQuickAction(nodeId),
+      writeProcessTerminal: ({ nodeId, input }) => runtime.writeProcessTerminal(nodeId, input),
+      resizeProcessTerminal: ({ nodeId, cols, rows }) => runtime.resizeProcessTerminal(nodeId, cols, rows),
       stopProcess: ({ nodeId }) => runtime.stopProcess(nodeId),
       readTextFile: (request) => runtime.readText(request),
       writeTextFile: (request) => runtime.writeText(request),

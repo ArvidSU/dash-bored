@@ -31,7 +31,7 @@ export interface ApplicationActionCallbacks {
   reloadProject(): void | Promise<void>;
   trustProject(): void | Promise<void>;
   revokeTrust(): void | Promise<void>;
-  startProcess(nodeId: string): void | Promise<void>;
+  runProcessQuickAction(nodeId: string): void | Promise<void>;
   stopProcess(nodeId: string): void | Promise<void>;
 }
 
@@ -341,7 +341,7 @@ export function buildApplicationActions(
 
   actions.push(
     ...buildProcessActions(snapshot, pendingAction, {
-      start: callbacks.startProcess,
+      runQuickAction: callbacks.runProcessQuickAction,
       stop: callbacks.stopProcess,
     }),
   );
@@ -360,7 +360,7 @@ export function buildProcessActions(
   snapshot: ProjectSnapshot | null,
   pendingAction: string | null,
   callbacks: {
-    start(nodeId: string): void | Promise<void>;
+    runQuickAction(nodeId: string): void | Promise<void>;
     stop(nodeId: string): void | Promise<void>;
   },
 ): PaletteAction[] {
@@ -388,14 +388,14 @@ export function buildProcessActions(
         : blockedReason(pendingAction);
     return {
       id: `process:${encodeURIComponent(node.id)}`,
-      label: `${running ? "Stop" : "Start"} ${label}`,
+      label: `${running ? "Close terminal" : "Run"} ${label}`,
       ...(command ? { description: command } : {}),
       keywords: [node.id, "process", "command", command ?? ""],
       group: "Project commands",
       source: node.id,
       enabled,
       ...(disabledReason ? { disabledReason } : {}),
-      run: () => (running ? callbacks.stop(node.id) : callbacks.start(node.id)),
+      run: () => (running ? callbacks.stop(node.id) : callbacks.runQuickAction(node.id)),
     };
   });
 }

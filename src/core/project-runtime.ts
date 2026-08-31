@@ -78,6 +78,7 @@ function processDefinitions(
       definitions.push({
         id: node.id,
         command: String(command),
+        ...(resource.interactive === true ? { interactive: true } : {}),
         ...(projectRootsByNode.get(node.id) === undefined
           ? {}
           : { projectRoot: projectRootsByNode.get(node.id) }),
@@ -527,6 +528,30 @@ export class ProjectRuntime {
     this.capabilities.assertAllowed(nodeId, "process:execute");
     if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
     return this.processManager.start(nodeId);
+  }
+
+  async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
+    this.capabilities.assertAllowed(nodeId, "process:execute");
+    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
+    return this.processManager.open(nodeId);
+  }
+
+  async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
+    this.capabilities.assertAllowed(nodeId, "process:execute");
+    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
+    return this.processManager.runQuickAction(nodeId);
+  }
+
+  async writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot> {
+    this.capabilities.assertAllowed(nodeId, "process:execute");
+    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
+    return this.processManager.write(nodeId, input);
+  }
+
+  async resizeProcessTerminal(nodeId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
+    this.capabilities.assertAllowed(nodeId, "process:execute");
+    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
+    return this.processManager.resize(nodeId, cols, rows);
   }
 
   async stopProcess(nodeId: string): Promise<ProcessSnapshot> {

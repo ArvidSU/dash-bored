@@ -167,6 +167,7 @@ const manifestSchema = {
           required: ["commandProp"],
           properties: {
             commandProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+            interactive: { type: "boolean" },
             cwdProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
             envProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
           },

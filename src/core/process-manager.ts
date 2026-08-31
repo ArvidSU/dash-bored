@@ -9,6 +9,7 @@ const DEFAULT_STOP_GRACE_MS = 2_000;
 export interface ProcessDefinition {
   id: string;
   command: string;
+  interactive?: boolean;
   projectRoot?: string;
   cwd?: string;
   env?: Record<string, string>;
@@ -25,7 +26,8 @@ export interface ProcessManagerOptions {
 interface ManagedProcess {
   definition: ProcessDefinition;
   phase: ProcessSnapshot["phase"];
-  subprocess: Bun.Subprocess<"ignore", "pipe", "pipe"> | null;
+  subprocess: Bun.Subprocess | null;
+  terminal: Bun.Terminal | null;
   exitCode: number | null;
   signal: string | null;
   logs: ProcessLogEntry[];
@@ -38,6 +40,7 @@ function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
   return {
     id: definition.id,
     command: definition.command,
+    ...(definition.interactive === true ? { interactive: true } : {}),
     ...(definition.projectRoot === undefined ? {} : { projectRoot: definition.projectRoot }),
     ...(definition.cwd === undefined ? {} : { cwd: definition.cwd }),
     ...(definition.env === undefined ? {} : { env: { ...definition.env } }),
@@ -47,6 +50,7 @@ function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
 function definitionKey(definition: ProcessDefinition): string {
   return JSON.stringify({
     command: definition.command,
+    interactive: definition.interactive === true,
     projectRoot: definition.projectRoot ?? null,
     cwd: definition.cwd ?? null,
     env: Object.entries(definition.env ?? {}).sort(([left], [right]) => left.localeCompare(right)),
@@ -94,6 +98,7 @@ export class ProcessManager {
       definition: cloneDefinition(definition),
       phase: "idle",
       subprocess: null,
+      terminal: null,
       exitCode: null,
       signal: null,
       logs: [],
@@ -182,6 +187,7 @@ export class ProcessManager {
       processState.signal = subprocess.signalCode;
       processState.phase = exitResult?.status === "rejected" ? "failed" : "exited";
       processState.subprocess = null;
+      processState.terminal = null;
       processState.completion = null;
       if (exitResult?.status === "rejected") {
         this.append(processState, "system", `Process wait failed: ${errorMessage(exitResult.reason)}`);
@@ -231,6 +237,13 @@ export class ProcessManager {
   }
 
   async start(id: string): Promise<ProcessSnapshot> {
+    return this.startWithOptions(id);
+  }
+
+  private async startWithOptions(
+    id: string,
+    options: { runQuickAction?: boolean } = {},
+  ): Promise<ProcessSnapshot> {
     if (this.closed) throw new CoreError("PROCESS_MANAGER_CLOSED", "The process manager is closed.");
     const processState = this.processes.get(id);
     if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
@@ -246,13 +259,45 @@ export class ProcessManager {
       processState.definition.cwd === undefined
         ? projectRoot
         : await resolveContainedPath(projectRoot, processState.definition.cwd, { kind: "directory" });
-    const shell = process.platform === "win32" ? ["cmd.exe", "/d", "/s", "/c"] : ["/bin/sh", "-lc"];
     processState.logs = [];
     processState.logBytes = 0;
     processState.exitCode = null;
     processState.signal = null;
 
     try {
+      if (processState.definition.interactive) {
+        const shell = process.platform === "win32"
+          ? ["cmd.exe"]
+          : [process.env.SHELL || "/bin/sh", "-i"];
+        const decoder = new TextDecoder();
+        const subprocess = Bun.spawn({
+          cmd: shell,
+          cwd,
+          env: { ...process.env, ...processState.definition.env, TERM: "xterm-256color" },
+          detached: process.platform !== "win32",
+          terminal: {
+            cols: 100,
+            rows: 24,
+            name: "xterm-256color",
+            data: (_terminal, data) => {
+              if (processState.subprocess === subprocess) {
+                this.append(processState, "stdout", decoder.decode(data, { stream: true }));
+              }
+            },
+          },
+        });
+        const terminal = subprocess.terminal;
+        if (!terminal) throw new CoreError("PROCESS_TERMINAL_UNAVAILABLE", "The PTY terminal could not be created.");
+        processState.subprocess = subprocess;
+        processState.terminal = terminal;
+        processState.phase = "running";
+        this.append(processState, "system", `Started interactive terminal ${subprocess.pid}.`);
+        processState.completion = this.monitorTerminal(processState, subprocess, terminal, decoder);
+        if (options.runQuickAction !== false) terminal.write(`${processState.definition.command}\n`);
+        return this.emit(processState);
+      }
+
+      const shell = process.platform === "win32" ? ["cmd.exe", "/d", "/s", "/c"] : ["/bin/sh", "-lc"];
       const subprocess = Bun.spawn({
         cmd: [...shell, processState.definition.command],
         cwd,
@@ -272,6 +317,86 @@ export class ProcessManager {
       this.append(processState, "system", `Failed to start: ${errorMessage(error)}`);
       return this.emit(processState);
     }
+  }
+
+  /** Start a persistent terminal session without running its configured quick action. */
+  async open(id: string): Promise<ProcessSnapshot> {
+    return this.startWithOptions(id, { runQuickAction: false });
+  }
+
+  async runQuickAction(id: string): Promise<ProcessSnapshot> {
+    const processState = this.processes.get(id);
+    if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
+    if (!processState.definition.interactive) {
+      throw new CoreError("PROCESS_NOT_INTERACTIVE", `Process ${id} does not provide an interactive terminal.`);
+    }
+    if (processState.subprocess === null) return this.startWithOptions(id);
+    return this.write(id, `${processState.definition.command}\n`);
+  }
+
+  async write(id: string, input: string): Promise<ProcessSnapshot> {
+    const processState = this.processes.get(id);
+    if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
+    if (!processState.definition.interactive || processState.terminal === null || processState.subprocess === null) {
+      throw new CoreError("PROCESS_TERMINAL_NOT_RUNNING", `Interactive terminal ${id} is not running.`);
+    }
+    if (input.length === 0 || input.length > 32_768) {
+      throw new CoreError("PROCESS_TERMINAL_INPUT_INVALID", "Terminal input must be between 1 and 32768 characters.");
+    }
+    processState.terminal.write(input);
+    return this.snapshot(processState);
+  }
+
+  async resize(id: string, cols: number, rows: number): Promise<ProcessSnapshot> {
+    const processState = this.processes.get(id);
+    if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
+    if (!processState.definition.interactive || processState.terminal === null || processState.subprocess === null) {
+      throw new CoreError("PROCESS_TERMINAL_NOT_RUNNING", `Interactive terminal ${id} is not running.`);
+    }
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 20 || cols > 500 || rows < 4 || rows > 200) {
+      throw new CoreError("PROCESS_TERMINAL_SIZE_INVALID", "Terminal size must be 20-500 columns and 4-200 rows.");
+    }
+    processState.terminal.resize(cols, rows);
+    return this.snapshot(processState);
+  }
+
+  private monitorTerminal(
+    processState: ManagedProcess,
+    subprocess: Bun.Subprocess,
+    terminal: Bun.Terminal,
+    decoder: TextDecoder,
+  ): Promise<void> {
+    return subprocess.exited.then(
+      (exitCode) => {
+        if (processState.subprocess !== subprocess) return;
+        this.append(processState, "stdout", decoder.decode());
+        processState.exitCode = subprocess.signalCode === null ? exitCode : null;
+        processState.signal = subprocess.signalCode;
+        processState.phase = "exited";
+        processState.subprocess = null;
+        processState.terminal = null;
+        processState.completion = null;
+        terminal.close();
+        this.append(
+          processState,
+          "system",
+          subprocess.signalCode === null
+            ? `Terminal exited with code ${String(exitCode)}.`
+            : `Terminal exited after ${subprocess.signalCode}.`,
+        );
+        this.emit(processState);
+      },
+      (error) => {
+        if (processState.subprocess !== subprocess) return;
+        processState.phase = "failed";
+        processState.subprocess = null;
+        processState.terminal = null;
+        processState.completion = null;
+        terminal.close();
+        this.append(processState, "system", `Terminal wait failed: ${errorMessage(error)}`);
+        this.emit(processState);
+      },
+    );
   }
 
   async stop(id: string): Promise<ProcessSnapshot> {

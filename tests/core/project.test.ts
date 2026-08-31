@@ -306,7 +306,7 @@ describe("tree resolution and local compilation", () => {
     expect(resolvedChildren(generated.tree)[0]?.id).toBe("root.children.0");
   });
 
-  test("requires command ids and validates terminal references", async () => {
+  test("requires explicit ids for commands", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
@@ -319,17 +319,12 @@ describe("tree resolution and local compilation", () => {
             component: "@dash-bored/command",
             props: { label: "Run", command: "echo ok" },
           },
-          {
-            component: "@dash-bored/terminal",
-            props: { processId: "missing" },
-          },
         ]),
       },
     });
     const result = await inspectProject(root);
     expect(result.ok).toBeFalse();
     expect(result.diagnostics.map((item) => item.code)).toContain("NODE_ID_REQUIRED");
-    expect(result.diagnostics.map((item) => item.code)).toContain("COMPONENT_RESOURCE_REFERENCE_UNKNOWN");
   });
 
   test("rejects inherited-looking keys in the generic children topology", async () => {

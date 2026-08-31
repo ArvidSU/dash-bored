@@ -96,6 +96,30 @@ describe("ProcessManager", () => {
     await manager.reconcile([{ id: "server", command: "printf changed" }]);
     expect(manager.get("server")?.phase).toBe("idle");
   });
+
+  test("keeps an interactive PTY shell alive for a quick action and subsequent commands", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root, stopGraceMs: 100 });
+    managers.push(manager);
+    await manager.reconcile([
+      { id: "shell", command: "printf 'quick-action\\n'", interactive: true },
+    ]);
+
+    await manager.start("shell");
+    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("quick-action")) === true);
+    expect(manager.get("shell")?.phase).toBe("running");
+    await expect(manager.resize("shell", 10, 3)).rejects.toMatchObject({ code: "PROCESS_TERMINAL_SIZE_INVALID" });
+    await expect(manager.resize("shell", 120, 32)).resolves.toMatchObject({ phase: "running" });
+
+    await manager.write("shell", "printf 'next-command\\n'\n");
+    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("next-command")) === true);
+    await manager.runQuickAction("shell");
+    await waitFor(() => manager.get("shell")?.logs.filter((entry) => entry.text.includes("quick-action")).length === 2);
+
+    const stopped = await manager.stop("shell");
+    expect(stopped.phase).toBe("exited");
+  });
 });
 
 describe("ProjectRuntime", () => {
@@ -109,11 +133,6 @@ describe("ProjectRuntime", () => {
           id: "server",
           component: "@dash-bored/command",
           props: { label: "Server", command: "sleep 30" },
-        },
-        {
-          id: "logs",
-          component: "@dash-bored/terminal",
-          props: { processId: "server" },
         },
       ]),
     },

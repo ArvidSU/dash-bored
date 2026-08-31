@@ -52,6 +52,10 @@ export interface DashboardHost {
   validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
   saveDashboardConfig(config: DashboardConfig, expectedConfigRevision: string, configPath?: string): Promise<ProjectSnapshot>;
   startProcess(nodeId: string): Promise<ProcessSnapshot>;
+  openProcessTerminal(nodeId: string): Promise<ProcessSnapshot>;
+  runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot>;
+  writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot>;
+  resizeProcessTerminal(nodeId: string, cols: number, rows: number): Promise<ProcessSnapshot>;
   stopProcess(nodeId: string): Promise<ProcessSnapshot>;
   readTextFile(request: FileReadRequest): Promise<string>;
   writeTextFile(request: FileWriteRequest): Promise<void>;
@@ -224,6 +228,34 @@ const liveHost: DashboardHost = {
   async startProcess(nodeId: string): Promise<ProcessSnapshot> {
     ensureTransport();
     const process = await rpc.request.startProcess({ nodeId });
+    emit({ type: "process", process });
+    return process;
+  },
+
+  async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
+    ensureTransport();
+    const process = await rpc.request.openProcessTerminal({ nodeId });
+    emit({ type: "process", process });
+    return process;
+  },
+
+  async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
+    ensureTransport();
+    const process = await rpc.request.runProcessQuickAction({ nodeId });
+    emit({ type: "process", process });
+    return process;
+  },
+
+  async writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot> {
+    ensureTransport();
+    const process = await rpc.request.writeProcessTerminal({ nodeId, input });
+    emit({ type: "process", process });
+    return process;
+  },
+
+  async resizeProcessTerminal(nodeId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
+    ensureTransport();
+    const process = await rpc.request.resizeProcessTerminal({ nodeId, cols, rows });
     emit({ type: "process", process });
     return process;
   },

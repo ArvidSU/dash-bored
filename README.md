@@ -320,8 +320,8 @@ The initial built-ins are:
   `@dash-bored/status`.
 - Charts: `@dash-bored/chart` for static YAML data and
   `@dash-bored/live-chart` for polling JSON data.
-- Host-backed: `@dash-bored/command`, `@dash-bored/terminal`,
-  `@dash-bored/file`, `@dash-bored/env`, `@dash-bored/todo-list`, and
+- Host-backed: `@dash-bored/command`, `@dash-bored/file`,
+  `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
 
 These shipped components are examples of the public component contracts, not
@@ -652,14 +652,15 @@ and prevent accidental capability use, but do not isolate local components from
 one another; sufficiently adversarial trusted code could forge another node's
 ID at the internal RPC layer. Project trust is the security boundary.
 
-Use `@dash-bored/command` for a user-controlled long-running process. It starts
-only after an explicit click. Pair it with `@dash-bored/terminal` for read-only
-streamed output; the terminal is not an interactive PTY.
+Use `@dash-bored/command` for a user-controlled terminal. It never starts
+automatically: **Open terminal** creates its persistent PTY-backed shell and
+the configured YAML `command` is its remembered quick action. Use the command
+button to run that action again, or type directly into the terminal to run
+consecutive commands; **Close terminal** ends the shell and its process tree.
 
 ## Current boundaries
 
 The developer build supports one project per window and local components only.
 It does not yet include external package resolution, a component marketplace,
-interactive terminals, file editing, multi-project windows, or custom AI
-infrastructure. Those omissions are intentional until the core runtime is
-proven.
+file editing, multi-project windows, or custom AI infrastructure. Those
+omissions are intentional until the core runtime is proven.

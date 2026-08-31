@@ -43,8 +43,8 @@ Prefer the generic built-ins:
   plus core-owned tiled branches and managed child presentation.
 - Display: `@dash-bored/markdown`, `@dash-bored/text`, and
   `@dash-bored/status`.
-- Project capabilities: `@dash-bored/command`, `@dash-bored/terminal`,
-  `@dash-bored/file`, `@dash-bored/env`, `@dash-bored/todo-list`, and
+- Project capabilities: `@dash-bored/command`, `@dash-bored/file`,
+  `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
 
 Use tiled child topology for layouts. A tiled layout is either a child leaf or
@@ -55,8 +55,9 @@ boundary/projection wrapper; it is not a layout engine. Do not add grid
 coordinates or size props to arbitrary components.
 
 Use commands for explicit user actions; they never need to start automatically.
-Pair a long-running process resource with a terminal whose `processId` refers
-to that resource. Keep file and environment paths relative to the project root. Put
+Each command is a persistent interactive terminal: its YAML `command` is a
+remembered quick action, and users may type additional commands into the same
+shell after it starts. Keep file and environment paths relative to the project root. Put
 editable runtime choices in the bundle-local `.env` and source that file from
 commands that consume them. Do not put secrets directly in dashboard YAML or
 assume an environment file is ignored by version control.

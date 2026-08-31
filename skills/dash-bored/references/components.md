@@ -103,12 +103,14 @@ permissions:
 ```
 
 Any component can declare a supervised process resource. `commandProp` is
-required; `cwdProp` and `envProp` are optional:
+required; `cwdProp` and `envProp` are optional. Set `interactive: true` to
+launch the command's quick action in a persistent PTY-backed shell:
 
 ```yaml
 resources:
   process:
     commandProp: command
+    interactive: true
     cwdProp: cwd
     envProp: env
 permissions:
@@ -239,6 +241,10 @@ interface LocalComponentHost {
   processes?: {
     get(nodeId?: string): ProcessSnapshot | undefined;
     start?(): Promise<ProcessSnapshot>;
+    open?(): Promise<ProcessSnapshot>;
+    runQuickAction?(): Promise<ProcessSnapshot>;
+    write?(input: string): Promise<ProcessSnapshot>;
+    resize?(cols: number, rows: number): Promise<ProcessSnapshot>;
     stop?(): Promise<ProcessSnapshot>;
   };
   webview?: {
@@ -249,8 +255,8 @@ interface LocalComponentHost {
 
 The callback always receives exactly `LocalComponentRenderProps`: `props`,
 generic rendered children/handles, and `host`. Shipped examples such as
-`@dash-bored/command`, `@dash-bored/terminal`, and `@dash-bored/webview` are
-not special component types; local components may declare the same resources and
+`@dash-bored/command` and `@dash-bored/webview` are not special component types;
+local components may declare the same resources and
 permissions.
 
 `host.actions.register` returns an effect cleanup function. Action IDs start

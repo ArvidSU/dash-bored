@@ -264,7 +264,6 @@ img.sidebar__project-icon {
   flex-direction: column;
   gap: 4px;
   padding-top: 8px;
-  border-top: 1px solid rgb(255 255 255 / 6%);
 }
 
 .sidebar__item {
@@ -1953,7 +1952,7 @@ img.sidebar__project-icon {
 .workspace {
   width: min(1440px, 100%);
   margin: 0 auto;
-  padding: 22px clamp(14px, 3vw, 34px) 28px;
+  padding: 0px clamp(14px, 1vw, 34px) 28px;
 }
 
 .settings-page {
@@ -3469,33 +3468,21 @@ img.sidebar__project-icon {
   justify-content: flex-end;
 }
 
-.command__output {
+.command__terminal {
   grid-column: 1 / -1;
-  max-height: 280px;
-  overflow: auto;
-  padding: 10px 12px;
+  min-height: 220px;
+  height: 320px;
+  overflow: hidden;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #080a0d;
-  color: #c2c9d2;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 10px;
-  line-height: 1.55;
-  white-space: pre-wrap;
   scrollbar-width: thin;
   scrollbar-color: var(--border-bright) transparent;
 }
 
-.terminal {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #080a0d;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%);
-}
+.command__terminal .xterm { height: 100%; }
 
-.terminal__header,
 .file-viewer__header,
 .webview-shell__header {
   display: flex;
@@ -3507,7 +3494,6 @@ img.sidebar__project-icon {
   background: var(--surface);
 }
 
-.terminal__header code,
 .file-viewer__header code {
   min-width: 0;
   flex: 1;
@@ -3518,37 +3504,6 @@ img.sidebar__project-icon {
   white-space: nowrap;
 }
 
-.terminal__lights {
-  display: flex;
-  gap: 4px;
-}
-
-.terminal__lights i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #3a414c;
-}
-
-.terminal__lights i:first-child { background: #a84e55; }
-.terminal__lights i:nth-child(2) { background: #9c7e3e; }
-.terminal__lights i:nth-child(3) { background: #427a59; }
-
-.terminal__output {
-  min-height: 150px;
-  max-height: 360px;
-  overflow: auto;
-  padding: 11px 12px;
-  color: #c2c9d2;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
-.terminal__line--stderr { color: #ff9b9b; }
-.terminal__line--system { color: var(--faint); font-style: italic; }
-.terminal__empty { color: var(--faint); }
 
 .file-viewer {
   min-width: 0;
@@ -4480,10 +4435,6 @@ img.sidebar__project-icon {
 
   .command__actions .button {
     flex: 1 1 auto;
-  }
-
-  .command__actions .command__output-toggle {
-    flex: 0 0 auto;
   }
 
   .settings-card {

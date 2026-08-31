@@ -738,6 +738,7 @@ working directory and string-valued environment:
 resources:
   process:
     commandProp: command
+    interactive: true # optional: runs in a persistent PTY-backed shell
     cwdProp: cwd
     envProp: env
 permissions:
@@ -767,12 +768,15 @@ component. A command never runs
 just because a project was opened, trusted, or reloaded.
 
 The main process owns each subprocess and streams stdout/stderr into a bounded
-ring buffer. `@dash-bored/terminal` renders that buffer as read-only output; it
-is not an interactive PTY. A node cannot have duplicate concurrent runs.
-Unchanged command nodes keep their process across a hot reload, while removed
-or materially changed command nodes are stopped. On application exit, the main
-process attempts graceful termination and then cleans up the whole process
-tree.
+ring buffer. An `interactive: true` resource creates one persistent PTY-backed
+shell. Its configured command is a remembered quick action: starting or
+running that action writes it into the same shell, while terminal input, Ctrl-C,
+and subsequent commands remain bidirectional. The owning component receives
+raw terminal output and resizes the PTY as its visible surface changes. A node
+cannot have duplicate concurrent runs. Unchanged command nodes keep their
+terminal across a hot reload, while removed or materially changed command nodes
+are stopped. Trust revocation and application exit terminate the shell and its
+process tree.
 
 ## Renderer and shipped examples
 
@@ -783,8 +787,9 @@ examples, not privileged component types:
   children presentation but do not own topology or resizing.
 - `@dash-bored/text`, `@dash-bored/markdown`, and `@dash-bored/status` display
   safe project information. Markdown does not enable raw HTML.
-- `@dash-bored/command` starts and stops a declared process after a user click.
-- `@dash-bored/terminal` displays bounded process logs from a referenced process.
+- `@dash-bored/command` opens a persistent interactive terminal after a user
+  click, remembers its configured command as a quick action, and displays its
+  terminal session.
 - `@dash-bored/file` displays a read-only project file.
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
@@ -819,7 +824,7 @@ field, or part of a draft save. A collapsed node retains a compact accessible
 shell with its component name and an expand action; its rendered body and
 descendant components are unmounted so polling and native child surfaces do not
 continue consuming dashboard space. Processes remain owned by the main
-process, so collapsing a command or terminal does not stop a running command.
+process, so collapsing a command does not stop a running command.
 Focusing a collapsed node expands it first. This runtime state is separate from
 the structural editor's temporary tree-branch collapse state.
 
@@ -1172,7 +1177,7 @@ The following are not part of this architecture yet:
   in-process component generation without the configured external agent
 - Linux, Windows, and Intel Mac distribution; Windows shell-link installation
 - Developer ID signing, notarization, or application auto-update
-- interactive PTY support, general project-file editing, and a general process viewer
+- general project-file editing and a general process viewer
 - simultaneously active multi-project views or windows
 - embedded model-provider infrastructure or agent-specific SDK integration
 - claims of hostile-code or per-component isolation for trusted local components

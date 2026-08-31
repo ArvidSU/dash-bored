@@ -420,6 +420,18 @@ function createLocalHost(
             start() {
               return host.startProcess(node.id);
             },
+            open() {
+              return host.openProcessTerminal(node.id);
+            },
+            runQuickAction() {
+              return host.runProcessQuickAction(node.id);
+            },
+            write(input) {
+              return host.writeProcessTerminal(node.id, input);
+            },
+            resize(cols, rows) {
+              return host.resizeProcessTerminal(node.id, cols, rows);
+            },
             stop() {
               return host.stopProcess(node.id);
             },
@@ -2295,8 +2307,8 @@ export function App(): ReactNode {
       reloadProject: () => perform("reload", host.reloadProject),
       trustProject: () => perform("trust", host.trustProject),
       revokeTrust: () => perform("revoke", host.revokeTrust),
-      startProcess: async (nodeId) => {
-        await host.startProcess(nodeId);
+      runProcessQuickAction: async (nodeId) => {
+        await host.runProcessQuickAction(nodeId);
       },
       stopProcess: async (nodeId) => {
         await host.stopProcess(nodeId);

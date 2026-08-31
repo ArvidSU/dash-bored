@@ -40,42 +40,29 @@ root:
                 axis: vertical
                 ratio: 0.15
                 first:
-                  type: split
-                  axis: vertical
-                  ratio: 0.5
-                  first:
-                    type: child
-                    child:
-                      node:
-                        id: command-palette-navigation-card
-                        component: "@dash-bored/card"
-                        props:
-                          title: Command palette navigation
-                          description: Focus any dashboard node without hunting through nested panels.
-                        children:
-                          type: tiled
-                          layout:
-                            type: child
-                            child:
-                              node:
-                                id: command-palette-navigation-help
-                                component: "@dash-bored/markdown"
-                                props:
-                                  content: |
-                                    ### Focus any node
+                  type: child
+                  child:
+                    node:
+                      id: command-palette-navigation-card
+                      component: "@dash-bored/card"
+                      props:
+                        title: Command palette navigation
+                        description: Focus any dashboard node without hunting through nested panels.
+                      children:
+                        type: tiled
+                        layout:
+                          type: child
+                          child:
+                            node:
+                              id: command-palette-navigation-help
+                              component: "@dash-bored/markdown"
+                              props:
+                                content: |
+                                  ### Focus any node
 
-                                    Open the command palette and search for **Focus** to jump to
-                                    a component or return to the full dashboard. The focus is
-                                    temporary and does not change the YAML configuration.
-                  second:
-                    type: child
-                    child:
-                      node:
-                        id: card
-                        component: "@dash-bored/card"
-                        props:
-                          title: The drop target to add a component under this one should be in the empty space below it
-                          description: Not on this component
+                                  Open the command palette and search for **Focus** to jump to
+                                  a component or return to the full dashboard. The focus is
+                                  temporary and does not change the YAML configuration.
                 second:
                   type: split
                   axis: vertical
@@ -272,18 +259,28 @@ root:
                       children:
                         type: tiled
                         layout:
-                          type: split
-                          axis: horizontal
-                          ratio: 0.5
-                          first:
-                            type: child
-                            child:
-                              node:
-                                id: development-controls
-                                component: "@dash-bored/group"
-                                children:
-                                  type: tiled
-                                  layout:
+                          type: child
+                          child:
+                            node:
+                              id: development-controls
+                              component: "@dash-bored/group"
+                              children:
+                                type: tiled
+                                layout:
+                                  type: split
+                                  axis: vertical
+                                  ratio: 0.5
+                                  first:
+                                    type: child
+                                    child:
+                                      node:
+                                        id: start-development
+                                        component: "@dash-bored/command"
+                                        props:
+                                          label: Start development environment
+                                          command: bun run dev
+                                          cwd: .
+                                  second:
                                     type: split
                                     axis: vertical
                                     ratio: 0.5
@@ -291,11 +288,11 @@ root:
                                       type: child
                                       child:
                                         node:
-                                          id: start-development
+                                          id: docker-connectivity
                                           component: "@dash-bored/command"
                                           props:
-                                            label: Start development environment
-                                            command: bun run dev
+                                            label: Check Docker connectivity
+                                            command: docker version --format 'Docker {{.Client.Version}} → server {{.Server.Version}} ({{.Server.Os}}/{{.Server.Arch}})'
                                             cwd: .
                                     second:
                                       type: split
@@ -321,25 +318,6 @@ root:
                                               label: Validate dashboard configuration
                                               command: bun run dash-bored -- validate .
                                               cwd: .
-                          second:
-                            type: child
-                            child:
-                              node:
-                                id: development-output-card
-                                component: "@dash-bored/card"
-                                props:
-                                  title: Development output
-                                  description: Live bounded output from the development command.
-                                children:
-                                  type: tiled
-                                  layout:
-                                    type: child
-                                    child:
-                                      node:
-                                        id: development-output
-                                        component: "@dash-bored/terminal"
-                                        props:
-                                          processId: start-development
                 second:
                   type: split
                   axis: vertical
@@ -420,18 +398,28 @@ root:
                       children:
                         type: tiled
                         layout:
-                          type: split
-                          axis: horizontal
-                          ratio: 0.5
-                          first:
-                            type: child
-                            child:
-                              node:
-                                id: release-controls
-                                component: "@dash-bored/group"
-                                children:
-                                  type: tiled
-                                  layout:
+                          type: child
+                          child:
+                            node:
+                              id: release-controls
+                              component: "@dash-bored/group"
+                              children:
+                                type: tiled
+                                layout:
+                                  type: split
+                                  axis: vertical
+                                  ratio: 0.5
+                                  first:
+                                    type: child
+                                    child:
+                                      node:
+                                        id: run-release-qa
+                                        component: "@dash-bored/command"
+                                        props:
+                                          label: Run release QA
+                                          command: bun run qa && bun run dash-bored -- validate .
+                                          cwd: .
+                                  second:
                                     type: split
                                     axis: vertical
                                     ratio: 0.5
@@ -439,55 +427,22 @@ root:
                                       type: child
                                       child:
                                         node:
-                                          id: run-release-qa
+                                          id: build-macos-release
                                           component: "@dash-bored/command"
                                           props:
-                                            label: Run release QA
-                                            command: bun run qa && bun run dash-bored -- validate .
+                                            label: Build clean macOS prerelease
+                                            command: bun run build:release
                                             cwd: .
                                     second:
-                                      type: split
-                                      axis: vertical
-                                      ratio: 0.5
-                                      first:
-                                        type: child
-                                        child:
-                                          node:
-                                            id: build-macos-release
-                                            component: "@dash-bored/command"
-                                            props:
-                                              label: Build clean macOS prerelease
-                                              command: bun run build:release
-                                              cwd: .
-                                      second:
-                                        type: child
-                                        child:
-                                          node:
-                                            id: prepare-macos-release
-                                            component: "@dash-bored/command"
-                                            props:
-                                              label: Verify and stage release assets
-                                              command: bun run release:prepare
-                                              cwd: .
-                          second:
-                            type: child
-                            child:
-                              node:
-                                id: release-output-card
-                                component: "@dash-bored/card"
-                                props:
-                                  title: Release build output
-                                  description: Live bounded output from the clean Electrobun package build.
-                                children:
-                                  type: tiled
-                                  layout:
-                                    type: child
-                                    child:
-                                      node:
-                                        id: release-output
-                                        component: "@dash-bored/terminal"
-                                        props:
-                                          processId: build-macos-release
+                                      type: child
+                                      child:
+                                        node:
+                                          id: prepare-macos-release
+                                          component: "@dash-bored/command"
+                                          props:
+                                            label: Verify and stage release assets
+                                            command: bun run release:prepare
+                                            cwd: .
                 second:
                   type: child
                   child:
@@ -617,29 +572,17 @@ root:
                               command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
                               cwd: .
                       second:
-                        type: split
-                        axis: horizontal
-                        ratio: 0.5
-                        first:
-                          type: child
-                          child:
-                            node:
-                              id: configure-with-agent
-                              component: "@dash-bored/command"
-                              props:
-                                label: Improve this dashboard with an agent
-                                command: ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"
-                                cwd: .
-                                env:
-                                  DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
-                        second:
-                          type: child
-                          child:
-                            node:
-                              id: configure-with-agent-output
-                              component: "@dash-bored/terminal"
-                              props:
-                                processId: configure-with-agent
+                        type: child
+                        child:
+                          node:
+                            id: configure-with-agent
+                            component: "@dash-bored/command"
+                            props:
+                              label: Improve this dashboard with an agent
+                              command: ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"
+                              cwd: .
+                              env:
+                                DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
       - metadata:
           label: Dogfood
         node:

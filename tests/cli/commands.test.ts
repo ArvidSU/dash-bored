@@ -225,6 +225,10 @@ describe("dash-bored command arguments", () => {
     expect(command.available).toBeTrue();
     expect(command.manifest.propsSchema.required).toEqual(["label", "command"]);
     expect(command.manifest.permissions).toEqual(["process:execute"]);
+    expect(command.manifest.resources.process.interactive).toBeTrue();
+    expect(result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/terminal",
+    )).toBeUndefined();
     const todoList = result.componentCatalog.find(
       (item: { reference: string }) => item.reference === "@dash-bored/todo-list",
     );

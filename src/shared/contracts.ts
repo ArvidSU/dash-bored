@@ -81,6 +81,8 @@ export interface ComponentChildrenDefinition {
 export interface ComponentProcessResourceDefinition {
   /** Prop containing the supervised command string. */
   commandProp: string;
+  /** Run the command inside a persistent PTY-backed shell. */
+  interactive?: boolean;
   /** Optional prop containing a project-relative working directory. */
   cwdProp?: string;
   /** Optional prop containing string-valued environment variables. */
@@ -416,6 +418,12 @@ export interface LocalComponentHost {
   processes?: {
     get(nodeId?: string): ProcessSnapshot | undefined;
     start?(): Promise<ProcessSnapshot>;
+    /** Starts the shell without running its configured quick action. */
+    open?(): Promise<ProcessSnapshot>;
+    /** Runs the configured quick action in the existing shell. */
+    runQuickAction?(): Promise<ProcessSnapshot>;
+    write?(input: string): Promise<ProcessSnapshot>;
+    resize?(cols: number, rows: number): Promise<ProcessSnapshot>;
     stop?(): Promise<ProcessSnapshot>;
   };
   webview?: {

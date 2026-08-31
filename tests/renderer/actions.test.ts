@@ -248,7 +248,7 @@ describe("application action providers", () => {
     reloadProject: () => undefined,
     trustProject: () => undefined,
     revokeTrust: () => undefined,
-    startProcess: () => undefined,
+    runProcessQuickAction: () => undefined,
     stopProcess: () => undefined,
   };
 
@@ -275,13 +275,13 @@ describe("application action providers", () => {
       "run project commands",
     );
     expect(actions.find((item) => item.id.startsWith("process:"))).toMatchObject({
-      label: "Start Development server",
+      label: "Run Development server",
       enabled: false,
       disabledReason: "Trust this project before running configured commands.",
     });
   });
 
-  test("switches process actions between start, stop, and stopping states", () => {
+  test("switches process actions between quick actions, terminal close, and stopping states", () => {
     const runningSnapshot = snapshot({
       trusted: true,
       processes: [
@@ -296,11 +296,11 @@ describe("application action providers", () => {
       ],
     });
     const running = buildProcessActions(runningSnapshot, null, {
-      start: () => undefined,
+      runQuickAction: () => undefined,
       stop: () => undefined,
     });
     expect(running[0]).toMatchObject({
-      label: "Stop Development server",
+      label: "Close terminal Development server",
       enabled: true,
     });
 
@@ -310,10 +310,10 @@ describe("application action providers", () => {
         processes: [{ ...runningSnapshot.processes[0]!, phase: "stopping" }],
       },
       null,
-      { start: () => undefined, stop: () => undefined },
+      { runQuickAction: () => undefined, stop: () => undefined },
     );
     expect(stopping[0]).toMatchObject({
-      label: "Stop Development server",
+      label: "Close terminal Development server",
       enabled: false,
       disabledReason: "This process is stopping.",
     });

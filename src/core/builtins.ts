@@ -150,7 +150,7 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/command",
     name: "Command",
-    description: "Starts or stops an explicitly configured project command.",
+    description: "Runs a remembered quick action in a persistent interactive terminal.",
     entry: "builtin:command",
     propsSchema: objectSchema(
       {
@@ -164,21 +164,12 @@ const manifests: ComponentManifest[] = [
     resources: {
       process: {
         commandProp: "command",
+        interactive: true,
         cwdProp: "cwd",
         envProp: "env",
       },
     },
     permissions: ["process:execute"],
-  },
-  {
-    schemaVersion: 2,
-    id: "@dash-bored/terminal",
-    name: "Terminal output",
-    description: "Displays bounded output from a configured command.",
-    entry: "builtin:terminal",
-    propsSchema: objectSchema({ processId: string }, ["processId"]),
-    references: { processId: { resource: "process" } },
-    permissions: ["process:observe"],
   },
   {
     schemaVersion: 2,

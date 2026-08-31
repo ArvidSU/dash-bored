@@ -46,6 +46,10 @@ export type DashboardRPC = {
       validateComponentProps: { params: { reference: string; props: Record<string, unknown> }; response: ComponentPropsValidation };
       saveDashboardConfig: { params: SaveDashboardConfigRequest; response: ProjectSnapshot };
       startProcess: { params: { nodeId: string }; response: ProcessSnapshot };
+      openProcessTerminal: { params: { nodeId: string }; response: ProcessSnapshot };
+      runProcessQuickAction: { params: { nodeId: string }; response: ProcessSnapshot };
+      writeProcessTerminal: { params: { nodeId: string; input: string }; response: ProcessSnapshot };
+      resizeProcessTerminal: { params: { nodeId: string; cols: number; rows: number }; response: ProcessSnapshot };
       stopProcess: { params: { nodeId: string }; response: ProcessSnapshot };
       readTextFile: { params: FileReadRequest; response: string };
       writeTextFile: { params: FileWriteRequest; response: void };

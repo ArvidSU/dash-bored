@@ -378,6 +378,26 @@ export function createUiHarnessHost(): UiHarnessHost {
       emit({ type: "process", process });
       return process;
     },
+    async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
+      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      emit({ type: "process", process });
+      return process;
+    },
+    async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
+      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      emit({ type: "process", process });
+      return process;
+    },
+    async writeProcessTerminal(nodeId: string, _input: string): Promise<ProcessSnapshot> {
+      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      emit({ type: "process", process });
+      return process;
+    },
+    async resizeProcessTerminal(nodeId: string, _cols: number, _rows: number): Promise<ProcessSnapshot> {
+      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      emit({ type: "process", process });
+      return process;
+    },
     async stopProcess(nodeId: string): Promise<ProcessSnapshot> {
       const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
       emit({ type: "process", process });

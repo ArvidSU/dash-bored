@@ -9,7 +9,7 @@ It provides a way to turn any project, workspace, or environment into a custom o
 The user should not need to remember:
 
 - which command starts a service
-- which terminal a process is running in
+- the last command they used or where to enter the next one
 - which browser tab contains a local UI
 - how a legacy deployment procedure works
 - where configuration files live
