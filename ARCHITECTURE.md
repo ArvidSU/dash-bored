@@ -105,6 +105,14 @@ each accepted change. It also publishes individual process snapshots while a
 command is running. The renderer treats those snapshots as authoritative; it
 does not read project files or spawn commands directly.
 
+Within the renderer, `App.tsx` is the application coordinator: it owns the
+authoritative snapshot subscription, draft lifecycle, and composition wiring.
+`app-shell.tsx` owns only window chrome, dashboard navigation, the header, and
+global notices. It receives state and callbacks from the coordinator and never
+reads project files, creates drafts, or performs topology mutations. Workspace
+and composition UI remain separate from the shell so shell changes cannot
+weaken the renderer/main-process or draft persistence boundaries.
+
 Snapshots also carry the parsed dashboard configuration, a SHA-256 revision of
 the source file, and a component catalog. The catalog contains every built-in
 plus bounded, containment-checked local manifest discovery. Invalid local

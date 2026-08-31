@@ -113,6 +113,28 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTextCount()).toBe(0);
   }, 20_000);
 
+  test("shell controls expand navigation and open the command palette", async () => {
+    const active = currentPage();
+    const shell = active.locator(".app-shell");
+    const sidebarToggle = active.getByRole("button", { name: "Expand sidebar" });
+
+    expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
+    await sidebarToggle.click();
+    await active.getByRole("button", { name: "Collapse sidebar" }).waitFor();
+    expect(await shell.getAttribute("class")).toContain("app-shell--sidebar-expanded");
+
+    await active.getByRole("button", { name: /Open command palette/ }).click();
+    const palette = active.getByRole("dialog", { name: "Command palette" });
+    await palette.waitFor();
+    expect(await palette.getByRole("combobox").count()).toBe(1);
+    await active.keyboard.press("Escape");
+    expect(await palette.count()).toBe(0);
+
+    await active.getByRole("button", { name: "Collapse sidebar" }).click();
+    await active.getByRole("button", { name: "Expand sidebar" }).waitFor();
+    expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
+  }, 20_000);
+
   test("visible components resize only downward from intrinsic height and keep their frame chrome visible", async () => {
     const active = currentPage();
     await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });

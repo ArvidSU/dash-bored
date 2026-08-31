@@ -84,7 +84,7 @@ import {
   splitRatioOverridesStorageKey,
   type SplitRatioOverrides,
 } from "./split-layout";
-import { DashboardOutlineTree } from "./DashboardOutlineTree";
+import { AppShell, type ProjectOutlineState } from "./app-shell";
 import {
   DashboardEditor,
   ComponentDialog,
@@ -192,12 +192,6 @@ function rememberProject(
 
 function dashboardKey(project: ProjectListItem): string {
   return project.configPath;
-}
-
-interface ProjectOutlineState {
-  tree: ResolvedComponentNode | null;
-  loading: boolean;
-  error: string | null;
 }
 
 interface ActionNotice {
@@ -357,75 +351,6 @@ function outlineError(outline: Pick<ProjectOutline, "tree" | "diagnostics">): st
     ?? "The dashboard tree is unavailable.";
 }
 
-type ShellIconName = "collapse" | "expand" | "project" | "add" | "settings" | "edit" | "library" | "tree" | "trash";
-
-function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
-  if (name === "project") {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <rect x="3" y="3" width="6" height="6" rx="1.5" />
-        <rect x="11" y="3" width="6" height="6" rx="1.5" />
-        <rect x="3" y="11" width="6" height="6" rx="1.5" />
-        <path d="M12 14h4M14 12v4" />
-      </svg>
-    );
-  }
-  if (name === "add") {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M10 4v12M4 10h12" />
-      </svg>
-    );
-  }
-  if (name === "settings") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12.22 2h-.44a2 2 0 0 0-1.99 1.67l-.06.36a2 2 0 0 1-2.99 1.4l-.31-.18a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.31.18a2 2 0 0 1 0 3.46l-.31.18a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.31-.18a2 2 0 0 1 2.99 1.4l.06.36A2 2 0 0 0 10 20h.44a2 2 0 0 0 1.99-1.67l.06-.36a2 2 0 0 1 2.99-1.4l.31.18a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.31-.18a2 2 0 0 1 0-3.46l.31-.18a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.31.18a2 2 0 0 1-2.99-1.4l-.06-.36A2 2 0 0 0 12.22 2Z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    );
-  }
-  if (name === "edit") {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="m5 14-.5 2.5L7 16l8-8-2-2-8 8Z" />
-        <path d="m11.8 7.2 2 2" />
-      </svg>
-    );
-  }
-  if (name === "library") {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <rect x="3" y="4" width="5" height="5" rx="1" />
-        <rect x="12" y="4" width="5" height="5" rx="1" />
-        <rect x="3" y="11" width="5" height="5" rx="1" />
-        <rect x="12" y="11" width="5" height="5" rx="1" />
-      </svg>
-    );
-  }
-  if (name === "tree") {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M5 4v9.5M5 7h4M5 13h4" />
-        <rect x="10" y="4.5" width="5" height="5" rx="1" />
-        <rect x="10" y="11" width="5" height="5" rx="1" />
-        <circle cx="5" cy="4" r="1.25" />
-      </svg>
-    );
-  }
-  if (name === "trash") {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5l.5 7h6l.5-7M8.5 10v3.5M11.5 10v3.5" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d={name === "collapse" ? "M12 5 7 10l5 5" : "m8 5 5 5-5 5"} />
-    </svg>
-  );
-}
 
 function createLocalHost(
   node: ResolvedComponentNode,
@@ -3304,9 +3229,7 @@ export function App(): ReactNode {
   }
 
   const title = snapshot?.dashboardName?.trim() || (snapshot?.projectRoot ? basename(snapshot.projectRoot) : "dash-bored");
-  const headerTitle = activeView === "settings" ? "Settings" : title;
-  const headerProjectRoot = snapshot?.projectRoot;
-  const headerDashboardPath = snapshot?.configPath ?? snapshot?.projectRoot;
+  const headerDashboardPath = snapshot?.configPath ?? snapshot?.projectRoot ?? null;
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
   }\u0000${snapshot?.trusted ? "trusted" : "restricted"}`;
@@ -3335,206 +3258,10 @@ export function App(): ReactNode {
         }
       })()
     : null;
-  return (
-    <div className="app-window">
-      <div className="window-chrome" aria-hidden="true" />
-      <div className={`app-shell${sidebarExpanded ? " app-shell--sidebar-expanded" : ""}`}>
-      <aside className="sidebar" aria-label="Dashboards">
-        <button
-          className="sidebar__toggle"
-          type="button"
-          aria-expanded={sidebarExpanded}
-          aria-label={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
-          title={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
-          onClick={() => setSidebarExpanded((expanded) => !expanded)}
-        >
-          <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-          <span className="sidebar__brand">dash-bored</span>
-          <span className="sidebar__chevron"><ShellIcon name={sidebarExpanded ? "collapse" : "expand"} /></span>
-        </button>
-
-        <nav className="sidebar__projects" aria-label="Projects">
-          {projects.map((project, projectIndex) => {
-            const label = projectLabel(project);
-            const key = dashboardKey(project);
-            const active = activeView === "dashboard" && project.configPath === snapshot?.configPath;
-            const opening = pendingAction === `open:${key}`;
-            const outlineExpanded = expandedProjectOutlines[key] === true;
-            const outline = projectOutlines[key] ?? {
-              tree: null,
-              loading: false,
-              error: null,
-            };
-            const outlineId = `sidebar-project-tree-${projectIndex}`;
-            return (
-              <div className="sidebar__project" key={key}>
-                <div className="sidebar__project-row">
-                  <button
-                    className={`sidebar__item sidebar__project-link${active ? " sidebar__item--active" : ""}`}
-                    type="button"
-                    aria-current={active ? "page" : undefined}
-                    aria-label={label}
-                    title={label}
-                    disabled={pendingAction !== null}
-                    onClick={() => void selectProject(project)}
-                  >
-                    {project.iconDataUrl ? (
-                      <img
-                        className="sidebar__item-icon sidebar__project-icon"
-                        src={project.iconDataUrl}
-                        alt=""
-                        width={20}
-                        height={20}
-                      />
-                    ) : (
-                      <span className="sidebar__item-icon"><ShellIcon name="project" /></span>
-                    )}
-                    <span className="sidebar__label">{opening ? "Opening…" : label}</span>
-                  </button>
-                  <button
-                    className={`sidebar__project-action sidebar__project-tree-toggle${outlineExpanded ? " sidebar__project-tree-toggle--active" : ""}`}
-                    type="button"
-                    aria-label={`${outlineExpanded ? "Collapse" : "Show"} ${label} tree`}
-                    aria-expanded={outlineExpanded}
-                    aria-controls={outlineId}
-                    title={outlineExpanded ? "Collapse dashboard tree" : "Show dashboard tree"}
-                    tabIndex={sidebarExpanded ? 0 : -1}
-                    disabled={pendingAction !== null}
-                    onClick={() => toggleProjectOutline(project)}
-                  >
-                    <ShellIcon name="tree" />
-                  </button>
-                  <button
-                    className="sidebar__project-action sidebar__project-remove"
-                    type="button"
-                    aria-label={`Remove ${label}`}
-                    title="Remove dashboard"
-                    tabIndex={sidebarExpanded ? 0 : -1}
-                    disabled={pendingAction !== null}
-                    onClick={() => void openDeletionDialog(project)}
-                  >
-                    <ShellIcon name="trash" />
-                  </button>
-                </div>
-                {outlineExpanded ? (
-                  <div id={outlineId}>
-                    <DashboardOutlineTree
-                      tree={outline.tree}
-                      loading={outline.loading}
-                      error={outline.error}
-                      label={label}
-                      onSelect={(nodeId) => void focusProjectNode(project, nodeId)}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="sidebar__footer">
-          <button className="sidebar__item" type="button" aria-label="Add dashboard" title="Add dashboard" disabled={pendingAction !== null} onClick={() => void addDashboard()}>
-            <span className="sidebar__item-icon"><ShellIcon name="add" /></span>
-            <span className="sidebar__label">{pendingAction === "choose" ? "Opening…" : "Add dashboard"}</span>
-          </button>
-          <button className={`sidebar__item${activeView === "settings" ? " sidebar__item--active" : ""}`} type="button" aria-label="Settings" title="Settings" onClick={showSettings}>
-            <span className="sidebar__item-icon"><ShellIcon name="settings" /></span>
-            <span className="sidebar__label">Settings</span>
-          </button>
-        </div>
-      </aside>
-
-      <div className="app-frame">
-        <header className={`app-header${editingActiveProject ? " app-header--editing" : ""}`}>
-          <div className="app-header__identity">
-            <div>
-              <span className="app-header__title">{headerTitle}</span>
-              {activeView === "settings" ? (
-                <span className="app-header__path">Application preferences</span>
-              ) : headerDashboardPath ? (
-                <span className="app-header__path" title={headerDashboardPath}>{headerDashboardPath}</span>
-              ) : (
-                <span className="app-header__path">No project open</span>
-              )}
-            </div>
-          </div>
-          <div className="app-header__actions">
-            <button
-              className="command-palette-trigger"
-              type="button"
-              aria-label={`Open command palette, ${shortcutLabel}`}
-              onClick={() => setPaletteOpen(true)}
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="8.5" cy="8.5" r="4.5" />
-                <path d="m12 12 4 4" />
-              </svg>
-              <span>Commands</span>
-              <kbd>{shortcutLabel}</kbd>
-            </button>
-            {activeView === "dashboard" && headerProjectRoot ? (
-              <>
-                {editSession && editingActiveProject ? (
-                  <div className="app-header__editor-toolbar">
-                    <DashboardEditorToolbar
-                      diagnostics={editSession.validation.diagnostics}
-                      saving={savingDraft}
-                      dirty={editSessionDirty()}
-                      onSave={() => void saveDashboardDraft()}
-                      onCancel={cancelDashboardEdit}
-                    />
-                  </div>
-                ) : null}
-                <button
-                  className="button button--quiet composition-library-trigger"
-                  type="button"
-                  aria-label={componentLibraryOpen ? "Close component library" : "Open component library"}
-                  aria-expanded={componentLibraryOpen}
-                  title={componentLibraryOpen ? "Close component library" : "Open component library"}
-                  disabled={pendingAction !== null}
-                  onClick={toggleCompositionLibrary}
-                >
-                  <ShellIcon name="library" />
-                  <span>{componentLibraryOpen ? "Close library" : "Components"}</span>
-                </button>
-              </>
-            ) : null}
-          </div>
-        </header>
-
-        {actionError ? (
-          <div className="global-error" role="alert">
-            <strong>Action failed</strong>
-            <span>{actionError}</span>
-            <button type="button" aria-label="Dismiss error" onClick={() => setActionError(null)}>×</button>
-          </div>
-        ) : null}
-        {actionNotice ? (
-          <div className="global-notice" role="status">
-            <span>{actionNotice.message}</span>
-            <button
-              className="global-notice__close"
-              type="button"
-              aria-label="Dismiss message"
-              onClick={() => setActionNotice(null)}
-            >
-              <svg className="global-notice__countdown" viewBox="0 0 28 28" aria-hidden="true">
-                <circle className="global-notice__countdown-track" cx="14" cy="14" r="11" />
-                <circle
-                  className="global-notice__countdown-progress"
-                  cx="14"
-                  cy="14"
-                  r="11"
-                  pathLength="1"
-                />
-              </svg>
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
-        ) : null}
-
-        {activeView === "settings" ? (
-          <SettingsPanel
+  const workspace = (
+    <>
+      {activeView === "settings" ? (
+        <SettingsPanel
             snapshot={snapshot}
             appSettings={appSettings}
             pendingAction={pendingAction}
@@ -3543,10 +3270,13 @@ export function App(): ReactNode {
             onTrust={() => void perform("trust", host.trustProject)}
             onRevoke={() => void perform("revoke", host.revokeTrust)}
           />
-        ) : !snapshot?.projectRoot ? (
-          <EmptyProject pending={pendingAction === "choose"} onChoose={() => void addDashboard()} />
-        ) : (
-          <main className="workspace">
+      ) : !snapshot?.projectRoot ? (
+        <EmptyProject
+          pending={pendingAction === "choose"}
+          onChoose={() => void addDashboard()}
+        />
+      ) : (
+        <main className="workspace">
             {editSession && editSession.projectRoot === snapshot.projectRoot && !compositionPreviewTree ? (
               <DashboardEditor
                 config={editSession.draft}
@@ -3622,10 +3352,86 @@ export function App(): ReactNode {
               <span>Revision {snapshot.revision}</span>
               <span>{snapshot.trusted ? "Capabilities enabled" : "Restricted mode"}</span>
             </footer>
-          </main>
-        )}
-        </div>
-      </div>
+        </main>
+      )}
+    </>
+  );
+  return (
+    <>
+      <AppShell
+        snapshot={snapshot}
+        projects={projects}
+        activeView={activeView}
+        sidebarExpanded={sidebarExpanded}
+        expandedProjectOutlines={expandedProjectOutlines}
+        pendingAction={pendingAction}
+        projectOutlines={projectOutlines}
+        title={title}
+        dashboardPath={headerDashboardPath}
+        shortcutLabel={shortcutLabel}
+        editing={editingActiveProject}
+        componentLibraryOpen={componentLibraryOpen}
+        editorToolbar={
+          editSession && editingActiveProject ? (
+            <div className="app-header__editor-toolbar">
+              <DashboardEditorToolbar
+                diagnostics={editSession.validation.diagnostics}
+                saving={savingDraft}
+                dirty={editSessionDirty()}
+                onSave={() => void saveDashboardDraft()}
+                onCancel={cancelDashboardEdit}
+              />
+            </div>
+          ) : null
+        }
+        actionError={actionError}
+        actionNotice={
+          actionNotice ? (
+            <div className="global-notice" role="status">
+              <span>{actionNotice.message}</span>
+              <button
+                className="global-notice__close"
+                type="button"
+                aria-label="Dismiss message"
+                onClick={() => setActionNotice(null)}
+              >
+                <svg
+                  className="global-notice__countdown"
+                  viewBox="0 0 28 28"
+                  aria-hidden="true"
+                >
+                  <circle
+                    className="global-notice__countdown-track"
+                    cx="14"
+                    cy="14"
+                    r="11"
+                  />
+                  <circle
+                    className="global-notice__countdown-progress"
+                    cx="14"
+                    cy="14"
+                    r="11"
+                    pathLength="1"
+                  />
+                </svg>
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          ) : null
+        }
+        onToggleSidebar={() => setSidebarExpanded((expanded) => !expanded)}
+        onSelectProject={(project) => void selectProject(project)}
+        onToggleProjectOutline={toggleProjectOutline}
+        onFocusProjectNode={(project, nodeId) => void focusProjectNode(project, nodeId)}
+        onOpenDeletion={(project) => void openDeletionDialog(project)}
+        onAddDashboard={() => void addDashboard()}
+        onShowSettings={showSettings}
+        onOpenPalette={() => setPaletteOpen(true)}
+        onToggleLibrary={toggleCompositionLibrary}
+        onDismissError={() => setActionError(null)}
+      >
+        {workspace}
+      </AppShell>
       <CommandPalette
         open={paletteOpen}
         actions={allActions}
@@ -3822,6 +3628,6 @@ export function App(): ReactNode {
           </div>
         </EditorModal>
       ) : null}
-    </div>
+    </>
   );
 }
