@@ -1,0 +1,210 @@
+.todo {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.todo__header,
+.todo__item,
+.todo__form {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.todo__header {
+  justify-content: space-between;
+}
+
+.todo__header > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.todo__header span,
+.todo__filter span,
+.todo__form label span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.todo__filter,
+.todo__form label {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.todo__form label {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.todo__filter select,
+.todo__form input {
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+.todo__form input {
+  width: 100%;
+}
+
+.todo__list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.todo__item {
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.todo__item-main {
+  align-items: flex-start;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.todo__item-main > input {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+}
+
+.todo__description {
+  overflow-wrap: anywhere;
+}
+
+.todo__description-edit,
+.todo__tags-edit {
+  min-width: 0;
+  padding: 0.15rem 0.25rem;
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.todo__description-edit {
+  flex: 1 1 auto;
+  margin: -0.15rem 0;
+}
+
+.todo__description-edit:hover,
+.todo__description-edit:focus-visible,
+.todo__tags-edit:hover,
+.todo__tags-edit:focus-visible {
+  border-color: var(--border-bright);
+  border-radius: 0.35rem;
+  outline: none;
+}
+
+.todo__item--done .todo__description {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.1em;
+}
+
+.todo__item-side {
+  align-items: flex-start;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.55rem;
+}
+
+.todo__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.todo__tags span {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgb(217 255 104 / 18%);
+  border-radius: 99px;
+  color: var(--muted);
+  background: rgb(217 255 104 / 8%);
+  font-size: 0.72rem;
+}
+
+.todo__tags-edit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.todo__tags-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.todo__edit-input {
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border-bright);
+  border-radius: 0.4rem;
+  color: var(--text);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+.todo__edit-input--description {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.todo__edit-input--tags {
+  width: min(100%, 18rem);
+}
+
+.todo button.todo__description-edit,
+.todo button.todo__tags-edit {
+  border-color: transparent;
+  color: inherit;
+  background: transparent;
+  padding: 0.15rem 0.25rem;
+}
+
+.todo button.todo__description-edit:hover:not(:disabled),
+.todo button.todo__description-edit:focus-visible,
+.todo button.todo__tags-edit:hover:not(:disabled),
+.todo button.todo__tags-edit:focus-visible {
+  border-color: var(--border-bright);
+}
+
+.todo__message,
+.todo__error p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.todo__error {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--negative);
+  background: rgb(255 123 123 / 8%);
+}
+
+.todo__error p:first-child,
+.todo__form-error {
+  color: var(--negative);
+}
+
+.todo__form-error {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+}
+

@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import "./todo-list.css";
 import type { LocalComponentHost } from "../../../shared/contracts";
 import {
   filterTodos,
