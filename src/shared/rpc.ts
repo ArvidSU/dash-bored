@@ -5,6 +5,7 @@ import type {
   ComponentAgentRequest,
   ComponentCreationAgentRequest,
   DashboardConfig,
+  DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
   ComponentPropsValidation,
@@ -32,6 +33,8 @@ export type DashboardRPC = {
       updateAppSettings: { params: AppSettings; response: AppSettings };
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
       runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
+      getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
+      stopDashboardAgentTask: { params: { taskId: string }; response: DashboardAgentTask };
       listProjects: { params: {}; response: ProjectListItem[] };
       getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
       chooseProject: { params: {}; response: ProjectSnapshot };
@@ -63,6 +66,7 @@ export type DashboardRPC = {
     messages: {
       snapshot: ProjectSnapshot;
       process: ProcessSnapshot;
+      agentTask: DashboardAgentTask;
       openCommandPalette: {};
     };
   }>;

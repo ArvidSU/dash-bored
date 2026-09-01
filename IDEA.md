@@ -67,6 +67,10 @@ collapse or expand it to keep large dashboards compact, copy an exact
 config-and-tree locator, or describe a wanted change and send it to the app-wide configured
 `DASH_BORED_AGENT`. The app enriches that request with dash-bored, project, and
 component context; it does not hide which external CLI command will run.
+Dashboard-change requests are first-class in the application through a small
+agent-work surface that reports the configured CLI's launch, output, exit, and
+observed dashboard changes. This is deliberately a narrow harness around the
+user's agent, not a general-purpose agent runtime or provider integration.
 
 Direct manipulation complements that primary workflow. The desktop app offers
 a right-hand component-library flyout for arranging existing components,

@@ -186,6 +186,24 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("agent work keeps a dashboard-only request visible after dispatch", async () => {
+    const active = currentPage();
+    await active.getByRole("button", { name: "Open agent work" }).click();
+    const activity = active.getByRole("dialog", { name: "Agent work" });
+    await activity.waitFor();
+    await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.runComponentAgent({ nodeId: "status", prompt: "Show a clearer fixture state." });
+    });
+    await activity.getByText("Show a clearer fixture state.").waitFor();
+    expect(await activity.getByText("Running", { exact: true }).count()).toBe(1);
+    await activity.getByRole("button", { name: "Stop agent" }).click();
+    await activity.getByText("Stopped", { exact: true }).waitFor();
+    await activity.getByRole("button", { name: "Close", exact: true }).click();
+    expect(await activity.count()).toBe(0);
+  }, 20_000);
+
   test("visible components resize only downward from intrinsic height and keep their frame chrome visible", async () => {
     const active = currentPage();
     await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });
@@ -607,5 +625,20 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Discard changes", exact: true }).click();
     await active.getByRole("checkbox", { name: "Mark complete: Keep this surface mounted" }).waitFor();
     expect(await persistedTodoDone()).toBeFalse();
+  }, 20_000);
+
+  test("the generated starter command process enters Agent work", async () => {
+    const active = currentPage();
+    await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.runProcessQuickAction("setup-dashboard-with-agent");
+    });
+    const activity = active.getByRole("dialog", { name: "Agent work" });
+    await activity.waitFor();
+    await activity.getByText("Initial dashboard setup").waitFor();
+    await activity.getByRole("button", { name: "Stop agent" }).click();
+    await activity.getByText("Initial dashboard setup").waitFor({ state: "detached" });
+    await activity.getByRole("button", { name: "Close", exact: true }).click();
   }, 20_000);
 });

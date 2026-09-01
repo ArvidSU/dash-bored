@@ -11,10 +11,11 @@ import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 import { installDashBoredCli } from "./install-cli";
 
-const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect"]);
+const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent"]);
 
 interface ParsedCommandArguments {
   project: string;
+  agentCommand?: string | null;
   configName: string;
   json: boolean;
   global: boolean;
@@ -32,6 +33,7 @@ Usage:
   dash-bored open [project]
   dash-bored validate [project] [--json]
   dash-bored inspect [project]
+  dash-bored agent [agent-command]
   dash-bored --help
   dash-bored --version`;
 }
@@ -117,7 +119,7 @@ function parseCommandArguments(
     positional.push(argument);
   }
 
-  if (command !== "init" && positional.length > 1) {
+  if (command !== "init" && command !== "agent" && positional.length > 1) {
     return {
       project: ".",
       configName: ".",
@@ -137,6 +139,16 @@ function parseCommandArguments(
       error: "install-cli does not accept a project path.",
     };
   }
+  if (command === "agent" && positional.length > 1) {
+    return {
+      project: ".",
+      configName: ".",
+      json,
+      global,
+      help: false,
+      error: "agent accepts at most one agent-command; pass the dashboard request in DASH_BORED_AGENT_PROMPT.",
+    };
+  }
   if (command === "install-skill" && global && positional.length > 0) {
     return {
       project: ".",
@@ -147,9 +159,56 @@ function parseCommandArguments(
       error: "install-skill --global does not accept a project path.",
     };
   }
+  if (command === "agent") {
+    return {
+      project: ".",
+      agentCommand: positional[0] ?? null,
+      configName: ".",
+      json,
+      global,
+      help: false,
+      error: null,
+    };
+  }
   return command === "init"
     ? { project, configName: positional.length === 0 ? "." : positional.join("/"), json, global, help: false, error: null }
     : { project: positional[0] ?? ".", configName: ".", json, global, help: false, error: null };
+}
+
+function agentInvocation(command: string): string {
+  return process.platform === "win32"
+    ? `${command} "%DASH_BORED_AGENT_PROMPT%"`
+    : `${command} "$DASH_BORED_AGENT_PROMPT"`;
+}
+
+async function runConfiguredAgent(commandOverride: string | null | undefined): Promise<number> {
+  const command = commandOverride?.trim() || process.env.DASH_BORED_AGENT?.trim() || "codex exec";
+  const prompt = process.env.DASH_BORED_AGENT_PROMPT?.trim() ?? "";
+  if (prompt.length === 0 || prompt.length > 16_384) {
+    console.error("DASH_BORED_AGENT_PROMPT must contain a dashboard request of at most 16384 characters.");
+    return 2;
+  }
+  const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
+  const shellArgs = process.platform === "win32"
+    ? ["/d", "/s", "/c", agentInvocation(command)]
+    : ["-lc", agentInvocation(command)];
+  const child = spawn(shell, shellArgs, { cwd: process.cwd(), env: process.env, stdio: "inherit" });
+  const forward = (signal: NodeJS.Signals) => child.kill(signal);
+  const onSigint = () => forward("SIGINT");
+  const onSigterm = () => forward("SIGTERM");
+  process.on("SIGINT", onSigint);
+  process.on("SIGTERM", onSigterm);
+  return await new Promise<number>((resolveExit) => {
+    child.once("error", (error) => {
+      console.error(`Could not launch DASH_BORED_AGENT: ${error.message}`);
+      resolveExit(1);
+    });
+    child.once("close", (code, signal) => {
+      process.off("SIGINT", onSigint);
+      process.off("SIGTERM", onSigterm);
+      resolveExit(signal ? 1 : code ?? 1);
+    });
+  });
 }
 
 async function inspect(path: string, compile: boolean): Promise<InspectResult> {
@@ -184,8 +243,7 @@ async function openProject(input: string): Promise<number> {
   }
 
   const configuredExecutable = process.env.DASH_BORED_APP_EXECUTABLE;
-  const bundledCli = process.env.DASH_BORED_BUNDLED_CLI ?? process.execPath;
-  const realCli = await realpath(bundledCli).catch(() => null);
+  const realCli = await realpath(process.execPath).catch(() => null);
   const discoveredExecutable = process.platform === "darwin" && realCli !== null
     ? resolve(dirname(realCli), "..", "..", "..", "MacOS", "launcher")
     : null;
@@ -289,6 +347,8 @@ async function main(): Promise<number> {
     }
     return 0;
   }
+
+  if (command === "agent") return runConfiguredAgent(parsed.agentCommand);
 
   if (command === "validate") {
     const result = await inspect(project, true);

@@ -139,9 +139,8 @@ export async function replaceDashboardConfigAtomic(
   }
 }
 
-function defaultConfig(bundleNameSource: string, environmentPath: string): DashboardConfig {
-  const projectName = basename(bundleNameSource) || "Project";
-  const agentPrompt = [
+function starterAgentPrompt(projectName: string): string {
+  return [
     `Set up the dash-bored dashboard for ${projectName}.`,
     "Inspect this project before making changes.",
     "Use the installed portable dash-bored skill for product-specific guidance.",
@@ -149,6 +148,19 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     "Keep the dashboard project-owned and task-focused: expose important status, documentation, and repeatable workflows with built-in components where possible, and add small local components only when they are genuinely useful.",
     "Follow AGENTS.md and the project's own instructions, preserve unrelated changes, validate the finished dashboard, and summarize what you changed.",
   ].join(" ");
+}
+
+function formatDotenvValue(value: string): string {
+  return `"${value
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r")}"`;
+}
+
+function defaultConfig(bundleNameSource: string, environmentPath: string): DashboardConfig {
+  const projectName = basename(bundleNameSource) || "Project";
+  const agentPrompt = starterAgentPrompt(projectName);
   const child = (node: ComponentNode): ComponentChildLayout => ({
     type: "child",
     child: { node },
@@ -197,7 +209,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     {
       component: "@dash-bored/markdown",
       props: {
-        content: "Choose your CLI agent once in application Settings. The app already exposes its bundled dash-bored CLI to dashboard commands; optionally install a shell link for use outside the app. Install the portable Agent Skill globally for all projects, or only in this project so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
+        content: "Choose your CLI agent once in application Settings. The app puts its matching dash-bored CLI on PATH for dashboard commands; optionally install a shell link for use outside the app. Install the portable Agent Skill globally for all projects, or only in this project so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
       },
     },
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
@@ -206,7 +218,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       component: "@dash-bored/command",
       props: {
         label: "Install dash-bored CLI in ~/.local/bin",
-        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli',
+        command: "dash-bored install-cli",
         cwd: ".",
       },
     },
@@ -215,7 +227,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       component: "@dash-bored/command",
       props: {
         label: "Install dash-bored skill globally",
-        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global',
+        command: "dash-bored install-skill --global",
         cwd: ".",
       },
     },
@@ -224,7 +236,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       component: "@dash-bored/command",
       props: {
         label: "Install portable dash-bored skill for this project",
-        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .',
+        command: "dash-bored install-skill .",
         cwd: ".",
       },
     },
@@ -233,7 +245,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       component: "@dash-bored/command",
       props: {
         label: "Set up this dashboard",
-        command: '${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"',
+        command: 'dash-bored agent "${DASH_BORED_AGENT:-codex exec}"',
         cwd: ".",
         env: { DASH_BORED_AGENT_PROMPT: agentPrompt },
       },
@@ -320,10 +332,16 @@ async function createProjectFilesAtLocation(
       : location.configDirectory,
     relativeEnvironmentPath,
   );
+  const projectName = location.configDirectory === join(location.projectRoot, CONFIG_DIRECTORY)
+    ? basename(location.projectRoot) || "Project"
+    : basename(location.configDirectory) || "Project";
+  const agentPrompt = starterAgentPrompt(projectName);
   const lock: DashboardLock = { lockfileVersion: 1, components: {} };
   const environment = [
-    "# Project-local variables used by dashboard components and commands.",
-    "# Configure DASH_BORED_AGENT once in the dash-bored application Settings.",
+    "# Starter values shown in the dashboard environment editor.",
+    "# DASH_BORED_AGENT is also configurable app-wide in Settings.",
+    `DASH_BORED_AGENT=${formatDotenvValue("codex exec")}`,
+    `DASH_BORED_AGENT_PROMPT=${formatDotenvValue(agentPrompt)}`,
     "",
   ].join("\n");
   let configCreated = false;

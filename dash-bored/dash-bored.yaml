@@ -195,7 +195,7 @@ root:
                                     props:
                                       todos:
                                         - description: Add a better agent interface with user feedback and control
-                                          done: false
+                                          done: true
                                           tags:
                                             - improvement
                                         - description: Keyboard shortcut editor, in settings, tied in with command pallet actions
@@ -206,6 +206,23 @@ root:
                                           done: false
                                           tags:
                                             - feature
+                                        - description: Individually collapsable components in sidebar tree view
+                                          done: false
+                                          tags:
+                                            - feature
+                                        - description: Components moveable from tree view
+                                          done: false
+                                          tags:
+                                            - feature
+                                        - description: Pick up and hover with component to drill down on target. I.e. Hover over Card to drop component into card.
+                                          done: false
+                                          tags:
+                                            - Improvement
+                                        - description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
+                                          done: false
+                                          tags:
+                                            - feature
+                                            - component
                       second:
                         type: child
                         child:
@@ -591,7 +608,7 @@ root:
                             component: "@dash-bored/command"
                             props:
                               label: Improve this dashboard with an agent
-                              command: ${DASH_BORED_AGENT:-codex exec} "$DASH_BORED_AGENT_PROMPT"
+                              command: dash-bored agent "${DASH_BORED_AGENT:-codex exec}"
                               cwd: .
                               env:
                                 DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.

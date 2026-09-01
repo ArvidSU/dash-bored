@@ -161,6 +161,8 @@ export interface ComponentAgentRequest {
   prompt: string;
 }
 
+/** Starts the generated dashboard's one built-in setup request. */
+
 export type ComponentChildLocator =
   | { type: "managed"; index: number }
   | { type: "tiled"; path: Array<"first" | "second"> };
@@ -192,9 +194,23 @@ export interface ComponentCreationAgentRequest {
 }
 
 export interface ComponentAgentLaunch {
+  taskId: string;
   command: string;
   componentPath: string;
   pid: number | null;
+}
+
+/** A dashboard-only invocation of the user's configured CLI agent. */
+export interface DashboardAgentTask {
+  id: string;
+  command: string;
+  componentPath: string;
+  request: string;
+  configPath: string;
+  startedAt?: string;
+  /** The dashboard changed while this task was running; it is not a success claim. */
+  dashboardChanged: boolean;
+  process: ProcessSnapshot;
 }
 
 export interface CompiledLocalComponent {

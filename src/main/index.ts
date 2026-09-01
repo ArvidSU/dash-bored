@@ -8,6 +8,7 @@ import Electrobun, {
 import { join } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import type {
+  DashboardAgentTask,
   DashboardConfigSource,
   DashboardInsertionTarget,
   ProjectSnapshot,
@@ -21,7 +22,7 @@ import {
 } from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
 import { AppSettingsStore } from "./app-settings";
-import { ComponentAgentRunner } from "./component-agent";
+import { DashboardAgentHarness } from "./component-agent";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
@@ -61,6 +62,11 @@ function sendSnapshot(snapshot: ProjectSnapshot): void {
     ?.send?.snapshot(snapshot);
 }
 
+function sendAgentTask(task: DashboardAgentTask): void {
+  (mainWindow?.webview.rpc as { send?: { agentTask(value: DashboardAgentTask): void } } | undefined)
+    ?.send?.agentTask(task);
+}
+
 function openCommandPalette(): void {
   (
     mainWindow?.webview.rpc as
@@ -74,11 +80,12 @@ const projectRegistry = new ProjectRegistry(join(Utils.paths.userData, "projects
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
 process.env.DASH_BORED_AGENT = initialAppSettings.dashBoredAgent;
-const componentAgentRunner = new ComponentAgentRunner();
+const dashboardAgentHarness = new DashboardAgentHarness({ onTask: sendAgentTask });
 const runtime = new ProjectRuntime({
   trustStore,
   onSnapshot(snapshot) {
     sendSnapshot(snapshot);
+    if (snapshot.configPath) dashboardAgentHarness.markDashboardChanged(snapshot.configPath);
     void projectRegistry.remember(snapshot).catch((error: unknown) => {
       console.error("Could not persist the dashboard list.", error);
     });
@@ -112,11 +119,13 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
     componentId: node.id,
     componentReference: node.component,
   }, userPrompt);
-  return componentAgentRunner.launch({
+  return dashboardAgentHarness.launch({
     command: settings.dashBoredAgent,
     prompt,
     projectRoot: sourceLocation.projectRoot,
     componentPath: locator,
+    configPath: source.configPath,
+    request: userPrompt,
   });
 }
 
@@ -148,11 +157,13 @@ async function runComponentCreationAgent(
     configPath: source.configPath,
     insertionPath,
   }, userPrompt);
-  return componentAgentRunner.launch({
+  return dashboardAgentHarness.launch({
     command: settings.dashBoredAgent,
     prompt,
     projectRoot: sourceLocation.projectRoot,
     componentPath: locator,
+    configPath: source.configPath,
+    request: userPrompt,
   });
 }
 
@@ -196,6 +207,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
       runComponentCreationAgent: ({ configPath, target, prompt }) =>
         runComponentCreationAgent(configPath, target, prompt),
+      getDashboardAgentTasks: () => dashboardAgentHarness.list(),
+      stopDashboardAgentTask: ({ taskId }) => dashboardAgentHarness.stop(taskId),
       listProjects: () => projectRegistry.list(),
       getProjectOutline: ({ projectRoot, configPath }) =>
         getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),
@@ -306,7 +319,7 @@ Electrobun.events.on("before-quit", (event) => {
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
-  void Promise.all([runtime.close(), componentAgentRunner.close()]).finally(() => {
+  void Promise.all([runtime.close(), dashboardAgentHarness.close()]).finally(() => {
     Utils.quit(0);
   });
 });

@@ -59,6 +59,20 @@ describe("dash-bored command arguments", () => {
     expect(result.stdout.trim()).toBe(APP_VERSION);
   });
 
+  test("agent runs its explicit agent command with the environment-backed dashboard request", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+
+    const result = await runWithEnvironment(project, {
+      ...process.env,
+      DASH_BORED_AGENT: "printf ignored-by-explicit-command",
+      DASH_BORED_AGENT_PROMPT: "Set up the dashboard.",
+    }, "agent", "printf");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("Set up the dashboard.");
+  });
+
   test("command help never executes the command", async () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
     temporaryDirectories.push(project);

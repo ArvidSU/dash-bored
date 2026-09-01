@@ -25,8 +25,7 @@ export interface InstallCliResult {
 }
 
 async function bundledCliSource(explicit?: string): Promise<string> {
-  const configured = explicit ?? process.env.DASH_BORED_BUNDLED_CLI;
-  if (configured) return realpath(resolve(configured));
+  if (explicit) return realpath(resolve(explicit));
 
   const executable = await realpath(process.execPath);
   const main = await realpath(Bun.main).catch(() => null);

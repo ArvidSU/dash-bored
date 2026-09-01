@@ -21,9 +21,7 @@ props, `manifest.children` for child cardinality and presentation, and
 the trust impact. Check `available` and `diagnostics`; do not guess a component
 shape from its name or from this skill.
 
-The desktop app puts its matching CLI on `PATH` and also exports its absolute
-path as `DASH_BORED_BUNDLED_CLI`. If `dash-bored` is not otherwise resolvable,
-run `"$DASH_BORED_BUNDLED_CLI"` with the same arguments.
+The desktop app puts its matching CLI on `PATH`, so use `dash-bored` directly.
 
 If the project is not initialized, run `dash-bored init .`. A standalone bundle
 owns its own `dash-bored.yaml`, `dash-bored-lock.yaml`, `.env`, and

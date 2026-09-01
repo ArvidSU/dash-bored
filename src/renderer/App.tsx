@@ -17,6 +17,7 @@ import type {
 } from "react";
 import type {
   AppSettings,
+  DashboardAgentTask,
   ComponentNode,
   DashboardConfig,
   DashboardDraftValidation,
@@ -31,11 +32,7 @@ import type {
   ProjectTarget,
   ResolvedComponentNode,
 } from "../shared/contracts";
-import {
-  buildComponentCreationAgentPrompt,
-  componentPath,
-  dashboardInsertionPath,
-} from "../shared/component-agent";
+import { componentPath } from "../shared/component-agent";
 import {
   buildApplicationActions,
   buildNodeFocusActions,
@@ -85,6 +82,7 @@ import {
   type SplitRatioOverrides,
 } from "./split-layout";
 import { AppShell, type ProjectOutlineState } from "./app-shell";
+import { AgentActivity, activeDashboardAgentTaskCount } from "./AgentActivity";
 import {
   DashboardEditor,
   ComponentDialog,
@@ -150,6 +148,31 @@ function replaceProcess(
   if (index === -1) processes.push(process);
   else processes[index] = process;
   return { ...snapshot, processes };
+}
+
+function replaceDashboardAgentTask(
+  tasks: readonly DashboardAgentTask[],
+  next: DashboardAgentTask,
+): DashboardAgentTask[] {
+  return [next, ...tasks.filter((task) => task.id !== next.id)]
+    .sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""));
+}
+
+function starterDashboardAgentTask(
+  configPath: string | null | undefined,
+  process: ProcessSnapshot,
+): DashboardAgentTask | null {
+  if (process.id !== "setup-dashboard-with-agent" || process.phase === "idle") return null;
+  const resolvedConfigPath = configPath ?? "dash-bored.yaml";
+  return {
+    id: process.id,
+    command: "dash-bored agent",
+    componentPath: `${resolvedConfigPath}#id=${encodeURIComponent(process.id)}`,
+    request: "Initial dashboard setup",
+    configPath: resolvedConfigPath,
+    dashboardChanged: false,
+    process,
+  };
 }
 
 function errorMessage(error: unknown): string {
@@ -1764,6 +1787,10 @@ export function App(): ReactNode {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const [dashboardAgentTasks, setDashboardAgentTasks] = useState<DashboardAgentTask[]>([]);
+  const [agentActivityOpen, setAgentActivityOpen] = useState(false);
+  const knownDashboardAgentTaskIds = useRef(new Set<string>());
+  const pendingProcessEvents = useRef(new Map<string, ProcessSnapshot>());
   const nextActionNoticeId = useRef(0);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [expandedProjectOutlines, setExpandedProjectOutlines] = useState<Record<string, boolean>>({});
@@ -1845,22 +1872,54 @@ export function App(): ReactNode {
       if (!active) return;
       if (event.type === "snapshot") {
         setSnapshot(event.snapshot);
+        const starter = event.snapshot.processes
+          .map((process) => starterDashboardAgentTask(event.snapshot.configPath, process))
+          .find((task): task is DashboardAgentTask => task !== null);
+        if (starter) setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, starter));
         setProjects((current) => rememberProject(current, event.snapshot));
       } else if (event.type === "process") {
+        pendingProcessEvents.current.set(event.process.id, event.process);
         setSnapshot((current) =>
           current ? replaceProcess(current, event.process) : current,
         );
+        if (event.process.id === "setup-dashboard-with-agent") {
+          const starter = starterDashboardAgentTask(snapshotRef.current?.configPath, event.process);
+          setDashboardAgentTasks((current) => starter
+            ? replaceDashboardAgentTask(current, starter)
+            : current.filter((task) => task.id !== event.process.id));
+          if (event.process.phase === "running" || event.process.phase === "stopping") {
+            setAgentActivityOpen(true);
+          }
+        }
+      } else if (event.type === "agent-task") {
+        setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, event.task));
+        if (!knownDashboardAgentTaskIds.current.has(event.task.id)) {
+          knownDashboardAgentTaskIds.current.add(event.task.id);
+          if (event.task.process.phase === "running" || event.task.process.phase === "stopping") {
+            setAgentActivityOpen(true);
+          }
+        }
       } else {
         setPaletteOpen(true);
       }
     });
 
-    void Promise.all([host.getSnapshot(), host.listProjects(), host.getAppSettings()])
-      .then(([initialSnapshot, initialProjects, initialSettings]) => {
+    void Promise.all([host.getSnapshot(), host.listProjects(), host.getAppSettings(), host.getDashboardAgentTasks()])
+      .then(([initialSnapshot, initialProjects, initialSettings, initialAgentTasks]) => {
         if (!active) return;
-        setSnapshot(initialSnapshot);
+        const snapshotWithPendingProcesses = [...pendingProcessEvents.current.values()]
+          .reduce(replaceProcess, initialSnapshot);
+        setSnapshot(snapshotWithPendingProcesses);
+        const starter = snapshotWithPendingProcesses.processes
+          .map((process) => starterDashboardAgentTask(snapshotWithPendingProcesses.configPath, process))
+          .find((task): task is DashboardAgentTask => task !== null);
         setProjects(rememberProject(initialProjects, initialSnapshot));
         setAppSettings(initialSettings);
+        setDashboardAgentTasks((current) => {
+          const withStarter = starter ? replaceDashboardAgentTask(initialAgentTasks, starter) : initialAgentTasks;
+          return current.reduce(replaceDashboardAgentTask, withStarter);
+        });
+        knownDashboardAgentTaskIds.current = new Set(initialAgentTasks.map((task) => task.id));
       })
       .catch((error: unknown) => {
         if (active) setActionError(errorMessage(error));
@@ -1941,6 +2000,7 @@ export function App(): ReactNode {
     () => new Map(snapshot?.processes.map((process) => [process.id, process]) ?? []),
     [snapshot?.processes],
   );
+  const agentTasks = dashboardAgentTasks;
   const processesRef = useRef<ReadonlyMap<string, ProcessSnapshot>>(processes);
   processesRef.current = processes;
 
@@ -2161,7 +2221,13 @@ export function App(): ReactNode {
   }
 
   function toggleCompositionLibrary(): void {
+    setAgentActivityOpen(false);
     compositionInteraction.toggleLibrary();
+  }
+
+  function toggleAgentActivity(): void {
+    setAgentActivityOpen((open) => !open);
+    if (!agentActivityOpen) compositionInteraction.closeLibrary();
   }
 
   async function ensureCurrentDashboardEdit(): Promise<DashboardEditSession | null> {
@@ -2277,6 +2343,7 @@ export function App(): ReactNode {
     try {
       const launched = await host.runComponentAgent({ nodeId: node.id, prompt });
       setAgentDialog(null);
+      setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
     } finally {
       setPendingAction(null);
@@ -2295,6 +2362,7 @@ export function App(): ReactNode {
       const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
       setEditSession(null);
       resetCompositionUi();
+      setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
     } catch (error) {
       setActionError(errorMessage(error));
@@ -2303,11 +2371,11 @@ export function App(): ReactNode {
     }
   }
 
-  function requestComponentCreationAgent(target: InsertionTarget, prompt: string): void {
+  function requestComponentCreationAgent(target: InsertionTarget, description: string): void {
     if (!editSession || pendingAction !== null) return;
     const configPath = editSession.configPath;
     const launch = (): void => {
-      void runComponentCreationAgent(configPath, target, prompt);
+      void runComponentCreationAgent(configPath, target, description);
     };
     if (editSessionDirty()) {
       setDiscardConfirmation({
@@ -2976,25 +3044,15 @@ export function App(): ReactNode {
     }
     const session = await ensureCurrentDashboardEdit();
     if (!session) return;
-    const parent = nodeAtPath(session.draft.root, target.parentPath);
-    const insertionPath = dashboardInsertionPath(
-      target,
-      target.placement.type === "tiled" && !parent.children ? "empty" : "split",
-    );
-    const prompt = buildComponentCreationAgentPrompt({
-      projectRoot: session.projectRoot,
-      configPath: session.configPath,
-      insertionPath,
-    }, description);
     const dirty = JSON.stringify(session.original) !== JSON.stringify(session.draft);
     if (dirty) {
       setDiscardConfirmation({
         message: "Discard the dashboard draft and ask the configured agent to build this component?",
-        continueAction: () => void runComponentCreationAgent(session.configPath, target!, prompt),
+        continueAction: () => void runComponentCreationAgent(session.configPath, target!, description),
       });
       return;
     }
-    void runComponentCreationAgent(session.configPath, target, prompt);
+    void runComponentCreationAgent(session.configPath, target, description);
   }
 
   async function removeCompositionNode(path: NodePath): Promise<void> {
@@ -3402,6 +3460,8 @@ export function App(): ReactNode {
         shortcutLabel={shortcutLabel}
         editing={editingActiveProject}
         componentLibraryOpen={componentLibraryOpen}
+        agentActivityOpen={agentActivityOpen}
+        activeAgentTaskCount={activeDashboardAgentTaskCount(agentTasks)}
         editorToolbar={
           editSession && editingActiveProject ? (
             <div className="app-header__editor-toolbar">
@@ -3459,10 +3519,22 @@ export function App(): ReactNode {
         onShowSettings={showSettings}
         onOpenPalette={() => setPaletteOpen(true)}
         onToggleLibrary={toggleCompositionLibrary}
+        onToggleAgentActivity={toggleAgentActivity}
         onDismissError={() => setActionError(null)}
       >
         {workspace}
       </AppShell>
+      <AgentActivity
+        open={agentActivityOpen}
+        tasks={agentTasks}
+        onClose={() => setAgentActivityOpen(false)}
+        onStop={(taskId) => {
+          const stop = taskId === "setup-dashboard-with-agent"
+            ? host.stopProcess(taskId)
+            : host.stopDashboardAgentTask(taskId);
+          void stop.catch((error: unknown) => setActionError(errorMessage(error)));
+        }}
+      />
       <CommandPalette
         open={paletteOpen}
         actions={allActions}

@@ -9,7 +9,6 @@ import type {
   DashboardConfig,
   Diagnostic,
 } from "../shared/contracts";
-import { buildComponentCreationAgentPrompt, dashboardInsertionPath } from "../shared/component-agent";
 import { childEdges, edgeAtLocator, type LayoutBranch } from "./component-children";
 import { PERMISSION_LABELS } from "./action-providers";
 import { SplitLayout } from "./SplitLayout";
@@ -269,15 +268,7 @@ export function ComponentDialog({
           </div>
           {canBuild && target && onBuildWithAgent && projectRoot && configPath ? (
             <button className="button button--secondary" type="button" disabled={agentPending} onClick={() => {
-              const prompt = buildComponentCreationAgentPrompt({
-                projectRoot,
-                configPath,
-                insertionPath: dashboardInsertionPath(
-                  target,
-                  target.placement.type === "tiled" && !parent?.children ? "empty" : "split",
-                ),
-              }, query);
-              onBuildWithAgent(target, prompt);
+              onBuildWithAgent(target, query.trim());
             }}>{agentPending ? "Starting agent…" : "Build with agent"}</button>
           ) : null}
         </div>

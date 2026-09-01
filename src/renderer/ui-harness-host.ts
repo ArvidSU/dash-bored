@@ -12,6 +12,7 @@ import type {
   ComponentNode,
   Diagnostic,
   DashboardConfig,
+  DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
   FileReadRequest,
@@ -164,7 +165,17 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
           : name === "tabs"
             ? { type: "object", additionalProperties: false, properties: { defaultTab: { type: "integer", minimum: 0 } } }
             : name === "command"
-              ? { type: "object", additionalProperties: false, properties: { label: { type: "string" }, command: { type: "string", minLength: 1 } }, required: ["command"] }
+              ? {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    label: { type: "string" },
+                    command: { type: "string", minLength: 1 },
+                    cwd: { type: "string", minLength: 1 },
+                    env: { type: "object", additionalProperties: { type: "string" } },
+                  },
+                  required: ["command"],
+                }
               : name === "todo-list"
                 ? {
                     type: "object",
@@ -368,6 +379,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   let persistedConfig = structuredClone(initialConfig);
   let configRevision = 1;
   let snapshotRevision = 1;
+  const processSnapshots = new Map<string, ProcessSnapshot>();
   const emit = (event: HostEvent): void => listeners.forEach((listener) => listener(event));
   const snapshot = (): ProjectSnapshot => {
   return {
@@ -382,7 +394,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     requestedPermissions: validateFixtureDraft(persistedConfig).requestedPermissions,
     tree: resolveFixtureNode(persistedConfig.root),
     components: [hostStabilityComponent],
-    processes: [],
+    processes: [...processSnapshots.values()].map((process) => structuredClone(process)),
     diagnostics: [],
     revision: snapshotRevision,
   };
@@ -392,7 +404,22 @@ export function createUiHarnessHost(): UiHarnessHost {
     emit({ type: "snapshot", snapshot: currentSnapshot });
     return currentSnapshot;
   };
-  const launch = (): ComponentAgentLaunch => ({ command: "codex exec", componentPath: "harness.root", pid: null });
+  const agentTasks: DashboardAgentTask[] = [];
+  const launch = (request?: { prompt: string }): ComponentAgentLaunch => {
+    const task: DashboardAgentTask = {
+      id: `agent-task-${agentTasks.length + 1}`,
+      command: "codex exec",
+      componentPath: "harness.root",
+      request: request?.prompt ?? "Fixture agent request",
+      configPath: CONFIG_PATH,
+      startedAt: new Date().toISOString(),
+      dashboardChanged: false,
+      process: { id: `agent-task-${agentTasks.length + 1}`, phase: "running", pid: null, exitCode: null, signal: null, logs: [] },
+    };
+    agentTasks.unshift(task);
+    emit({ type: "agent-task", task });
+    return { taskId: task.id, command: task.command, componentPath: task.componentPath, pid: null };
+  };
 
   return {
     subscribe(listener) {
@@ -403,8 +430,16 @@ export function createUiHarnessHost(): UiHarnessHost {
     async getSnapshot() { return snapshot(); },
     async getAppSettings() { return settings; },
     async updateAppSettings(next) { settings.dashBoredAgent = next.dashBoredAgent; return settings; },
-    async runComponentAgent(_request: ComponentAgentRequest) { return launch(); },
-    async runComponentCreationAgent(_request: ComponentCreationAgentRequest) { return launch(); },
+    async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
+    async runComponentCreationAgent(request: ComponentCreationAgentRequest) { return launch(request); },
+    async getDashboardAgentTasks() { return structuredClone(agentTasks); },
+    async stopDashboardAgentTask(taskId: string) {
+      const task = agentTasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("That dashboard agent task is no longer available.");
+      task.process = { ...task.process, phase: "exited", signal: "SIGTERM" };
+      emit({ type: "agent-task", task: structuredClone(task) });
+      return structuredClone(task);
+    },
     async listProjects() { return [project(persistedConfig)]; },
     async getProjectOutline(_project: ProjectListItem): Promise<ProjectOutline> {
       return { ...project(persistedConfig), tree: resolveFixtureNode(persistedConfig.root), diagnostics: [] };
@@ -449,32 +484,38 @@ export function createUiHarnessHost(): UiHarnessHost {
       return emitSnapshot();
     },
     async startProcess(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process: ProcessSnapshot = { id: nodeId, phase: nodeId === "setup-dashboard-with-agent" ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;
     },
     async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process: ProcessSnapshot = { id: nodeId, phase: nodeId === "setup-dashboard-with-agent" ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;
     },
     async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process: ProcessSnapshot = { id: nodeId, phase: nodeId === "setup-dashboard-with-agent" ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;
     },
     async writeProcessTerminal(nodeId: string, _input: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process = processSnapshots.get(nodeId)
+        ?? { id: nodeId, phase: "idle" as const, pid: null, exitCode: null, signal: null, logs: [] };
       emit({ type: "process", process });
       return process;
     },
     async resizeProcessTerminal(nodeId: string, _cols: number, _rows: number): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process = processSnapshots.get(nodeId)
+        ?? { id: nodeId, phase: "idle" as const, pid: null, exitCode: null, signal: null, logs: [] };
       emit({ type: "process", process });
       return process;
     },
     async stopProcess(nodeId: string): Promise<ProcessSnapshot> {
       const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;
     },

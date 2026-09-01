@@ -5,6 +5,7 @@ import type {
   ComponentAgentRequest,
   ComponentCreationAgentRequest,
   DashboardConfig,
+  DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
   ComponentPropsValidation,
@@ -27,6 +28,7 @@ import { createUiHarnessHost } from "./ui-harness-host";
 export type HostEvent =
   | { type: "snapshot"; snapshot: ProjectSnapshot }
   | { type: "process"; process: ProcessSnapshot }
+  | { type: "agent-task"; task: DashboardAgentTask }
   | { type: "open-command-palette" };
 
 type HostEventListener = (event: HostEvent) => void;
@@ -38,6 +40,8 @@ export interface DashboardHost {
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
   runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
+  getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
+  stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask>;
   listProjects(): Promise<ProjectListItem[]>;
   getProjectOutline(project: ProjectListItem): Promise<ProjectOutline>;
   chooseProject(): Promise<ProjectSnapshot>;
@@ -79,6 +83,7 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
     messages: {
       snapshot: (snapshot) => emit({ type: "snapshot", snapshot }),
       process: (process) => emit({ type: "process", process }),
+      agentTask: (task) => emit({ type: "agent-task", task }),
       openCommandPalette: () => emit({ type: "open-command-palette" }),
     },
   },
@@ -138,6 +143,16 @@ const liveHost: DashboardHost = {
   ): Promise<ComponentAgentLaunch> {
     ensureTransport();
     return await rpc.request.runComponentCreationAgent(request);
+  },
+
+  async getDashboardAgentTasks(): Promise<DashboardAgentTask[]> {
+    ensureTransport();
+    return await rpc.request.getDashboardAgentTasks({});
+  },
+
+  async stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask> {
+    ensureTransport();
+    return await rpc.request.stopDashboardAgentTask({ taskId });
   },
 
   async listProjects(): Promise<ProjectListItem[]> {

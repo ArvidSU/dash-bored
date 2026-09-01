@@ -201,9 +201,11 @@ creates only missing artifacts and never replaces an existing configuration,
 lock, or environment file, so a partially initialized project is repaired
 without discarding project state.
 The starter `.env` is created with owner-only permissions for project-local
-component and command variables. `DASH_BORED_AGENT` is app-wide instead: the
-main process persists it in the Electrobun user-data directory, publishes it to
-dashboard command environments, and exposes it in Settings.
+component and command variables, and is prepopulated with editable starter
+values for `DASH_BORED_AGENT` and `DASH_BORED_AGENT_PROMPT`. `DASH_BORED_AGENT`
+is also app-wide: the main process persists its application setting in the
+Electrobun user-data directory, publishes it to dashboard command environments,
+and exposes it in Settings.
 Directories selected in the desktop chooser are always treated as project
 roots, including when the selected directory itself is named `dash-bored`.
 
@@ -258,7 +260,7 @@ root:
                     component: "@dash-bored/command"
                     props:
                       label: Install the portable skill
-                      command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
+                      command: 'dash-bored install-skill .'
 ```
 
 The public configuration types are:
@@ -900,6 +902,22 @@ action does not grant project component code a capability or embed an AI
 provider; dashboard file watching remains responsible for showing accepted
 agent edits.
 
+The app owns one dashboard-only agent harness around that same configured CLI.
+It records a bounded in-memory task for each component-change or component-build
+request and streams its process phase and output to an app-level Agent work
+drawer across dashboard navigation. Tasks retain their component/YAML locator,
+the user's request, command, and whether the owning dashboard changed while the
+CLI was running. A process exit or observed file change is never represented as
+agent success: the UI asks the user to review the dashboard. This harness does
+not accept arbitrary commands, manage agent sessions, persist work across app
+quit, or add a provider SDK; quitting dash-bored stops its child agent processes.
+The generated starter remains an ordinary `@dash-bored/command`. It invokes the
+`dash-bored agent "${DASH_BORED_AGENT:-codex exec}"` wrapper with its
+request in `DASH_BORED_AGENT_PROMPT`; the wrapper runs that resolved agent
+command with the prompt as one environment-backed argument. Agent work
+recognizes that generated command process by its stable node ID and shows its
+existing process lifecycle alongside harness-launched requests.
+
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
 horizontal splits may be recursively nested for tiled layouts and stack based
 on their own container width. The application shell also
@@ -975,8 +993,7 @@ to Escape.
 When an effective `DASH_BORED_AGENT` command is configured, the add-component
 picker accepts either a catalog search or a natural-language component
 description. If no catalog entry matches non-empty text, the results contain
-one explicit agent action showing the user's description, configured command,
-and complete enriched prompt. Selecting it closes the composition UI (with the
+one explicit agent action using the user's description. Selecting it closes the composition UI (with the
 normal discard confirmation for an already-dirty draft), asks the main process to
 revalidate the target against the authoritative reachable config, and launches
 the configured agent. The prompt tells the agent to use the installed
@@ -1093,8 +1110,9 @@ dash-bored open [project]
 - `init` and `init .` target the canonical bundle in the current project;
   `--project <path>` selects another project root. Initialization creates the
   required files and empty component directory, uses the bundle name in a valid
-  guided dashboard with an editable bundle-local `.env` file, an
-  agent-customization command that uses the app-wide `DASH_BORED_AGENT`, and a
+  guided dashboard with an editable bundle-local `.env` file, a
+  agent-customization command that invokes the packaged `dash-bored agent`
+  wrapper with the app-wide `DASH_BORED_AGENT`, and a
   command that installs the packaged dash-bored skill into the project. It
   never overwrites existing files.
 - `init <name ...>` joins every positional name as another safe directory

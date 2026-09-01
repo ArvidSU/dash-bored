@@ -88,6 +88,8 @@ export interface AppShellProps {
   shortcutLabel: string;
   editing: boolean;
   componentLibraryOpen: boolean;
+  agentActivityOpen: boolean;
+  activeAgentTaskCount: number;
   editorToolbar: ReactNode;
   actionError: string | null;
   actionNotice: ReactNode;
@@ -101,6 +103,7 @@ export interface AppShellProps {
   onShowSettings(): void;
   onOpenPalette(): void;
   onToggleLibrary(): void;
+  onToggleAgentActivity(): void;
   onDismissError(): void;
 }
 
@@ -118,6 +121,8 @@ export function AppShell({
   shortcutLabel,
   editing,
   componentLibraryOpen,
+  agentActivityOpen,
+  activeAgentTaskCount,
   editorToolbar,
   actionError,
   actionNotice,
@@ -131,6 +136,7 @@ export function AppShell({
   onShowSettings,
   onOpenPalette,
   onToggleLibrary,
+  onToggleAgentActivity,
   onDismissError,
 }: AppShellProps): ReactNode {
   return (
@@ -258,6 +264,16 @@ export function AppShell({
                 </svg>
                 <span>Commands</span>
                 <kbd>{shortcutLabel}</kbd>
+              </button>
+              <button
+                className={`button button--quiet agent-activity-trigger${agentActivityOpen ? " agent-activity-trigger--active" : ""}`}
+                type="button"
+                aria-label={agentActivityOpen ? "Close agent work" : "Open agent work"}
+                aria-expanded={agentActivityOpen}
+                onClick={onToggleAgentActivity}
+              >
+                <span>Agent work</span>
+                {activeAgentTaskCount > 0 ? <strong>{activeAgentTaskCount}</strong> : null}
               </button>
               {activeView === "dashboard" && snapshot?.projectRoot ? (
                 <>

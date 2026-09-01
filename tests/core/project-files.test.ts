@@ -29,6 +29,9 @@ describe("ensureProjectFiles", () => {
       componentsDirectory: true,
     });
     expect((await stat(join(root, "dash-bored", "components"))).isDirectory()).toBeTrue();
+    const environment = await readFile(join(root, "dash-bored", ".env"), "utf8");
+    expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(environment).toContain("DASH_BORED_AGENT_PROMPT=\"Set up the dash-bored dashboard for");
     expect((await inspectProject(root)).ok).toBeTrue();
   });
 

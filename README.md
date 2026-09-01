@@ -157,14 +157,22 @@ project/
 ```
 
 The generated dashboard is immediately valid and combines a short guided tour,
-a sampler of the available component primitives, and a command that asks your
+a sampler of the available component primitives, and a setup action that asks your
 chosen CLI coding agent to tailor the dashboard to the project. It uses
 `codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
-**Settings → Dashboard agent**. Every rendered component has a context menu
+**Settings → Dashboard agent**. A newly initialized dashboard also prepopulates
+its environment editor with editable `DASH_BORED_AGENT` and
+`DASH_BORED_AGENT_PROMPT` values. The setup command invokes the packaged
+`dash-bored agent "${DASH_BORED_AGENT:-codex exec}"`, so the wrapper runs the
+same resolved agent command while Agent work follows its process alongside later
+dashboard changes. Every rendered component has a context menu
 with Focus, Edit component, Copy component path, and Change with agent. The
 Edit component action opens the declared props and child metadata editor. The
 last action shows the resolved command before sending and enriches your request with the owning
-dashboard and exact component path. Adjacent actions optionally expose the
+dashboard and exact component path. **Agent work** in the header keeps the
+dashboard-only launch visible while it runs, including its output, exit state,
+and an observed dashboard change; review the result rather than treating those
+signals as proof that an external agent completed the request. Adjacent actions optionally expose the
 bundled CLI to external shells, install the skill globally with
 `dash-bored install-skill --global`, or install it for this project with
 `dash-bored install-skill .`. The global form writes the portable guidance and

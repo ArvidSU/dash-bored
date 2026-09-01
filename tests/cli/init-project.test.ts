@@ -64,25 +64,20 @@ describe("initializeProject", () => {
     expect(skillCommand.props.command).toContain("install-skill .");
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
     expect(agentCommand.component).toBe("@dash-bored/command");
-    expect(agentCommand.props.command).toContain("DASH_BORED_AGENT");
+    expect(agentCommand.props.command).toContain("dash-bored");
+    expect(agentCommand.props.command).toContain(" agent");
+    expect(agentCommand.props.command).toContain("${DASH_BORED_AGENT:-codex exec}");
     expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain(
       "Inspect this project before making changes.",
     );
-    expect(agentCommand.props.command).not.toContain('. "./dash-bored/.env"');
-    expect(environment).toContain("Configure DASH_BORED_AGENT once");
+    expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(environment).toContain("DASH_BORED_AGENT_PROMPT=\"Set up the dash-bored dashboard for");
+    expect(environment).toContain("Inspect this project before making changes.");
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
     expect(lock).toEqual({ lockfileVersion: 1, components: {} });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);
     expect((await readdir(join(project, "dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
 
-    const command = Bun.spawn(["/bin/sh", "-lc", agentCommand.props.command], {
-      cwd: project,
-      env: { ...process.env, ...agentCommand.props.env, DASH_BORED_AGENT: "printf" },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    expect(await command.exited).toBe(0);
-    expect(await new Response(command.stdout).text()).toBe(agentCommand.props.env.DASH_BORED_AGENT_PROMPT);
   });
 
   test("never overwrites an existing initialization", async () => {
@@ -103,7 +98,7 @@ describe("initializeProject", () => {
     expect(result.configPath).toBe(join(canonicalProject, "dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
     expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: {} });
-    expect(await readFile(result.environmentPath, "utf8")).toContain("Configure DASH_BORED_AGENT once");
+    expect(await readFile(result.environmentPath, "utf8")).toContain('DASH_BORED_AGENT="codex exec"');
     expect(
       configuredNodes(parse(await readFile(result.configPath, "utf8")).root)
         .find((node) => node.id === "dashboard-environment").props.path,
