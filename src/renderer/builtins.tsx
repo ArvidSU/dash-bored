@@ -22,61 +22,6 @@ import {
 } from "./env";
 import { TodoList } from "./todo-list";
 
-function FileViewer({ props, host: componentHost }: ComponentRendererProps): ReactNode {
-  const filesystem = componentHost.filesystem;
-  const path = stringProp(props, ["path"]);
-  const [content, setContent] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [refresh, setRefresh] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!filesystem || !path) return;
-
-    setLoading(true);
-    setError(null);
-    void filesystem
-      .readText(path)
-      .then((text) => {
-        if (!cancelled) setContent(text);
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : String(cause));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [filesystem, path, refresh]);
-
-  if (!filesystem) {
-    return (
-      <CapabilityGate title={path || "File viewer"}>
-        Trust this project to read workspace files.
-      </CapabilityGate>
-    );
-  }
-
-  return (
-    <section className="file-viewer">
-      <header className="file-viewer__header">
-        <code>{path || "No file configured"}</code>
-        <button className="button button--quiet" type="button" disabled={!path || loading} onClick={() => setRefresh((value) => value + 1)}>
-          {loading ? "Reading…" : "Refresh"}
-        </button>
-      </header>
-      {error ? <div className="component-state component-state--error" role="alert">{error}</div> : null}
-      {!error ? <pre className="file-viewer__content"><code>{content}</code></pre> : null}
-    </section>
-  );
-}
-
 function EnvEditor({ props, host: componentHost }: ComponentRendererProps): ReactNode {
   const filesystem = componentHost.filesystem;
   const editorId = useId().replaceAll(":", "");
@@ -327,6 +272,7 @@ const LazyGroup = lazy(() => import("./builtins/group"));
 const LazyCard = lazy(() => import("./builtins/card"));
 const LazyChart = lazy(() => import("./builtins/chart"));
 const LazyLiveChart = lazy(() => import("./builtins/live-chart"));
+const LazyFile = lazy(() => import("./builtins/file"));
 const LazyText = lazy(() => import("./builtins/text"));
 const LazyStatus = lazy(() => import("./builtins/status"));
 const LazyCommand = lazy(() => import("./builtins/command"));
@@ -356,7 +302,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/chart": lazyBuiltin(LazyChart),
   "@dash-bored/live-chart": lazyBuiltin(LazyLiveChart),
   "@dash-bored/command": lazyBuiltin(LazyCommand),
-  "@dash-bored/file": FileViewer,
+  "@dash-bored/file": lazyBuiltin(LazyFile),
   "@dash-bored/env": EnvEditor,
   "@dash-bored/todo-list": ({ props, host: componentHost }) => (
     <TodoList props={props} host={componentHost} />
