@@ -5,15 +5,15 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { LocalComponentHost } from "../shared/contracts";
+import type { LocalComponentHost } from "../../shared/contracts";
 import {
   filterTodos,
   parseTodoYaml,
   serializeTodoYaml,
   sortTodos,
   todoTags,
-} from "./todo";
-import type { TodoItem } from "./todo";
+} from "../todo";
+import type { TodoItem } from "../todo";
 
 interface TodoListProps {
   props: Record<string, unknown>;
@@ -379,3 +379,4 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
     </section>
   );
 }
+
