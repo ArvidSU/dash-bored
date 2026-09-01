@@ -1,9 +1,9 @@
 import { useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { ShellRunResult } from "../../shared/contracts";
-import { ComponentVisibilityContext } from "../ComponentCompositor";
-import type { ComponentRendererProps } from "./types";
-import { childSurface, stringProp } from "./shared";
+import type { ShellRunResult } from "../../../shared/contracts";
+import { ComponentVisibilityContext } from "../../ComponentCompositor";
+import type { ComponentRendererProps } from "../types";
+import { childSurface, stringProp } from "../shared";
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_TIMEOUT_MS = 5_000;
