@@ -596,6 +596,7 @@ describe("renderer fixture interactions", () => {
     await active.waitForTimeout(500);
     await active.getByRole("tab", { name: "Item 4", exact: true }).click();
     await active.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
+    expect(await active.locator('[data-node-id="command"] [data-component-drag-header]').count()).toBe(1);
     expect(await commandModuleRequested()).toBe(true);
     await active.getByRole("button", { name: "Open terminal", exact: true }).click();
     await active.locator(".command__terminal .xterm").waitFor();
