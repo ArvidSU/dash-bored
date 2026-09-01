@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
+import "./env.css";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import {
