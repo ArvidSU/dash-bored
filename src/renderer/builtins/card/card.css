@@ -1,0 +1,31 @@
+.card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 2%);
+}
+
+.card__header {
+  padding: 15px 17px 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card__header h2 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+}
+
+.card__header p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.card__body {
+  padding: 17px;
+}
+

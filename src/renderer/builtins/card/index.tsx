@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "./card.css";
 import type { ComponentRendererProps } from "../types";
 import { childSurface, stringProp } from "../shared";
 
