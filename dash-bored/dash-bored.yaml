@@ -214,7 +214,7 @@ root:
                                           done: false
                                           tags:
                                             - feature
-                                        - description: Pick up and hover with component to drill down on target. I.e. Hover over Card to drop component into card.
+                                        - description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
                                           done: false
                                           tags:
                                             - Improvement

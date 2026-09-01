@@ -4249,6 +4249,11 @@ img.sidebar__project-icon {
   gap: 0.45rem;
 }
 
+.todo__form label {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
 .todo__filter select,
 .todo__form input {
   min-width: 0;
@@ -4258,6 +4263,10 @@ img.sidebar__project-icon {
   color: var(--text);
   background: var(--surface-raised);
   font: inherit;
+}
+
+.todo__form input {
+  width: 100%;
 }
 
 .todo__list {
@@ -4368,10 +4377,11 @@ img.sidebar__project-icon {
 
 .todo__edit-input--description {
   flex: 1 1 auto;
+  width: 100%;
 }
 
 .todo__edit-input--tags {
-  width: 12rem;
+  width: min(100%, 18rem);
 }
 
 .todo button.todo__description-edit,
@@ -4531,6 +4541,21 @@ img.sidebar__project-icon {
     width: 100%;
   }
 
+  .todo__form {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .todo__form label,
+  .todo__form > button {
+    flex-basis: 100%;
+  }
+
+  .todo__form label {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .todo__item-side {
     align-items: center;
     padding-left: 1.55rem;
@@ -4543,7 +4568,7 @@ img.sidebar__project-icon {
   }
 
   .todo__edit-input--tags {
-    width: min(100%, 12rem);
+    width: min(100%, 18rem);
   }
 
   .command > .button,
