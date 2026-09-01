@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { stringProp } from "../shared";
 import {
   CHART_COLORS,
   limitChartData,
@@ -8,7 +8,7 @@ import {
   type ChartData,
   type ChartSeries,
   type ChartValue,
-} from "../chart-data";
+} from "../../chart-data";
 
 export type ChartType = "line" | "bar";
 
@@ -269,4 +269,3 @@ export default function Chart({ props }: ComponentRendererProps): ReactNode {
     />
   );
 }
-
