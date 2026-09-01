@@ -3,7 +3,7 @@ todos:
     done: false
     tags: ["dogfood","ui"]
   - description: "Mark an item complete"
-    done: true
+    done: false
     tags: ["dogfood"]
   - description: "Editable sweet again, lol"
     done: true

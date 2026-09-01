@@ -358,7 +358,7 @@ function createLocalHost(
   actionRegistry: ActionRegistry,
   actionScope: string,
   trusted: boolean,
-  processes: ReadonlyMap<string, ProcessSnapshot>,
+  processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
 ): LocalComponentHost {
   const permissions = new Set(node.manifest?.permissions ?? []);
   const actionOwner = {
@@ -413,7 +413,7 @@ function createLocalHost(
   if (permissions.has("process:execute") || permissions.has("process:observe")) {
     componentHost.processes = {
       get(nodeId = node.id) {
-        return processes.get(nodeId);
+        return processesRef.current.get(nodeId);
       },
       ...(permissions.has("process:execute")
         ? {
@@ -1060,7 +1060,12 @@ function ComponentFrame({
 interface NodeRendererProps {
   node: ResolvedComponentNode;
   trusted: boolean;
-  processes: ReadonlyMap<string, ProcessSnapshot>;
+  /**
+   * Stays stable while process output arrives, so unrelated local-component
+   * effects do not restart for every terminal log update. `get()` still reads
+   * the current process snapshot through this ref.
+   */
+  processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>;
   localComponents: ReadonlyMap<string, LoadedLocalComponent>;
   actionRegistry: ActionRegistry;
   actionScope: string;
@@ -1111,7 +1116,7 @@ function ComponentUpdatePolish({
 function NodeRenderer({
   node,
   trusted,
-  processes,
+  processesRef,
   localComponents,
   actionRegistry,
   actionScope,
@@ -1130,8 +1135,8 @@ function NodeRenderer({
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const localHost = useMemo(
-    () => createLocalHost(node, actionRegistry, actionScope, trusted, processes),
-    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processes, trusted],
+    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef),
+    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted],
   );
   useEffect(
     () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
@@ -1154,7 +1159,7 @@ function NodeRenderer({
             key={child.id}
             node={child}
             trusted={trusted}
-            processes={processes}
+            processesRef={processesRef}
             localComponents={localComponents}
             actionRegistry={actionRegistry}
             actionScope={actionScope}
@@ -1924,6 +1929,8 @@ export function App(): ReactNode {
     () => new Map(snapshot?.processes.map((process) => [process.id, process]) ?? []),
     [snapshot?.processes],
   );
+  const processesRef = useRef<ReadonlyMap<string, ProcessSnapshot>>(processes);
+  processesRef.current = processes;
 
   async function perform(name: string, action: () => Promise<unknown>): Promise<void> {
     setPendingAction(name);
@@ -3288,7 +3295,7 @@ export function App(): ReactNode {
                     <NodeRenderer
                       node={visibleVirtualRoot?.node ?? snapshot.tree}
                       trusted={snapshot.trusted}
-                      processes={processes}
+                      processesRef={processesRef}
                       localComponents={localComponents}
                       actionRegistry={actionRegistry}
                       actionScope={actionScope}

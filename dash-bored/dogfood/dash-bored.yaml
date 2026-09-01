@@ -16,21 +16,14 @@ root:
             id: dogfood-notes
             component: "@dash-bored/markdown"
             props:
-              content: >
+              content: |
                 # Feature sandbox
 
-
-                This standalone bundle is linked from the main cockpit. It
-                proves that a
-
-                dashboard can be composed as a component while keeping its own
-                config,
-
+                This standalone bundle is linked from the main cockpit. It proves that a
+                dashboard can be composed as a component while keeping its own config,
                 lock file, and component directory.
 
-
-                Focus this panel and edit it to exercise bundle-local structural
-                editing.
+                Focus this panel and edit it to exercise bundle-local structural editing.
       second:
         type: split
         axis: vertical
@@ -43,8 +36,7 @@ root:
               component: "@dash-bored/card"
               props:
                 title: Runtime layout controls
-                description: Keep large component trees compact without changing dashboard
-                  configuration.
+                description: Keep large component trees compact without changing dashboard configuration.
               children:
                 type: tiled
                 layout:
@@ -54,22 +46,12 @@ root:
                       id: dogfood-runtime-controls
                       component: "@dash-bored/markdown"
                       props:
-                        content: >
-                          Right-click any component, or open its three-dot menu,
-                          to
-
-                          collapse or expand it. Collapsed components keep a
-                          compact
-
-                          name and expand action; their rendered body is
-                          temporarily
-
-                          unmounted so nested polling and embedded surfaces stay
-                          out
-
-                          of the way. Focus expands a component before making it
-                          the
-
+                        content: |
+                          Right-click any component, or open its three-dot menu, to
+                          collapse or expand it. Collapsed components keep a compact
+                          name and expand action; their rendered body is temporarily
+                          unmounted so nested polling and embedded surfaces stay out
+                          of the way. Focus expands a component before making it the
                           temporary dashboard root.
         second:
           type: split
@@ -79,45 +61,34 @@ root:
             type: child
             child:
               node:
-                id: dogfood-static-chart-card
-                component: "@dash-bored/card"
+                id: dogfood-static-chart
+                component: "@dash-bored/chart"
                 props:
-                  title: Static chart
-                  description: A multi-series chart declared entirely in dashboard YAML.
-                children:
-                  type: tiled
-                  layout:
-                    type: child
-                    child:
-                      node:
-                        id: dogfood-static-chart
-                        component: "@dash-bored/chart"
-                        props:
-                          title: Weekly workflow throughput
-                          type: bar
-                          labels:
-                            - Mon
-                            - Tue
-                            - Wed
-                            - Thu
-                            - Fri
-                          series:
-                            - label: Checks passed
-                              color: "#70e2a0"
-                              values:
-                                - 18
-                                - 24
-                                - 21
-                                - 29
-                                - 34
-                            - label: Checks skipped
-                              color: "#f4c66b"
-                              values:
-                                - 4
-                                - 3
-                                - 5
-                                - 2
-                                - 1
+                  title: Weekly workflow throughput
+                  type: bar
+                  labels:
+                    - Mon
+                    - Tue
+                    - Wed
+                    - Thu
+                    - Fri
+                  series:
+                    - label: Checks passed
+                      color: "#70e2a0"
+                      values:
+                        - 18
+                        - 24
+                        - 21
+                        - 29
+                        - 34
+                    - label: Checks skipped
+                      color: "#f4c66b"
+                      values:
+                        - 4
+                        - 3
+                        - 5
+                        - 2
+                        - 1
           second:
             type: split
             axis: vertical
@@ -126,25 +97,13 @@ root:
               type: child
               child:
                 node:
-                  id: dogfood-live-chart-card
-                  component: "@dash-bored/card"
+                  id: dogfood-live-chart
+                  component: "@dash-bored/live-chart"
                   props:
-                    title: Live chart
-                    description: Polls a local JSON endpoint every four seconds and pauses in hidden
-                      tabs.
-                  children:
-                    type: tiled
-                    layout:
-                      type: child
-                      child:
-                        node:
-                          id: dogfood-live-chart
-                          component: "@dash-bored/live-chart"
-                          props:
-                            title: Renderer activity sample
-                            endpoint: /dash-bored-chart-fixture.json
-                            pollIntervalMs: 4000
-                            maxPoints: 30
+                    title: Renderer activity sample
+                    endpoint: /dash-bored-chart-fixture.json
+                    pollIntervalMs: 4000
+                    maxPoints: 30
             second:
               type: split
               axis: vertical

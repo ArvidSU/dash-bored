@@ -1,6 +1,7 @@
 import Ajv, { type ErrorObject } from "ajv";
 import type {
   AppSettings,
+  CompiledLocalComponent,
   ComponentAgentLaunch,
   ComponentAgentRequest,
   ComponentCatalogItem,
@@ -103,8 +104,17 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, {
       }, {
         type: "tiled",
         layout: {
-          type: "child",
-          child: { node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status") },
+          type: "split",
+          axis: "vertical",
+          ratio: 0.5,
+          first: {
+            type: "child",
+            child: { node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status") },
+          },
+          second: {
+            type: "child",
+            child: { node: builtin("local-host-stability", {}, undefined, "./components/host-stability") },
+          },
         },
       }, "@dash-bored/card"),
     },
@@ -163,6 +173,36 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
     } : {}),
   },
 }));
+
+catalog.push({
+  reference: "./components/host-stability",
+  source: "local",
+  available: true,
+  diagnostics: [],
+  manifest: {
+    schemaVersion: 2,
+    id: "host-stability",
+    name: "Host stability fixture",
+    description: "Verifies process updates do not restart unrelated local-component effects.",
+    entry: "./index.tsx",
+    propsSchema: { type: "object", additionalProperties: false },
+  },
+});
+
+const hostStabilityComponent: CompiledLocalComponent = {
+  componentId: "host-stability",
+  revision: "fixture-host-stability-1",
+  javascript: `
+    const runtime = globalThis.__DASH_BORED_COMPONENT_RUNTIME__;
+    const { createElement, defineComponent, useEffect, useState } = runtime;
+    export default defineComponent(({ host }) => {
+      const [effectRuns, setEffectRuns] = useState(0);
+      useEffect(() => { setEffectRuns((runs) => runs + 1); }, [host]);
+      return createElement("p", { "data-testid": "local-host-effect-runs" }, "Host effects " + effectRuns);
+    });
+  `,
+  css: "",
+};
 
 function fixtureDiagnostic(code: string, message: string, path?: string): Diagnostic {
   return { severity: "error", code, message, ...(path === undefined ? {} : { path }) };
@@ -262,7 +302,7 @@ function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedCompone
     id: node.id ?? path,
     component: node.component,
     props: structuredClone(node.props ?? {}),
-    source: "builtin",
+    source: item?.source ?? "builtin",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: path,
     ...(item?.manifest ? { manifest: structuredClone(item.manifest) } : {}),
@@ -309,7 +349,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     trusted: true,
     requestedPermissions: validateFixtureDraft(persistedConfig).requestedPermissions,
     tree: resolveFixtureNode(persistedConfig.root),
-    components: [],
+    components: [hostStabilityComponent],
     processes: [],
     diagnostics: [],
     revision: snapshotRevision,

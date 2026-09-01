@@ -512,6 +512,25 @@ describe("renderer fixture interactions", () => {
     await active.locator(".command__terminal .xterm").waitFor();
   }, 20_000);
 
+  test("terminal process updates do not restart unrelated custom component effects", async () => {
+    const active = currentPage();
+    await active.getByRole("tab", { name: "Boundary", exact: true }).click();
+    const effectRuns = active.getByTestId("local-host-effect-runs");
+    await effectRuns.waitFor();
+    await active.waitForTimeout(100);
+    const beforeProcessUpdate = await effectRuns.textContent();
+    expect(beforeProcessUpdate).toMatch(/^Host effects [1-9][0-9]*$/);
+
+    await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.openProcessTerminal("terminal-stream");
+    });
+
+    await active.waitForTimeout(100);
+    expect(await effectRuns.textContent()).toBe(beforeProcessUpdate);
+  }, 20_000);
+
   test("lazy-loads the Markdown renderer only when it is inserted", async () => {
     const active = currentPage();
     const markdownModuleRequested = async (): Promise<boolean> => active.evaluate(() =>
