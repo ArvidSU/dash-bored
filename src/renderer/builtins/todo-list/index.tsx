@@ -5,14 +5,14 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { LocalComponentHost } from "../../shared/contracts";
+import type { LocalComponentHost } from "../../../shared/contracts";
 import {
   filterTodos,
   sortTodos,
   todoItemsFromProps,
   todoTags,
-} from "../todo";
-import type { TodoItem } from "../todo";
+} from "../../todo";
+import type { TodoItem } from "../../todo";
 
 interface TodoListProps {
   props: Record<string, unknown>;
