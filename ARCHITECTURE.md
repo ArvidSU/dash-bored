@@ -821,9 +821,11 @@ examples, not privileged component types:
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
   unrecognized lines; writes are bounded, project-contained, and atomic.
-- `@dash-bored/todo-list` edits a small project-owned YAML list containing only
-  descriptions, boolean completion state, and tags. It sorts open items first,
-  filters by tag, and supports adding, removing, and inline editing items.
+- `@dash-bored/todo-list` edits its `todos` prop in the owning
+  `dash-bored.yaml`, containing only descriptions, boolean completion state,
+  and tags. It sorts open items first, filters by tag, and supports adding,
+  removing, and inline editing items without reloading the component. Its
+  interactions use the normal draft Save/Cancel boundary.
 - `@dash-bored/webview` embeds a sandboxed application page. Native child
   webviews are initialized only while their tab is visible and are explicitly
   hidden while an already-initialized tab is inactive; the native surface is an
@@ -834,6 +836,9 @@ Every rendered node exposes a keyboard-accessible context menu, also available
 through right-click. It contains Focus, Edit component, Collapse or Expand
 component, Copy component path, and Change with agent. Edit component opens the
 same schema-driven props and child-metadata dialog used by composition editing.
+Components may also replace only their own declared props through the generic
+dashboard host. That change begins or updates the owning dashboard draft; it
+never reloads the project or bypasses Save/Cancel.
 The popover is rendered in a document-level fixed overlay with viewport
 clamping, so isolated or overflowing component frames cannot paint over it.
 Focusing a node makes it a virtual root

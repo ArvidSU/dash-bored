@@ -103,18 +103,29 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, {
         description: "This fixture proves renderer behavior only. Webview overlays, desktop chrome, and native pointer injection require the exact Electrobun app check.",
       }, {
         type: "tiled",
-        layout: {
-          type: "split",
-          axis: "vertical",
-          ratio: 0.5,
+          layout: {
+            type: "split",
+            axis: "vertical",
+            ratio: 0.5,
           first: {
             type: "child",
-            child: { node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status") },
+            child: { node: builtin("renderer-proof-todos", {
+              todos: [{ description: "Keep this surface mounted", done: false, tags: ["fixture"] }],
+            }, undefined, "@dash-bored/todo-list") },
           },
-          second: {
-            type: "child",
-            child: { node: builtin("local-host-stability", {}, undefined, "./components/host-stability") },
-          },
+            second: {
+              type: "split",
+              axis: "vertical",
+              ratio: 0.5,
+              first: {
+                type: "child",
+                child: { node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status") },
+              },
+              second: {
+                type: "child",
+                child: { node: builtin("local-host-stability", {}, undefined, "./components/host-stability") },
+              },
+            },
         },
       }, "@dash-bored/card"),
     },
@@ -131,7 +142,7 @@ const initialConfig: DashboardConfig = {
   },
 };
 
-const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "status", "text", "command"].map((name) => ({
+const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "status", "text", "command", "todo-list"].map((name) => ({
   reference: `@dash-bored/${name}`,
   source: "builtin" as const,
   available: true,
@@ -154,7 +165,28 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
             ? { type: "object", additionalProperties: false, properties: { defaultTab: { type: "integer", minimum: 0 } } }
             : name === "command"
               ? { type: "object", additionalProperties: false, properties: { label: { type: "string" }, command: { type: "string", minLength: 1 } }, required: ["command"] }
-            : { type: "object", additionalProperties: false },
+              : name === "todo-list"
+                ? {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      todos: {
+                        type: "array",
+                        maxItems: 500,
+                        items: {
+                          type: "object",
+                          additionalProperties: false,
+                          properties: {
+                            description: { type: "string", minLength: 1 },
+                            done: { type: "boolean" },
+                            tags: { type: "array", maxItems: 32, items: { type: "string", minLength: 1 } },
+                          },
+                          required: ["description", "done", "tags"],
+                        },
+                      },
+                    },
+                  }
+              : { type: "object", additionalProperties: false },
     ...(name === "tabs" ? {
       children: {
         min: 1,

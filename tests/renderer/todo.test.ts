@@ -1,44 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import {
   filterTodos,
-  parseTodoYaml,
-  serializeTodoYaml,
   sortTodos,
+  todoItemsFromProps,
   todoTags,
 } from "../../src/renderer/todo";
 
-describe("YAML todo state", () => {
-  test("round-trips only description, done, and tags", () => {
-    const items = [
-      { description: "Quote \"docs\"", done: false, tags: ["docs", "release"] },
+describe("dashboard YAML todo state", () => {
+  test("reads only complete todo values from component props", () => {
+    expect(todoItemsFromProps([
+      { description: "Review dashboard YAML", done: false, tags: ["docs", "docs"] },
       { description: "Ship it", done: true, tags: [] },
-    ];
-
-    const source = serializeTodoYaml(items);
-    expect(source).toBe(
-      'todos:\n  - description: "Quote \\"docs\\""\n    done: false\n    tags: ["docs","release"]\n  - description: "Ship it"\n    done: true\n    tags: []\n',
-    );
-    expect(parseTodoYaml(source)).toEqual(items);
-  });
-
-  test("accepts block tag lists and defaults omitted optional fields", () => {
-    expect(parseTodoYaml(`
-todos:
-  - description: Review YAML
-    done: false
-    tags:
-      - docs
-      - docs
-  - description: "No tags"
-`)).toEqual([
-      { description: "Review YAML", done: false, tags: ["docs"] },
-      { description: "No tags", done: false, tags: [] },
+      { description: "Missing tags", done: false },
+      { description: "", done: false, tags: [] },
+    ])).toEqual([
+      { description: "Review dashboard YAML", done: false, tags: ["docs"] },
+      { description: "Ship it", done: true, tags: [] },
     ]);
-  });
-
-  test("rejects fields outside the small todo model and invalid status values", () => {
-    expect(() => parseTodoYaml(`todos:\n  - description: Task\n    id: hidden\n`)).toThrow("unsupported field");
-    expect(() => parseTodoYaml(`todos:\n  - description: Task\n    done: yes\n`)).toThrow("must be true or false");
   });
 
   test("sorts incomplete items first while preserving order within each status", () => {

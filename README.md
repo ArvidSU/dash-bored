@@ -371,11 +371,11 @@ project trust because the component requests both `filesystem:read` and
 `filesystem:write`; comments, blank lines, and unrecognized lines remain in
 place when editing through the key-value view.
 
-`@dash-bored/todo-list` takes a relative YAML `path` prop. Its document stores
-only `description`, `done`, and `tags` for each item; the component provides
-status sorting, tag filtering, add/remove actions, and inline description/tag
-editing. Saving requires project trust because it requests both filesystem
-capabilities.
+`@dash-bored/todo-list` stores its `todos` array directly in the component's
+dashboard YAML props. Each item contains only `description`, `done`, and
+`tags`; the component provides status sorting, tag filtering, add/remove
+actions, and inline description/tag editing. Interactions update the normal
+dashboard draft, so Save or Cancel remains the persistence boundary.
 
 Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
 static line or bar data from YAML, while `@dash-bored/live-chart` polls an HTTP

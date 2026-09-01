@@ -8,9 +8,8 @@ import type { ReactNode } from "react";
 import type { LocalComponentHost } from "../../shared/contracts";
 import {
   filterTodos,
-  parseTodoYaml,
-  serializeTodoYaml,
   sortTodos,
+  todoItemsFromProps,
   todoTags,
 } from "../todo";
 import type { TodoItem } from "../todo";
@@ -31,84 +30,34 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function isMissingFileError(message: string): boolean {
-  return /ENOENT|FILE_NOT_FOUND|PATH_NOT_FOUND|Path does not exist/i.test(message);
-}
-
-function stringProp(props: Record<string, unknown>, name: string): string {
-  return typeof props[name] === "string" ? props[name] as string : "";
-}
-
 function tagsFromInput(value: string): string[] {
   return [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))];
 }
 
-function TodoCapabilityGate(): ReactNode {
-  return (
-    <div className="component-state component-state--locked">
-      <span className="component-state__icon" aria-hidden="true">◇</span>
-      <strong>YAML todo list</strong>
-      <span>Trust this project to read and write the todo YAML file.</span>
-    </div>
-  );
-}
-
 export function TodoList({ props, host }: TodoListProps): ReactNode {
-  const filesystem = host.filesystem;
-  const path = stringProp(props, "path");
-  const [items, setItems] = useState<TodoItem[]>([]);
+  const configuredItems = todoItemsFromProps(props.todos);
+  const configuredItemsKey = JSON.stringify(configuredItems);
+  const [items, setItems] = useState<TodoItem[]>(configuredItems);
   const [filterTag, setFilterTag] = useState("");
   const [description, setDescription] = useState("");
   const [newTags, setNewTags] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [missing, setMissing] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editValue, setEditValue] = useState("");
   const editActionRef = useRef<"idle" | "committing" | "cancelled">("idle");
 
-  const refresh = useCallback(async (): Promise<void> => {
-    if (!filesystem || path === "") {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setMissing(false);
-    try {
-      const source = await filesystem.readText(path);
-      setItems(parseTodoYaml(source));
-      setLoaded(true);
-    } catch (cause) {
-      const message = errorMessage(cause);
-      setLoaded(false);
-      setMissing(isMissingFileError(message));
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [filesystem, path]);
-
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (!saving) setItems(configuredItems);
+  }, [configuredItemsKey, saving]);
 
   const persist = useCallback(async (nextItems: TodoItem[]): Promise<boolean> => {
-    if (!filesystem?.writeText || path === "") {
-      setError("Trust this project and configure a YAML path before editing the todo list.");
-      return false;
-    }
     setSaving(true);
     setError(null);
+    setItems(nextItems);
     try {
-      await filesystem.writeText(path, serializeTodoYaml(nextItems));
-      setItems(nextItems);
-      setLoaded(true);
-      setMissing(false);
-      await host.dashboard.reload();
+      await host.dashboard.updateProps({ ...props, todos: nextItems });
       return true;
     } catch (cause) {
       setError(errorMessage(cause));
@@ -116,7 +65,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
     } finally {
       setSaving(false);
     }
-  }, [filesystem, host.dashboard, path]);
+  }, [host.dashboard, props]);
 
   const addTodo = async (): Promise<void> => {
     const nextDescription = description.trim();
@@ -151,7 +100,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
     void persist(items.filter((_, candidateIndex) => candidateIndex !== index));
   };
 
-  const canWrite = Boolean(filesystem?.writeText) && path !== "" && (loaded || missing) && !saving;
+  const canWrite = !saving;
 
   const beginEdit = (index: number, field: EditField): void => {
     if (!canWrite) return;
@@ -208,15 +157,6 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
   const visibleItems = sortTodos(filterTodos(items, filterTag));
   const openCount = items.filter((item) => !item.done).length;
 
-  if (!filesystem?.writeText) return <TodoCapabilityGate />;
-  if (path === "") {
-    return (
-      <div className="component-state component-state--error" role="alert">
-        Configure a relative YAML file path for the todo list.
-      </div>
-    );
-  }
-
   return (
     <section className="todo" aria-label="YAML todo list">
       <header className="todo__header">
@@ -233,17 +173,13 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
         </label>
       </header>
 
-      {loading ? <p className="todo__message">Reading {path}…</p> : null}
       {error ? (
         <div className="todo__error" role="alert">
           <p>{error}</p>
-          <p>{missing
-            ? "Add an item below to create the YAML list."
-            : <>Create or repair the file with <code>todos: []</code> before editing this list.</>}</p>
         </div>
       ) : null}
 
-      {!loading && !error ? (
+      {!error ? (
         visibleItems.length ? (
           <div className="todo__list" role="list" aria-label="Todos">
             {visibleItems.map((item) => {
@@ -379,4 +315,3 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
     </section>
   );
 }
-

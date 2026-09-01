@@ -183,7 +183,7 @@ root:
                             component: "@dash-bored/card"
                             props:
                               title: YAML todo list
-                              description: A small stateful component whose items live in dash-bored/todos.yaml.
+                              description: A small stateful component whose items live with its configuration.
                             children:
                               type: tiled
                               layout:
@@ -193,7 +193,19 @@ root:
                                     id: yaml-todo
                                     component: "@dash-bored/todo-list"
                                     props:
-                                      path: dash-bored/todos.yaml
+                                      todos:
+                                        - description: Add a better agent interface with user feedback and control
+                                          done: false
+                                          tags:
+                                            - improvement
+                                        - description: Keyboard shortcut editor, in settings, tied in with command pallet actions
+                                          done: false
+                                          tags:
+                                            - feature
+                                        - description: Theme and styling as component?
+                                          done: false
+                                          tags:
+                                            - feature
                       second:
                         type: child
                         child:

@@ -407,7 +407,11 @@ export interface ComponentAction {
 }
 
 export interface LocalComponentHost {
-  dashboard: { reload(): Promise<void> };
+  dashboard: {
+    reload(): Promise<void>;
+    /** Replaces this component's props in the owning dashboard draft. */
+    updateProps(props: Record<string, unknown>): Promise<void>;
+  };
   actions: { register(action: ComponentAction): () => void };
   filesystem?: {
     readText(path: string): Promise<string>;

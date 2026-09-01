@@ -8,6 +8,14 @@ const objectSchema = (properties: Record<string, unknown>, required: string[] = 
 });
 
 const string = { type: "string", minLength: 1 } as const;
+const todoItemSchema = objectSchema(
+  {
+    description: string,
+    done: { type: "boolean" },
+    tags: { type: "array", maxItems: 32, items: string },
+  },
+  ["description", "done", "tags"],
+);
 const chartSeriesSchema = objectSchema(
   {
     label: string,
@@ -193,10 +201,11 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/todo-list",
     name: "YAML todo list",
-    description: "Keeps a small todo list in a project-owned YAML file.",
+    description: "Keeps a small todo list in this component's dashboard YAML props.",
     entry: "builtin:todo-list",
-    propsSchema: objectSchema({ path: string }, ["path"]),
-    permissions: ["filesystem:read", "filesystem:write"],
+    propsSchema: objectSchema({
+      todos: { type: "array", maxItems: 500, items: todoItemSchema },
+    }),
   },
   {
     schemaVersion: 2,

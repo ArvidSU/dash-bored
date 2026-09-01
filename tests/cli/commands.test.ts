@@ -233,8 +233,8 @@ describe("dash-bored command arguments", () => {
       (item: { reference: string }) => item.reference === "@dash-bored/todo-list",
     );
     expect(todoList.available).toBeTrue();
-    expect(todoList.manifest.propsSchema.required).toEqual(["path"]);
-    expect(todoList.manifest.permissions).toEqual(["filesystem:read", "filesystem:write"]);
+    expect(todoList.manifest.propsSchema.properties.todos.items.required).toEqual(["description", "done", "tags"]);
+    expect(todoList.manifest.permissions).toBeUndefined();
     const group = result.componentCatalog.find(
       (item: { reference: string }) => item.reference === "@dash-bored/group",
     );

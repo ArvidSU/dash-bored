@@ -100,6 +100,7 @@ import {
   nodePathFromSourcePath,
   nodePathById,
   removeNode,
+  updateNodeProps,
   updateTiledSplitRatio,
   type InsertionTarget,
   type NodePath,
@@ -359,6 +360,7 @@ function createLocalHost(
   actionScope: string,
   trusted: boolean,
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
+  onUpdateProps: (node: ResolvedComponentNode, props: Record<string, unknown>) => Promise<void>,
 ): LocalComponentHost {
   const permissions = new Set(node.manifest?.permissions ?? []);
   const actionOwner = {
@@ -370,6 +372,9 @@ function createLocalHost(
     dashboard: {
       async reload(): Promise<void> {
         await host.reloadProject();
+      },
+      updateProps(props): Promise<void> {
+        return onUpdateProps(node, props);
       },
     },
     actions: {
@@ -1086,6 +1091,7 @@ interface NodeRendererProps {
   onCopyPath: (node: ResolvedComponentNode) => void;
   onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
+  onUpdateProps: (node: ResolvedComponentNode, props: Record<string, unknown>) => Promise<void>;
   isVirtualRoot?: boolean;
 }
 
@@ -1131,12 +1137,13 @@ function NodeRenderer({
   onCopyPath,
   onEditComponent,
   onOpenAgent,
+  onUpdateProps,
   isVirtualRoot = false,
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const localHost = useMemo(
-    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef),
-    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted],
+    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, onUpdateProps),
+    [actionRegistry, actionScope, node.id, node.manifest?.name, onUpdateProps, permissionsKey, processesRef, trusted],
   );
   useEffect(
     () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
@@ -1174,6 +1181,7 @@ function NodeRenderer({
             onCopyPath={onCopyPath}
             onEditComponent={onEditComponent}
             onOpenAgent={onOpenAgent}
+            onUpdateProps={onUpdateProps}
           />
         ),
       });
@@ -1780,6 +1788,10 @@ export function App(): ReactNode {
   } = compositionInteraction;
   const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
   const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
+  const snapshotRef = useRef<ProjectSnapshot | null>(null);
+  const editSessionRef = useRef<DashboardEditSession | null>(null);
+  snapshotRef.current = snapshot;
+  editSessionRef.current = editSession;
   const [savingDraft, setSavingDraft] = useState(false);
   const [discardConfirmation, setDiscardConfirmation] = useState<{
     message: string;
@@ -2181,6 +2193,45 @@ export function App(): ReactNode {
     });
     return loaded;
   }
+
+  const updateComponentProps = useCallback(async (
+    node: ResolvedComponentNode,
+    props: Record<string, unknown>,
+  ): Promise<void> => {
+    const currentSnapshot = snapshotRef.current;
+    const currentSession = editSessionRef.current;
+    const configPath = node.sourceConfigPath;
+    const path = node.sourcePath ? nodePathFromSourcePath(node.sourcePath) : null;
+    if (!currentSnapshot?.projectRoot || !configPath || !path) {
+      throw new Error("This component cannot locate its owning dashboard configuration.");
+    }
+    if (currentSession && currentSession.configPath !== configPath) {
+      throw new Error("Finish the current dashboard draft before editing another dashboard component.");
+    }
+
+    let session = currentSession;
+    if (!session) {
+      const source = await host.getDashboardConfigSource(configPath);
+      const validation = await host.validateDashboardDraft(source.config, source.configPath);
+      session = {
+        projectRoot: currentSnapshot.projectRoot,
+        configPath: source.configPath,
+        componentCatalog: source.componentCatalog,
+        original: structuredClone(source.config),
+        draft: structuredClone(source.config),
+        expectedConfigRevision: source.configRevision,
+        validation,
+      };
+      editSessionRef.current = session;
+      setActiveView("dashboard");
+      setEditSession(session);
+    }
+
+    const next = updateNodeProps(session.draft, path, props);
+    const updated = { ...session, draft: next };
+    editSessionRef.current = updated;
+    setEditSession((current) => current && current.configPath === session!.configPath ? updated : current);
+  }, []);
 
   function cancelDashboardEdit(): void {
     if (!editSession) return;
@@ -3310,6 +3361,7 @@ export function App(): ReactNode {
                       onCopyPath={(node) => void copyComponentPath(node)}
                       onEditComponent={(node) => void editCompositionNode(node)}
                       onOpenAgent={setAgentDialog}
+                      onUpdateProps={updateComponentProps}
                       isVirtualRoot
                     />
                   </CompositionContext.Provider>

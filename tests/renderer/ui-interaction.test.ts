@@ -72,6 +72,37 @@ async function persistedTextCount(): Promise<number> {
   });
 }
 
+async function persistedTodoDone(): Promise<boolean | undefined> {
+  return await currentPage().evaluate(async () => {
+    const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+    if (!host) throw new Error("UI harness host is unavailable.");
+    const root = (await host.getSnapshot()).config?.root;
+    const visit = (node: { id?: string; props?: { todos?: Array<{ done?: boolean }> }; children?: unknown }): boolean | undefined => {
+      if (node.id === "renderer-proof-todos") return node.props?.todos?.[0]?.done;
+      const children = node.children as {
+        type?: string;
+        items?: Array<{ node: typeof node }>;
+        layout?: { type?: string; child?: { node: typeof node }; first?: unknown; second?: unknown };
+      } | undefined;
+      if (!children) return undefined;
+      if (children.type === "managed") {
+        for (const edge of children.items ?? []) {
+          const found = visit(edge.node);
+          if (found !== undefined) return found;
+        }
+        return undefined;
+      }
+      const visitLayout = (layout: NonNullable<typeof children.layout>): boolean | undefined => {
+        if (layout.type === "child" && layout.child) return visit(layout.child.node);
+        return (layout.first ? visitLayout(layout.first as typeof layout) : undefined)
+          ?? (layout.second ? visitLayout(layout.second as typeof layout) : undefined);
+      };
+      return children.type === "tiled" && children.layout ? visitLayout(children.layout) : undefined;
+    };
+    return root ? visit(root) : undefined;
+  });
+}
+
 beforeAll(async () => {
   const executablePath = process.env.DASH_BORED_BROWSER_EXECUTABLE
     ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -552,5 +583,29 @@ describe("renderer fixture interactions", () => {
     await active.getByText("Revision 7", { exact: true }).waitFor();
     await active.locator(".markdown").filter({ hasText: "Deferred Markdown" }).waitFor();
     expect(await markdownModuleRequested()).toBe(true);
+  }, 20_000);
+
+  test("todo interactions retain the mounted surface and use the dashboard draft", async () => {
+    const active = currentPage();
+    const boundaryTab = active.getByRole("tab", { name: "Boundary", exact: true });
+    await boundaryTab.click({ force: true });
+    expect(await boundaryTab.getAttribute("aria-selected")).toBe("true");
+    const todo = active.getByRole("region", { name: "YAML todo list" });
+    await todo.evaluate((element) => { (element as HTMLElement).dataset.fixtureMounted = "before-toggle"; });
+    const toggle = active.getByRole("checkbox", { name: "Mark complete: Keep this surface mounted" });
+
+    expect(await persistedTodoDone()).toBeFalse();
+    await toggle.scrollIntoViewIfNeeded();
+    await toggle.click();
+
+    await active.getByRole("button", { name: "Save dashboard" }).waitFor();
+    expect(await active.getByRole("checkbox", { name: "Mark incomplete: Keep this surface mounted" }).isChecked()).toBeTrue();
+    expect(await todo.getAttribute("data-fixture-mounted")).toBe("before-toggle");
+    expect(await persistedTodoDone()).toBeFalse();
+
+    await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    await active.getByRole("button", { name: "Discard changes", exact: true }).click();
+    await active.getByRole("checkbox", { name: "Mark complete: Keep this surface mounted" }).waitFor();
+    expect(await persistedTodoDone()).toBeFalse();
   }, 20_000);
 });
