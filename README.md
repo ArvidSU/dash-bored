@@ -80,6 +80,7 @@ Useful repository commands:
 bun run dev             # Vite development renderer + watched Electrobun app
 bun run dev:desktop     # built renderer + watched Electrobun main process
 bun run build:cli       # standalone CLI embedded in desktop builds
+bun run styles:dead     # report app CSS class/ID hooks without source references
 bun run typecheck
 bun test
 bun run build:renderer
@@ -93,6 +94,12 @@ bun run ui:fixture      # isolated renderer fixture at http://127.0.0.1:5488/ui-
 bun run test:renderer-ui # browser-driven pointer and keyboard verification for that fixture
 bun run native:probe    # isolated manual Electrobun webview visibility/dimensions probe
 ```
+
+`styles:dead` scans `src/renderer/styles.css` against runtime source under
+`src/renderer`, including `src/renderer/builtins/**`. It reports class and ID
+hooks with no static reference, while listing state/value-prefixed hooks
+assembled dynamically for manual review. Add `--check` when a non-zero exit
+code is wanted for definitely dead hooks.
 
 ### Visual UI verification
 

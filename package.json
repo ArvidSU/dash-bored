@@ -15,6 +15,7 @@
     "dev": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && concurrently --kill-others-on-fail \"vite --host 127.0.0.1\" \"electrobun dev --watch\"'",
     "dev:desktop": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun dev --watch'",
     "build:cli": "bun ./scripts/build-cli.ts",
+    "styles:dead": "bun ./scripts/find-dead-styles.ts",
     "ui:fixture": "vite --host 127.0.0.1 --port ${DASH_BORED_UI_PORT:-5488} --strictPort",
     "build:renderer": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build'",
     "build": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && vite build && bun run build:cli && electrobun build --env=canary'",

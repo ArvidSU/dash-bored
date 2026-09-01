@@ -637,6 +637,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
     await active.getByText("Revision 7", { exact: true }).waitFor();
+    await active.getByRole("tab", { name: "Item 5", exact: true }).click();
     await active.locator(".markdown").filter({ hasText: "Deferred Markdown" }).waitFor();
     expect(await markdownModuleRequested()).toBe(true);
   }, 20_000);

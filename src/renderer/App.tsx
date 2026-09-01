@@ -384,7 +384,7 @@ function createLocalHost(
   actionScope: string,
   trusted: boolean,
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
-  onUpdateProps: (node: ResolvedComponentNode, props: Record<string, unknown>) => Promise<void>,
+  onUpdateProps: (props: Record<string, unknown>) => Promise<void>,
 ): LocalComponentHost {
   const permissions = new Set(node.manifest?.permissions ?? []);
   const actionOwner = {
@@ -398,7 +398,7 @@ function createLocalHost(
         await host.reloadProject();
       },
       updateProps(props): Promise<void> {
-        return onUpdateProps(node, props);
+        return onUpdateProps(props);
       },
     },
     actions: {
@@ -646,6 +646,7 @@ function ComponentFrame({
     const maximumHeight = measureIntrinsicHeight();
     setIntrinsicHeight(maximumHeight);
     if (delta === "full") {
+      setTransientHeight(null);
       onHeightChange(null);
       return;
     }
@@ -654,7 +655,9 @@ function ComponentFrame({
       ? Math.min(MIN_COMPONENT_HEIGHT_PX, maximumHeight)
       : currentHeight + delta;
     const next = Math.max(Math.min(MIN_COMPONENT_HEIGHT_PX, maximumHeight), Math.min(maximumHeight, requested));
-    onHeightChange(next >= maximumHeight - 1 ? null : Math.round(next));
+    const nextHeight = next >= maximumHeight - 1 ? null : Math.round(next);
+    setTransientHeight(nextHeight);
+    onHeightChange(nextHeight);
   }
 
   useLayoutEffect(() => {
@@ -1165,9 +1168,15 @@ function NodeRenderer({
   isVirtualRoot = false,
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
+  const nodeRef = useRef(node);
+  nodeRef.current = node;
+  const updateProps = useCallback(
+    (props: Record<string, unknown>): Promise<void> => onUpdateProps(nodeRef.current, props),
+    [onUpdateProps],
+  );
   const localHost = useMemo(
-    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, onUpdateProps),
-    [actionRegistry, actionScope, node.id, node.manifest?.name, onUpdateProps, permissionsKey, processesRef, trusted],
+    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, updateProps),
+    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted, updateProps],
   );
   useEffect(
     () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
