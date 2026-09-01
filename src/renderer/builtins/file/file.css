@@ -1,0 +1,21 @@
+.file-viewer {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #090b0f;
+}
+
+.file-viewer__content {
+  min-height: 130px;
+  max-height: 430px;
+  margin: 0;
+  overflow: auto;
+  padding: 13px;
+  color: #cbd3dc;
+  font-size: 10px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre;
+}
+
