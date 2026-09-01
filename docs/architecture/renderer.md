@@ -172,8 +172,13 @@ The header's Components button opens the right-hand library without entering a
 separate mode. The flyout keeps one searchable catalog for packaged and local
 components, offers keyboard insertion and an agent fallback, and supplies
 contextual insertion targets plus full-frame node dragging on the rendered
-composition. A node drag turns the flyout into a dotted 20%-wide trash
-target; dropping there uses the same confirmed removal path as the toolbar.
+composition. Every movable non-root frame supplies a small drag handle and a
+component menu; only the deepest hovered frame reveals those controls, while
+keyboard focus can reveal a focused control independently. Hidden ancestor
+controls do not intercept pointer input, and component content has no drag
+semantics. Custom components do not need special markup.
+A node drag turns the flyout into a dotted 20%-wide trash target; dropping
+there uses the same confirmed removal path as the toolbar.
 Each component frame keeps those choices in one compact Add menu with contextual
 labels such as “Tile left of Project pulse” or “Insert between Overview and
 Configure”; opening the library never renders every possible target across the
@@ -181,7 +186,7 @@ dashboard. During a pointer drag, valid frames receive a quiet readiness outline
 and only the nearest compatible edge under the pointer becomes a filled spatial
 drop target. The source remains in place with a picked-up treatment and the
 target renders a compact component-and-destination preview; neither changes
-layout geometry or becomes a second topology representation. Header gestures
+layout geometry or becomes a second topology representation. Handle gestures
 prevent native text selection before their movement threshold is crossed.
 Keyboard movement, Configure, Remove, root replacement, and both-axis
 separator resizing use the same topology and draft helpers as pointer

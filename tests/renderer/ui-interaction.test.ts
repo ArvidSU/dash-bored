@@ -324,6 +324,30 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTextCount()).toBe(0);
   }, 20_000);
 
+  test("only the deepest hovered component reveals its menu", async () => {
+    const active = currentPage();
+    const card = active.locator('[data-node-id="renderer-proof-card"]');
+    const status = active.locator('[data-node-id="renderer-proof-status"]');
+    const cardMenu = card.locator(":scope > .component-node__menu");
+    const statusMenu = status.locator(":scope > .component-node__menu");
+    const statusBox = await status.boundingBox();
+    const cardHeaderBox = await card.locator("header").first().boundingBox();
+    if (!statusBox || !cardHeaderBox) throw new Error("Nested menu geometry is unavailable.");
+
+    await active.mouse.move(statusBox.x + statusBox.width / 2, statusBox.y + statusBox.height / 2);
+    await active.waitForTimeout(150);
+    expect(await statusMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+    expect(await statusMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
+    expect(await cardMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+    expect(await cardMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
+
+    await active.mouse.move(cardHeaderBox.x + cardHeaderBox.width / 2, cardHeaderBox.y + cardHeaderBox.height / 2);
+    await active.waitForTimeout(150);
+    expect(await cardMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+    expect(await cardMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
+    expect(await statusMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+  });
+
   test("a left click outside the library closes it without beginning a draft", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open component library" }).click();
@@ -420,7 +444,58 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
   }, 20_000);
 
-  test("a component header supports pointer moves without opening the library first", async () => {
+  test("only the deepest hovered component reveals its generated handle", async () => {
+    const active = currentPage();
+    const card = active.locator('[data-node-id="renderer-proof-card"]');
+    const status = active.locator('[data-node-id="renderer-proof-status"]');
+    const cardHandle = card.locator(":scope > [data-composition-drag-handle]");
+    const statusHandle = status.locator(":scope > [data-composition-drag-handle]");
+    const statusBox = await status.boundingBox();
+    const cardHeaderBox = await card.locator("header").first().boundingBox();
+    if (!statusBox || !cardHeaderBox) throw new Error("Nested handle geometry is unavailable.");
+
+    await active.mouse.move(statusBox.x + statusBox.width / 2, statusBox.y + statusBox.height / 2);
+    await active.waitForTimeout(150);
+    expect(await statusHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+    expect(await statusHandle.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
+    expect(await cardHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+    expect(await cardHandle.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
+
+    await active.mouse.move(cardHeaderBox.x + cardHeaderBox.width / 2, cardHeaderBox.y + cardHeaderBox.height / 2);
+    await active.waitForTimeout(150);
+    expect(await cardHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+    expect(await statusHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+  });
+
+  test("generated frame handle moves a component without component-owned drag markup", async () => {
+    const active = currentPage();
+    const source = active.locator('[data-node-id="renderer-proof-status"]');
+    const target = active.locator('[data-node-id="responsive-card"]');
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    if (!sourceBox || !targetBox) throw new Error("Generated handle drag geometry is unavailable.");
+
+    await active.mouse.move(sourceBox.x + 12, sourceBox.y + sourceBox.height / 2);
+    await active.waitForTimeout(150);
+    const handle = source.locator(":scope > [data-composition-drag-handle]");
+    const handleBox = await handle.boundingBox();
+    if (!handleBox) throw new Error("Generated component drag handle is unavailable.");
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await active.mouse.down();
+    await active.mouse.move(targetBox.x + 12, targetBox.y + targetBox.height / 2, { steps: 5 });
+    await target.locator(":scope > .composition-drop-indicator--left").waitFor();
+    expect(await source.getAttribute("data-composition-drag-source")).toBe("true");
+    expect(await active.locator(".composition-drop-indicator").count()).toBe(1);
+    await active.mouse.up();
+
+    await active.getByRole("region", { name: "Dashboard editor" }).waitFor();
+    await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+    await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    await active.getByRole("dialog", { name: "Discard dashboard changes?" }).getByRole("button", { name: "Discard changes", exact: true }).click();
+    await active.getByRole("button", { name: "Open component library" }).waitFor();
+  }, 20_000);
+
+  test("a generated frame handle supports pointer moves without opening the library first", async () => {
     const active = currentPage();
     const beforeMove = await active.evaluate(() => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
@@ -430,12 +505,16 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });
     const source = active.locator('[data-node-id="renderer-proof-card"]');
     const target = active.locator('[data-node-id="responsive-card"]');
-    const dragHeader = source.locator("header").first();
+    const sourceBox = await source.boundingBox();
     const targetBox = await target.boundingBox();
-    const headerBox = await dragHeader.boundingBox();
-    if (!targetBox || !headerBox) throw new Error("Move header geometry is unavailable.");
+    if (!sourceBox || !targetBox) throw new Error("Move handle geometry is unavailable.");
 
-    await active.mouse.move(headerBox.x + headerBox.width / 2, headerBox.y + headerBox.height / 2);
+    await active.mouse.move(sourceBox.x + 12, sourceBox.y + sourceBox.height / 2);
+    await active.waitForTimeout(150);
+    const dragHandle = source.locator(":scope > [data-composition-drag-handle]");
+    const handleBox = await dragHandle.boundingBox();
+    if (!handleBox) throw new Error("Move handle geometry is unavailable.");
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
     await active.mouse.down();
     await active.mouse.move(targetBox.x + 12, targetBox.y + targetBox.height / 2, { steps: 5 });
     await active.waitForTimeout(100);
@@ -471,17 +550,21 @@ describe("renderer fixture interactions", () => {
     })).not.toBe(beforeMove);
   }, 20_000);
 
-  test("dragging a component header to the removal surface opens confirmation", async () => {
+  test("dragging a component handle to the removal surface opens confirmation", async () => {
     const active = currentPage();
     const source = active.locator('[data-node-id="renderer-proof-card"]');
-    const dragHeader = source.locator("header").first();
-    await dragHeader.scrollIntoViewIfNeeded();
-    const headerBox = await dragHeader.boundingBox();
-    if (!headerBox) throw new Error("Removal header geometry is unavailable.");
+    await source.scrollIntoViewIfNeeded();
+    const sourceBox = await source.boundingBox();
+    if (!sourceBox) throw new Error("Removal handle geometry is unavailable.");
 
-    await active.mouse.move(headerBox.x + headerBox.width / 2, headerBox.y + headerBox.height / 2);
+    await active.mouse.move(sourceBox.x + 12, sourceBox.y + sourceBox.height / 2);
+    await active.waitForTimeout(150);
+    const dragHandle = source.locator(":scope > [data-composition-drag-handle]");
+    const handleBox = await dragHandle.boundingBox();
+    if (!handleBox) throw new Error("Removal handle geometry is unavailable.");
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
     await active.mouse.down();
-    await active.mouse.move(headerBox.x + 48, headerBox.y + 12, { steps: 3 });
+    await active.mouse.move(handleBox.x + handleBox.width + 24, handleBox.y + handleBox.height / 2, { steps: 3 });
     const removal = active.locator("[data-composition-removal-target]");
     await removal.waitFor();
     await active.waitForTimeout(250);
@@ -530,18 +613,22 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTextCount()).toBe(2);
   }, 20_000);
 
-  test("confirmed component removal reopens the component library", async () => {
+  test("confirmed component removal from its handle reopens the component library", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open component library" }).click();
 
     const card = active.locator('[data-node-id="renderer-proof-card"]');
-    const dragHeader = card.locator("header").first();
-    await dragHeader.scrollIntoViewIfNeeded();
-    const headerBox = await dragHeader.boundingBox();
-    if (!headerBox) throw new Error("Removal header geometry is unavailable.");
-    await active.mouse.move(headerBox.x + headerBox.width / 2, headerBox.y + headerBox.height / 2);
+    await card.scrollIntoViewIfNeeded();
+    const cardBox = await card.boundingBox();
+    if (!cardBox) throw new Error("Removal handle geometry is unavailable.");
+    await active.mouse.move(cardBox.x + 12, cardBox.y + cardBox.height / 2);
+    await active.waitForTimeout(150);
+    const dragHandle = card.locator(":scope > [data-composition-drag-handle]");
+    const handleBox = await dragHandle.boundingBox();
+    if (!handleBox) throw new Error("Removal handle geometry is unavailable.");
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
     await active.mouse.down();
-    await active.mouse.move(headerBox.x + 48, headerBox.y + 12, { steps: 3 });
+    await active.mouse.move(handleBox.x + handleBox.width + 24, handleBox.y + handleBox.height / 2, { steps: 3 });
     const removal = active.locator("[data-composition-removal-target]");
     await removal.waitFor();
     const removalBox = await removal.boundingBox();
@@ -596,7 +683,7 @@ describe("renderer fixture interactions", () => {
     await active.waitForTimeout(500);
     await active.getByRole("tab", { name: "Item 4", exact: true }).click();
     await active.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
-    expect(await active.locator('[data-node-id="command"] [data-component-drag-header]').count()).toBe(1);
+    expect(await active.locator('[data-node-id="command"] > [data-composition-drag-handle]').count()).toBe(1);
     expect(await commandModuleRequested()).toBe(true);
     await active.getByRole("button", { name: "Open terminal", exact: true }).click();
     await active.locator(".command__terminal .xterm").waitFor();

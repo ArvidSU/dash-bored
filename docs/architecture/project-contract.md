@@ -264,11 +264,16 @@ capture and WebKit mouse-release fallback, and are removed on release, cancel,
 blur, lost capture, replacement, or owner unmount. Gesture-specific commit
 semantics remain local to node movement, library insertion, split resizing, and
 height resizing.
-Dashboard component frames are the native node drag sources rather than a small
-move handle. During a node drag, the open flyout becomes 20% of the viewport
-dotted trash drop target containing only an accessible trash icon. Component
-menus and composition controls are omitted for the duration, and a drop routes
-through the existing confirmed removal and draft mutation path.
+Dashboard component frames render a small drag handle for every movable non-root
+node, so packaged and project-local components are draggable without requiring
+component code to add a handle. Only the deepest hovered frame reveals its
+generated handle and component menu; keyboard focus can reveal a focused
+control independently. Hidden ancestor controls are non-hit-testing, and
+component content has no drag semantics.
+During a node drag, the open flyout becomes 20% of the viewport dotted trash
+drop target containing only an accessible trash icon. Component menus and
+composition controls are omitted for the duration, and a drop routes through
+the existing confirmed removal and draft mutation path.
 
 A horizontal tile branch exposes its core-owned ratio separator. Runtime
 horizontal ratios remain local to the user and keyed by config path and split
@@ -325,4 +330,3 @@ architecture, so any
 non-empty external component entry is reported as unsupported rather than
 silently ignored. This keeps the file format ready for reproducible external
 resolution without pretending that resolution exists today.
-

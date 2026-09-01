@@ -163,7 +163,7 @@ export default function Command({
 
   return (
     <div className="command">
-      <div className="command__content" data-component-drag-header>
+      <div className="command__content">
         <strong>{label}</strong>
         {command ? <code>{command}</code> : null}
         {process && process.phase !== "idle" ? (

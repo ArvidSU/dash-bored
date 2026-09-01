@@ -499,7 +499,7 @@ interface ComponentFrameProps {
   children: ReactNode;
 }
 
-function canStartCompositionHeaderDrag(
+function canStartCompositionDrag(
   event: ReactPointerEvent<HTMLElement>,
   nodeId: string,
 ): boolean {
@@ -510,11 +510,9 @@ function canStartCompositionHeaderDrag(
   // a direct-manipulation gesture, otherwise dragging a nested card would move
   // every ancestor that happens to receive the bubbled pointer event.
   if (target.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId !== nodeId) return false;
-  // A component's own header is its only direct-manipulation affordance. This
-  // keeps normal content (including inputs and live controls) untouched while
-  // avoiding a second editor toolbar around every frame.
-  if (!target.closest("header, h1, h2, h3, [data-component-drag-header]")) return false;
-  return !target.closest("button, a, input, select, textarea, [contenteditable='true'], [role='button'], [role='slider'], [role='tab']");
+  // The frame-owned handle is the only direct-manipulation affordance. Keeping
+  // it explicit means component content and controls remain ordinary UI.
+  return target.closest("[data-composition-drag-handle]") !== null;
 }
 
 function ComponentFrame({
@@ -826,7 +824,7 @@ function ComponentFrame({
 
   return (
     <Element
-      className={`${className}${collapsed ? " component-node--collapsed" : ""}${heightResizable && !collapsed ? " component-node--height-resizable" : ""}${heightCapped ? " component-node--height-capped" : ""}${heightDragging ? " component-node--height-dragging" : ""}${compositionDropZone ? " component-node--drop-ready" : ""}${compositionPath && compositionPath.length > 0 ? " component-node--composition-draggable" : ""}${compositionDragActive ? " component-node--composition-dragging" : ""}${compositionDragSource ? " component-node--composition-drag-source" : ""}`}
+      className={`${className}${collapsed ? " component-node--collapsed" : ""}${heightResizable && !collapsed ? " component-node--height-resizable" : ""}${heightCapped ? " component-node--height-capped" : ""}${heightDragging ? " component-node--height-dragging" : ""}${compositionDropZone ? " component-node--drop-ready" : ""}${compositionDragActive ? " component-node--composition-dragging" : ""}${compositionDragSource ? " component-node--composition-drag-source" : ""}`}
       ref={(element) => { frameRef.current = element; }}
       style={frameStyle}
       data-component={node.component}
@@ -838,12 +836,16 @@ function ComponentFrame({
       aria-live={ariaLive}
       onPointerDown={(event) => {
         if (!composition?.active || composition.dragging !== null || !compositionPath || compositionPath.length === 0) return;
-        if (canStartCompositionHeaderDrag(event, node.id)) {
+        if (canStartCompositionDrag(event, node.id)) {
           // Selection starts on pointerdown, before the movement threshold is
-          // crossed. Suppress that native default now so dragging a header
+          // crossed. Suppress that native default now so dragging a handle
           // never paints a text selection through the dashboard.
           event.preventDefault();
           window.getSelection()?.removeAllRanges();
+          const dragHandle = event.target instanceof globalThis.Element
+            ? event.target.closest<HTMLElement>("[data-composition-drag-handle]")
+            : null;
+          dragHandle?.focus();
           beginCompositionPointerMove(event, compositionPath);
         }
       }}
@@ -905,6 +907,25 @@ function ComponentFrame({
         setOpen(true);
       }}
     >
+      {compositionPath && compositionPath.length > 0 ? (
+        <button
+          className="component-node__drag-handle"
+          type="button"
+          data-composition-drag-handle
+          aria-label={`Drag to move ${name} component`}
+          title={`Drag to move ${name}`}
+          onClick={(event) => event.preventDefault()}
+        >
+          <svg viewBox="0 0 18 8" aria-hidden="true">
+            <circle cx="2" cy="2" r="1.25" />
+            <circle cx="9" cy="2" r="1.25" />
+            <circle cx="16" cy="2" r="1.25" />
+            <circle cx="2" cy="6" r="1.25" />
+            <circle cx="9" cy="6" r="1.25" />
+            <circle cx="16" cy="6" r="1.25" />
+          </svg>
+        </button>
+      ) : null}
       {showComponentMenu ? <div className="component-node__menu" ref={menuRef}>
         <button
           className="component-node__menu-trigger"
@@ -3161,7 +3182,7 @@ export function App(): ReactNode {
     compositionInteraction.clearTarget();
   }
 
-  // Composition is always ready for direct header drags. A drag itself opens
+  // Composition is always ready for direct frame-handle drags. A drag itself opens
   // the flyout and begins a draft only after a valid move or removal.
   const compositionContextValue = compositionConfig && compositionPreviewTree
     ? {

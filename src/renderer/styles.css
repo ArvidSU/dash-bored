@@ -2248,21 +2248,63 @@ img.sidebar__project-icon {
   user-select: none;
 }
 
-.component-node--composition-draggable :is(header, h1, h2, h3, [data-component-drag-header]) {
+.component-node__drag-handle {
+  position: absolute;
+  z-index: 7;
+  top: 5px;
+  left: 50%;
+  display: grid;
+  width: 34px;
+  height: 17px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--faint);
   cursor: grab;
+  background: rgb(16 19 25 / 88%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease, background 120ms ease;
   touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
-.component-node--composition-draggable :is(header, h1, h2, h3, [data-component-drag-header]):active,
-.component-node--composition-dragging :is(header, h1, h2, h3, [data-component-drag-header]) {
+.component-node__drag-handle svg {
+  width: 18px;
+  height: 8px;
+  fill: currentColor;
+}
+
+.component-node:hover:not(:has(.component-node:hover)) > .component-node__drag-handle,
+.component-node__drag-handle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.component-node__drag-handle:hover,
+.component-node__drag-handle:focus-visible {
+  border-color: rgb(151 163 180 / 45%);
+  color: var(--text);
+  background: rgb(28 32 40 / 96%);
+  outline: none;
+}
+
+.component-node__drag-handle:active,
+.component-node--composition-dragging > .component-node__drag-handle {
   cursor: grabbing;
 }
 
+.component-node--composition-dragging > .component-node__drag-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Pointer capture can cross component boundaries while a source is in hand.
- * Keep the whole composition non-selectable for the gesture, not only its
- * drag header, so native WebKit cannot extend a text selection underneath it. */
+ * Keep the whole composition non-selectable for the gesture so native WebKit
+ * cannot extend a text selection underneath it. */
 .component-node--composition-dragging {
   -webkit-user-select: none;
   user-select: none;
@@ -2458,6 +2500,7 @@ img.sidebar__project-icon {
   top: 6px;
   right: 6px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 120ms ease;
 }
 
@@ -2481,11 +2524,12 @@ img.sidebar__project-icon {
   fill: currentColor;
 }
 
-.component-node:hover > .component-node__menu,
-.component-node:focus-within > .component-node__menu,
+.component-node:hover:not(:has(.component-node:hover)) > .component-node__menu,
+.component-node:focus-within:not(:has(.component-node:focus-within)) > .component-node__menu,
 .component-node__menu:has(.component-node__menu-trigger[aria-expanded="true"]),
 .component-node__menu-trigger:focus-visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .component-node__menu-trigger:hover,
