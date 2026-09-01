@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { stringProp } from "../shared";
 
 export default function Tabs({ props, children }: ComponentRendererProps): ReactNode {
   const panels = children?.type === "managed" ? children.items : [];
