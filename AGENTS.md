@@ -1,15 +1,19 @@
-[IDEA.md](./IDEA.md) guides implementation, if plans, prompts, code or documentation etc. conflicts, stop and resolve the conflict by either changing IDEA.md to reflect a new or updated direction or adjust the plan, prompt, code or documentation.
+[docs/IDEA.md](./docs/IDEA.md) guides implementation. If plans, prompts, code,
+or documentation conflict with it, stop and resolve the conflict by either
+updating docs/IDEA.md to reflect a new or updated direction or adjusting the
+plan, prompt, code, or documentation.
 
-[ARCHITECTURE.md](./ARCHITECTURE.md) Should guide, reflect and be kept up to date with actual implementation.
+[ARCHITECTURE.md](./ARCHITECTURE.md) is the architecture index; keep the linked
+pages under docs/architecture/ up to date with the actual implementation.
 
 Dog food this project and its features by adding components with sane configurations in the project dashboard.
 
 ## Documentation ownership
 
 Keep `AGENTS.md` intentionally small and agent-specific. Product intent belongs
-in `IDEA.md`; implementation decisions, contracts, and invariants belong in
-`ARCHITECTURE.md`; user-facing setup, commands, and workflows belong in
-`README.md`. Do not duplicate any of those here. Before adding an AGENTS note,
+in `docs/IDEA.md`; implementation decisions, contracts, and invariants belong
+in `ARCHITECTURE.md` and its linked pages; user-facing setup, commands, and
+workflows belong in `README.md`. Do not duplicate any of those here. Before adding an AGENTS note,
 first update the canonical document when needed, then add only a short,
 verified agent-execution quirk that cannot reasonably live there.
 

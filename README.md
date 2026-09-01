@@ -6,9 +6,9 @@ component runtime and controlled host capabilities; each project supplies the
 workflow and domain knowledge.
 
 The repository is an early developer build. It uses Electrobun 2.0.1 with a Bun
-main process and a Vite/React renderer. Read [IDEA.md](./IDEA.md) for product
-principles and [ARCHITECTURE.md](./ARCHITECTURE.md) for the complete runtime and
-security contracts.
+main process and a Vite/React renderer. Read [product vision](./docs/IDEA.md)
+for product principles and [ARCHITECTURE.md](./ARCHITECTURE.md) for the
+architecture index and complete runtime and security contracts.
 
 ## License
 

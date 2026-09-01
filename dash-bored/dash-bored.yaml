@@ -512,7 +512,7 @@ root:
                   id: idea-file
                   component: "@dash-bored/file"
                   props:
-                    path: IDEA.md
+                    path: docs/IDEA.md
               - metadata:
                   label: Architecture
                 node:
