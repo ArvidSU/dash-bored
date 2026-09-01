@@ -1186,7 +1186,6 @@ img.sidebar__project-icon {
   border-radius: 0 0 9px 9px;
 }
 
-.editor-node__preview > .markdown,
 .editor-node__preview > .text,
 .editor-node__preview > .status {
   margin: 12px;
@@ -3284,66 +3283,6 @@ img.sidebar__project-icon {
   background: #0b0e12;
   font-size: 11px;
   white-space: pre-wrap;
-}
-
-.markdown {
-  color: #c8d0db;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.markdown > :first-child { margin-top: 0; }
-.markdown > :last-child { margin-bottom: 0; }
-
-.markdown h1,
-.markdown h2,
-.markdown h3 {
-  color: var(--text);
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-}
-
-.markdown h1 { font-size: 23px; }
-.markdown h2 { font-size: 18px; }
-.markdown h3 { font-size: 14px; }
-
-.markdown a {
-  color: var(--accent);
-  text-decoration-color: rgb(217 255 104 / 35%);
-  text-underline-offset: 3px;
-}
-
-.markdown code {
-  padding: 2px 4px;
-  border-radius: 4px;
-  color: #d6e8a7;
-  background: rgb(0 0 0 / 35%);
-  font-size: 0.88em;
-}
-
-.markdown pre {
-  overflow: auto;
-  padding: 13px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #090b0f;
-}
-
-.markdown pre code {
-  padding: 0;
-  background: transparent;
-}
-
-.markdown blockquote {
-  margin-inline: 0;
-  padding-left: 13px;
-  border-left: 2px solid var(--border-bright);
-  color: var(--muted);
-}
-
-.markdown__image-placeholder {
-  color: var(--faint);
-  font-style: italic;
 }
 
 .status {

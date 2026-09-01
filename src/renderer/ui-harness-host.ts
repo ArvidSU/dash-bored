@@ -74,7 +74,7 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, {
                 type: "tiled",
                 layout: {
                   type: "child",
-                  child: { node: builtin("renderer-proof-markdown", { content: "## Check the shape\n\nResize this page, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/markdown") },
+                  child: { node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/status") },
                 },
               }, "@dash-bored/card"),
             },
@@ -104,7 +104,7 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, {
         type: "tiled",
         layout: {
           type: "child",
-          child: { node: builtin("boundary-markdown", { content: "Use the fixture for fast responsive review. Then capture the matching desktop app state and label that evidence separately." }, undefined, "@dash-bored/markdown") },
+          child: { node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status") },
         },
       }, "@dash-bored/card"),
     },

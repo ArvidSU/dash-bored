@@ -510,4 +510,27 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Open terminal", exact: true }).click();
     await active.locator(".command__terminal .xterm").waitFor();
   }, 20_000);
+
+  test("lazy-loads the Markdown renderer only when it is inserted", async () => {
+    const active = currentPage();
+    const markdownModuleRequested = async (): Promise<boolean> => active.evaluate(() =>
+      performance.getEntriesByType("resource").some((entry) =>
+        entry.name.includes("builtins/markdown") || entry.name.includes("/assets/markdown-"),
+      ));
+
+    expect(await markdownModuleRequested()).toBe(false);
+    await active.getByRole("button", { name: "Open component library" }).click();
+    await active.getByRole("button", { name: "Insert Markdown", exact: true }).click();
+
+    const dialog = active.getByRole("dialog", { name: "Add component" });
+    await dialog.waitFor();
+    await dialog.getByLabel(/^content/i).fill("## Deferred Markdown\n\nLoaded on demand.");
+    await dialog.getByRole("button", { name: "Add component", exact: true }).click();
+
+    await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+    await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
+    await active.getByText("Revision 7", { exact: true }).waitFor();
+    await active.locator(".markdown").filter({ hasText: "Deferred Markdown" }).waitFor();
+    expect(await markdownModuleRequested()).toBe(true);
+  }, 20_000);
 });

@@ -73,11 +73,14 @@ and node-rendering contract unchanged while allowing implementation modules to
 load only when a live node needs them. The loading state is local to the
 component surface, so one deferred built-in does not block unrelated dashboard
 content. Heavy dependencies and component-owned CSS stay in the implementation
-module rather than in the eager registry module. The first verified boundary is
-`@dash-bored/command`, whose renderer lives in
+module rather than in the eager registry module. The verified boundaries
+currently include `@dash-bored/command`, whose renderer lives in
 `src/renderer/builtins/command.tsx`; its xterm runtime and CSS are emitted in a
 separate async chunk and are not present in the main renderer chunk until the
-command renderer is requested.
+command renderer is requested. `@dash-bored/markdown` follows the same
+boundary in `src/renderer/builtins/markdown.tsx`, keeping `react-markdown` and
+`markdown.css` out of the main renderer chunk until a live Markdown node is
+requested.
 
 This is a renderer loading optimization only. The main-process built-in
 manifests, schemas, permissions, and resource contracts remain eager and

@@ -9,11 +9,9 @@ import {
   useState,
 } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
 import { CapabilityGate, stringProp } from "./builtins/shared";
 import type { ComponentRendererProps, PackagedComponent } from "./builtins/types";
 import type { ComponentRenderedChildren } from "../shared/contracts";
-import { safeMarkdownUrl } from "./safe-url";
 import {
   CHART_COLORS,
   limitChartData,
@@ -161,33 +159,6 @@ function Text({ props }: ComponentRendererProps): ReactNode {
   if (variant === "heading") return <h2 className="text text--heading">{content}</h2>;
   if (variant === "code") return <code className="text text--code">{content}</code>;
   return <p className={`text text--${variant}`}>{content}</p>;
-}
-
-function Markdown({ props }: ComponentRendererProps): ReactNode {
-  const content = stringProp(props, ["content", "markdown"]);
-
-  return (
-    <div className="markdown">
-      <ReactMarkdown
-        skipHtml
-        urlTransform={safeMarkdownUrl}
-        components={{
-          a: ({ children, href }) => (
-            <a href={href} rel="noreferrer" target="_blank">
-              {children}
-            </a>
-          ),
-          img: ({ alt }) => (
-            <span className="markdown__image-placeholder">
-              {alt ? `[Image: ${alt}]` : "[Image]"}
-            </span>
-          ),
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
 }
 
 function Status({ props }: ComponentRendererProps): ReactNode {
@@ -869,6 +840,7 @@ function Webview({ props, host: componentHost }: ComponentRendererProps): ReactN
 }
 
 const LazyCommand = lazy(() => import("./builtins/command"));
+const LazyMarkdown = lazy(() => import("./builtins/markdown"));
 
 function ComponentLoading(): ReactNode {
   return <div className="component-state">Loading component…</div>;
@@ -889,7 +861,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/tabs": Tabs,
   "@dash-bored/card": Card,
   "@dash-bored/text": Text,
-  "@dash-bored/markdown": Markdown,
+  "@dash-bored/markdown": lazyBuiltin(LazyMarkdown),
   "@dash-bored/status": Status,
   "@dash-bored/chart": Chart,
   "@dash-bored/live-chart": LiveChart,
