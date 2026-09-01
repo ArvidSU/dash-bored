@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { stringProp } from "../shared";
 
 export default function Text({ props }: ComponentRendererProps): ReactNode {
   const content = stringProp(props, ["content", "text"]);
