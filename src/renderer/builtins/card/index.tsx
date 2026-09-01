@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { childSurface, stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { childSurface, stringProp } from "../shared";
 
 export default function Card({ props, children }: ComponentRendererProps): ReactNode {
   const title = stringProp(props, ["title"]);
