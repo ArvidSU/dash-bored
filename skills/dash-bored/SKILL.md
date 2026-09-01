@@ -42,7 +42,7 @@ Prefer the generic built-ins:
 - Display: `@dash-bored/markdown`, `@dash-bored/text`, and
   `@dash-bored/status`.
 - Project capabilities: `@dash-bored/command`, `@dash-bored/file`,
-  `@dash-bored/env`, `@dash-bored/todo-list`, and
+  `@dash-bored/conditional`, `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
 
 Use tiled child topology for layouts. A tiled layout is either a child leaf or
@@ -59,6 +59,11 @@ shell after it starts. Keep file and environment paths relative to the project r
 editable runtime choices in the bundle-local `.env` and source that file from
 commands that consume them. Do not put secrets directly in dashboard YAML or
 assume an environment file is ignored by version control.
+
+Use `@dash-bored/conditional` around one tiled child when a setup or recovery
+action should disappear after a bounded shell check succeeds. Set `invert: true`
+for "show until done" behavior. It requires `process:execute`, polls only while
+its panel is visible, and fails open before trust or when the check cannot run.
 
 Balance explanation with working controls. A new user should understand what a
 panel does, while a returning user should be able to run the common workflow

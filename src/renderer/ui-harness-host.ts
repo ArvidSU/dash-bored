@@ -143,7 +143,7 @@ const initialConfig: DashboardConfig = {
   },
 };
 
-const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "status", "text", "command", "todo-list"].map((name) => ({
+const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card", "markdown", "status", "text", "command", "todo-list"].map((name) => ({
   reference: `@dash-bored/${name}`,
   source: "builtin" as const,
   available: true,
@@ -154,8 +154,8 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
     name: name[0]!.toUpperCase() + name.slice(1),
     description: `Fixture ${name} component.`,
     entry: `builtin:${name}`,
-    ...(name === "group" || name === "tabs" ? { renderMode: "layout" as const } : {}),
-    ...(name === "command" ? { permissions: ["process:execute" as const] } : {}),
+    ...(name === "group" || name === "conditional" || name === "tabs" ? { renderMode: "layout" as const } : {}),
+    ...(name === "command" || name === "conditional" ? { permissions: ["process:execute" as const] } : {}),
     propsSchema: name === "text" || name === "markdown"
       ? { type: "object", additionalProperties: false, properties: { content: { type: "string" } }, required: ["content"] }
       : name === "status"
@@ -197,6 +197,20 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
                       },
                     },
                   }
+              : name === "conditional"
+                ? {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      command: { type: "string", minLength: 1 },
+                      cwd: { type: "string", minLength: 1 },
+                      env: { type: "object", additionalProperties: { type: "string" } },
+                      invert: { type: "boolean" },
+                      pollIntervalMs: { type: "integer", minimum: 1000, maximum: 300000 },
+                      timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
+                    },
+                    required: ["command"],
+                  }
               : { type: "object", additionalProperties: false },
     ...(name === "tabs" ? {
       children: {
@@ -208,9 +222,10 @@ const catalog: ComponentCatalogItem[] = ["group", "tabs", "card", "markdown", "s
           required: ["label"],
         },
       },
-    } : name === "group" || name === "card" ? {
+    } : name === "group" || name === "card" || name === "conditional" ? {
       children: {
-        min: 0,
+        min: name === "conditional" ? 1 : 0,
+        ...(name === "conditional" ? { max: 1 } : {}),
         presentation: { type: "tiled" as const, axes: "both" as const },
       },
     } : {}),

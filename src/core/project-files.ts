@@ -177,6 +177,16 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     };
   };
   const tiled = (layout: ComponentChildLayout) => ({ type: "tiled" as const, layout });
+  const conditional = (id: string, command: string, node: ComponentNode): ComponentNode => ({
+    id,
+    component: "@dash-bored/conditional",
+    props: {
+      command,
+      invert: true,
+      pollIntervalMs: 2_000,
+    },
+    children: tiled(child(node)),
+  });
   const howItWorks: ComponentNode = {
     id: "how-it-works",
     component: "@dash-bored/card",
@@ -213,33 +223,45 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       },
     },
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
-    {
-      id: "install-dash-bored-cli",
-      component: "@dash-bored/command",
-      props: {
-        label: "Install dash-bored CLI in ~/.local/bin",
-        command: "dash-bored install-cli",
-        cwd: ".",
+    conditional(
+      "show-install-dash-bored-cli",
+      "test -L \"$HOME/.local/bin/dash-bored\" && \"$HOME/.local/bin/dash-bored\" --version >/dev/null 2>&1",
+      {
+        id: "install-dash-bored-cli",
+        component: "@dash-bored/command",
+        props: {
+          label: "Install dash-bored CLI in ~/.local/bin",
+          command: "dash-bored install-cli",
+          cwd: ".",
+        },
       },
-    },
-    {
-      id: "install-dash-bored-global-skill",
-      component: "@dash-bored/command",
-      props: {
-        label: "Install dash-bored skill globally",
-        command: "dash-bored install-skill --global",
-        cwd: ".",
+    ),
+    conditional(
+      "show-install-dash-bored-global-skill",
+      "test -f \"$HOME/.agents/skills/dash-bored/SKILL.md\"",
+      {
+        id: "install-dash-bored-global-skill",
+        component: "@dash-bored/command",
+        props: {
+          label: "Install dash-bored skill globally",
+          command: "dash-bored install-skill --global",
+          cwd: ".",
+        },
       },
-    },
-    {
-      id: "install-dash-bored-skill",
-      component: "@dash-bored/command",
-      props: {
-        label: "Install portable dash-bored skill for this project",
-        command: "dash-bored install-skill .",
-        cwd: ".",
+    ),
+    conditional(
+      "show-install-dash-bored-skill",
+      "test -f \".agents/skills/dash-bored/SKILL.md\"",
+      {
+        id: "install-dash-bored-skill",
+        component: "@dash-bored/command",
+        props: {
+          label: "Install portable dash-bored skill for this project",
+          command: "dash-bored install-skill .",
+          cwd: ".",
+        },
       },
-    },
+    ),
     {
       id: "setup-dashboard-with-agent",
       component: "@dash-bored/command",

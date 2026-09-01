@@ -240,6 +240,18 @@ describe("dash-bored command arguments", () => {
     expect(command.manifest.propsSchema.required).toEqual(["label", "command"]);
     expect(command.manifest.permissions).toEqual(["process:execute"]);
     expect(command.manifest.resources.process.interactive).toBeTrue();
+    const conditional = result.componentCatalog.find(
+      (item: { reference: string }) => item.reference === "@dash-bored/conditional",
+    );
+    expect(conditional.available).toBeTrue();
+    expect(conditional.manifest.renderMode).toBe("layout");
+    expect(conditional.manifest.propsSchema.required).toEqual(["command"]);
+    expect(conditional.manifest.children).toEqual({
+      min: 1,
+      max: 1,
+      presentation: { type: "tiled", axes: "both" },
+    });
+    expect(conditional.manifest.permissions).toEqual(["process:execute"]);
     expect(result.componentCatalog.find(
       (item: { reference: string }) => item.reference === "@dash-bored/terminal",
     )).toBeUndefined();

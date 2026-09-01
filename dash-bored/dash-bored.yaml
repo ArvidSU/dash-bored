@@ -219,7 +219,7 @@ root:
                                           tags:
                                             - Improvement
                                         - description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
-                                          done: false
+                                          done: true
                                           tags:
                                             - feature
                                             - component
@@ -566,12 +566,24 @@ root:
                     type: child
                     child:
                       node:
-                        id: install-cli-link
-                        component: "@dash-bored/command"
+                        id: show-install-cli-link
+                        component: "@dash-bored/conditional"
                         props:
-                          label: Install dash-bored CLI in ~/.local/bin
-                          command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
-                          cwd: .
+                          command: test -L "$HOME/.local/bin/dash-bored" && "$HOME/.local/bin/dash-bored" --version >/dev/null 2>&1
+                          invert: true
+                          pollIntervalMs: 2000
+                        children:
+                          type: tiled
+                          layout:
+                            type: child
+                            child:
+                              node:
+                                id: install-cli-link
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Install dash-bored CLI in ~/.local/bin
+                                  command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
+                                  cwd: .
                   second:
                     type: split
                     axis: vertical
@@ -580,12 +592,24 @@ root:
                       type: child
                       child:
                         node:
-                          id: install-agent-skill-global
-                          component: "@dash-bored/command"
+                          id: show-install-agent-skill-global
+                          component: "@dash-bored/conditional"
                           props:
-                            label: Install dash-bored skill globally
-                            command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
-                            cwd: .
+                            command: test -f "$HOME/.agents/skills/dash-bored/SKILL.md"
+                            invert: true
+                            pollIntervalMs: 2000
+                          children:
+                            type: tiled
+                            layout:
+                              type: child
+                              child:
+                                node:
+                                  id: install-agent-skill-global
+                                  component: "@dash-bored/command"
+                                  props:
+                                    label: Install dash-bored skill globally
+                                    command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
+                                    cwd: .
                     second:
                       type: split
                       axis: vertical
@@ -594,12 +618,24 @@ root:
                         type: child
                         child:
                           node:
-                            id: install-agent-skill
-                            component: "@dash-bored/command"
+                            id: show-install-agent-skill
+                            component: "@dash-bored/conditional"
                             props:
-                              label: Install portable dash-bored skill for this project
-                              command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
-                              cwd: .
+                              command: test -f ".agents/skills/dash-bored/SKILL.md"
+                              invert: true
+                              pollIntervalMs: 2000
+                            children:
+                              type: tiled
+                              layout:
+                                type: child
+                                child:
+                                  node:
+                                    id: install-agent-skill
+                                    component: "@dash-bored/command"
+                                    props:
+                                      label: Install portable dash-bored skill for this project
+                                      command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
+                                      cwd: .
                       second:
                         type: child
                         child:

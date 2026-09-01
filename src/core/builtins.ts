@@ -65,6 +65,28 @@ const manifests: ComponentManifest[] = [
   },
   {
     schemaVersion: 2,
+    id: "@dash-bored/conditional",
+    name: "Conditional visibility",
+    description: "Shows its tiled child while a bounded shell condition succeeds.",
+    entry: "builtin:conditional",
+    renderMode: "layout",
+    propsSchema: objectSchema({
+      command: string,
+      cwd: { type: "string", minLength: 1 },
+      env: { type: "object", additionalProperties: { type: "string" } },
+      invert: { type: "boolean" },
+      pollIntervalMs: { type: "integer", minimum: 1000, maximum: 300000 },
+      timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
+    }, ["command"]),
+    children: {
+      min: 1,
+      max: 1,
+      presentation: { type: "tiled", axes: "both" },
+    },
+    permissions: ["process:execute"],
+  },
+  {
+    schemaVersion: 2,
     id: "@dash-bored/card",
     name: "Card",
     description: "Frames dashboard content with an optional title.",

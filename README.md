@@ -328,7 +328,7 @@ The initial built-ins are:
   `@dash-bored/status`.
 - Charts: `@dash-bored/chart` for static YAML data and
   `@dash-bored/live-chart` for polling JSON data.
-- Host-backed: `@dash-bored/command`, `@dash-bored/file`,
+- Host-backed: `@dash-bored/command`, `@dash-bored/conditional`, `@dash-bored/file`,
   `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
 
@@ -391,6 +391,13 @@ JSON endpoint using `network:http`. Its endpoint can be absolute HTTP(S) or an
 app-relative path such as `/metrics/chart.json`; it also supports an optional
 dot-separated `dataPath` and pauses polling when its containing tab is hidden. Both keep
 rendering the last valid live result when a refresh fails.
+
+`@dash-bored/conditional` accepts one tiled child and a bounded shell `command`.
+The child is projected when the command exits successfully; set `invert: true`
+to show it until the check succeeds. Checks poll only while their panel is
+visible and fail open before trust or when the host cannot complete a check.
+Use it for setup actions that should disappear after they are complete, such as
+the generated CLI and Agent Skill installers.
 
 ### Compose standalone dashboards
 

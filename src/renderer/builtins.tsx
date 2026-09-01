@@ -8,6 +8,7 @@ import type { ComponentRendererProps, PackagedComponent } from "./builtins/types
 
 const LazyTabs = lazy(() => import("./builtins/tabs"));
 const LazyGroup = lazy(() => import("./builtins/group"));
+const LazyConditional = lazy(() => import("./builtins/conditional"));
 const LazyCard = lazy(() => import("./builtins/card"));
 const LazyChart = lazy(() => import("./builtins/chart"));
 const LazyLiveChart = lazy(() => import("./builtins/live-chart"));
@@ -36,6 +37,7 @@ function lazyBuiltin(
 
 const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.freeze({
   "@dash-bored/group": lazyBuiltin(LazyGroup),
+  "@dash-bored/conditional": lazyBuiltin(LazyConditional),
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),
   "@dash-bored/card": lazyBuiltin(LazyCard),
   "@dash-bored/text": lazyBuiltin(LazyText),

@@ -74,8 +74,8 @@ load only when a live node needs them. The loading state is local to the
 component surface, so one deferred built-in does not block unrelated dashboard
 content. Heavy dependencies and component-owned CSS stay in the implementation
 module rather than in the eager registry module. Every shipped renderer entry
-is now a boundary under `src/renderer/builtins/`: group, tabs, card, text,
-markdown, status, chart, live-chart, command, file, env, todo-list, and
+is now a boundary under `src/renderer/builtins/`: group, conditional, tabs, card,
+text, markdown, status, chart, live-chart, command, file, env, todo-list, and
 webview. The registry itself contains only the synchronous lookup map, lazy
 boundaries, and the local loading fallback. `@dash-bored/command` keeps its
 xterm runtime and CSS in `command.tsx`, while `@dash-bored/markdown` keeps
@@ -256,11 +256,22 @@ root:
                 type: child
                 child:
                   node:
-                    id: install-dash-bored-skill
-                    component: "@dash-bored/command"
+                    id: show-install-dash-bored-skill
+                    component: "@dash-bored/conditional"
                     props:
-                      label: Install the portable skill
-                      command: 'dash-bored install-skill .'
+                      command: 'test -f ".agents/skills/dash-bored/SKILL.md"'
+                      invert: true
+                    children:
+                      type: tiled
+                      layout:
+                        type: child
+                        child:
+                          node:
+                            id: install-dash-bored-skill
+                            component: "@dash-bored/command"
+                            props:
+                              label: Install the portable skill
+                              command: 'dash-bored install-skill .'
 ```
 
 The public configuration types are:
@@ -312,6 +323,15 @@ structural keys, malformed recursive topology, duplicate IDs, excessive
 nesting, unknown components, invalid props, invalid child cardinality, invalid
 axis declarations, and invalid edge metadata. Diagnostics
 carry a stable code, severity, message, and file/path location where available.
+
+`@dash-bored/conditional` is a transparent layout boundary that accepts exactly
+one tiled child. It runs its declared bounded shell `command` while the
+containing panel is visible and projects the child only when the command exits
+successfully; `invert: true` shows the child when it fails. Optional `cwd`,
+`env`, `timeoutMs`, and `pollIntervalMs` props follow the same project-root and
+bounded-shell rules as other host-backed components. Before trust, while a
+check is unavailable, or after a check error, it fails open and keeps the child
+available.
 
 The optional top-level `icon` is an image path relative to the owning config
 bundle or an HTTP(S) URL. In trusted mode the main process bounds and
@@ -462,6 +482,9 @@ including `@dash-bored/chart` for YAML-defined static line or bar data and
 `@dash-bored/live-chart` for polling a JSON chart model through the
 `network:http` capability. These chart components share a dependency-free SVG
 renderer and keep the last valid live result when a refresh fails.
+It also includes `@dash-bored/conditional`, a generic shell-backed visibility
+boundary for keeping setup or recovery actions relevant without special-casing
+their component IDs.
 Core composition branches are YAML topology and do not appear in the component
 catalog.
 
@@ -819,6 +842,9 @@ examples, not privileged component types:
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
   terminal session.
+- `@dash-bored/conditional` runs a bounded shell condition while its panel is
+  visible and projects one tiled child on success, with optional inversion for
+  "show until done" setup actions.
 - `@dash-bored/file` displays a read-only project file.
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and

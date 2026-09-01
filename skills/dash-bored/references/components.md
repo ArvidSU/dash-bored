@@ -37,6 +37,36 @@ and projects a core-tiled child surface. It is useful when a multi-component
 panel needs a component boundary; it is not a layout engine, and it does not
 own split topology or resize behavior. A card is not required for grouping.
 
+## Conditional visibility
+
+`@dash-bored/conditional` is a transparent layout boundary for setup and
+recovery actions. It accepts exactly one tiled child and projects that child
+when a bounded shell command exits successfully. Use `invert: true` to show
+the child until the condition succeeds:
+
+```yaml
+component: "@dash-bored/conditional"
+id: show-install-skill
+props:
+  command: 'test -f ".agents/skills/dash-bored/SKILL.md"'
+  invert: true
+children:
+  type: tiled
+  layout:
+    type: child
+    child:
+      node:
+        component: "@dash-bored/command"
+        props:
+          label: Install the project skill
+          command: dash-bored install-skill .
+```
+
+Optional `cwd`, `env`, `timeoutMs`, and `pollIntervalMs` props use the same
+project-contained, bounded shell contract as `host.shell.run`. The component
+requires `process:execute`, checks only while its containing panel is visible,
+and fails open before trust or if the check fails to run.
+
 ## Tiled split layouts
 
 Use a core-owned split branch when two child components should share one
