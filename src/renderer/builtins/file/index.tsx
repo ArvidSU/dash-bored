@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { CapabilityGate, stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { CapabilityGate, stringProp } from "../shared";
 
 export default function FileViewer({ props, host: componentHost }: ComponentRendererProps): ReactNode {
   const filesystem = componentHost.filesystem;
@@ -57,4 +57,3 @@ export default function FileViewer({ props, host: componentHost }: ComponentRend
     </section>
   );
 }
-
