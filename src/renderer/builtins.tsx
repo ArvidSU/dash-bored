@@ -35,28 +35,6 @@ import {
 import { ComponentVisibilityContext } from "./ComponentCompositor";
 import { TodoList } from "./todo-list";
 
-function Status({ props }: ComponentRendererProps): ReactNode {
-  const label = stringProp(props, ["label", "name"], "Status");
-  const value = stringProp(props, ["state", "status", "value"], "unknown");
-  const detail = stringProp(props, ["detail", "description"]);
-  const normalized = value.toLowerCase();
-  const tone = ["ok", "online", "healthy", "success", "ready"].includes(normalized)
-    ? "positive"
-    : ["warn", "warning", "pending", "starting"].includes(normalized)
-      ? "warning"
-      : ["error", "failed", "offline", "down"].includes(normalized)
-        ? "negative"
-        : "neutral";
-  return (
-    <div className="status">
-      <span className={`status__dot status__dot--${tone}`} aria-hidden="true" />
-      <span className="status__label">{label}</span>
-      <span className="status__value">{value}</span>
-      {detail ? <span className="status__detail">{detail}</span> : null}
-    </div>
-  );
-}
-
 type ChartType = "line" | "bar";
 
 function numberProp(
@@ -716,6 +694,7 @@ const LazyTabs = lazy(() => import("./builtins/tabs"));
 const LazyGroup = lazy(() => import("./builtins/group"));
 const LazyCard = lazy(() => import("./builtins/card"));
 const LazyText = lazy(() => import("./builtins/text"));
+const LazyStatus = lazy(() => import("./builtins/status"));
 const LazyCommand = lazy(() => import("./builtins/command"));
 const LazyMarkdown = lazy(() => import("./builtins/markdown"));
 
@@ -739,7 +718,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/card": lazyBuiltin(LazyCard),
   "@dash-bored/text": lazyBuiltin(LazyText),
   "@dash-bored/markdown": lazyBuiltin(LazyMarkdown),
-  "@dash-bored/status": Status,
+  "@dash-bored/status": lazyBuiltin(LazyStatus),
   "@dash-bored/chart": Chart,
   "@dash-bored/live-chart": LiveChart,
   "@dash-bored/command": lazyBuiltin(LazyCommand),
