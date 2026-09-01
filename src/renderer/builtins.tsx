@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CapabilityGate, stringProp } from "./builtins/shared";
 import type { ComponentRendererProps, PackagedComponent } from "./builtins/types";
 import type { ComponentRenderedChildren } from "../shared/contracts";
@@ -40,10 +40,6 @@ function childSurface(children: ComponentRenderedChildren | undefined): ReactNod
   return children?.type === "tiled" ? children.surface : null;
 }
 
-function Group({ children }: ComponentRendererProps): ReactNode {
-  return childSurface(children);
-}
-
 function Tabs({ props, children }: ComponentRendererProps): ReactNode {
   const panels = children?.type === "managed" ? children.items : [];
   const requestedDefault = props.defaultTab;
@@ -58,36 +54,25 @@ function Tabs({ props, children }: ComponentRendererProps): ReactNode {
   const id = useId().replaceAll(":", "");
 
   useEffect(() => {
-    if (active >= panels.length) {
-      setActive(defaultIndex);
-    }
+    if (active >= panels.length) setActive(defaultIndex);
   }, [active, defaultIndex, panels.length]);
 
   function selectFromKeyboard(
-    event: KeyboardEvent<HTMLButtonElement>,
+    event: import("react").KeyboardEvent<HTMLButtonElement>,
     index: number,
   ): void {
     let nextIndex: number | null = null;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      nextIndex = (index + 1) % panels.length;
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      nextIndex = (index - 1 + panels.length) % panels.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = panels.length - 1;
-    }
-
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (index + 1) % panels.length;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (index - 1 + panels.length) % panels.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = panels.length - 1;
     if (nextIndex === null) return;
     event.preventDefault();
     setActive(nextIndex);
     document.getElementById(`${id}-tab-${nextIndex}`)?.focus();
   }
 
-  if (panels.length === 0) {
-    return <div className="component-state">This tab group has no tabs.</div>;
-  }
-
+  if (panels.length === 0) return <div className="component-state">This tab group has no tabs.</div>;
   return (
     <section className="tabs">
       <div className="tabs__list" role="tablist" aria-label={stringProp(props, ["label"], "Dashboard sections")}>
@@ -106,9 +91,7 @@ function Tabs({ props, children }: ComponentRendererProps): ReactNode {
               onClick={() => setActive(index)}
               onKeyDown={(event) => selectFromKeyboard(event, index)}
             >
-              {typeof panel.metadata.label === "string" && panel.metadata.label.trim()
-                ? panel.metadata.label
-                : panel.displayName}
+              {typeof panel.metadata.label === "string" && panel.metadata.label.trim() ? panel.metadata.label : panel.displayName}
             </button>
           );
         })}
@@ -132,7 +115,6 @@ function Tabs({ props, children }: ComponentRendererProps): ReactNode {
 function Card({ props, children }: ComponentRendererProps): ReactNode {
   const title = stringProp(props, ["title"]);
   const description = stringProp(props, ["description"]);
-
   return (
     <section className="card">
       {title || description ? (
@@ -149,12 +131,7 @@ function Card({ props, children }: ComponentRendererProps): ReactNode {
 function Text({ props }: ComponentRendererProps): ReactNode {
   const content = stringProp(props, ["content", "text"]);
   const requestedVariant = stringProp(props, ["variant"], "body");
-  const variant = ["title", "heading", "body", "muted", "code"].includes(
-    requestedVariant,
-  )
-    ? requestedVariant
-    : "body";
-
+  const variant = ["title", "heading", "body", "muted", "code"].includes(requestedVariant) ? requestedVariant : "body";
   if (variant === "title") return <h1 className="text text--title">{content}</h1>;
   if (variant === "heading") return <h2 className="text text--heading">{content}</h2>;
   if (variant === "code") return <code className="text text--code">{content}</code>;
@@ -173,7 +150,6 @@ function Status({ props }: ComponentRendererProps): ReactNode {
       : ["error", "failed", "offline", "down"].includes(normalized)
         ? "negative"
         : "neutral";
-
   return (
     <div className="status">
       <span className={`status__dot status__dot--${tone}`} aria-hidden="true" />
@@ -839,6 +815,7 @@ function Webview({ props, host: componentHost }: ComponentRendererProps): ReactN
   return componentHost.webview.render({ url });
 }
 
+const LazyGroup = lazy(() => import("./builtins/group"));
 const LazyCommand = lazy(() => import("./builtins/command"));
 const LazyMarkdown = lazy(() => import("./builtins/markdown"));
 
@@ -857,7 +834,7 @@ function lazyBuiltin(
 }
 
 const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.freeze({
-  "@dash-bored/group": Group,
+  "@dash-bored/group": lazyBuiltin(LazyGroup),
   "@dash-bored/tabs": Tabs,
   "@dash-bored/card": Card,
   "@dash-bored/text": Text,

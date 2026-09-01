@@ -1,4 +1,9 @@
 import type { ReactNode } from "react";
+import type { ComponentRenderedChildren } from "../../shared/contracts";
+
+export function childSurface(children: ComponentRenderedChildren | undefined): ReactNode {
+  return children?.type === "tiled" ? children.surface : null;
+}
 
 export function stringProp(
   props: Record<string, unknown>,
