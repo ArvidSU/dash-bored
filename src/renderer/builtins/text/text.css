@@ -1,0 +1,38 @@
+.text {
+  margin: 0;
+}
+
+.text--title {
+  font-size: clamp(25px, 4vw, 38px);
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.text--heading {
+  font-size: 18px;
+  letter-spacing: -0.015em;
+}
+
+.text--body {
+  color: #c8d0db;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.text--muted {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.text--code {
+  display: block;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: #cfe39b;
+  background: #0b0e12;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
