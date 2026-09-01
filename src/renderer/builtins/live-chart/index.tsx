@@ -1,16 +1,16 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ComponentVisibilityContext } from "../ComponentCompositor";
-import type { ComponentRendererProps } from "./types";
-import { CapabilityGate, stringProp } from "./shared";
-import { ChartPanel, chartTitle, chartType, numberProp } from "./chart";
+import { ComponentVisibilityContext } from "../../ComponentCompositor";
+import type { ComponentRendererProps } from "../types";
+import { CapabilityGate, stringProp } from "../shared";
+import { ChartPanel, chartTitle, chartType, numberProp } from "../chart";
 import {
   limitChartData,
   parseChartData,
   readChartDataPath,
   resolveChartEndpoint,
   type ChartData,
-} from "../chart-data";
+} from "../../chart-data";
 
 export default function LiveChart({ props, host: componentHost }: ComponentRendererProps): ReactNode {
   const http = componentHost.http;
@@ -106,4 +106,3 @@ export default function LiveChart({ props, host: componentHost }: ComponentRende
     />
   );
 }
-
