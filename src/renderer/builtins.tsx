@@ -4,20 +4,7 @@ import {
   type ComponentType,
 } from "react";
 import type { ReactNode } from "react";
-import { CapabilityGate, stringProp } from "./builtins/shared";
 import type { ComponentRendererProps, PackagedComponent } from "./builtins/types";
-
-function Webview({ props, host: componentHost }: ComponentRendererProps): ReactNode {
-  const url = stringProp(props, ["url", "src"]);
-  if (!componentHost.webview) {
-    return (
-      <CapabilityGate title="Embedded page">
-        Trust this project to load its configured web page.
-      </CapabilityGate>
-    );
-  }
-  return componentHost.webview.render({ url });
-}
 
 const LazyTabs = lazy(() => import("./builtins/tabs"));
 const LazyGroup = lazy(() => import("./builtins/group"));
@@ -27,6 +14,7 @@ const LazyLiveChart = lazy(() => import("./builtins/live-chart"));
 const LazyFile = lazy(() => import("./builtins/file"));
 const LazyEnv = lazy(() => import("./builtins/env"));
 const LazyTodoList = lazy(() => import("./builtins/todo-list").then(({ TodoList }) => ({ default: TodoList })));
+const LazyWebview = lazy(() => import("./builtins/webview"));
 const LazyText = lazy(() => import("./builtins/text"));
 const LazyStatus = lazy(() => import("./builtins/status"));
 const LazyCommand = lazy(() => import("./builtins/command"));
@@ -59,7 +47,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/file": lazyBuiltin(LazyFile),
   "@dash-bored/env": lazyBuiltin(LazyEnv),
   "@dash-bored/todo-list": lazyBuiltin(LazyTodoList),
-  "@dash-bored/webview": Webview,
+  "@dash-bored/webview": lazyBuiltin(LazyWebview),
 });
 
 export function packagedComponent(reference: string): PackagedComponent | undefined {
