@@ -35,16 +35,6 @@ import {
 import { ComponentVisibilityContext } from "./ComponentCompositor";
 import { TodoList } from "./todo-list";
 
-function Text({ props }: ComponentRendererProps): ReactNode {
-  const content = stringProp(props, ["content", "text"]);
-  const requestedVariant = stringProp(props, ["variant"], "body");
-  const variant = ["title", "heading", "body", "muted", "code"].includes(requestedVariant) ? requestedVariant : "body";
-  if (variant === "title") return <h1 className="text text--title">{content}</h1>;
-  if (variant === "heading") return <h2 className="text text--heading">{content}</h2>;
-  if (variant === "code") return <code className="text text--code">{content}</code>;
-  return <p className={`text text--${variant}`}>{content}</p>;
-}
-
 function Status({ props }: ComponentRendererProps): ReactNode {
   const label = stringProp(props, ["label", "name"], "Status");
   const value = stringProp(props, ["state", "status", "value"], "unknown");
@@ -725,6 +715,7 @@ function Webview({ props, host: componentHost }: ComponentRendererProps): ReactN
 const LazyTabs = lazy(() => import("./builtins/tabs"));
 const LazyGroup = lazy(() => import("./builtins/group"));
 const LazyCard = lazy(() => import("./builtins/card"));
+const LazyText = lazy(() => import("./builtins/text"));
 const LazyCommand = lazy(() => import("./builtins/command"));
 const LazyMarkdown = lazy(() => import("./builtins/markdown"));
 
@@ -746,7 +737,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/group": lazyBuiltin(LazyGroup),
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),
   "@dash-bored/card": lazyBuiltin(LazyCard),
-  "@dash-bored/text": Text,
+  "@dash-bored/text": lazyBuiltin(LazyText),
   "@dash-bored/markdown": lazyBuiltin(LazyMarkdown),
   "@dash-bored/status": Status,
   "@dash-bored/chart": Chart,
