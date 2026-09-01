@@ -3225,28 +3225,6 @@ img.sidebar__project-icon {
   }
 }
 
-.file-viewer__header,
-.webview-shell__header {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.file-viewer__header code {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-
 .empty-dashboard {
   display: flex;
   min-height: 44vh;
@@ -3623,74 +3601,6 @@ img.sidebar__project-icon {
     grid-column: 1 / -1;
   }
 
-  .command {
-    grid-template-columns: 1fr;
-  }
-
-  .env-editor__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .env-editor__actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .todo__header,
-  .todo__item {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .todo__filter,
-  .todo__filter select {
-    width: 100%;
-  }
-
-  .todo__form {
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-
-  .todo__form label,
-  .todo__form > button {
-    flex-basis: 100%;
-  }
-
-  .todo__form label {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .todo__item-side {
-    align-items: center;
-    padding-left: 1.55rem;
-    width: calc(100% - 1.55rem);
-  }
-
-  .todo__tags,
-  .todo__tags-edit {
-    justify-content: flex-start;
-  }
-
-  .todo__edit-input--tags {
-    width: min(100%, 18rem);
-  }
-
-  .command > .button,
-  .command__actions {
-    width: 100%;
-  }
-
-  .command__actions {
-    justify-content: stretch;
-  }
-
-  .command__actions .button {
-    flex: 1 1 auto;
-  }
-
   .settings-card {
     align-items: flex-start;
     flex-direction: column;
@@ -3861,32 +3771,4 @@ img.sidebar__project-icon {
     gap: 3px;
   }
 
-  .env-editor__actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .env-editor__mode {
-    width: 100%;
-  }
-
-  .env-editor__mode-button {
-    flex: 1 1 50%;
-  }
-
-  .env-editor__actions > .button {
-    width: 100%;
-  }
-
-  .env-editor__table {
-    min-width: 440px;
-  }
-
-  .status {
-    grid-template-columns: auto 1fr;
-  }
-
-  .status__value {
-    grid-column: 2;
-  }
 }

@@ -1,3 +1,13 @@
+.webview-shell__header {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
 .webview-shell {
   min-width: 0;
   overflow: hidden;
@@ -23,4 +33,3 @@
   height: clamp(300px, 52vh, 720px);
   background: #fff;
 }
-

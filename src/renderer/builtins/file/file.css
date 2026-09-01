@@ -1,3 +1,23 @@
+.file-viewer__header {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.file-viewer__header code {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .file-viewer {
   min-width: 0;
   overflow: hidden;
@@ -18,4 +38,3 @@
   tab-size: 2;
   white-space: pre;
 }
-

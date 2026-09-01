@@ -208,3 +208,45 @@
   font-size: 0.8rem;
 }
 
+@media (max-width: 760px) {
+  .todo__header,
+  .todo__item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .todo__filter,
+  .todo__filter select {
+    width: 100%;
+  }
+
+  .todo__form {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .todo__form label,
+  .todo__form > button {
+    flex-basis: 100%;
+  }
+
+  .todo__form label {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .todo__item-side {
+    align-items: center;
+    padding-left: 1.55rem;
+    width: calc(100% - 1.55rem);
+  }
+
+  .todo__tags,
+  .todo__tags-edit {
+    justify-content: flex-start;
+  }
+
+  .todo__edit-input--tags {
+    width: min(100%, 18rem);
+  }
+}

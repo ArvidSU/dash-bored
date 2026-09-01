@@ -93,3 +93,21 @@
 
 .command__terminal .xterm { height: 100%; }
 
+@media (max-width: 760px) {
+  .command {
+    grid-template-columns: 1fr;
+  }
+
+  .command > .button,
+  .command__actions {
+    width: 100%;
+  }
+
+  .command__actions {
+    justify-content: stretch;
+  }
+
+  .command__actions .button {
+    flex: 1 1 auto;
+  }
+}

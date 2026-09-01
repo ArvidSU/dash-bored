@@ -40,3 +40,12 @@
   line-height: 1.4;
 }
 
+@media (max-width: 480px) {
+  .status {
+    grid-template-columns: auto 1fr;
+  }
+
+  .status__value {
+    grid-column: 2;
+  }
+}
