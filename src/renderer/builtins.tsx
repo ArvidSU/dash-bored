@@ -11,7 +11,6 @@ import {
 import type { ReactNode } from "react";
 import { CapabilityGate, stringProp } from "./builtins/shared";
 import type { ComponentRendererProps, PackagedComponent } from "./builtins/types";
-import type { ComponentRenderedChildren } from "../shared/contracts";
 import {
   CHART_COLORS,
   limitChartData,
@@ -35,26 +34,6 @@ import {
 } from "./env";
 import { ComponentVisibilityContext } from "./ComponentCompositor";
 import { TodoList } from "./todo-list";
-
-function childSurface(children: ComponentRenderedChildren | undefined): ReactNode {
-  return children?.type === "tiled" ? children.surface : null;
-}
-
-function Card({ props, children }: ComponentRendererProps): ReactNode {
-  const title = stringProp(props, ["title"]);
-  const description = stringProp(props, ["description"]);
-  return (
-    <section className="card">
-      {title || description ? (
-        <header className="card__header">
-          {title ? <h2>{title}</h2> : null}
-          {description ? <p>{description}</p> : null}
-        </header>
-      ) : null}
-      <div className="card__body">{childSurface(children)}</div>
-    </section>
-  );
-}
 
 function Text({ props }: ComponentRendererProps): ReactNode {
   const content = stringProp(props, ["content", "text"]);
@@ -745,6 +724,7 @@ function Webview({ props, host: componentHost }: ComponentRendererProps): ReactN
 
 const LazyTabs = lazy(() => import("./builtins/tabs"));
 const LazyGroup = lazy(() => import("./builtins/group"));
+const LazyCard = lazy(() => import("./builtins/card"));
 const LazyCommand = lazy(() => import("./builtins/command"));
 const LazyMarkdown = lazy(() => import("./builtins/markdown"));
 
@@ -765,7 +745,7 @@ function lazyBuiltin(
 const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.freeze({
   "@dash-bored/group": lazyBuiltin(LazyGroup),
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),
-  "@dash-bored/card": Card,
+  "@dash-bored/card": lazyBuiltin(LazyCard),
   "@dash-bored/text": Text,
   "@dash-bored/markdown": lazyBuiltin(LazyMarkdown),
   "@dash-bored/status": Status,
