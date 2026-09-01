@@ -1,0 +1,26 @@
+.webview-shell {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #090b0f;
+}
+
+.webview-shell__url {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.webview-shell__view {
+  display: block;
+  width: 100%;
+  height: clamp(300px, 52vh, 720px);
+  background: #fff;
+}
+

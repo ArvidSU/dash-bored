@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "./webview.css";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 
