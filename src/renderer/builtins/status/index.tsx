@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "./status.css";
 import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
 
