@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { CapabilityGate, stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { CapabilityGate, stringProp } from "../shared";
 import {
   appendEnvEntry,
   envEntries,
@@ -12,7 +12,7 @@ import {
   serializeEnv,
   updateEnvEntry,
   type EnvDocument,
-} from "../env";
+} from "../../env";
 
 export default function EnvEditor({ props, host: componentHost }: ComponentRendererProps): ReactNode {
   const filesystem = componentHost.filesystem;
@@ -246,4 +246,3 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
     </section>
   );
 }
-
