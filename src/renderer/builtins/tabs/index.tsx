@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
+import "./tabs.css";
 import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
 
