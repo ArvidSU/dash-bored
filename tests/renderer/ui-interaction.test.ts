@@ -126,6 +126,7 @@ describe("renderer fixture interactions", () => {
     });
     await active.reload();
     await active.getByRole("button", { name: "Open component library" }).waitFor();
+    await active.locator("[data-node-id]").nth(1).waitFor();
     expect(await active.locator("[data-node-id]").count()).toBeGreaterThan(1);
     expect(await active.evaluate(() => (
       (window as Window & { __pointerSessionListeners?: string[] }).__pointerSessionListeners ?? []
