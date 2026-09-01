@@ -178,6 +178,8 @@ describe("renderer fixture interactions", () => {
     const palette = active.getByRole("dialog", { name: "Command palette" });
     await palette.waitFor();
     expect(await palette.getByRole("combobox").count()).toBe(1);
+    await palette.getByRole("combobox").fill("reload app");
+    await palette.getByRole("option", { name: /Reload app/ }).waitFor();
     await active.keyboard.press("Escape");
     expect(await palette.count()).toBe(0);
 

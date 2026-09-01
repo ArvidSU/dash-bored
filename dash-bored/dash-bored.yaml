@@ -355,21 +355,10 @@ root:
                     type: child
                     child:
                       node:
-                        id: local-preview-card
-                        component: "@dash-bored/card"
+                        id: renderer-preview
+                        component: "@dash-bored/webview"
                         props:
-                          title: Renderer preview
-                          description: Available after the development environment has started.
-                        children:
-                          type: tiled
-                          layout:
-                            type: child
-                            child:
-                              node:
-                                id: renderer-preview
-                                component: "@dash-bored/webview"
-                                props:
-                                  url: http://localhost:5173
+                          url: https://www.google.com
                   second:
                     type: child
                     child:

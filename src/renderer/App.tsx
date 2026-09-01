@@ -2432,6 +2432,7 @@ export function App(): ReactNode {
     draftValid,
     savingDraft,
     callbacks: {
+      reloadApp: () => window.location.reload(),
       showDashboard: () => setActiveView("dashboard"),
       showSettings,
       toggleSidebar: () => setSidebarExpanded((expanded) => !expanded),

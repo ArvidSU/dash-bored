@@ -75,6 +75,10 @@ function openCommandPalette(): void {
   )?.send?.openCommandPalette({});
 }
 
+function reloadApp(): void {
+  mainWindow?.webview.executeJavascript("window.location.reload()");
+}
+
 const trustStore = new TrustStore(join(Utils.paths.userData, "trusted-projects-v1.json"));
 const projectRegistry = new ProjectRegistry(join(Utils.paths.userData, "projects-v1.json"));
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
@@ -274,6 +278,11 @@ ApplicationMenu.setApplicationMenu([
         action: "open-command-palette",
         accelerator: "CommandOrControl+K",
       },
+      {
+        label: "Reload App",
+        action: "reload-app",
+        accelerator: "CommandOrControl+Shift+R",
+      },
     ],
   },
 ]);
@@ -281,6 +290,7 @@ ApplicationMenu.setApplicationMenu([
 ApplicationMenu.on("application-menu-clicked", (event) => {
   const action = (event as { data?: { action?: unknown } }).data?.action;
   if (action === "open-command-palette") openCommandPalette();
+  if (action === "reload-app") reloadApp();
 });
 
 const configuredProject = process.env.DASH_BORED_PROJECT_ROOT;

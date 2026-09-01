@@ -27,9 +27,16 @@
   white-space: nowrap;
 }
 
+.webview-shell__placeholder,
 .webview-shell__view {
   display: block;
+  aspect-ratio: 16 / 9;
   width: 100%;
-  height: clamp(300px, 52vh, 720px);
+  min-height: 320px;
+  max-height: 720px;
+}
+
+.webview-shell__view {
+  min-width: 0;
   background: #fff;
 }

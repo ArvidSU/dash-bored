@@ -523,6 +523,10 @@ Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
 every node in the currently selected dashboard for virtual-root focus,
 all declared process resources, and actions contributed by active components.
+Choose <strong>Reload app</strong> there, or press <kbd>Command-Shift-R</kbd> on
+macOS (<kbd>Ctrl-Shift-R</kbd> elsewhere), to reload the app window when the
+renderer needs a fresh start. This is separate from <strong>Reload dashboard</strong>,
+which only rereads the active project's configuration.
 
 ## Author a project component
 

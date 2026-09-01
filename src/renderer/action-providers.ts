@@ -20,6 +20,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 };
 
 export interface ApplicationActionCallbacks {
+  reloadApp(): void;
   showDashboard(): void;
   showSettings(): void;
   toggleSidebar(): void;
@@ -172,6 +173,14 @@ export function buildApplicationActions(
   const projectOpen = snapshot?.projectRoot !== null && snapshot?.projectRoot !== undefined;
   const pendingReason = blockedReason(pendingAction);
   const actions: PaletteAction[] = [
+    appAction({
+      id: "app:reload",
+      label: "Reload app",
+      description: "Reload the app window and renderer.",
+      keywords: ["refresh", "restart", "recover", "window"],
+      group: "Application",
+      run: callbacks.reloadApp,
+    }),
     appAction({
       id: "app:show-dashboard",
       label: "Show dashboard",

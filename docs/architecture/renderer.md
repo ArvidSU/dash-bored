@@ -26,9 +26,15 @@ examples, not privileged component types:
   interactions use the normal draft Save/Cancel boundary.
 - `@dash-bored/webview` embeds a sandboxed application page. Native child
   webviews are initialized only while their tab is visible and are explicitly
-  hidden while an already-initialized tab is inactive; the native surface is an
-  overlay rather than a DOM descendant, so ordinary CSS `display: none` cannot
-  hide it reliably.
+  hidden while an already-initialized tab is inactive. The native surface is an
+  overlay rather than a DOM descendant, so the component first reserves a
+  normal document-flow placeholder and creates the native tag only after that
+  slot has a real size. The enclosing shell's measured in-flow width and height
+  override Electrobun's native-tag defaults before creation and whenever its shell resizes, so the overlay
+  remains inside the component rectangle rather than preserving a default
+  child-view frame. Capture-phase scroll updates explicitly resync it through
+  nested layouts and page scrolling. Ordinary CSS `display: none` cannot hide
+  it reliably.
 
 Every rendered node exposes a keyboard-accessible context menu, also available
 through right-click. It contains Focus, Edit component, Collapse or Expand
@@ -260,3 +266,10 @@ application-menu accelerator `CommandOrControl+K` open it; the menu sends a
 typed main-to-renderer message. This is not an operating-system-global hotkey.
 Search and keyboard interaction are implemented in the renderer without an
 external palette dependency.
+
+The application provider also exposes `Reload app`, which reloads the current
+renderer window and remains available even while another action is pending or
+no dashboard is open. The native application menu binds the same lifecycle
+operation to `CommandOrControl+Shift+R`. This is distinct from `Reload
+dashboard`, which asks the main process to reread the active project while
+preserving the last known-good renderer when project validation fails.

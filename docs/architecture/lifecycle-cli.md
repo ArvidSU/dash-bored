@@ -32,6 +32,13 @@ Local render exceptions are isolated at component-instance boundaries. Host and
 process failures update snapshots and diagnostics without crashing the main
 process.
 
+The application shell exposes a separate renderer recovery operation from its
+dashboard reload. `Reload app` reloads the current webview, and the native
+application menu binds it to `CommandOrControl+Shift+R`; the command palette
+also invokes it. `Reload dashboard` remains the project-scoped operation that
+rereads configuration and preserves the last known-good tree when validation
+fails.
+
 ## CLI surface
 
 The package exposes a `dash-bored` executable through its `bin` field:

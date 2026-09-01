@@ -237,6 +237,7 @@ describe("action search and execution", () => {
 
 describe("application action providers", () => {
   const callbacks = {
+    reloadApp: () => undefined,
     showDashboard: () => undefined,
     showSettings: () => undefined,
     toggleSidebar: () => undefined,
@@ -251,6 +252,32 @@ describe("application action providers", () => {
     runProcessQuickAction: () => undefined,
     stopProcess: () => undefined,
   };
+
+  test("exposes an always-available app reload action", () => {
+    let reloaded = false;
+    const actions = buildApplicationActions({
+      snapshot: null,
+      projects: [],
+      activeView: "dashboard",
+      sidebarExpanded: false,
+      pendingAction: "some-action",
+      editing: false,
+      draftDirty: false,
+      draftValid: false,
+      savingDraft: false,
+      callbacks: { ...callbacks, reloadApp: () => { reloaded = true; } },
+    });
+    const reload = actions.find((item) => item.id === "app:reload");
+
+    expect(reload).toMatchObject({
+      label: "Reload app",
+      description: "Reload the app window and renderer.",
+      group: "Application",
+      enabled: true,
+    });
+    reload?.run();
+    expect(reloaded).toBeTrue();
+  });
 
   test("derives shell, dashboard, trust, and disabled process actions", () => {
     const actions = buildApplicationActions({
