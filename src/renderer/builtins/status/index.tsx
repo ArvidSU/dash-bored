@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ComponentRendererProps } from "./types";
-import { stringProp } from "./shared";
+import type { ComponentRendererProps } from "../types";
+import { stringProp } from "../shared";
 
 export default function Status({ props }: ComponentRendererProps): ReactNode {
   const label = stringProp(props, ["label", "name"], "Status");
