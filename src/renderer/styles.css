@@ -451,14 +451,42 @@ img.sidebar__project-icon {
   min-width: 0;
 }
 
-.sidebar-tree__node {
+.sidebar-tree__row {
   display: grid;
-  width: 100%;
   min-width: 0;
   min-height: 26px;
-  grid-template-columns: 17px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
-  padding: 1px 5px 1px 0;
+}
+
+.sidebar-tree__collapse {
+  display: grid;
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--faint);
+  cursor: pointer;
+  background: transparent;
+}
+
+.sidebar-tree__collapse:hover,
+.sidebar-tree__collapse:focus-visible {
+  color: var(--text);
+  outline: none;
+  background: rgb(255 255 255 / 5%);
+}
+
+.sidebar-tree__node {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  gap: 7px;
+  padding: 1px 5px 1px 4px;
   border: 0;
   border-radius: 5px;
   color: var(--muted);
@@ -475,6 +503,19 @@ img.sidebar__project-icon {
   background: rgb(255 255 255 / 5%);
 }
 
+.sidebar-tree__node--virtual-root {
+  border: 1px solid rgb(217 255 104 / 30%);
+  color: var(--accent);
+  background: rgb(217 255 104 / 8%);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.sidebar-tree__node--virtual-root:hover,
+.sidebar-tree__node--virtual-root:focus-visible {
+  color: #f0ffc2;
+  background: rgb(217 255 104 / 14%);
+}
+
 .sidebar-tree__marker {
   color: var(--faint);
   font-size: 15px;
@@ -484,7 +525,16 @@ img.sidebar__project-icon {
 
 .sidebar-tree__marker--branch {
   color: #8993a2;
-  transform: translateY(-1px);
+}
+
+.sidebar-tree__marker--branch svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
 }
 
 .sidebar-tree__node-label {
@@ -492,6 +542,15 @@ img.sidebar__project-icon {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar-tree__node-state {
+  flex: 0 0 auto;
+  color: inherit;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .sidebar-tree__state {

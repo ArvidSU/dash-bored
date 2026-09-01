@@ -82,6 +82,7 @@ import {
   type SplitRatioOverrides,
 } from "./split-layout";
 import { AppShell, type ProjectOutlineState } from "./app-shell";
+import type { DashboardOutlineNodeAction } from "./DashboardOutlineTree";
 import { AgentActivity, activeDashboardAgentTaskCount } from "./AgentActivity";
 import {
   DashboardEditor,
@@ -3274,6 +3275,32 @@ export function App(): ReactNode {
     }
   }
 
+  function handleProjectNodeAction(
+    targetProject: ProjectListItem,
+    node: ResolvedComponentNode,
+    action: DashboardOutlineNodeAction,
+  ): void {
+    if (action === "focus") {
+      void focusProjectNode(targetProject, node.id);
+      return;
+    }
+    if (action === "copy") {
+      void copyComponentPath(node);
+      return;
+    }
+    if (activeView !== "dashboard" || snapshot?.configPath !== targetProject.configPath) {
+      setActionError("Open this dashboard before changing its component.");
+      return;
+    }
+    if (action === "edit") {
+      void editCompositionNode(node);
+    } else if (action === "collapse") {
+      toggleComponentCollapse(node.id);
+    } else {
+      setAgentDialog(node);
+    }
+  }
+
   const nodeFocusActions = buildNodeFocusActions(
     snapshot,
     virtualRoot?.node.id ?? null,
@@ -3455,6 +3482,9 @@ export function App(): ReactNode {
         expandedProjectOutlines={expandedProjectOutlines}
         pendingAction={pendingAction}
         projectOutlines={projectOutlines}
+        currentVirtualRootProjectPath={snapshot?.configPath ?? null}
+        currentVirtualRootId={virtualRoot?.node.id ?? null}
+        collapsedNodeIds={activeCollapsedComponentIds}
         title={title}
         dashboardPath={headerDashboardPath}
         shortcutLabel={shortcutLabel}
@@ -3514,6 +3544,7 @@ export function App(): ReactNode {
         onSelectProject={(project) => void selectProject(project)}
         onToggleProjectOutline={toggleProjectOutline}
         onFocusProjectNode={(project, nodeId) => void focusProjectNode(project, nodeId)}
+        onProjectNodeAction={handleProjectNodeAction}
         onOpenDeletion={(project) => void openDeletionDialog(project)}
         onAddDashboard={() => void addDashboard()}
         onShowSettings={showSettings}

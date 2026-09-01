@@ -981,8 +981,11 @@ before the trash affordance. It loads a read-only resolved outline for that
 registered dashboard without activating its runtime, then expands the complete
 node hierarchy below the row. Selecting an outline node switches to that
 dashboard when necessary and uses the existing virtual-root focus model for
-navigation. The active dashboard outline follows live snapshots; inactive
-outlines are refreshed whenever their disclosure is reopened.
+navigation. Each outline branch has its own disclosure control, while the
+currently focused virtual root is highlighted and exposed as the current
+location to assistive technology. The active dashboard outline follows live
+snapshots; inactive outlines are refreshed whenever their disclosure is
+reopened.
 
 One application process/window runs one active dashboard at a time. The
 dashboard list is navigation history, not concurrent execution; switching

@@ -478,6 +478,11 @@ whole draft. If `dash-bored.yaml` changes outside the app, save is rejected
 instead of overwriting that newer source. Focused config-link content edits the
 linked bundle that owns it.
 
+Expand the project sidebar and use a dashboard row's tree button to inspect its
+read-only component outline. Branches can be collapsed independently, and the
+node that is currently serving as the dashboard's virtual root is highlighted.
+Selecting a node focuses it in the dashboard without changing its YAML.
+
 Native webviews are hidden through their visibility contract while the flyout,
 drop targets, or dialogs are active because Electrobun surfaces are overlays,
 not DOM descendants. Ordinary DOM dashboard interaction remains available where

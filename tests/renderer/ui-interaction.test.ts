@@ -186,6 +186,44 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("sidebar node trees collapse branches and highlight the virtual root", async () => {
+    const active = currentPage();
+    await active.getByRole("button", { name: "Expand sidebar" }).click();
+    await active.locator(".sidebar__project").hover();
+    const treeToggle = active.getByRole("button", { name: "Show Visual verification fixture tree" });
+    await treeToggle.waitFor({ state: "visible" });
+    await treeToggle.click();
+
+    const tree = active.locator(".sidebar-tree");
+    await tree.locator(".sidebar-tree__node--virtual-root").waitFor();
+    expect(await tree.locator(".sidebar-tree__node--virtual-root").getAttribute("aria-current")).toBe("location");
+
+    const root = tree.locator("[role='treeitem']").first();
+    const expandedCount = await tree.locator("[role='treeitem']").count();
+    expect(await root.getAttribute("aria-expanded")).toBe("true");
+    await root.getByRole("button", { name: "Collapse Dashboard" }).click();
+    expect(await root.getAttribute("aria-expanded")).toBe("false");
+    expect(await tree.locator("[role='treeitem']").count()).toBe(1);
+
+    await root.getByRole("button", { name: "Expand Dashboard" }).click();
+    expect(await root.getAttribute("aria-expanded")).toBe("true");
+    expect(await tree.locator("[role='treeitem']").count()).toBe(expandedCount);
+
+    const groupNode = tree.getByRole("button", { name: "Group", exact: true });
+    await groupNode.click({ button: "right" });
+    const nodeMenu = active.locator(".component-node__menu-popover");
+    await nodeMenu.waitFor();
+    expect(await nodeMenu.getByRole("menuitem", { name: "Edit component", exact: true }).count()).toBe(1);
+    expect(await nodeMenu.evaluate((element) => element.parentElement === document.body)).toBe(true);
+    await nodeMenu.getByRole("menuitem", { name: "Focus component", exact: true }).click();
+    await tree.locator(".sidebar-tree__node--virtual-root").getByText("Group", { exact: true }).waitFor();
+
+    expect(await tree.locator(".sidebar-tree__node--virtual-root").getByText("Group", { exact: true }).count()).toBe(1);
+    await tree.getByRole("button", { name: "Dashboard", exact: true }).click();
+    expect(await tree.locator(".sidebar-tree__node--virtual-root").getByText("Dashboard", { exact: true }).count()).toBe(1);
+    await active.getByRole("button", { name: "Collapse sidebar" }).click();
+  }, 20_000);
+
   test("agent work keeps a dashboard-only request visible after dispatch", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open agent work" }).click();

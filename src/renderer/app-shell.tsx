@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
-import type { ProjectListItem, ProjectSnapshot } from "../shared/contracts";
+import type { ProjectListItem, ProjectSnapshot, ResolvedComponentNode } from "../shared/contracts";
 import { projectLabel, type AppView } from "./action-providers";
-import { DashboardOutlineTree } from "./DashboardOutlineTree";
+import {
+  DashboardOutlineTree,
+  type DashboardOutlineNodeAction,
+} from "./DashboardOutlineTree";
 
 export interface ProjectOutlineState {
   tree: ProjectSnapshot["tree"];
@@ -83,6 +86,9 @@ export interface AppShellProps {
   expandedProjectOutlines: Readonly<Record<string, boolean>>;
   pendingAction: string | null;
   projectOutlines: Readonly<Record<string, ProjectOutlineState>>;
+  currentVirtualRootProjectPath: string | null;
+  currentVirtualRootId: string | null;
+  collapsedNodeIds: ReadonlySet<string>;
   title: string;
   dashboardPath: string | null;
   shortcutLabel: string;
@@ -98,6 +104,11 @@ export interface AppShellProps {
   onSelectProject(project: ProjectListItem): void;
   onToggleProjectOutline(project: ProjectListItem): void;
   onFocusProjectNode(project: ProjectListItem, nodeId: string): void;
+  onProjectNodeAction(
+    project: ProjectListItem,
+    node: ResolvedComponentNode,
+    action: DashboardOutlineNodeAction,
+  ): void;
   onOpenDeletion(project: ProjectListItem): void;
   onAddDashboard(): void;
   onShowSettings(): void;
@@ -116,6 +127,9 @@ export function AppShell({
   expandedProjectOutlines,
   pendingAction,
   projectOutlines,
+  currentVirtualRootProjectPath,
+  currentVirtualRootId,
+  collapsedNodeIds,
   title,
   dashboardPath,
   shortcutLabel,
@@ -131,6 +145,7 @@ export function AppShell({
   onSelectProject,
   onToggleProjectOutline,
   onFocusProjectNode,
+  onProjectNodeAction,
   onOpenDeletion,
   onAddDashboard,
   onShowSettings,
@@ -191,9 +206,20 @@ export function AppShell({
                   outlineExpanded={
                     expandedProjectOutlines[project.configPath] === true
                   }
+                  collapsedNodeIds={
+                    active
+                      ? collapsedNodeIds
+                      : undefined
+                  }
+                  currentVirtualRootId={
+                    project.configPath === currentVirtualRootProjectPath
+                      ? currentVirtualRootId
+                      : null
+                  }
                   onSelect={onSelectProject}
                   onToggleOutline={onToggleProjectOutline}
                   onFocusNode={onFocusProjectNode}
+                  onNodeAction={onProjectNodeAction}
                   onOpenDeletion={onOpenDeletion}
                 />
               );
@@ -335,9 +361,16 @@ interface ProjectSidebarItemProps {
   pending: boolean;
   outline: ProjectOutlineState;
   outlineExpanded: boolean;
+  currentVirtualRootId: string | null;
+  collapsedNodeIds?: ReadonlySet<string>;
   onSelect(project: ProjectListItem): void;
   onToggleOutline(project: ProjectListItem): void;
   onFocusNode(project: ProjectListItem, nodeId: string): void;
+  onNodeAction(
+    project: ProjectListItem,
+    node: ResolvedComponentNode,
+    action: DashboardOutlineNodeAction,
+  ): void;
   onOpenDeletion(project: ProjectListItem): void;
 }
 
@@ -351,9 +384,12 @@ function ProjectSidebarItem({
   pending,
   outline,
   outlineExpanded,
+  currentVirtualRootId,
+  collapsedNodeIds,
   onSelect,
   onToggleOutline,
   onFocusNode,
+  onNodeAction,
   onOpenDeletion,
 }: ProjectSidebarItemProps): ReactNode {
   const outlineId = `sidebar-project-tree-${index}`;
@@ -418,7 +454,11 @@ function ProjectSidebarItem({
             loading={outline.loading}
             error={outline.error}
             label={label}
+            active={active}
+            collapsedNodeIds={collapsedNodeIds}
+            currentVirtualRootId={currentVirtualRootId}
             onSelect={(nodeId) => onFocusNode(project, nodeId)}
+            onAction={(node, action) => onNodeAction(project, node, action)}
           />
         </div>
       ) : null}

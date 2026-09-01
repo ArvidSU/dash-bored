@@ -207,7 +207,7 @@ root:
                                           tags:
                                             - feature
                                         - description: Individually collapsable components in sidebar tree view
-                                          done: false
+                                          done: true
                                           tags:
                                             - feature
                                         - description: Components moveable from tree view
