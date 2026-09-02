@@ -13,9 +13,14 @@ export default function Command({
   const processApi = componentHost.processes;
   const process = processApi?.get();
   const running = process?.phase === "running" || process?.phase === "stopping";
+  const attachOnly = processApi?.attachOnly === true;
+  const canStart = !attachOnly && Boolean(processApi?.start);
+  const canStop = Boolean(processApi?.stop);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [terminalVisible, setTerminalVisible] = useState(running);
+  const [terminalVisible, setTerminalVisible] = useState(
+    attachOnly ? process !== undefined && process.phase !== "idle" : running,
+  );
   const outputRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XtermTerminal | null>(null);
   const lastSequenceRef = useRef(0);
@@ -108,7 +113,7 @@ export default function Command({
     void resize(terminal.cols, terminal.rows).catch(() => undefined);
   }, [process?.phase, processApi?.resize, terminalVisible]);
 
-  if (!processApi?.start || !processApi.stop) {
+  if (!processApi || (!attachOnly && (!processApi.start || !processApi.stop))) {
     return (
       <CapabilityGate title={label}>
         Trust this project to run its configured command.
@@ -153,7 +158,9 @@ export default function Command({
     setError(null);
     try {
       await stop();
-      setTerminalVisible(false);
+      // Attached agent tasks remain mounted after stopping so the user can
+      // review the output that caused the run to finish.
+      if (!attachOnly) setTerminalVisible(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -171,20 +178,22 @@ export default function Command({
         ) : null}
       </div>
       <div className="command__actions">
-        {!running ? (
+        {canStart && !running ? (
           <button className="button button--quiet button--small" type="button" disabled={pending} onClick={() => void openTerminal()}>
             Open terminal
           </button>
         ) : null}
-        <button
-          className="button button--primary"
-          type="button"
-          disabled={pending || process?.phase === "stopping"}
-          onClick={() => void runQuickAction()}
-        >
-          {pending ? "Working…" : label}
-        </button>
-        {running ? (
+        {canStart ? (
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={pending || process?.phase === "stopping"}
+            onClick={() => void runQuickAction()}
+          >
+            {pending ? "Working…" : label}
+          </button>
+        ) : null}
+        {running && canStop ? (
           <button className="button button--danger" type="button" disabled={pending || process?.phase === "stopping"} onClick={() => void closeTerminal()}>
             Close terminal
           </button>

@@ -42,10 +42,11 @@ const DRAG_TYPE = "application/x-dash-bored-node";
 interface ModalProps {
   title: string;
   children: ReactNode;
+  className?: string;
   onDismiss: () => void;
 }
 
-export function EditorModal({ title, children, onDismiss }: ModalProps): ReactNode {
+export function EditorModal({ title, children, className, onDismiss }: ModalProps): ReactNode {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -70,7 +71,7 @@ export function EditorModal({ title, children, onDismiss }: ModalProps): ReactNo
     <div className="editor-modal" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onDismiss();
     }}>
-      <div className="editor-modal__panel" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panelRef}>
+      <div className={className ? `editor-modal__panel ${className}` : "editor-modal__panel"} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panelRef}>
         <header className="editor-modal__header">
           <h2 id={titleId}>{title}</h2>
           <button className="editor-icon-button" type="button" aria-label="Close" onClick={onDismiss}>×</button>

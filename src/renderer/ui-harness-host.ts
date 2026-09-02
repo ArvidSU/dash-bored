@@ -436,6 +436,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     const task: DashboardAgentTask = {
       id: `agent-task-${agentTasks.length + 1}`,
       command: "codex exec",
+      prompt: request?.prompt ?? "Fixture agent request",
       componentPath: request?.componentPath ?? "harness.root",
       request: request?.prompt ?? "Fixture agent request",
       configPath: CONFIG_PATH,
@@ -466,6 +467,11 @@ export function createUiHarnessHost(): UiHarnessHost {
       });
     },
     async getDashboardAgentTasks() { return structuredClone(agentTasks); },
+    async getDashboardAgentDiff(taskId: string) {
+      const task = agentTasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("That dashboard agent task is no longer available.");
+      return `diff --git a/dash-bored/dash-bored.yaml b/dash-bored/dash-bored.yaml\nindex fixture..updated 100644\n--- a/dash-bored/dash-bored.yaml\n+++ b/dash-bored/dash-bored.yaml\n@@ -1,3 +1,3 @@\n-# Fixture dashboard\n+# Updated by ${task.request}\n`;
+    },
     async setDiagnostics(next) {
       currentDiagnostics = structuredClone(next);
       emitSnapshot();
@@ -475,6 +481,16 @@ export function createUiHarnessHost(): UiHarnessHost {
       if (!task) throw new Error("That dashboard agent task is no longer available.");
       task.process = { ...task.process, phase: "exited", signal: "SIGTERM" };
       emit({ type: "agent-task", task: structuredClone(task) });
+      return structuredClone(task);
+    },
+    async writeDashboardAgentTerminal(taskId: string, _input: string) {
+      const task = agentTasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("That dashboard agent task is no longer available.");
+      return structuredClone(task);
+    },
+    async resizeDashboardAgentTerminal(taskId: string, _cols: number, _rows: number) {
+      const task = agentTasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("That dashboard agent task is no longer available.");
       return structuredClone(task);
     },
     async listProjects() { return [project(persistedConfig)]; },
@@ -551,7 +567,9 @@ export function createUiHarnessHost(): UiHarnessHost {
       return process;
     },
     async stopProcess(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process: ProcessSnapshot = nodeId === "setup-dashboard-with-agent"
+        ? { id: nodeId, phase: "exited", pid: null, exitCode: null, signal: "SIGTERM", logs: [] }
+        : { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
       processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;

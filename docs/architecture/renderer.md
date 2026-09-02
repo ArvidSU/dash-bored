@@ -109,13 +109,18 @@ agent edits.
 
 The app owns one dashboard-only agent harness around that same configured CLI.
 It records a bounded in-memory task for each component-change or component-build
-request and streams its process phase and output to an app-level Agent work
-drawer across dashboard navigation. Tasks retain their component/YAML locator,
-the user's request, command, and whether the owning dashboard changed while the
-CLI was running. A process exit or observed file change is never represented as
-agent success: the UI asks the user to review the dashboard. This harness does
-not accept arbitrary commands, manage agent sessions, persist work across app
-quit, or add a provider SDK; quitting dash-bored stops its child agent processes.
+request and shows a compact item with the user's prompt, start time, and a
+Working/Not working state in an app-level Agent work drawer across dashboard
+navigation. Clicking an item opens a three-tab modal: the regular command
+component against that task's PTY-backed process, a bounded git diff for the
+owning `dash-bored/` bundle, and the complete contextualized command with a copy
+action. The terminal includes retained output after the process exits. Tasks
+retain their component/YAML locator, request, contextualized prompt, command, and
+whether the owning dashboard changed while the CLI was running. A process exit
+or observed file change is never represented as agent success: the UI asks the
+user to review the dashboard. This harness does not accept arbitrary commands,
+manage agent sessions, persist work across app quit, or add a provider SDK;
+quitting dash-bored stops its child agent processes.
 The generated starter remains an ordinary `@dash-bored/command`. It invokes the
 `dash-bored agent "${DASH_BORED_AGENT:-codex exec}"` wrapper with its
 request in `DASH_BORED_AGENT_PROMPT`; the wrapper runs that resolved agent

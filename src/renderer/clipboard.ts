@@ -18,5 +18,5 @@ export async function writeClipboardText(text: string): Promise<void> {
   textarea.select();
   const copied = document.execCommand("copy");
   textarea.remove();
-  if (!copied) throw new Error("The component path could not be copied.");
+  if (!copied) throw new Error("The text could not be copied.");
 }

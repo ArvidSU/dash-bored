@@ -33,6 +33,8 @@ export interface DashboardAgentHarnessOptions {
  * A deliberately small wrapper around the user's configured CLI. It manages
  * only dashboard-change requests so the app can show launch, output, exit,
  * and concurrent dashboard-change feedback without becoming an agent host.
+ * Agent processes use the same PTY-backed process primitive as command nodes so
+ * the activity detail view can attach the regular command terminal to them.
  */
 export class DashboardAgentHarness {
   private readonly manager: ProcessManager;
@@ -81,6 +83,22 @@ export class DashboardAgentHarness {
     return { ...task, process: { ...task.process, logs: task.process.logs.map((entry) => ({ ...entry })) } };
   }
 
+  async writeTerminal(id: string, input: string): Promise<DashboardAgentTask> {
+    const process = await this.manager.write(id, input);
+    this.updateProcess(process);
+    const task = this.tasks.get(id);
+    if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
+    return { ...task, process: { ...task.process, logs: task.process.logs.map((entry) => ({ ...entry })) } };
+  }
+
+  async resizeTerminal(id: string, cols: number, rows: number): Promise<DashboardAgentTask> {
+    const process = await this.manager.resize(id, cols, rows);
+    this.updateProcess(process);
+    const task = this.tasks.get(id);
+    if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
+    return { ...task, process: { ...task.process, logs: task.process.logs.map((entry) => ({ ...entry })) } };
+  }
+
   markDashboardChanged(configPath: string): void {
     for (const task of this.tasks.values()) {
       if (task.configPath !== configPath || task.process.phase !== "running") continue;
@@ -116,6 +134,7 @@ export class DashboardAgentHarness {
       const definition: ProcessDefinition = {
         id,
         command: componentAgentInvocation(options.command),
+        interactive: true,
         projectRoot: options.projectRoot,
         env: {
           DASH_BORED_AGENT: options.command,
@@ -126,6 +145,7 @@ export class DashboardAgentHarness {
       const task: DashboardAgentTask = {
         id,
         command: options.command,
+        prompt,
         componentPath: options.componentPath,
         request: options.request,
         configPath: options.configPath,

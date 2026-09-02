@@ -98,6 +98,9 @@ Capability behavior is bounded:
   request time.
 - Short shell calls bound output and execution time; an optional relative
   working directory must remain inside the project root.
+- The app-owned Agent work Diff tab runs only a fixed, argument-vector `git diff`
+  scoped to the task's canonical `dash-bored/` bundle and bounds its output to
+  512 KiB. It is not exposed as an arbitrary component shell capability.
 - Capability requests from untrusted projects, undeclared components, unknown
   nodes, or escaped paths fail with a permission or validation diagnostic.
 

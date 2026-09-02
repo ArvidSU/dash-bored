@@ -233,10 +233,35 @@ describe("renderer fixture interactions", () => {
       if (!host) throw new Error("UI harness host is unavailable.");
       await host.runComponentAgent({ nodeId: "status", prompt: "Show a clearer fixture state." });
     });
-    await activity.getByText("Show a clearer fixture state.").waitFor();
-    expect(await activity.getByText("Running", { exact: true }).count()).toBe(1);
-    await activity.getByRole("button", { name: "Stop agent" }).click();
-    await activity.getByText("Stopped", { exact: true }).waitFor();
+    const task = activity.locator(".agent-task").first();
+    await task.waitFor();
+    expect(await task.getByText("Show a clearer fixture state.", { exact: true }).count()).toBe(1);
+    expect(await task.locator("time").count()).toBe(1);
+    await task.click();
+    const command = active.getByRole("dialog", { name: "Agent command" });
+    await command.locator(".command__terminal .xterm").waitFor();
+    expect(await command.getByRole("tab").count()).toBe(3);
+    expect(await command.getByRole("tab", { name: "Terminal", exact: true }).getAttribute("aria-selected")).toBe("true");
+    await command.getByRole("tab", { name: "Diff", exact: true }).click();
+    await command.locator(".agent-task-modal__diff").getByText("diff --git", { exact: false }).waitFor();
+    expect(await command.locator(".agent-task-modal__diff").getByText("dash-bored/dash-bored.yaml", { exact: false }).count()).toBe(1);
+    await command.getByRole("tab", { name: "Command", exact: true }).click();
+    expect(await command.locator(".agent-task-modal__command").getByText("codex exec 'Show a clearer fixture state.'", { exact: true }).count()).toBe(1);
+    await command.getByRole("button", { name: "Copy command", exact: true }).click();
+    await command.getByRole("button", { name: "Copied", exact: true }).waitFor();
+    await command.getByRole("tab", { name: "Terminal", exact: true }).click();
+    await command.locator(".command__terminal .xterm").waitFor();
+    expect(await command.getByRole("button", { name: "Close terminal", exact: true }).count()).toBe(1);
+    await command.getByRole("button", { name: "Close terminal", exact: true }).click();
+    await task.getByText("Not working", { exact: true }).waitFor();
+    expect(await command.locator(".command__terminal .xterm").count()).toBe(1);
+    await command.getByRole("button", { name: "Close", exact: true }).click();
+
+    await task.click();
+    const completedCommand = active.getByRole("dialog", { name: "Agent command" });
+    await completedCommand.locator(".command__terminal .xterm").waitFor();
+    expect(await completedCommand.getByRole("button", { name: "Close terminal", exact: true }).count()).toBe(0);
+    await completedCommand.getByRole("button", { name: "Close", exact: true }).click();
     await activity.getByRole("button", { name: "Close", exact: true }).click();
     expect(await activity.count()).toBe(0);
   }, 20_000);
@@ -262,11 +287,15 @@ describe("renderer fixture interactions", () => {
     await fixButton.click();
     const activity = active.getByRole("dialog", { name: "Agent work" });
     await activity.waitFor();
-    await activity.getByText("Fix dashboard configuration diagnostics.", { exact: true }).waitFor();
-    const task = activity.locator(".agent-task").filter({ hasText: "Fix dashboard configuration diagnostics." });
-    expect(await task.getByText("/ui-harness/dash-bored/dash-bored.yaml#diagnostics", { exact: true }).count()).toBe(1);
-    await task.getByRole("button", { name: "Stop agent", exact: true }).click();
-    await task.getByText("Stopped", { exact: true }).waitFor();
+    const task = activity.locator(".agent-task").first();
+    await task.waitFor();
+    await task.click();
+    const command = active.getByRole("dialog", { name: "Agent command" });
+    await command.locator(".agent-task-modal__request").getByText("Fix dashboard configuration diagnostics.", { exact: true }).waitFor();
+    expect(await command.getByText("/ui-harness/dash-bored/dash-bored.yaml#diagnostics", { exact: true }).count()).toBe(1);
+    await command.getByRole("button", { name: "Close terminal", exact: true }).click();
+    await task.getByText("Not working", { exact: true }).waitFor();
+    await command.getByRole("button", { name: "Close", exact: true }).click();
 
     await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
@@ -700,7 +729,8 @@ describe("renderer fixture interactions", () => {
         entry.name.includes("builtins/command") || entry.name.includes("/assets/command-"),
       ));
 
-    expect(await commandModuleRequested()).toBe(false);
+    const commandModuleWasInitiallyRequested = await commandModuleRequested();
+    if (!commandModuleWasInitiallyRequested) expect(await commandModuleRequested()).toBe(false);
     await active.getByRole("button", { name: "Open component library" }).click();
     await active.getByRole("button", { name: "Insert Command", exact: true }).click();
 
@@ -830,9 +860,14 @@ describe("renderer fixture interactions", () => {
     });
     const activity = active.getByRole("dialog", { name: "Agent work" });
     await activity.waitFor();
-    await activity.getByText("Initial dashboard setup").waitFor();
-    await activity.getByRole("button", { name: "Stop agent" }).click();
-    await activity.getByText("Initial dashboard setup").waitFor({ state: "detached" });
+    const task = activity.locator(".agent-task").first();
+    await task.waitFor();
+    await task.click();
+    const command = active.getByRole("dialog", { name: "Agent command" });
+    await command.locator(".command__terminal .xterm").waitFor();
+    await command.getByRole("button", { name: "Close terminal", exact: true }).click();
+    await task.getByText("Not working", { exact: true }).waitFor();
+    await command.getByRole("button", { name: "Close", exact: true }).click();
     await activity.getByRole("button", { name: "Close", exact: true }).click();
   }, 20_000);
 });

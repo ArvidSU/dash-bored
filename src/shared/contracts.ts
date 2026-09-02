@@ -204,6 +204,8 @@ export interface ComponentAgentLaunch {
 export interface DashboardAgentTask {
   id: string;
   command: string;
+  /** Fully contextualized prompt passed as the configured command's argument. */
+  prompt: string;
   componentPath: string;
   request: string;
   configPath: string;
@@ -436,6 +438,8 @@ export interface LocalComponentHost {
   http?: { request(request: Omit<HttpRequest, "nodeId">): Promise<HttpResponsePayload> };
   shell?: { run(request: Omit<ShellRunRequest, "nodeId">): Promise<ShellRunResult> };
   processes?: {
+    /** Allows a host-owned process surface to attach to an existing process without rerunning it. */
+    attachOnly?: boolean;
     get(nodeId?: string): ProcessSnapshot | undefined;
     start?(): Promise<ProcessSnapshot>;
     /** Starts the shell without running its configured quick action. */

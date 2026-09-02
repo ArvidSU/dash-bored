@@ -25,6 +25,9 @@ describe("DashboardAgentHarness", () => {
         process: { phase: "running" },
       });
 
+      expect((await harness.resizeTerminal(launch.taskId, 80, 24)).process.phase).toBe("running");
+      expect((await harness.writeTerminal(launch.taskId, "\n")).process.phase).toBe("running");
+
       harness.markDashboardChanged("/project/dash-bored/dash-bored.yaml");
       expect(harness.list()[0]?.dashboardChanged).toBeTrue();
       expect(updates.some((task) => task.dashboardChanged)).toBeTrue();

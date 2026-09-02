@@ -42,7 +42,10 @@ export interface DashboardHost {
   runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
   runDiagnosticsAgent(): Promise<ComponentAgentLaunch>;
   getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
+  getDashboardAgentDiff(taskId: string): Promise<string>;
   stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask>;
+  writeDashboardAgentTerminal(taskId: string, input: string): Promise<DashboardAgentTask>;
+  resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number): Promise<DashboardAgentTask>;
   listProjects(): Promise<ProjectListItem[]>;
   getProjectOutline(project: ProjectListItem): Promise<ProjectOutline>;
   chooseProject(): Promise<ProjectSnapshot>;
@@ -156,9 +159,24 @@ const liveHost: DashboardHost = {
     return await rpc.request.getDashboardAgentTasks({});
   },
 
+  async getDashboardAgentDiff(taskId: string): Promise<string> {
+    ensureTransport();
+    return await rpc.request.getDashboardAgentDiff({ taskId });
+  },
+
   async stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask> {
     ensureTransport();
     return await rpc.request.stopDashboardAgentTask({ taskId });
+  },
+
+  async writeDashboardAgentTerminal(taskId: string, input: string): Promise<DashboardAgentTask> {
+    ensureTransport();
+    return await rpc.request.writeDashboardAgentTerminal({ taskId, input });
+  },
+
+  async resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number): Promise<DashboardAgentTask> {
+    ensureTransport();
+    return await rpc.request.resizeDashboardAgentTerminal({ taskId, cols, rows });
   },
 
   async listProjects(): Promise<ProjectListItem[]> {

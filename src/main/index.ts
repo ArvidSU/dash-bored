@@ -5,7 +5,7 @@ import Electrobun, {
   Updater,
   Utils,
 } from "electrobun/main";
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import type {
   DashboardAgentTask,
@@ -36,6 +36,68 @@ const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
 const DEV_SERVER_ATTEMPTS = 40;
 const DEV_SERVER_RETRY_MS = 100;
 const MIN_WINDOW_WIDTH = 350;
+const MAX_AGENT_DIFF_BYTES = 512 * 1024;
+
+async function readBoundedProcessText(
+  stream: ReadableStream<Uint8Array> | null,
+  maximumBytes: number,
+): Promise<string> {
+  if (stream === null) return "";
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maximumBytes) {
+      await reader.cancel();
+      throw new CoreError("DASHBOARD_AGENT_DIFF_TOO_LARGE", "The dashboard diff exceeds the display limit.");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+async function getDashboardAgentDiff(taskId: string): Promise<string> {
+  const task = dashboardAgentHarness.list().find((candidate) => candidate.id === taskId);
+  if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
+  const location = await resolveProjectLocation(task.configPath);
+  const folder = relative(location.projectRoot, location.configDirectory).split(sep).join("/");
+  if (folder === "" || folder === ".." || folder.startsWith("../") || isAbsolute(folder)) {
+    throw new CoreError("DASHBOARD_AGENT_DIFF_PATH_INVALID", "The dashboard folder is outside the project.");
+  }
+  const subprocess = Bun.spawn({
+    cmd: ["git", "-C", location.projectRoot, "diff", "--no-ext-diff", "--no-textconv", "HEAD", "--", folder],
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  try {
+    const [exitCode, stdout, stderr] = await Promise.all([
+      subprocess.exited,
+      readBoundedProcessText(subprocess.stdout, MAX_AGENT_DIFF_BYTES),
+      readBoundedProcessText(subprocess.stderr, MAX_AGENT_DIFF_BYTES),
+    ]);
+    if (subprocess.signalCode !== null || exitCode !== 0) {
+      throw new CoreError(
+        "DASHBOARD_AGENT_DIFF_FAILED",
+        stderr.trim() || `git diff exited with code ${String(exitCode)}.`,
+      );
+    }
+    return stdout;
+  } catch (error) {
+    if (subprocess.exitCode === null) subprocess.kill("SIGKILL");
+    await subprocess.exited.catch(() => undefined);
+    if (error instanceof CoreError) throw error;
+    throw new CoreError("DASHBOARD_AGENT_DIFF_FAILED", error instanceof Error ? error.message : String(error));
+  }
+}
 
 async function mainViewUrl(): Promise<string> {
   if ((await Updater.localInfo.channel()) === "dev") {
@@ -240,7 +302,10 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
         runComponentCreationAgent(configPath, target, prompt),
       runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),
       getDashboardAgentTasks: () => dashboardAgentHarness.list(),
+      getDashboardAgentDiff: ({ taskId }) => getDashboardAgentDiff(taskId),
       stopDashboardAgentTask: ({ taskId }) => dashboardAgentHarness.stop(taskId),
+      writeDashboardAgentTerminal: ({ taskId, input }) => dashboardAgentHarness.writeTerminal(taskId, input),
+      resizeDashboardAgentTerminal: ({ taskId, cols, rows }) => dashboardAgentHarness.resizeTerminal(taskId, cols, rows),
       listProjects: () => projectRegistry.list(),
       getProjectOutline: ({ projectRoot, configPath }) =>
         getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),

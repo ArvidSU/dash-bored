@@ -179,8 +179,12 @@ last action shows the resolved command before sending and enriches your request 
 dashboard and exact component path. **Agent work** in the header keeps the
 dashboard-only launch visible while it runs, including its output, exit state,
 and an observed dashboard change; review the result rather than treating those
-signals as proof that an external agent completed the request. When configuration
-diagnostics are present, **Fix with agent** asks the configured CLI to repair the
+signals as proof that an external agent completed the request. Each Agent work
+item shows the user's prompt, start time, and Working/Not working state; clicking
+it opens Terminal, Diff, and Command tabs. Diff is scoped to the owning
+`dash-bored/` folder, while Command shows the full contextualized invocation
+with a copy action. When configuration diagnostics are present, **Fix with
+agent** asks the configured CLI to repair the
 owning dashboard and includes the current reported issues, even when the tree
 cannot render. Adjacent actions optionally expose the
 bundled CLI to external shells, install the skill globally with

@@ -168,9 +168,11 @@ function starterDashboardAgentTask(
   return {
     id: process.id,
     command: "dash-bored agent",
+    prompt: "Initial dashboard setup",
     componentPath: `${resolvedConfigPath}#id=${encodeURIComponent(process.id)}`,
     request: "Initial dashboard setup",
     configPath: resolvedConfigPath,
+    startedAt: new Date().toISOString(),
     dashboardChanged: false,
     process,
   };
@@ -2070,6 +2072,21 @@ export function App(): ReactNode {
     }
   }
 
+  function stopAgentTask(taskId: string): Promise<ProcessSnapshot> {
+    if (taskId === "setup-dashboard-with-agent") return host.stopProcess(taskId);
+    return host.stopDashboardAgentTask(taskId).then((task) => task.process);
+  }
+
+  function writeAgentTaskTerminal(taskId: string, input: string): Promise<ProcessSnapshot> {
+    if (taskId === "setup-dashboard-with-agent") return host.writeProcessTerminal(taskId, input);
+    return host.writeDashboardAgentTerminal(taskId, input).then((task) => task.process);
+  }
+
+  function resizeAgentTaskTerminal(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
+    if (taskId === "setup-dashboard-with-agent") return host.resizeProcessTerminal(taskId, cols, rows);
+    return host.resizeDashboardAgentTerminal(taskId, cols, rows).then((task) => task.process);
+  }
+
   function showActionNotice(message: string): void {
     nextActionNoticeId.current += 1;
     setActionNotice({ id: nextActionNoticeId.current, message });
@@ -3624,12 +3641,10 @@ export function App(): ReactNode {
         open={agentActivityOpen}
         tasks={agentTasks}
         onClose={() => setAgentActivityOpen(false)}
-        onStop={(taskId) => {
-          const stop = taskId === "setup-dashboard-with-agent"
-            ? host.stopProcess(taskId)
-            : host.stopDashboardAgentTask(taskId);
-          void stop.catch((error: unknown) => setActionError(errorMessage(error)));
-        }}
+        onDiff={host.getDashboardAgentDiff}
+        onStop={stopAgentTask}
+        onWrite={writeAgentTaskTerminal}
+        onResize={resizeAgentTaskTerminal}
       />
       <CommandPalette
         open={paletteOpen}
