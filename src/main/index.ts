@@ -16,6 +16,7 @@ import type {
 import {
   buildComponentAgentPrompt,
   buildComponentCreationAgentPrompt,
+  buildDiagnosticsAgentPrompt,
   componentPath,
   findResolvedNode,
   resolveDashboardInsertionPath,
@@ -171,6 +172,32 @@ async function runComponentCreationAgent(
   });
 }
 
+async function runDiagnosticsAgent() {
+  const snapshot = runtime.getSnapshot();
+  if (!snapshot.projectRoot || !snapshot.configPath) {
+    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to fix its diagnostics.");
+  }
+  if (snapshot.diagnostics.length === 0) {
+    throw new CoreError("DIAGNOSTICS_NOT_FOUND", "This dashboard has no current diagnostics to fix.");
+  }
+  const sourceLocation = await resolveProjectLocation(snapshot.configPath);
+  const locator = `${snapshot.configPath}#diagnostics`;
+  const settings = await appSettingsStore.get();
+  const prompt = buildDiagnosticsAgentPrompt({
+    projectRoot: sourceLocation.projectRoot,
+    configPath: snapshot.configPath,
+    diagnostics: snapshot.diagnostics,
+  });
+  return dashboardAgentHarness.launch({
+    command: settings.dashBoredAgent,
+    prompt,
+    projectRoot: sourceLocation.projectRoot,
+    componentPath: locator,
+    configPath: snapshot.configPath,
+    request: "Fix dashboard configuration diagnostics.",
+  });
+}
+
 async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
   const paths = await Utils.openFileDialog({
     startingFolder: process.cwd(),
@@ -211,6 +238,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
       runComponentCreationAgent: ({ configPath, target, prompt }) =>
         runComponentCreationAgent(configPath, target, prompt),
+      runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),
       getDashboardAgentTasks: () => dashboardAgentHarness.list(),
       stopDashboardAgentTask: ({ taskId }) => dashboardAgentHarness.stop(taskId),
       listProjects: () => projectRegistry.list(),

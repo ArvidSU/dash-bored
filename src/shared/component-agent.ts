@@ -4,6 +4,7 @@ import type {
   ComponentNode,
   DashboardConfigSource,
   DashboardInsertionTarget,
+  Diagnostic,
   ResolvedComponentNode,
 } from "./contracts";
 
@@ -19,6 +20,12 @@ export interface ComponentCreationAgentContext {
   projectRoot: string;
   configPath: string;
   insertionPath: string;
+}
+
+export interface DiagnosticsAgentContext {
+  projectRoot: string;
+  configPath: string;
+  diagnostics: readonly Diagnostic[];
 }
 
 export function findResolvedNode(
@@ -248,5 +255,29 @@ export function buildComponentCreationAgentPrompt(
     "",
     "User component description:",
     userPrompt.trim(),
+  ].join("\n");
+}
+
+export function buildDiagnosticsAgentPrompt(
+  context: DiagnosticsAgentContext,
+): string {
+  const diagnostics = context.diagnostics.map((item) => {
+    const location = [
+      item.file,
+      item.path,
+      item.line === undefined ? null : `line ${item.line}`,
+      item.column === undefined ? null : `column ${item.column}`,
+    ].filter(Boolean).join(" · ");
+    return `- ${item.severity.toUpperCase()} ${item.code}: ${item.message}${location ? ` (${location})` : ""}`;
+  }).join("\n");
+
+  return [
+    "You are fixing a dash-bored dashboard configuration after its diagnostics panel reported problems.",
+    "Inspect the project and its instructions before editing, use the installed dash-bored skill when available, preserve unrelated changes, fix the underlying configuration issues, and validate the result.",
+    `Project root: ${context.projectRoot}`,
+    `Owning dashboard config: ${context.configPath}`,
+    "",
+    "Reported diagnostics:",
+    diagnostics,
   ].join("\n");
 }

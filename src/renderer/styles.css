@@ -2090,6 +2090,18 @@ img.sidebar__project-icon {
   display: none;
 }
 
+.diagnostics__header-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.diagnostics__fix {
+  flex: 0 0 auto;
+}
+
 .badge {
   padding: 3px 7px;
   border-radius: 999px;

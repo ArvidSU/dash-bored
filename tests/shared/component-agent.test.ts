@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildComponentAgentPrompt,
   buildComponentCreationAgentPrompt,
+  buildDiagnosticsAgentPrompt,
   componentPath,
   dashboardInsertionPath,
   findResolvedNode,
@@ -109,6 +110,23 @@ describe("component agent context", () => {
     const invocation = componentAgentInvocation(" codex exec ");
     expect(invocation.startsWith("codex exec ")).toBeTrue();
     expect(invocation).toContain("DASH_BORED_AGENT_PROMPT");
+  });
+
+  test("gives a diagnostics repair request the owning dashboard and reported issues", () => {
+    const prompt = buildDiagnosticsAgentPrompt({
+      projectRoot: "/project",
+      configPath: "/project/dash-bored/dash-bored.yaml",
+      diagnostics: [{
+        severity: "error",
+        code: "COMPONENT_UNAVAILABLE",
+        message: "Component ./components/missing is unavailable.",
+        path: "root.component",
+      }],
+    });
+
+    expect(prompt).toContain("fixing a dash-bored dashboard configuration");
+    expect(prompt).toContain("Owning dashboard config: /project/dash-bored/dash-bored.yaml");
+    expect(prompt).toContain("- ERROR COMPONENT_UNAVAILABLE: Component ./components/missing is unavailable. (root.component)");
   });
 
   test("tells an agent to build an unmatched component at the exact YAML insertion path", () => {

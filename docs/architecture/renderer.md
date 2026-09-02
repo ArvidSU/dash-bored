@@ -127,7 +127,10 @@ Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
 horizontal splits may be recursively nested for tiled layouts and stack based
 on their own container width. The application shell also
 shows project identity, diagnostics, and a collapsed-by-default project
-sidebar. The header exposes the command palette and active-dashboard edit
+sidebar. When diagnostics are present, their details header offers Fix with
+agent; the main process re-reads the current diagnostics and launches the
+configured dashboard agent against the owning config, including when the
+dashboard tree is unavailable. The header exposes the command palette and active-dashboard edit
 controls; trust and reload actions remain available from Settings. The main
 process persists successfully opened dashboard targets in a user-data
 registry. Each entry retains its canonical project root, exact config path,

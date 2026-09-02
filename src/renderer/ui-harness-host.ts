@@ -392,6 +392,8 @@ function project(config: DashboardConfig): ProjectListItem {
 export interface UiHarnessHost extends DashboardHost {
   /** Test-only inspection is exposed only on the ui-harness page. */
   getPersistedConfig(): DashboardConfig;
+  /** Test-only diagnostics control is exposed only on the ui-harness page. */
+  setDiagnostics(diagnostics: Diagnostic[]): Promise<void>;
 }
 
 export function createUiHarnessHost(): UiHarnessHost {
@@ -400,6 +402,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   let persistedConfig = structuredClone(initialConfig);
   let configRevision = 1;
   let snapshotRevision = 1;
+  let currentDiagnostics: Diagnostic[] = [];
   const processSnapshots = new Map<string, ProcessSnapshot>();
   const files = new Map<string, string>([
     ["README.md", "# Fixture document\n\nThis file is loaded by the Markdown component.\n"],
@@ -419,7 +422,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     tree: resolveFixtureNode(persistedConfig.root),
     components: [hostStabilityComponent],
     processes: [...processSnapshots.values()].map((process) => structuredClone(process)),
-    diagnostics: [],
+    diagnostics: structuredClone(currentDiagnostics),
     revision: snapshotRevision,
   };
   };
@@ -429,11 +432,11 @@ export function createUiHarnessHost(): UiHarnessHost {
     return currentSnapshot;
   };
   const agentTasks: DashboardAgentTask[] = [];
-  const launch = (request?: { prompt: string }): ComponentAgentLaunch => {
+  const launch = (request?: { prompt: string; componentPath?: string }): ComponentAgentLaunch => {
     const task: DashboardAgentTask = {
       id: `agent-task-${agentTasks.length + 1}`,
       command: "codex exec",
-      componentPath: "harness.root",
+      componentPath: request?.componentPath ?? "harness.root",
       request: request?.prompt ?? "Fixture agent request",
       configPath: CONFIG_PATH,
       startedAt: new Date().toISOString(),
@@ -456,7 +459,17 @@ export function createUiHarnessHost(): UiHarnessHost {
     async updateAppSettings(next) { settings.dashBoredAgent = next.dashBoredAgent; return settings; },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
     async runComponentCreationAgent(request: ComponentCreationAgentRequest) { return launch(request); },
+    async runDiagnosticsAgent() {
+      return launch({
+        prompt: "Fix dashboard configuration diagnostics.",
+        componentPath: `${CONFIG_PATH}#diagnostics`,
+      });
+    },
     async getDashboardAgentTasks() { return structuredClone(agentTasks); },
+    async setDiagnostics(next) {
+      currentDiagnostics = structuredClone(next);
+      emitSnapshot();
+    },
     async stopDashboardAgentTask(taskId: string) {
       const task = agentTasks.find((item) => item.id === taskId);
       if (!task) throw new Error("That dashboard agent task is no longer available.");

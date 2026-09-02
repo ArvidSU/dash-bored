@@ -179,7 +179,10 @@ last action shows the resolved command before sending and enriches your request 
 dashboard and exact component path. **Agent work** in the header keeps the
 dashboard-only launch visible while it runs, including its output, exit state,
 and an observed dashboard change; review the result rather than treating those
-signals as proof that an external agent completed the request. Adjacent actions optionally expose the
+signals as proof that an external agent completed the request. When configuration
+diagnostics are present, **Fix with agent** asks the configured CLI to repair the
+owning dashboard and includes the current reported issues, even when the tree
+cannot render. Adjacent actions optionally expose the
 bundled CLI to external shells, install the skill globally with
 `dash-bored install-skill --global`, or install it for this project with
 `dash-bored install-skill .`. The global form writes the portable guidance and

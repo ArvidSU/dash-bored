@@ -1552,7 +1552,15 @@ function DiagnosticItem({ diagnostic }: { diagnostic: Diagnostic }): ReactNode {
   );
 }
 
-function Diagnostics({ diagnostics }: { diagnostics: Diagnostic[] }): ReactNode {
+function Diagnostics({
+  diagnostics,
+  pending,
+  onFixWithAgent,
+}: {
+  diagnostics: Diagnostic[];
+  pending: boolean;
+  onFixWithAgent: () => void;
+}): ReactNode {
   if (diagnostics.length === 0) return null;
   const errors = diagnostics.filter((item) => item.severity === "error").length;
   const warnings = diagnostics.length - errors;
@@ -1567,7 +1575,21 @@ function Diagnostics({ diagnostics }: { diagnostics: Diagnostic[] }): ReactNode 
     <details className="diagnostics" open={errors > 0}>
       <summary>
         <span>Configuration diagnostics</span>
-        <span className={errors ? "badge badge--error" : "badge badge--warning"}>{summary}</span>
+        <span className="diagnostics__header-actions">
+          <span className={errors ? "badge badge--error" : "badge badge--warning"}>{summary}</span>
+          <button
+            className="button button--quiet button--small diagnostics__fix"
+            type="button"
+            disabled={pending}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onFixWithAgent();
+            }}
+          >
+            {pending ? "Starting…" : "Fix with agent"}
+          </button>
+        </span>
       </summary>
       <ul>
         {diagnostics.map((diagnostic, index) => (
@@ -2379,6 +2401,14 @@ export function App(): ReactNode {
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function runDiagnosticsAgent(): Promise<void> {
+    await perform("diagnostics-agent", async () => {
+      const launched = await host.runDiagnosticsAgent();
+      setAgentActivityOpen(true);
+      showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    });
   }
 
   async function runComponentCreationAgent(
@@ -3441,7 +3471,11 @@ export function App(): ReactNode {
               <TrustPanel snapshot={snapshot} pending={pendingAction === "trust"} onTrust={() => void perform("trust", host.trustProject)} />
             ) : null}
 
-            <Diagnostics diagnostics={snapshot.diagnostics} />
+            <Diagnostics
+              diagnostics={snapshot.diagnostics}
+              pending={pendingAction === "diagnostics-agent"}
+              onFixWithAgent={() => void runDiagnosticsAgent()}
+            />
 
             {snapshot.tree ? (
               <section className="dashboard" aria-label={`${title} dashboard`}>

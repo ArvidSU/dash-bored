@@ -241,6 +241,42 @@ describe("renderer fixture interactions", () => {
     expect(await activity.count()).toBe(0);
   }, 20_000);
 
+  test("diagnostics details can ask the configured agent to fix the dashboard", async () => {
+    const active = currentPage();
+    await active.setViewportSize({ width: 390, height: 844 });
+    await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.setDiagnostics([{
+        severity: "error",
+        code: "FIXTURE_INVALID",
+        message: "The fixture configuration needs attention.",
+        path: "root.component",
+      }]);
+    });
+
+    const diagnostics = active.locator("details.diagnostics");
+    const fixButton = diagnostics.getByRole("button", { name: "Fix with agent", exact: true });
+    await fixButton.waitFor();
+    expect(await fixButton.boundingBox()).not.toBeNull();
+    await fixButton.click();
+    const activity = active.getByRole("dialog", { name: "Agent work" });
+    await activity.waitFor();
+    await activity.getByText("Fix dashboard configuration diagnostics.", { exact: true }).waitFor();
+    const task = activity.locator(".agent-task").filter({ hasText: "Fix dashboard configuration diagnostics." });
+    expect(await task.getByText("/ui-harness/dash-bored/dash-bored.yaml#diagnostics", { exact: true }).count()).toBe(1);
+    await task.getByRole("button", { name: "Stop agent", exact: true }).click();
+    await task.getByText("Stopped", { exact: true }).waitFor();
+
+    await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.setDiagnostics([]);
+    });
+    await activity.getByRole("button", { name: "Close", exact: true }).click();
+    await active.setViewportSize({ width: 1280, height: 800 });
+  }, 20_000);
+
   test("visible components resize only downward from intrinsic height and keep their frame chrome visible", async () => {
     const active = currentPage();
     await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });

@@ -40,6 +40,7 @@ export interface DashboardHost {
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
   runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
+  runDiagnosticsAgent(): Promise<ComponentAgentLaunch>;
   getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
   stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask>;
   listProjects(): Promise<ProjectListItem[]>;
@@ -143,6 +144,11 @@ const liveHost: DashboardHost = {
   ): Promise<ComponentAgentLaunch> {
     ensureTransport();
     return await rpc.request.runComponentCreationAgent(request);
+  },
+
+  async runDiagnosticsAgent(): Promise<ComponentAgentLaunch> {
+    ensureTransport();
+    return await rpc.request.runDiagnosticsAgent({});
   },
 
   async getDashboardAgentTasks(): Promise<DashboardAgentTask[]> {

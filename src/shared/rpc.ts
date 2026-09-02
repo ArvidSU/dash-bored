@@ -33,6 +33,7 @@ export type DashboardRPC = {
       updateAppSettings: { params: AppSettings; response: AppSettings };
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
       runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
+      runDiagnosticsAgent: { params: {}; response: ComponentAgentLaunch };
       getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
       stopDashboardAgentTask: { params: { taskId: string }; response: DashboardAgentTask };
       listProjects: { params: {}; response: ProjectListItem[] };
