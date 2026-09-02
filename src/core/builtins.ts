@@ -99,25 +99,21 @@ const manifests: ComponentManifest[] = [
   },
   {
     schemaVersion: 2,
-    id: "@dash-bored/text",
-    name: "Text",
-    description: "Displays plain text.",
-    entry: "builtin:text",
-    propsSchema: objectSchema(
-      {
-        content: { type: "string" },
-        variant: { enum: ["title", "heading", "body", "muted", "code"] },
-      },
-      ["content"],
-    ),
-  },
-  {
-    schemaVersion: 2,
     id: "@dash-bored/markdown",
     name: "Markdown",
-    description: "Displays Markdown with raw HTML disabled.",
+    description: "Previews safe Markdown from inline content or a project file, with raw editing.",
     entry: "builtin:markdown",
-    propsSchema: objectSchema({ content: { type: "string" } }, ["content"]),
+    propsSchema: {
+      ...objectSchema({
+        content: { type: "string" },
+        path: string,
+      }),
+      anyOf: [
+        { required: ["content"] },
+        { required: ["path"] },
+      ],
+    },
+    permissions: ["filesystem:read", "filesystem:write"],
   },
   {
     schemaVersion: 2,
@@ -200,15 +196,6 @@ const manifests: ComponentManifest[] = [
       },
     },
     permissions: ["process:execute"],
-  },
-  {
-    schemaVersion: 2,
-    id: "@dash-bored/file",
-    name: "File",
-    description: "Displays a bounded UTF-8 project file.",
-    entry: "builtin:file",
-    propsSchema: objectSchema({ path: string }, ["path"]),
-    permissions: ["filesystem:read"],
   },
   {
     schemaVersion: 2,

@@ -214,7 +214,7 @@ describe("ProjectRuntime", () => {
     const changed = {
       schemaVersion: 2,
       name: "Changed",
-      root: { component: "@dash-bored/text", props: { content: "updated" } },
+      root: { component: "@dash-bored/markdown", props: { content: "updated" } },
     } as const;
     await writeFile(join(root, "dash-bored", "dash-bored.yaml"), stringify(changed));
 
@@ -292,7 +292,7 @@ describe("ProjectRuntime", () => {
     await createProject(root, {
       schemaVersion: 2,
       name: "Canonical",
-      root: { component: "@dash-bored/text", props: { content: "Canonical" } },
+      root: { component: "@dash-bored/markdown", props: { content: "Canonical" } },
     });
     const named = join(root, "dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
@@ -302,7 +302,7 @@ describe("ProjectRuntime", () => {
         stringify({
           schemaVersion: 2,
           name: "Arvid",
-          root: { component: "@dash-bored/text", props: { content: "Personal" } },
+          root: { component: "@dash-bored/markdown", props: { content: "Personal" } },
         }),
       ),
       writeFile(
@@ -333,15 +333,15 @@ describe("ProjectRuntime", () => {
     runtimes.push(runtime);
     const loaded = await runtime.load(root);
     const expectedRevision = loaded.configRevision!;
-    expect((await runtime.validateComponentProps("@dash-bored/text", {})).ok).toBeFalse();
-    expect((await runtime.validateComponentProps("@dash-bored/text", { content: "Valid" })).ok).toBeTrue();
+    expect((await runtime.validateComponentProps("@dash-bored/markdown", {})).ok).toBeFalse();
+    expect((await runtime.validateComponentProps("@dash-bored/markdown", { content: "Valid" })).ok).toBeTrue();
     const changed: DashboardConfig = {
       ...loaded.config!,
       name: "Edited in app",
       root: {
         component: "@dash-bored/group",
         children: tiled([
-          { id: "message", component: "@dash-bored/text", props: { content: "Saved" } },
+          { id: "message", component: "@dash-bored/markdown", props: { content: "Saved" } },
         ]),
       },
     };
@@ -358,7 +358,7 @@ describe("ProjectRuntime", () => {
       code: "DASHBOARD_CONFIG_CONFLICT",
     });
     const invalid = structuredClone(changed);
-    invalid.root = { component: "@dash-bored/text" };
+    invalid.root = { component: "@dash-bored/markdown" };
     expect((await runtime.validateDashboardDraft(invalid)).ok).toBeFalse();
     await expect(runtime.saveDashboardConfig(invalid, saved.configRevision!)).rejects.toMatchObject({
       code: "DASHBOARD_DRAFT_INVALID",
@@ -464,7 +464,7 @@ describe("ProjectRuntime", () => {
       writeFile(join(named, "dash-bored.yaml"), stringify({
         schemaVersion: 2,
         name: "Arvid",
-        root: { component: "@dash-bored/text", props: { content: "Before" } },
+        root: { component: "@dash-bored/markdown", props: { content: "Before" } },
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
@@ -481,7 +481,7 @@ describe("ProjectRuntime", () => {
     const source = await runtime.getDashboardConfigSource(linkedRoot?.sourceConfigPath);
     const edited: DashboardConfig = {
       ...source.config,
-      root: { component: "@dash-bored/text", props: { content: "After" } },
+      root: { component: "@dash-bored/markdown", props: { content: "After" } },
     };
     const saved = await runtime.saveDashboardConfig(
       edited,

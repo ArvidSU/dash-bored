@@ -41,7 +41,7 @@ describe("component update detection", () => {
   test("marks only the component whose own props changed", () => {
     const before = node("root", "@dash-bored/group", {}, [
       node("card", "@dash-bored/card", { title: "Before" }, [
-        node("text", "@dash-bored/text", { content: "Unchanged" }),
+        node("text", "@dash-bored/markdown", { content: "Unchanged" }),
       ]),
     ]);
     const after = structuredClone(before);

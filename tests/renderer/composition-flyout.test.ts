@@ -11,10 +11,10 @@ import type { CompositionDropZone } from "../../src/renderer/composition-context
 
 describe("component library drag payloads", () => {
   test("round-trips a catalog reference without carrying component-specific state", () => {
-    const encoded = serializeComponentCatalogDragPayload("@dash-bored/text");
+    const encoded = serializeComponentCatalogDragPayload("@dash-bored/markdown");
     expect(parseComponentCatalogDragPayload(encoded)).toEqual({
       type: "component",
-      reference: "@dash-bored/text",
+      reference: "@dash-bored/markdown",
     });
   });
 
@@ -31,8 +31,8 @@ describe("component library drag payloads", () => {
     };
     expect(compositionPayloadFromDragEvent(transfer, {
       type: "component",
-      reference: "@dash-bored/text",
-    })).toEqual({ type: "component", reference: "@dash-bored/text" });
+      reference: "@dash-bored/markdown",
+    })).toEqual({ type: "component", reference: "@dash-bored/markdown" });
     expect(compositionPayloadFromDragEvent(transfer, null)).toBeNull();
   });
 

@@ -32,31 +32,28 @@ function currentPage(): Page {
   return page;
 }
 
-async function addTextDraft(content: string): Promise<void> {
+async function addGroupDraft(): Promise<void> {
   const active = currentPage();
   await active.getByRole("button", { name: "Open component library" }).click();
-  await active.getByRole("button", { name: "Insert Text", exact: true }).click();
+  await active.getByRole("button", { name: "Insert Group", exact: true }).click();
   await active.getByRole("heading", { name: "Add component" }).waitFor();
-  const contentField = active.getByLabel(/content/i);
-  await contentField.click();
-  await active.keyboard.type(content);
   await active.getByRole("button", { name: "Add component", exact: true }).click();
   await active.getByRole("region", { name: "Dashboard editor" }).waitFor();
   await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
 }
 
-async function persistedTextCount(): Promise<number> {
+async function persistedGroupCount(): Promise<number> {
   return await currentPage().evaluate(async () => {
     const host = window.__DASH_BORED_UI_HARNESS_HOST__;
     if (!host) throw new Error("UI harness host is unavailable.");
     const config = await host.getSnapshot().then((snapshot) => snapshot.config);
-    const visit = (node: { component: string; children?: unknown }): number => {
+    const visit = (node: { id?: string; component: string; children?: unknown }): number => {
       const children = node.children as {
         type?: string;
         items?: Array<{ node: typeof node }>;
         layout?: { type?: string; child?: { node: typeof node }; first?: unknown; second?: unknown };
       } | undefined;
-      if (!children) return node.component === "@dash-bored/text" ? 1 : 0;
+      if (!children) return node.component === "@dash-bored/group" && node.id !== "group" ? 1 : 0;
       const nested = children.type === "managed"
         ? (children.items ?? []).reduce((sum, edge) => sum + visit(edge.node), 0)
         : children.type === "tiled" && children.layout
@@ -66,7 +63,7 @@ async function persistedTextCount(): Promise<number> {
                 + (layout.second ? visitLayout(layout.second as typeof layout) : 0);
             })(children.layout)
           : 0;
-      return (node.component === "@dash-bored/text" ? 1 : 0) + nested;
+      return (node.component === "@dash-bored/group" && node.id !== "group" ? 1 : 0) + nested;
     };
     return config ? visit(config.root) : 0;
   });
@@ -134,14 +131,14 @@ afterAll(async () => {
 describe("renderer fixture interactions", () => {
   test("opening and cleanly closing the library does not begin a draft", async () => {
     const active = currentPage();
-    expect(await persistedTextCount()).toBe(0);
+    expect(await persistedGroupCount()).toBe(0);
     await active.getByRole("button", { name: "Open component library" }).click();
     expect(await active.locator(".composition-frame-controls").count()).toBe(0);
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Open component library" }).waitFor();
     expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
     expect(await active.getByRole("button", { name: "Save dashboard" }).count()).toBe(0);
-    expect(await persistedTextCount()).toBe(0);
+    expect(await persistedGroupCount()).toBe(0);
   }, 20_000);
 
   test("mounting nested frames leaves global pointer gesture listeners idle", async () => {
@@ -321,7 +318,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
-    expect(await persistedTextCount()).toBe(0);
+    expect(await persistedGroupCount()).toBe(0);
   }, 20_000);
 
   test("only the deepest hovered component reveals its menu", async () => {
@@ -357,13 +354,13 @@ describe("renderer fixture interactions", () => {
 
     await active.getByRole("button", { name: "Open component library" }).waitFor();
     expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
-    expect(await persistedTextCount()).toBe(0);
+    expect(await persistedGroupCount()).toBe(0);
   }, 20_000);
 
   test("cancelling component insertion returns to the component library", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open component library" }).click();
-    await active.getByRole("button", { name: "Insert Text", exact: true }).click();
+    await active.getByRole("button", { name: "Insert Group", exact: true }).click();
     await active.getByRole("heading", { name: "Add component" }).waitFor();
     await active.getByRole("dialog", { name: "Add component" }).getByRole("button", { name: "Cancel", exact: true }).click();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
@@ -374,27 +371,27 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("structural mutation starts a draft, save persists, and cancel restores", async () => {
-    expect(await persistedTextCount()).toBe(0);
-    await addTextDraft("saved through keyboard input");
+    expect(await persistedGroupCount()).toBe(0);
+    await addGroupDraft();
 
-    expect(await persistedTextCount()).toBe(0);
+    expect(await persistedGroupCount()).toBe(0);
     await currentPage().getByRole("button", { name: "Save dashboard" }).click();
     await currentPage().getByText("Revision 2", { exact: true }).waitFor();
-    expect(await persistedTextCount()).toBe(1);
+    expect(await persistedGroupCount()).toBe(1);
 
-    await addTextDraft("cancelled draft");
+    await addGroupDraft();
     await currentPage().getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
     await currentPage().getByRole("button", { name: "Discard changes", exact: true }).click();
     await currentPage().getByRole("button", { name: "Open component library" }).waitFor();
-    expect(await persistedTextCount()).toBe(1);
+    expect(await persistedGroupCount()).toBe(1);
   }, 20_000);
 
   test("an incompatible pointer drop does not mutate the draft or persisted fixture", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open component library" }).click();
-    const source = active.getByRole("button", { name: "Insert Text", exact: true });
-    // The dashboard root already has children, so it exposes no pointer insertion boundary.
-    const target = active.locator('[data-node-id="harness-root"]');
+    const source = active.getByRole("button", { name: "Insert Group", exact: true });
+    // The app header is outside the managed component tree, so it exposes no pointer insertion boundary.
+    const target = active.locator(".app-header");
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     const targetBox = await target.boundingBox();
@@ -410,8 +407,8 @@ describe("renderer fixture interactions", () => {
     await library.waitFor();
     expect(await active.getByRole("heading", { name: "Add component" }).count()).toBe(0);
     expect(await active.locator(".component-node--drop-ready").count()).toBe(0);
-    expect(await active.getByRole("button", { name: "Insert Text", exact: true }).getAttribute("aria-grabbed")).toBe("false");
-    expect(await persistedTextCount()).toBe(1);
+    expect(await active.getByRole("button", { name: "Insert Group", exact: true }).getAttribute("aria-grabbed")).toBe("false");
+    expect(await persistedGroupCount()).toBe(1);
     await library.getByRole("button", { name: "Close Component library", exact: true }).click();
   }, 20_000);
 
@@ -419,7 +416,7 @@ describe("renderer fixture interactions", () => {
     const active = currentPage();
     await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });
     await active.getByRole("button", { name: "Open component library" }).click();
-    const source = active.getByRole("button", { name: "Insert Text", exact: true });
+    const source = active.getByRole("button", { name: "Insert Group", exact: true });
     const target = active.locator('[data-node-id="renderer-proof-card"]');
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
@@ -587,7 +584,7 @@ describe("renderer fixture interactions", () => {
     const active = currentPage();
     await active.getByRole("tab", { name: "Wide layout", exact: true }).click();
     await active.getByRole("button", { name: "Open component library" }).click();
-    const source = active.getByRole("button", { name: "Insert Text", exact: true });
+    const source = active.getByRole("button", { name: "Insert Group", exact: true });
     const target = active.locator('[data-node-id="renderer-proof-card"]');
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
@@ -601,8 +598,7 @@ describe("renderer fixture interactions", () => {
     await active.mouse.up();
 
     await active.getByRole("heading", { name: "Add component" }).waitFor();
-    await active.getByLabel(/content/i).fill("pointer planner outcome");
-    await active.getByRole("button", { name: "Add component", exact: true }).click();
+    await active.getByRole("button", { name: "Add component", exact: true }).press("Enter");
     await active.getByRole("region", { name: "Dashboard editor" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     expect(await active.getByRole("button", { name: "Save dashboard" }).count()).toBe(1);
@@ -610,7 +606,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard" }).click();
     await active.getByText("Revision 4", { exact: true }).waitFor();
-    expect(await persistedTextCount()).toBe(2);
+    expect(await persistedGroupCount()).toBe(2);
   }, 20_000);
 
   test("confirmed component removal from its handle reopens the component library", async () => {
@@ -643,7 +639,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("a host revision conflict keeps the draft visible and blocks save", async () => {
-    await addTextDraft("conflicting draft");
+    await addGroupDraft();
     const revision = await currentPage().evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
@@ -656,7 +652,7 @@ describe("renderer fixture interactions", () => {
     await currentPage().getByRole("button", { name: "Save dashboard" }).click();
     await currentPage().getByRole("alert").filter({ hasText: "DASHBOARD_CONFIG_CONFLICT" }).waitFor();
     expect(await currentPage().getByRole("region", { name: "Dashboard editor" }).count()).toBe(1);
-    expect(await persistedTextCount()).toBe(2);
+    expect(await persistedGroupCount()).toBe(2);
   }, 20_000);
 
   test("lazy-loads the interactive command renderer only when it is inserted", async () => {
@@ -732,12 +728,45 @@ describe("renderer fixture interactions", () => {
     expect(await markdownModuleRequested()).toBe(true);
   }, 20_000);
 
+  test("renders a file-backed Markdown preview by default and saves Raw / edit changes", async () => {
+    const active = currentPage();
+    await active.getByRole("button", { name: "Open component library" }).click();
+    await active.getByRole("button", { name: "Insert Markdown", exact: true }).click();
+
+    const dialog = active.getByRole("dialog", { name: "Add component" });
+    await dialog.waitFor();
+    await dialog.getByLabel(/^path/i).fill("README.md");
+    await dialog.getByRole("button", { name: "Add component", exact: true }).click();
+    await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+    await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
+    await active.getByText("Revision 8", { exact: true }).waitFor();
+
+    await active.getByRole("tab", { name: "Item 6", exact: true }).click();
+    const viewer = active.getByRole("region", { name: "Markdown preview for README.md" });
+    await viewer.waitFor();
+    await viewer.getByRole("heading", { name: "Fixture document", exact: true }).waitFor();
+    expect(await viewer.getByRole("button", { name: "Preview", exact: true }).getAttribute("aria-pressed")).toBe("true");
+
+    await viewer.getByRole("button", { name: "Raw / edit", exact: true }).click();
+    const editor = viewer.getByRole("textbox", { name: "Raw Markdown" });
+    await editor.fill("# Updated fixture\n\nSaved from the raw editor.");
+    await viewer.getByRole("button", { name: "Save changes", exact: true }).click();
+    await viewer.getByRole("heading", { name: "Updated fixture", exact: true }).waitFor();
+
+    const saved = await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      return host.readTextFile({ nodeId: "markdown-file", path: "README.md" });
+    });
+    expect(saved).toBe("# Updated fixture\n\nSaved from the raw editor.");
+  }, 20_000);
+
   test("todo interactions retain the mounted surface and use the dashboard draft", async () => {
     const active = currentPage();
     const boundaryTab = active.getByRole("tab", { name: "Boundary", exact: true });
     await boundaryTab.click({ force: true });
     expect(await boundaryTab.getAttribute("aria-selected")).toBe("true");
-    const todo = active.getByRole("region", { name: "YAML todo list" });
+    const todo = active.getByRole("region", { name: /todo list/i });
     await todo.evaluate((element) => { (element as HTMLElement).dataset.fixtureMounted = "before-toggle"; });
     const toggle = active.getByRole("checkbox", { name: "Mark complete: Keep this surface mounted" });
 

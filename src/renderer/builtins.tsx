@@ -12,11 +12,9 @@ const LazyConditional = lazy(() => import("./builtins/conditional"));
 const LazyCard = lazy(() => import("./builtins/card"));
 const LazyChart = lazy(() => import("./builtins/chart"));
 const LazyLiveChart = lazy(() => import("./builtins/live-chart"));
-const LazyFile = lazy(() => import("./builtins/file"));
 const LazyEnv = lazy(() => import("./builtins/env"));
 const LazyTodoList = lazy(() => import("./builtins/todo-list").then(({ TodoList }) => ({ default: TodoList })));
 const LazyWebview = lazy(() => import("./builtins/webview"));
-const LazyText = lazy(() => import("./builtins/text"));
 const LazyStatus = lazy(() => import("./builtins/status"));
 const LazyCommand = lazy(() => import("./builtins/command"));
 const LazyMarkdown = lazy(() => import("./builtins/markdown"));
@@ -40,13 +38,11 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/conditional": lazyBuiltin(LazyConditional),
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),
   "@dash-bored/card": lazyBuiltin(LazyCard),
-  "@dash-bored/text": lazyBuiltin(LazyText),
   "@dash-bored/markdown": lazyBuiltin(LazyMarkdown),
   "@dash-bored/status": lazyBuiltin(LazyStatus),
   "@dash-bored/chart": lazyBuiltin(LazyChart),
   "@dash-bored/live-chart": lazyBuiltin(LazyLiveChart),
   "@dash-bored/command": lazyBuiltin(LazyCommand),
-  "@dash-bored/file": lazyBuiltin(LazyFile),
   "@dash-bored/env": lazyBuiltin(LazyEnv),
   "@dash-bored/todo-list": lazyBuiltin(LazyTodoList),
   "@dash-bored/webview": lazyBuiltin(LazyWebview),

@@ -1325,7 +1325,7 @@ img.sidebar__project-icon {
   border-radius: 0 0 9px 9px;
 }
 
-.editor-node__preview > .text,
+.editor-node__preview > .markdown-viewer,
 .editor-node__preview > .status {
   margin: 12px;
 }

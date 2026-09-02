@@ -45,6 +45,6 @@ describe("dead style analyzer", () => {
   test("collects runtime sources recursively, including built-ins", async () => {
     const files = await collectRuntimeSourceFiles(resolve(import.meta.dirname, "../../src/renderer"));
 
-    expect(files.some((file) => file.path.endsWith("src/renderer/builtins/text/index.tsx"))).toBe(true);
+    expect(files.some((file) => file.path.endsWith("src/renderer/builtins/markdown/index.tsx"))).toBe(true);
   });
 });

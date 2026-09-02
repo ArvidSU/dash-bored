@@ -13,17 +13,10 @@ root:
         type: child
         child:
           node:
-            id: dogfood-notes
+            id: dogfood-project-vision
             component: "@dash-bored/markdown"
             props:
-              content: |
-                # Feature sandbox
-
-                This standalone bundle is linked from the main cockpit. It proves that a
-                dashboard can be composed as a component while keeping its own config,
-                lock file, and component directory.
-
-                Focus this panel and edit it to exercise bundle-local structural editing.
+              path: docs/IDEA.md
       second:
         type: split
         axis: vertical

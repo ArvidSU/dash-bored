@@ -159,7 +159,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
   const openCount = items.filter((item) => !item.done).length;
 
   return (
-    <section className="todo" aria-label="YAML todo list">
+    <section className="todo" aria-label="todo list">
       <header className="todo__header">
         <div>
           <strong>Todo list</strong>

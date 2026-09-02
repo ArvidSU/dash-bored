@@ -7,15 +7,18 @@ examples, not privileged component types:
 
 - Core tile branches compose layout; components such as cards may declare
   children presentation but do not own topology or resizing.
-- `@dash-bored/text`, `@dash-bored/markdown`, and `@dash-bored/status` display
-  safe project information. Markdown does not enable raw HTML.
+- `@dash-bored/markdown` and `@dash-bored/status` display safe project
+  information. Markdown does not enable raw HTML. Markdown accepts either
+  inline `content` or a project-relative `path`; preview is the default view,
+  while Raw / edit exposes an explicit editor with Save/Cancel behavior. Inline
+  edits update the owning dashboard draft, and path-backed edits use the
+  declared bounded filesystem capability.
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
   terminal session.
 - `@dash-bored/conditional` runs a bounded shell condition while its panel is
   visible and projects one tiled child on success, with optional inversion for
   "show until done" setup actions.
-- `@dash-bored/file` displays a read-only project file.
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
   unrecognized lines; writes are bounded, project-contained, and atomic.

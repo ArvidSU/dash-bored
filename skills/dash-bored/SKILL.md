@@ -39,9 +39,8 @@ Prefer the generic built-ins:
 
 - Composition: `@dash-bored/group` for transparent child-surface projection,
   plus core-owned tiled branches and managed child presentation.
-- Display: `@dash-bored/markdown`, `@dash-bored/text`, and
-  `@dash-bored/status`.
-- Project capabilities: `@dash-bored/command`, `@dash-bored/file`,
+- Display: `@dash-bored/markdown` and `@dash-bored/status`.
+- Project capabilities: `@dash-bored/command`,
   `@dash-bored/conditional`, `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
 

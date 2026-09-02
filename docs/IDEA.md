@@ -184,7 +184,7 @@ Better:
 - command component
 - process component
 - HTTP component
-- file component
+- Markdown component with inline or project-file content
 - graph component
 - status component
 

@@ -143,7 +143,7 @@ const initialConfig: DashboardConfig = {
   },
 };
 
-const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card", "markdown", "status", "text", "command", "todo-list"].map((name) => ({
+const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card", "markdown", "status", "command", "todo-list"].map((name) => ({
   reference: `@dash-bored/${name}`,
   source: "builtin" as const,
   available: true,
@@ -156,8 +156,14 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
     entry: `builtin:${name}`,
     ...(name === "group" || name === "conditional" || name === "tabs" ? { renderMode: "layout" as const } : {}),
     ...(name === "command" || name === "conditional" ? { permissions: ["process:execute" as const] } : {}),
-    propsSchema: name === "text" || name === "markdown"
-      ? { type: "object", additionalProperties: false, properties: { content: { type: "string" } }, required: ["content"] }
+    ...(name === "markdown" ? { permissions: ["filesystem:read" as const, "filesystem:write" as const] } : {}),
+    propsSchema: name === "markdown"
+      ? {
+          type: "object",
+          additionalProperties: false,
+          properties: { content: { type: "string" }, path: { type: "string", minLength: 1 } },
+          anyOf: [{ required: ["content"] }, { required: ["path"] }],
+        }
       : name === "status"
         ? { type: "object", additionalProperties: false, properties: { label: { type: "string", minLength: 1 }, state: { enum: ["unknown", "healthy", "warning", "error"] }, detail: { type: "string" } }, required: ["label", "state"] }
         : name === "card"
@@ -395,6 +401,9 @@ export function createUiHarnessHost(): UiHarnessHost {
   let configRevision = 1;
   let snapshotRevision = 1;
   const processSnapshots = new Map<string, ProcessSnapshot>();
+  const files = new Map<string, string>([
+    ["README.md", "# Fixture document\n\nThis file is loaded by the Markdown component.\n"],
+  ]);
   const emit = (event: HostEvent): void => listeners.forEach((listener) => listener(event));
   const snapshot = (): ProjectSnapshot => {
   return {
@@ -534,8 +543,14 @@ export function createUiHarnessHost(): UiHarnessHost {
       emit({ type: "process", process });
       return process;
     },
-    async readTextFile(_request: FileReadRequest) { return "The UI harness does not read project files."; },
-    async writeTextFile(_request: FileWriteRequest) {},
+    async readTextFile(request: FileReadRequest) {
+      const content = files.get(request.path);
+      if (content === undefined) throw new Error(`Fixture file not found: ${request.path}`);
+      return content;
+    },
+    async writeTextFile(request: FileWriteRequest) {
+      files.set(request.path, request.content);
+    },
     async httpRequest(_request: HttpRequest): Promise<HttpResponsePayload> {
       return { status: 204, headers: {}, body: "" };
     },

@@ -146,7 +146,7 @@ root:
                                               props:
                                                 label: Host capabilities
                                                 state: warning
-                                                detail: File reads and commands require an explicit project trust decision.
+                                                detail: File reads, Markdown edits, and commands require an explicit project trust decision.
                   second:
                     type: split
                     axis: vertical
@@ -476,8 +476,8 @@ root:
                           type: child
                           child:
                             node:
-                              id: release-workflow-file
-                              component: "@dash-bored/file"
+                              id: release-workflow-markdown
+                              component: "@dash-bored/markdown"
                               props:
                                 path: .github/workflows/release.yml
       - metadata:
@@ -491,22 +491,22 @@ root:
               - metadata:
                   label: README
                 node:
-                  id: readme-file
-                  component: "@dash-bored/file"
+                  id: readme-markdown
+                  component: "@dash-bored/markdown"
                   props:
                     path: README.md
               - metadata:
                   label: Product vision
                 node:
-                  id: idea-file
-                  component: "@dash-bored/file"
+                  id: idea-markdown
+                  component: "@dash-bored/markdown"
                   props:
                     path: docs/IDEA.md
               - metadata:
                   label: Architecture
                 node:
-                  id: architecture-file
-                  component: "@dash-bored/file"
+                  id: architecture-markdown
+                  component: "@dash-bored/markdown"
                   props:
                     path: ARCHITECTURE.md
       - metadata:

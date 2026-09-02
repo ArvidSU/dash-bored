@@ -70,7 +70,7 @@ describe("getRegisteredProjectOutline", () => {
             first: {
               type: "child",
               child: {
-                node: { id: "welcome", component: "@dash-bored/text", props: { content: "Welcome" } },
+                node: { id: "welcome", component: "@dash-bored/markdown", props: { content: "Welcome" } },
               },
             },
             second: {

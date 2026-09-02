@@ -16,7 +16,7 @@ import {
 function leaf(id: string): ComponentChildLayout<ResolvedComponentNode> {
   return {
     type: "child",
-    child: { node: { id, component: "@dash-bored/text", props: {}, source: "builtin" } },
+    child: { node: { id, component: "@dash-bored/markdown", props: {}, source: "builtin" } },
   };
 }
 
@@ -135,7 +135,7 @@ describe("core tiled split sizing", () => {
 
     const nestedPanel: ResolvedComponentNode = {
       id: "panel",
-      component: "@dash-bored/text",
+      component: "@dash-bored/markdown",
       props: {},
       source: "builtin",
     };
@@ -143,7 +143,7 @@ describe("core tiled split sizing", () => {
     const nestedChildEdge = {
       node: {
         id: "nested",
-        component: "@dash-bored/text",
+        component: "@dash-bored/markdown",
         props: {},
         source: "builtin" as const,
       },

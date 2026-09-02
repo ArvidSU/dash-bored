@@ -211,7 +211,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     children: tiled(child({
       component: "@dash-bored/markdown",
       props: {
-        content: "**Layout:** recursive horizontal and vertical tiles, tabs, and cards  \n**Display:** Markdown, text, status, files, and webviews  \n**Workflow:** commands, live output, and environment editing  \n**Custom:** React components under `dash-bored/components/`\n",
+        content: "**Layout:** recursive horizontal and vertical tiles, tabs, and cards  \n**Display:** Markdown previews, status, and webviews  \n**Workflow:** commands, live output, and environment editing  \n**Custom:** React components under `dash-bored/components/`\n",
       },
     })),
   };

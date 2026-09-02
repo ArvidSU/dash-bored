@@ -37,13 +37,13 @@ describe("component child composition", () => {
             type: "split",
             axis: "horizontal",
             ratio: 0.42,
-            first: edge({ component: "@dash-bored/text", props: { content: "First" } }),
+            first: edge({ component: "@dash-bored/markdown", props: { content: "First" } }),
             second: {
               type: "split",
               axis: "vertical",
               ratio: 0.6,
-              first: edge({ component: "@dash-bored/text", props: { content: "Second" } }),
-              second: edge({ component: "@dash-bored/text", props: { content: "Third" } }),
+              first: edge({ component: "@dash-bored/markdown", props: { content: "Second" } }),
+              second: edge({ component: "@dash-bored/markdown", props: { content: "Third" } }),
             },
           },
         },
@@ -69,7 +69,7 @@ describe("component child composition", () => {
         node: {
           id: "root.children.0",
           sourcePath: "root.children.layout.first.child.node",
-          manifest: { id: "@dash-bored/text" },
+          manifest: { id: "@dash-bored/markdown" },
         },
       },
     });
@@ -99,7 +99,7 @@ describe("component child composition", () => {
         children: {
           type: "tiled",
           layout: edge(
-            { component: "@dash-bored/text", props: { content: "One" } },
+            { component: "@dash-bored/markdown", props: { content: "One" } },
             { label: "One" },
           ),
         },
@@ -118,7 +118,7 @@ describe("component child composition", () => {
         props: { defaultTab: 99 },
         children: {
           type: "managed",
-          items: [{ node: { component: "@dash-bored/text", props: { content: "One" } } }],
+          items: [{ node: { component: "@dash-bored/markdown", props: { content: "One" } } }],
         },
       },
     });
@@ -138,7 +138,7 @@ describe("component child composition", () => {
         children: {
           type: "managed",
           items: [{
-            node: { component: "@dash-bored/text", props: { content: "One" } },
+            node: { component: "@dash-bored/markdown", props: { content: "One" } },
             metadata: { label: "One" },
           }],
         },
@@ -163,13 +163,13 @@ describe("component child composition", () => {
             type: "split",
             axis: "vertical",
             ratio: 0.5,
-            first: edge({ component: "@dash-bored/text", props: { content: "One" } }),
+            first: edge({ component: "@dash-bored/markdown", props: { content: "One" } }),
             second: {
               type: "split",
               axis: "horizontal",
               ratio: 0.5,
-              first: edge({ component: "@dash-bored/text", props: { content: "Two" } }),
-              second: edge({ component: "@dash-bored/text", props: { content: "Three" } }),
+              first: edge({ component: "@dash-bored/markdown", props: { content: "Two" } }),
+              second: edge({ component: "@dash-bored/markdown", props: { content: "Three" } }),
             },
           },
         },
@@ -214,7 +214,7 @@ describe("component child composition", () => {
             type: "split",
             axis: "horizontal",
             ratio: 0.95,
-            first: edge({ component: "@dash-bored/text", props: { content: "One" } }),
+            first: edge({ component: "@dash-bored/markdown", props: { content: "One" } }),
           },
         },
       },

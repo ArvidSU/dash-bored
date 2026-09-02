@@ -200,7 +200,7 @@ schemaVersion: 2
 name: Example project
 icon: ../assets/icon.svg
 root:
-  component: "@dash-bored/text"
+  component: "@dash-bored/markdown"
   props:
     content: "Ready"
 ```
@@ -331,17 +331,21 @@ The initial built-ins are:
 
 - Composition: `@dash-bored/group` for transparent child-surface projection,
   plus core-owned tiled branches and managed child presentation.
-- Display: `@dash-bored/text`, `@dash-bored/markdown`, and
-  `@dash-bored/status`.
+- Display: `@dash-bored/markdown` and `@dash-bored/status`.
 - Charts: `@dash-bored/chart` for static YAML data and
   `@dash-bored/live-chart` for polling JSON data.
-- Host-backed: `@dash-bored/command`, `@dash-bored/conditional`, `@dash-bored/file`,
+- Host-backed: `@dash-bored/command`, `@dash-bored/conditional`,
   `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
 
 These shipped components are examples of the public component contracts, not
 privileged types. Local components can declare the same child contracts,
 process resources, references, and permissions.
+
+`@dash-bored/markdown` accepts either inline `content` or a project-relative
+`path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes
+the source editor, with Save/Cancel behavior. Inline saves update the owning
+dashboard draft, while path-backed saves write the bounded project file.
 
 `@dash-bored/group` is an ordinary transparent component boundary with
 `renderMode: layout`: it accepts

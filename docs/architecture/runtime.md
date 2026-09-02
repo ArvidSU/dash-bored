@@ -74,9 +74,9 @@ component surface, so one deferred built-in does not block unrelated dashboard
 content. Heavy dependencies and component-owned CSS stay in the implementation
 module rather than in the eager registry module. Every shipped renderer entry
 is now a boundary under `src/renderer/builtins/`: group, conditional, tabs, card,
-text, markdown, status, chart, live-chart, command, file, env, todo-list, and
-webview. The registry itself contains only the synchronous lookup map, lazy
-boundaries, and the local loading fallback. `@dash-bored/command` keeps its
+markdown, status, chart, live-chart, command, env, todo-list, and webview. The
+registry itself contains only the synchronous lookup map, lazy boundaries, and
+the local loading fallback. `@dash-bored/command` keeps its
 xterm runtime and CSS in `command.tsx`, while `@dash-bored/markdown` keeps
 `react-markdown` and `markdown.css` in `markdown.tsx`; both are browser-fixture
 verified on insertion. The production renderer build emits separate async

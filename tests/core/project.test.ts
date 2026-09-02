@@ -89,7 +89,7 @@ describe("project paths and YAML", () => {
       stringify({
         schemaVersion: 2,
         name: "Arvid",
-        root: { component: "@dash-bored/text", props: { content: "Personal" } },
+        root: { component: "@dash-bored/markdown", props: { content: "Personal" } },
       }),
     );
     await writeFile(
@@ -110,7 +110,7 @@ describe("project paths and YAML", () => {
     await createProject(root);
     await writeFile(
       join(root, "dash-bored", "dash-bored.yaml"),
-      "schemaVersion: 2\nname: First\nname: Second\nroot:\n  component: '@dash-bored/text'\n  props:\n    content: hi\n",
+      "schemaVersion: 2\nname: First\nname: Second\nroot:\n  component: '@dash-bored/markdown'\n  props:\n    content: hi\n",
     );
     const duplicate = await inspectProject(root);
     expect(duplicate.ok).toBeFalse();
@@ -201,7 +201,7 @@ describe("tree resolution and local compilation", () => {
       writeFile(join(namedDirectory, "dash-bored.yaml"), stringify({
         schemaVersion: 2,
         name: "Arvid",
-        root: { component: "@dash-bored/text", props: { content: "Personal" } },
+        root: { component: "@dash-bored/markdown", props: { content: "Personal" } },
       })),
       writeFile(join(namedDirectory, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
@@ -215,7 +215,7 @@ describe("tree resolution and local compilation", () => {
     expect(result.ok).toBeTrue();
     const children = resolvedChildren(result.tree);
     expect(children[0]).toMatchObject({ source: "config", configName: "Arvid" });
-    expect(resolvedChildren(children[0])[0]?.component).toBe("@dash-bored/text");
+    expect(resolvedChildren(children[0])[0]?.component).toBe("@dash-bored/markdown");
     expect(children[1]).toMatchObject({ source: "config" });
     expect(children[1]?.configError?.length).toBeGreaterThan(0);
     expect(children[2]).toMatchObject({ source: "config", configName: "External" });
@@ -287,8 +287,8 @@ describe("tree resolution and local compilation", () => {
       root: {
         component: "@dash-bored/group",
         children: tiled([
-          { id: "same", component: "@dash-bored/text", props: { content: "one" } },
-          { id: "same", component: "@dash-bored/text", props: { content: "two" } },
+          { id: "same", component: "@dash-bored/markdown", props: { content: "one" } },
+          { id: "same", component: "@dash-bored/markdown", props: { content: "two" } },
         ]),
       },
     };
@@ -298,7 +298,7 @@ describe("tree resolution and local compilation", () => {
     expect(duplicate.diagnostics.map((item) => item.code)).toContain("NODE_ID_DUPLICATE");
 
     config.root.children = tiled([
-      { component: "@dash-bored/text", props: { content: "one" } },
+      { component: "@dash-bored/markdown", props: { content: "one" } },
     ]);
     await writeFile(join(root, "dash-bored", "dash-bored.yaml"), stringify(config));
     const generated = await inspectProject(root);
@@ -336,8 +336,8 @@ describe("tree resolution and local compilation", () => {
       root: {
         component: "@dash-bored/group",
         children: {
-          ...tiled([{ component: "@dash-bored/text", props: { content: "visible" } }]),
-          constructor: { component: "@dash-bored/text", props: { content: "hidden" } },
+          ...tiled([{ component: "@dash-bored/markdown", props: { content: "visible" } }]),
+          constructor: { component: "@dash-bored/markdown", props: { content: "hidden" } },
         } as DashboardConfig["root"]["children"],
       },
     });
@@ -413,7 +413,7 @@ export default defineComponent(({ props, host }) => {
     await writeLocalComponent(root, "reserved", "export default () => null;");
     const manifestPath = join(root, "dash-bored", "components", "reserved", "component.yaml");
     const manifest = await Bun.file(manifestPath).text();
-    await writeFile(manifestPath, manifest.replace("id: reserved", "id: '@dash-bored/text'"));
+    await writeFile(manifestPath, manifest.replace("id: reserved", "id: '@dash-bored/markdown'"));
 
     const result = await inspectProject(root);
     expect(result.ok).toBeFalse();
