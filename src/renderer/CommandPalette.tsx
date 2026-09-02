@@ -2,13 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { PaletteAction } from "./actions";
 import { rankActions } from "./actions";
+import { keyboardShortcutLabel } from "../shared/keyboard-shortcut";
 
 interface CommandPaletteProps {
   open: boolean;
   actions: readonly PaletteAction[];
   runningActionIds: ReadonlySet<string>;
+  favoriteActionIds: ReadonlySet<string>;
+  actionShortcuts: Readonly<Record<string, string>>;
+  favoritesDisabled: boolean;
   onDismiss(): void;
   onExecute(id: string): void;
+  onToggleFavorite(id: string): void;
 }
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
@@ -25,8 +30,12 @@ export function CommandPalette({
   open,
   actions,
   runningActionIds,
+  favoriteActionIds,
+  actionShortcuts,
+  favoritesDisabled,
   onDismiss,
   onExecute,
+  onToggleFavorite,
 }: CommandPaletteProps): ReactNode {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -51,8 +60,8 @@ export function CommandPalette({
     [actions, runningActionIds],
   );
   const ranked = useMemo(
-    () => rankActions(effectiveActions, query),
-    [effectiveActions, query],
+    () => rankActions(effectiveActions, query, favoriteActionIds),
+    [effectiveActions, favoriteActionIds, query],
   );
   const confirmationAction = confirmationId
     ? effectiveActions.find((action) => action.id === confirmationId)
@@ -173,6 +182,7 @@ export function CommandPalette({
   if (!open) return null;
 
   let previousGroup = "";
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const activeOption = ranked.length > 0 ? optionId(selectedIndex) : undefined;
 
   return (
@@ -274,8 +284,10 @@ export function CommandPalette({
                 </div>
               ) : (
                 ranked.map((action, index) => {
-                  const showGroup = action.group !== previousGroup;
-                  previousGroup = action.group;
+                  const favorite = favoriteActionIds.has(action.id);
+                  const displayGroup = favorite ? "Favorites" : action.group;
+                  const showGroup = displayGroup !== previousGroup;
+                  previousGroup = displayGroup;
                   return (
                     <div
                       className="command-palette__result"
@@ -288,35 +300,49 @@ export function CommandPalette({
                           aria-hidden="true"
                           role="presentation"
                         >
-                          {action.group}
+                          {displayGroup}
                         </div>
                       ) : null}
-                      <button
-                        id={optionId(index)}
-                        type="button"
-                        role="option"
-                        tabIndex={-1}
-                        aria-selected={index === selectedIndex}
-                        aria-disabled={!action.enabled}
-                        className={`command-palette__option${
-                          index === selectedIndex ? " command-palette__option--selected" : ""
-                        }${!action.enabled ? " command-palette__option--disabled" : ""}`}
-                        onMouseEnter={() => setSelectedIndex(index)}
-                        onClick={() => choose(action)}
-                      >
-                        <span className="command-palette__option-copy">
-                          <strong>{action.label}</strong>
-                          <span>
-                            {!action.enabled
-                              ? action.disabledReason
-                              : action.description ?? action.source ?? "Ready"}
+                      <div className="command-palette__option-row">
+                        <button
+                          id={optionId(index)}
+                          type="button"
+                          role="option"
+                          tabIndex={-1}
+                          aria-selected={index === selectedIndex}
+                          aria-disabled={!action.enabled}
+                          className={`command-palette__option${
+                            index === selectedIndex ? " command-palette__option--selected" : ""
+                          }${!action.enabled ? " command-palette__option--disabled" : ""}`}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                          onClick={() => choose(action)}
+                        >
+                          <span className="command-palette__option-copy">
+                            <strong>{action.label}</strong>
+                            <span>
+                              {!action.enabled
+                                ? action.disabledReason
+                                : action.description ?? action.source ?? "Ready"}
+                            </span>
                           </span>
-                        </span>
-                        <span className="command-palette__option-meta">
-                          {action.source ? <code>{action.source}</code> : null}
-                          {action.confirmation ? <span>Confirm</span> : null}
-                        </span>
-                      </button>
+                          <span className="command-palette__option-meta">
+                            {actionShortcuts[action.id] ? <kbd>{keyboardShortcutLabel(actionShortcuts[action.id], mac)}</kbd> : null}
+                            {action.source ? <code>{action.source}</code> : null}
+                            {action.confirmation ? <span>Confirm</span> : null}
+                          </span>
+                        </button>
+                        <button
+                          className={`command-palette__favorite${favorite ? " command-palette__favorite--active" : ""}`}
+                          type="button"
+                          aria-label={`${favorite ? "Remove" : "Add"} ${action.label} ${favorite ? "from" : "to"} favorites`}
+                          aria-pressed={favorite}
+                          disabled={favoritesDisabled}
+                          title={favorite ? "Remove from favorites" : "Add to favorites"}
+                          onClick={() => onToggleFavorite(action.id)}
+                        >
+                          <span aria-hidden="true">{favorite ? "★" : "☆"}</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })

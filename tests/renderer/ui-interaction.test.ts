@@ -185,6 +185,47 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("settings tabs manage action favorites and shortcuts reflected in the palette", async () => {
+    const active = currentPage();
+    await active.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = active.getByRole("main", { name: "Settings" });
+    await settings.getByRole("tab", { name: "General" }).waitFor();
+    expect(await settings.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
+
+    await settings.getByRole("tab", { name: "Actions" }).click();
+    expect(await settings.getByRole("tab", { name: "Actions" }).getAttribute("aria-selected")).toBe("true");
+    await settings.getByRole("searchbox", { name: "Search actions" }).fill("reload app");
+    const favorite = settings.getByRole("button", { name: "Add Reload app to favorites" });
+    await favorite.click();
+    await settings.getByRole("button", { name: "Remove Reload app from favorites" }).waitFor();
+
+    const shortcut = settings.getByRole("button", { name: /Reload app shortcut:/ });
+    await shortcut.click();
+    await active.keyboard.press("Meta+Alt+R");
+    await settings.getByRole("button", { name: /Reload app shortcut:.*R/ }).waitFor();
+
+    await active.getByRole("button", { name: /Open command palette/ }).click();
+    const palette = active.getByRole("dialog", { name: "Command palette" });
+    await palette.getByRole("combobox").fill("reload app");
+    expect(await palette.getByText("Favorites", { exact: true }).count()).toBe(1);
+    const reloadOption = palette.getByRole("option", { name: /Reload app/ });
+    expect(await reloadOption.locator("kbd").count()).toBe(1);
+    await palette.getByRole("button", { name: "Remove Reload app from favorites" }).click();
+    await palette.getByRole("button", { name: "Add Reload app to favorites" }).waitFor();
+    await active.keyboard.press("Escape");
+
+    await shortcut.click();
+    await active.keyboard.press("Meta+Shift+R");
+    await settings.getByRole("button", { name: /Reload app shortcut:/ }).waitFor();
+    await settings.getByRole("searchbox", { name: "Search actions" }).fill("show dashboard");
+    const showDashboardShortcut = settings.getByRole("button", { name: /Show dashboard shortcut:/ });
+    await showDashboardShortcut.click();
+    await active.keyboard.press("Meta+Shift+D");
+    await settings.getByRole("button", { name: /Show dashboard shortcut:.*D/ }).waitFor();
+    await active.keyboard.press("Meta+Shift+D");
+    await active.getByRole("button", { name: "Open component library" }).waitFor();
+  }, 20_000);
+
   test("sidebar node trees collapse branches and highlight the virtual root", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Expand sidebar" }).click();

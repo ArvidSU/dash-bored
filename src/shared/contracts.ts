@@ -154,6 +154,12 @@ export interface ResolvedComponentNode {
 export interface AppSettings {
   /** App-wide CLI command used for natural-language dashboard changes. */
   dashBoredAgent: string;
+  /** Action ids promoted ahead of other matching command-palette results. */
+  favoriteActionIds: string[];
+  /** App-local keyboard shortcut that opens the command palette. */
+  commandPaletteShortcut: string | null;
+  /** App-local keyboard shortcuts keyed by stable action id. */
+  actionShortcuts: Record<string, string>;
 }
 
 export interface ComponentAgentRequest {

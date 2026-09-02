@@ -534,6 +534,13 @@ Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
 every node in the currently selected dashboard for virtual-root focus,
 all declared process resources, and actions contributed by active components.
+Settings is split into **General** and **Actions**. General lets you change the
+palette shortcut and app behavior. Actions lists the same currently available
+palette actions: search them, assign an app-local keyboard shortcut, or mark an
+action as a favorite. You can also toggle its star directly in the palette.
+Favorites appear before other matching results but remain subject to the active
+search and the action's normal availability and confirmation rules. Assigning a
+shortcut already in use moves that combination to the newly selected target.
 Choose <strong>Reload app</strong> there, or press <kbd>Command-Shift-R</kbd> on
 macOS (<kbd>Ctrl-Shift-R</kbd> elsewhere), to reload the app window when the
 renderer needs a fresh start. This is separate from <strong>Reload dashboard</strong>,

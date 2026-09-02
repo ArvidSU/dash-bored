@@ -229,6 +229,12 @@ The application shell should expose its own navigation and lifecycle actions,
 configured project commands, and actions contributed by active components
 through one searchable command palette.
 
+Application settings separate general behavior from the action catalog. Users
+can assign app-local keyboard shortcuts to the command palette and individual
+actions, and can favorite actions from either Settings or the palette. Favorites
+sort ahead of other matching results without bypassing search, availability,
+confirmation, trust, or action lifecycle rules.
+
 Components register actions while they are mounted. The palette makes those
 actions easier to find; it does not bypass project trust or add capabilities.
 Privileged work still flows through the component's declared host APIs.

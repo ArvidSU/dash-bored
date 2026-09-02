@@ -259,6 +259,7 @@ function actionScore(action: PaletteAction, query: string): number | null {
 export function rankActions(
   actions: readonly PaletteAction[],
   rawQuery: string,
+  favoriteActionIds: ReadonlySet<string> = new Set(),
 ): PaletteAction[] {
   const query = normalize(rawQuery);
   const groupOrder = new Map<string, number>();
@@ -274,6 +275,8 @@ export function rankActions(
     )
     .sort(
       (left, right) =>
+        Number(favoriteActionIds.has(right.action.id)) -
+          Number(favoriteActionIds.has(left.action.id)) ||
         (groupOrder.get(left.action.group) ?? 0) -
           (groupOrder.get(right.action.group) ?? 0) ||
         left.score - right.score ||

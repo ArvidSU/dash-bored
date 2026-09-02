@@ -22,6 +22,7 @@ import {
   resolveDashboardInsertionPath,
 } from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
+import { keyboardShortcutAccelerator } from "../shared/keyboard-shortcut";
 import { AppSettingsStore } from "./app-settings";
 import { DashboardAgentHarness } from "./component-agent";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
@@ -295,6 +296,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
         process.env.DASH_BORED_AGENT = updated.dashBoredAgent;
+        setApplicationMenu(updated);
         return updated;
       },
       runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
@@ -346,7 +348,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
   },
 });
 
-ApplicationMenu.setApplicationMenu([
+function setApplicationMenu(settings: Awaited<ReturnType<AppSettingsStore["get"]>>): void {
+  ApplicationMenu.setApplicationMenu([
   {
     label: "dash-bored",
     submenu: [{ role: "about" }, { type: "separator" }, { role: "quit" }],
@@ -369,16 +372,23 @@ ApplicationMenu.setApplicationMenu([
       {
         label: "Show Command Palette",
         action: "open-command-palette",
-        accelerator: "CommandOrControl+K",
+        ...(keyboardShortcutAccelerator(settings.commandPaletteShortcut)
+          ? { accelerator: keyboardShortcutAccelerator(settings.commandPaletteShortcut) }
+          : {}),
       },
       {
         label: "Reload App",
         action: "reload-app",
-        accelerator: "CommandOrControl+Shift+R",
+        ...(keyboardShortcutAccelerator(settings.actionShortcuts["app:reload"])
+          ? { accelerator: keyboardShortcutAccelerator(settings.actionShortcuts["app:reload"]) }
+          : {}),
       },
     ],
   },
-]);
+  ]);
+}
+
+setApplicationMenu(initialAppSettings);
 
 ApplicationMenu.on("application-menu-clicked", (event) => {
   const action = (event as { data?: { action?: unknown } }).data?.action;

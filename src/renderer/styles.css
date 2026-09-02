@@ -1966,6 +1966,39 @@ img.sidebar__project-icon {
   line-height: 1.6;
 }
 
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 2%);
+}
+
+.settings-tabs button {
+  min-width: 96px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-tabs button[aria-selected="true"] {
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border-bright);
+}
+
+.settings-tab-panel {
+  min-width: 0;
+}
+
 .settings-card {
   display: flex;
   align-items: center;
@@ -2084,6 +2117,156 @@ img.sidebar__project-icon {
 
 .settings-agent > span code {
   color: #bfc8d4;
+}
+
+.shortcut-recorder {
+  min-width: 104px;
+  min-height: 34px;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  color: #d6deea;
+  cursor: pointer;
+  outline: none;
+  background: var(--surface-raised);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.shortcut-recorder:hover:not(:disabled),
+.shortcut-recorder:focus-visible,
+.shortcut-recorder--listening {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.shortcut-recorder:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.settings-actions {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.settings-actions__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-actions__heading h2 {
+  margin: 0 0 5px;
+  font-size: 14px;
+}
+
+.settings-actions__heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settings-actions__heading input {
+  width: min(260px, 42%);
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  color: var(--text);
+  outline: none;
+  background: var(--surface-raised);
+  font: inherit;
+  font-size: 11px;
+}
+
+.settings-actions__heading input:focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px rgb(217 255 104 / 7%);
+}
+
+.settings-actions__list {
+  max-height: min(620px, calc(100vh - 275px));
+  overflow-y: auto;
+}
+
+.settings-action {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgb(255 255 255 / 4%);
+}
+
+.settings-action:last-child {
+  border-bottom: 0;
+}
+
+.settings-action__favorite,
+.command-palette__favorite {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: var(--faint);
+  cursor: pointer;
+  background: transparent;
+  font-size: 17px;
+}
+
+.settings-action__favorite:hover:not(:disabled),
+.settings-action__favorite:focus-visible,
+.command-palette__favorite:hover,
+.command-palette__favorite:focus-visible,
+.settings-action__favorite--active,
+.command-palette__favorite--active {
+  color: var(--accent);
+  background: rgb(217 255 104 / 8%);
+}
+
+.settings-action__copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.settings-action__copy strong,
+.settings-action__copy span,
+.settings-action__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-action__copy strong {
+  font-size: 12px;
+}
+
+.settings-action__copy span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.settings-action__copy small {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.settings-actions__empty {
+  padding: 42px 20px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .trust-panel {
@@ -3200,6 +3383,16 @@ img.sidebar__project-icon {
   text-align: left;
 }
 
+.command-palette__option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.command-palette__favorite {
+  margin-right: 5px;
+}
+
 .command-palette__option--selected {
   border-color: rgb(217 255 104 / 18%);
   background: rgb(217 255 104 / 8%);
@@ -3454,6 +3647,16 @@ img.sidebar__project-icon {
   .settings-agent {
     width: 100%;
     max-width: none;
+  }
+
+  .settings-actions__heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .settings-actions__heading input {
+    width: 100%;
   }
 
   .command-palette-backdrop {

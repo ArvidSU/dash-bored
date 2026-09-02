@@ -145,10 +145,14 @@ config icon when available. The sidebar can switch the single active runtime
 between those dashboards, add another target through the native chooser, open
 application settings, or remove a remembered dashboard.
 
-Application Settings also persists `DASH_BORED_AGENT` in a separate versioned,
-owner-only user-data file. The inherited environment value supplies the first
-default, with `codex exec` as the fallback. Updating it affects later component
-agent launches and later dashboard commands without rewriting project files.
+Application Settings has General and Actions tabs. General owns app behavior,
+including the command-palette shortcut and `DASH_BORED_AGENT`; Actions presents
+the same currently known action catalog as the palette, with search, favorite
+toggles, and per-action shortcut recording. The separate versioned, owner-only
+user-data file persists those preferences. The inherited agent environment
+value supplies the first default, with `codex exec` as the fallback. Updating it
+affects later component agent launches and later dashboard commands without
+rewriting project files.
 
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks
@@ -282,6 +286,16 @@ application-menu accelerator `CommandOrControl+K` open it; the menu sends a
 typed main-to-renderer message. This is not an operating-system-global hotkey.
 Search and keyboard interaction are implemented in the renderer without an
 external palette dependency.
+
+Favorites are stored by stable action ID, so a temporarily unmounted component
+action can regain its favorite state when it registers again. Search first
+removes non-matches, then favorites sort ahead of the remaining results and use
+a star marker. The palette and Settings both update the same preference.
+Shortcuts use one portable `Mod` representation, dispatch through the normal
+action executor, and do not run while the user is typing into an editable
+control. Assigning an already-used combination moves it to the new target. The
+native View menu mirrors configured accelerators for its command-palette and
+reload entries; all other action bindings are application-window shortcuts.
 
 The application provider also exposes `Reload app`, which reloads the current
 renderer window and remains available even while another action is pending or

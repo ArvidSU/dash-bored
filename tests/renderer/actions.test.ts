@@ -201,6 +201,25 @@ describe("action search and execution", () => {
     );
   });
 
+  test("promotes favorites only after search has selected matching actions", () => {
+    const actions = [
+      action("reload", { label: "Reload app" }),
+      action("settings", { label: "Open settings" }),
+      action("server", { label: "Reload development server", group: "Project commands" }),
+    ];
+    const favorites = new Set(["server", "settings"]);
+
+    expect(rankActions(actions, "", favorites).map((item) => item.id)).toEqual([
+      "settings",
+      "server",
+      "reload",
+    ]);
+    expect(rankActions(actions, "reload", favorites).map((item) => item.id)).toEqual([
+      "server",
+      "reload",
+    ]);
+  });
+
   test("re-resolves actions, prevents duplicate runs, and reports failures", async () => {
     let release: (() => void) | undefined;
     const pending = new Promise<void>((resolve) => {

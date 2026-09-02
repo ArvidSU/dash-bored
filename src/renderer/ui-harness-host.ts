@@ -398,7 +398,12 @@ export interface UiHarnessHost extends DashboardHost {
 
 export function createUiHarnessHost(): UiHarnessHost {
   const listeners = new Set<(event: HostEvent) => void>();
-  const settings: AppSettings = { dashBoredAgent: "codex exec" };
+  let settings: AppSettings = {
+    dashBoredAgent: "codex exec",
+    favoriteActionIds: [],
+    commandPaletteShortcut: "Mod+K",
+    actionShortcuts: { "app:reload": "Mod+Shift+R" },
+  };
   let persistedConfig = structuredClone(initialConfig);
   let configRevision = 1;
   let snapshotRevision = 1;
@@ -456,8 +461,8 @@ export function createUiHarnessHost(): UiHarnessHost {
     },
     getPersistedConfig() { return structuredClone(persistedConfig); },
     async getSnapshot() { return snapshot(); },
-    async getAppSettings() { return settings; },
-    async updateAppSettings(next) { settings.dashBoredAgent = next.dashBoredAgent; return settings; },
+    async getAppSettings() { return structuredClone(settings); },
+    async updateAppSettings(next) { settings = structuredClone(next); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
     async runComponentCreationAgent(request: ComponentCreationAgentRequest) { return launch(request); },
     async runDiagnosticsAgent() {

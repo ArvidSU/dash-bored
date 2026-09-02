@@ -20,16 +20,52 @@ describe("AppSettingsStore", () => {
     const path = join(directory, "state", "settings-v1.json");
     const store = new AppSettingsStore(path, "codex exec");
 
-    expect(await store.get()).toEqual({ dashBoredAgent: "codex exec" });
-    expect(await store.update({ dashBoredAgent: "  claude -p  " })).toEqual({
+    expect(await store.get()).toEqual({
+      dashBoredAgent: "codex exec",
+      favoriteActionIds: [],
+      commandPaletteShortcut: "Mod+K",
+      actionShortcuts: { "app:reload": "Mod+Shift+R" },
+    });
+    const updated = await store.update({
+      dashBoredAgent: "  claude -p  ",
+      favoriteActionIds: ["app:reload", "app:reload", " component:refresh "],
+      commandPaletteShortcut: "Mod+P",
+      actionShortcuts: {
+        "app:reload": "Mod+Shift+R",
+        "app:show-settings": "Mod+,",
+        "component:refresh": "Alt+R",
+      },
+    });
+    expect(updated).toEqual({
       dashBoredAgent: "claude -p",
+      favoriteActionIds: ["app:reload", "component:refresh"],
+      commandPaletteShortcut: "Mod+P",
+      actionShortcuts: {
+        "app:reload": "Mod+Shift+R",
+        "app:show-settings": "Mod+,",
+        "component:refresh": "Alt+R",
+      },
     });
     expect(await new AppSettingsStore(path, "ignored").get()).toEqual({
       dashBoredAgent: "claude -p",
+      favoriteActionIds: ["app:reload", "component:refresh"],
+      commandPaletteShortcut: "Mod+P",
+      actionShortcuts: {
+        "app:reload": "Mod+Shift+R",
+        "app:show-settings": "Mod+,",
+        "component:refresh": "Alt+R",
+      },
     });
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
-      version: 1,
+      version: 2,
       dashBoredAgent: "claude -p",
+      favoriteActionIds: ["app:reload", "component:refresh"],
+      commandPaletteShortcut: "Mod+P",
+      actionShortcuts: {
+        "app:reload": "Mod+Shift+R",
+        "app:show-settings": "Mod+,",
+        "component:refresh": "Alt+R",
+      },
     });
     expect((await stat(path)).mode & 0o777).toBe(0o600);
   });
@@ -41,10 +77,20 @@ describe("AppSettingsStore", () => {
     await writeFile(path, '{"version":1,"dashBoredAgent":""}\n');
     const store = new AppSettingsStore(path, "gemini -p");
 
-    expect(await store.get()).toEqual({ dashBoredAgent: "gemini -p" });
-    await expect(store.update({ dashBoredAgent: "" })).rejects.toMatchObject({
+    expect(await store.get()).toEqual({
+      dashBoredAgent: "gemini -p",
+      favoriteActionIds: [],
+      commandPaletteShortcut: "Mod+K",
+      actionShortcuts: { "app:reload": "Mod+Shift+R" },
+    });
+    await expect(store.update({
+      dashBoredAgent: "",
+      favoriteActionIds: [],
+      commandPaletteShortcut: "Mod+K",
+      actionShortcuts: {},
+    })).rejects.toMatchObject({
       code: "APP_SETTINGS_INVALID",
     });
-    expect(await store.get()).toEqual({ dashBoredAgent: "gemini -p" });
+    expect((await store.get()).dashBoredAgent).toBe("gemini -p");
   });
 });

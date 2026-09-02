@@ -34,6 +34,11 @@ import type {
 } from "../shared/contracts";
 import { componentPath } from "../shared/component-agent";
 import {
+  keyboardEventMatchesShortcut,
+  keyboardShortcutFromEvent,
+  keyboardShortcutLabel,
+} from "../shared/keyboard-shortcut";
+import {
   buildApplicationActions,
   buildNodeFocusActions,
   hasLocalNode,
@@ -41,7 +46,7 @@ import {
   projectLabel,
 } from "./action-providers";
 import type { AppView } from "./action-providers";
-import { ActionExecutor, ActionRegistry } from "./actions";
+import { ActionExecutor, ActionRegistry, rankActions } from "./actions";
 import type { PaletteAction } from "./actions";
 import { packagedComponent } from "./builtins";
 import { writeClipboardText } from "./clipboard";
@@ -1735,34 +1740,165 @@ function AgentPromptPanel({
   );
 }
 
+function ShortcutRecorder({
+  shortcut,
+  label,
+  disabled = false,
+  onChange,
+}: {
+  shortcut: string | null;
+  label: string;
+  disabled?: boolean;
+  onChange: (shortcut: string | null) => void;
+}): ReactNode {
+  const [listening, setListening] = useState(false);
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+  function capture(event: Pick<globalThis.KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey" | "preventDefault" | "stopPropagation">): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      setListening(false);
+      return;
+    }
+    if ((event.key === "Backspace" || event.key === "Delete") && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      onChange(null);
+      setListening(false);
+      return;
+    }
+    const next = keyboardShortcutFromEvent(event);
+    if (!next) return;
+    onChange(next);
+    setListening(false);
+  }
+
+  useEffect(() => {
+    if (!listening) return;
+    const captureNextShortcut = (event: globalThis.KeyboardEvent): void => capture(event);
+    window.addEventListener("keydown", captureNextShortcut, true);
+    return () => window.removeEventListener("keydown", captureNextShortcut, true);
+  }, [listening, onChange]);
+
+  return (
+    <button
+      className={`shortcut-recorder${listening ? " shortcut-recorder--listening" : ""}`}
+      type="button"
+      disabled={disabled}
+      aria-label={`${label} shortcut: ${keyboardShortcutLabel(shortcut, mac)}`}
+      title={listening ? "Press a key combination; Escape cancels and Delete clears" : "Change keyboard shortcut"}
+      onClick={(event) => {
+        event.currentTarget.focus();
+        setListening((current) => !current);
+      }}
+      onBlur={() => setListening(false)}
+    >
+      {listening ? "Press keys…" : keyboardShortcutLabel(shortcut, mac)}
+    </button>
+  );
+}
+
 function SettingsPanel({
   snapshot,
   appSettings,
+  actions,
   pendingAction,
   onSaveAgent,
+  onUpdateSettings,
   onReload,
   onTrust,
   onRevoke,
 }: {
   snapshot: ProjectSnapshot | null;
   appSettings: AppSettings;
+  actions: readonly PaletteAction[];
   pendingAction: string | null;
   onSaveAgent: (command: string) => void;
+  onUpdateSettings: (settings: AppSettings, notice: string) => void;
   onReload: () => void;
   onTrust: () => void;
   onRevoke: () => void;
 }): ReactNode {
   const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent);
+  const [activeTab, setActiveTab] = useState<"general" | "actions">("general");
+  const [actionQuery, setActionQuery] = useState("");
   useEffect(() => setAgentDraft(appSettings.dashBoredAgent), [appSettings.dashBoredAgent]);
   const normalizedAgentDraft = agentDraft.trim();
-  const savingAgent = pendingAction === "save-agent";
+  const savingSettings = pendingAction === "save-settings";
+  const favoriteIds = useMemo(() => new Set(appSettings.favoriteActionIds), [appSettings.favoriteActionIds]);
+  const visibleActions = useMemo(
+    () => rankActions(actions, actionQuery, favoriteIds),
+    [actionQuery, actions, favoriteIds],
+  );
+
+  function updatePaletteShortcut(shortcut: string | null): void {
+    const actionShortcuts = { ...appSettings.actionShortcuts };
+    if (shortcut) {
+      for (const [id, assigned] of Object.entries(actionShortcuts)) {
+        if (assigned === shortcut) delete actionShortcuts[id];
+      }
+    }
+    onUpdateSettings(
+      { ...appSettings, commandPaletteShortcut: shortcut, actionShortcuts },
+      shortcut ? "Command palette shortcut updated." : "Command palette shortcut cleared.",
+    );
+  }
+
+  function updateActionShortcut(id: string, shortcut: string | null): void {
+    const actionShortcuts = { ...appSettings.actionShortcuts };
+    if (shortcut) {
+      for (const [assignedId, assigned] of Object.entries(actionShortcuts)) {
+        if (assigned === shortcut) delete actionShortcuts[assignedId];
+      }
+      actionShortcuts[id] = shortcut;
+    } else {
+      delete actionShortcuts[id];
+    }
+    onUpdateSettings(
+      {
+        ...appSettings,
+        commandPaletteShortcut: shortcut && shortcut === appSettings.commandPaletteShortcut
+          ? null
+          : appSettings.commandPaletteShortcut,
+        actionShortcuts,
+      },
+      shortcut ? "Action shortcut updated." : "Action shortcut cleared.",
+    );
+  }
+
+  function toggleFavorite(id: string): void {
+    const favoriteActionIds = favoriteIds.has(id)
+      ? appSettings.favoriteActionIds.filter((candidate) => candidate !== id)
+      : [...appSettings.favoriteActionIds, id];
+    onUpdateSettings(
+      { ...appSettings, favoriteActionIds },
+      favoriteIds.has(id) ? "Action removed from favorites." : "Action added to favorites.",
+    );
+  }
+
   return (
     <main className="settings-page" aria-labelledby="settings-title">
       <div className="settings-page__heading">
         <span className="eyebrow">Application</span>
         <h1 id="settings-title">Settings</h1>
-        <p>Manage the active dashboard and its local capabilities.</p>
+        <p>Configure app behavior, action favorites, and keyboard shortcuts.</p>
       </div>
+      <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button type="button" role="tab" aria-selected={activeTab === "general"} onClick={() => setActiveTab("general")}>General</button>
+        <button type="button" role="tab" aria-selected={activeTab === "actions"} onClick={() => setActiveTab("actions")}>Actions</button>
+      </div>
+      {activeTab === "general" ? <div className="settings-tab-panel" role="tabpanel">
+      <section className="settings-card" aria-labelledby="palette-settings-title">
+        <div>
+          <h2 id="palette-settings-title">Command palette</h2>
+          <p>Open the searchable action list from anywhere in the app.</p>
+        </div>
+        <ShortcutRecorder
+          label="Command palette"
+          shortcut={appSettings.commandPaletteShortcut}
+          disabled={savingSettings}
+          onChange={updatePaletteShortcut}
+        />
+      </section>
       <section className="settings-card" aria-labelledby="sidebar-settings-title">
         <div>
           <h2 id="sidebar-settings-title">Dashboard sidebar</h2>
@@ -1787,15 +1923,15 @@ function SettingsPanel({
               spellCheck={false}
               maxLength={1_024}
               value={agentDraft}
-              disabled={savingAgent}
+              disabled={savingSettings}
               onChange={(event) => setAgentDraft(event.target.value)}
             />
             <button
               className="button button--secondary"
               type="submit"
-              disabled={savingAgent || !normalizedAgentDraft || normalizedAgentDraft === appSettings.dashBoredAgent}
+              disabled={savingSettings || !normalizedAgentDraft || normalizedAgentDraft === appSettings.dashBoredAgent}
             >
-              {savingAgent ? "Saving…" : "Save"}
+              {savingSettings ? "Saving…" : "Save"}
             </button>
           </div>
           <span>Example: <code>{normalizedAgentDraft || "codex exec"} &quot;Change this thing&quot;</code></span>
@@ -1830,6 +1966,54 @@ function SettingsPanel({
           </div>
         ) : null}
       </section>
+      </div> : (
+        <div className="settings-tab-panel settings-actions" role="tabpanel">
+          <div className="settings-actions__heading">
+            <div>
+              <h2>Command palette actions</h2>
+              <p>Favorites appear first in the palette. Search still filters the complete action list.</p>
+            </div>
+            <input
+              type="search"
+              aria-label="Search actions"
+              placeholder="Search actions…"
+              value={actionQuery}
+              onChange={(event) => setActionQuery(event.target.value)}
+            />
+          </div>
+          <div className="settings-actions__list">
+            {visibleActions.map((action) => {
+              const favorite = favoriteIds.has(action.id);
+              return (
+                <div className="settings-action" key={action.id}>
+                  <button
+                    className={`settings-action__favorite${favorite ? " settings-action__favorite--active" : ""}`}
+                    type="button"
+                    aria-label={`${favorite ? "Remove" : "Add"} ${action.label} ${favorite ? "from" : "to"} favorites`}
+                    aria-pressed={favorite}
+                    disabled={savingSettings}
+                    onClick={() => toggleFavorite(action.id)}
+                  >
+                    <span aria-hidden="true">{favorite ? "★" : "☆"}</span>
+                  </button>
+                  <div className="settings-action__copy">
+                    <strong>{action.label}</strong>
+                    <span>{action.description ?? action.source ?? "Ready"}</span>
+                    <small>{action.group}{action.enabled ? "" : ` · ${action.disabledReason ?? "Unavailable"}`}</small>
+                  </div>
+                  <ShortcutRecorder
+                    label={action.label}
+                    shortcut={appSettings.actionShortcuts[action.id] ?? null}
+                    disabled={savingSettings}
+                    onChange={(shortcut) => updateActionShortcut(action.id, shortcut)}
+                  />
+                </div>
+              );
+            })}
+            {visibleActions.length === 0 ? <p className="settings-actions__empty">No matching actions.</p> : null}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1837,7 +2021,12 @@ function SettingsPanel({
 export function App(): ReactNode {
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
-  const [appSettings, setAppSettings] = useState<AppSettings>({ dashBoredAgent: "codex exec" });
+  const [appSettings, setAppSettings] = useState<AppSettings>({
+    dashBoredAgent: "codex exec",
+    favoriteActionIds: [],
+    commandPaletteShortcut: "Mod+K",
+    actionShortcuts: { "app:reload": "Mod+Shift+R" },
+  });
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -2028,19 +2217,27 @@ export function App(): ReactNode {
 
   useEffect(() => {
     function openFromKeyboard(event: globalThis.KeyboardEvent): void {
+      if (event.repeat) return;
+      const target = event.target;
       if (
-        (event.metaKey || event.ctrlKey) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key.toLocaleLowerCase() === "k"
-      ) {
+        target instanceof HTMLElement
+        && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) return;
+      if (keyboardEventMatchesShortcut(event, appSettings.commandPaletteShortcut)) {
         event.preventDefault();
         setPaletteOpen(true);
+        return;
+      }
+      const actionId = Object.entries(appSettings.actionShortcuts)
+        .find(([, shortcut]) => keyboardEventMatchesShortcut(event, shortcut))?.[0];
+      if (actionId) {
+        event.preventDefault();
+        void executePaletteAction(actionId);
       }
     }
     window.addEventListener("keydown", openFromKeyboard);
     return () => window.removeEventListener("keydown", openFromKeyboard);
-  }, []);
+  }, [appSettings.actionShortcuts, appSettings.commandPaletteShortcut]);
 
   useEffect(() => {
     if (!actionNotice) return;
@@ -2385,12 +2582,19 @@ export function App(): ReactNode {
     setActiveView("settings");
   }
 
-  function saveAgentSetting(command: string): void {
-    void perform("save-agent", async () => {
-      const updated = await host.updateAppSettings({ dashBoredAgent: command });
+  function updateAppSettings(settings: AppSettings, notice: string): void {
+    void perform("save-settings", async () => {
+      const updated = await host.updateAppSettings(settings);
       setAppSettings(updated);
-      showActionNotice(`DASH_BORED_AGENT is now ${updated.dashBoredAgent}.`);
+      showActionNotice(notice);
     });
+  }
+
+  function saveAgentSetting(command: string): void {
+    updateAppSettings(
+      { ...appSettings, dashBoredAgent: command },
+      `DASH_BORED_AGENT is now ${command}.`,
+    );
   }
 
   async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
@@ -3389,6 +3593,10 @@ export function App(): ReactNode {
     },
   );
   const allActions = [...applicationActions, ...nodeFocusActions, ...componentActions];
+  const favoriteActionIds = useMemo(
+    () => new Set(appSettings.favoriteActionIds),
+    [appSettings.favoriteActionIds],
+  );
   actionsByIdRef.current = new Map(allActions.map((action) => [action.id, action]));
 
   async function executePaletteAction(id: string): Promise<void> {
@@ -3399,6 +3607,16 @@ export function App(): ReactNode {
     else if (result.status === "running") {
       setActionError("That action is already running.");
     }
+  }
+
+  function toggleFavoriteAction(id: string): void {
+    const favoriteActionIds = appSettings.favoriteActionIds.includes(id)
+      ? appSettings.favoriteActionIds.filter((candidate) => candidate !== id)
+      : [...appSettings.favoriteActionIds, id];
+    updateAppSettings(
+      { ...appSettings, favoriteActionIds },
+      favoriteActionIds.includes(id) ? "Action added to favorites." : "Action removed from favorites.",
+    );
   }
 
   if (loading) {
@@ -3426,10 +3644,10 @@ export function App(): ReactNode {
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
   }\u0000${snapshot?.trusted ? "trusted" : "restricted"}`;
-  const shortcutLabel =
-    typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
-      ? "⌘K"
-      : "Ctrl K";
+  const shortcutLabel = keyboardShortcutLabel(
+    appSettings.commandPaletteShortcut,
+    typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform),
+  );
   const visibleVirtualRoot = editingComposition ? compositionVirtualRoot : virtualRoot;
   const compositionExisting = compositionDialog?.mode === "configure"
     && editSession
@@ -3457,8 +3675,10 @@ export function App(): ReactNode {
         <SettingsPanel
             snapshot={snapshot}
             appSettings={appSettings}
+            actions={allActions}
             pendingAction={pendingAction}
             onSaveAgent={saveAgentSetting}
+            onUpdateSettings={updateAppSettings}
             onReload={() => void perform("reload", host.reloadProject)}
             onTrust={() => void perform("trust", host.trustProject)}
             onRevoke={() => void perform("revoke", host.revokeTrust)}
@@ -3650,8 +3870,12 @@ export function App(): ReactNode {
         open={paletteOpen}
         actions={allActions}
         runningActionIds={runningActionIds}
+        favoriteActionIds={favoriteActionIds}
+        actionShortcuts={appSettings.actionShortcuts}
+        favoritesDisabled={pendingAction !== null}
         onDismiss={() => setPaletteOpen(false)}
         onExecute={(id) => void executePaletteAction(id)}
+        onToggleFavorite={toggleFavoriteAction}
       />
       <CompositionFlyout
         open={componentLibraryOpen}
