@@ -238,7 +238,7 @@ function sanitizedChildEnvironment(projectRoot: string, configPath: string): Rec
 
 async function openProject(input: string): Promise<number> {
   const prepared = await ensureProjectFiles(input, {
-    // A project root contains dash-bored/dash-bored.yaml. A bundle directory
+    // A project root contains .dash-bored/dash-bored.yaml. A bundle directory
     // contains dash-bored.yaml directly, so auto resolution can target either
     // the canonical dashboard or one standalone named dashboard.
     inputKind: "auto",

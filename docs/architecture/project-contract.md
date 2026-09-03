@@ -8,7 +8,7 @@ All dash-bored-owned project files live together:
 
 ```text
 project/
-└── dash-bored/
+└── .dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
     ├── .env
@@ -22,7 +22,7 @@ contract and can be copied, opened, validated, or repaired independently:
 
 ```text
 project/
-└── dash-bored/
+└── .dash-bored/
     └── arvid/
         ├── dash-bored.yaml
         ├── dash-bored-lock.yaml
@@ -41,14 +41,14 @@ renders exactly the selected bundle; the CLI passes both the canonical project
 root and the selected config path to the desktop process. Resolution does not
 walk unrelated ancestor directories. Paths are canonicalized before they are
 used as trust keys or containment boundaries. The desktop project chooser uses
-the selected directory's shape: a nested `dash-bored/dash-bored.yaml` selects
+the selected directory's shape: a nested `.dash-bored/dash-bored.yaml` selects
 the project root, while a direct `dash-bored.yaml` selects that standalone
 bundle. The same chooser therefore opens either kind of dashboard without
 merging standalone configs into one another.
 
 Opening a project, either through `dash-bored open` or the desktop project
 chooser, ensures that this complete project contract exists. The application
-creates the `dash-bored/` directory, default configuration, empty lock file,
+creates the `.dash-bored/` directory, default configuration, empty lock file,
 starter environment file, and `components/` directory when they are missing. It
 creates only missing artifacts and never replaces an existing configuration,
 lock, or environment file, so a partially initialized project is repaired
@@ -60,13 +60,13 @@ is also app-wide: the main process persists its application setting in the
 Electrobun user-data directory, publishes it to dashboard command environments,
 and exposes it in Settings.
 Directories selected in the desktop chooser are always treated as project
-roots, including when the selected directory itself is named `dash-bored`.
+roots, including when the selected directory itself is named `.dash-bored`.
 
 `dash-bored init arvid` creates the complete named bundle under
-`dash-bored/arvid/`: configuration, lock file, environment file, and local
+`.dash-bored/arvid/`: configuration, lock file, environment file, and local
 component directory.
 Additional positional names each add a directory level, so `dash-bored init
-arvid cicd` creates `dash-bored/arvid/cicd/`. Slash-separated names such as
+arvid cicd` creates `.dash-bored/arvid/cicd/`. Slash-separated names such as
 `people/arvid` remain supported. The command neither changes the canonical
 dashboard nor adds a reference to the new bundle.
 

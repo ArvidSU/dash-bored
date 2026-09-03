@@ -20,7 +20,7 @@ function snapshot(
 ): ProjectSnapshot {
   return {
     projectRoot,
-    configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
+    configPath: join(projectRoot, ".dash-bored", "dash-bored.yaml"),
     dashboardName,
     iconDataUrl,
     config: null,
@@ -49,17 +49,17 @@ describe("ProjectRegistry", () => {
     await registry.remember(snapshot(secondRoot, null));
     await registry.remember({
       ...snapshot(firstRoot, "Arvid dashboard"),
-      configPath: join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"),
+      configPath: join(firstRoot, ".dash-bored", "arvid", "dash-bored.yaml"),
     });
     await registry.remember(snapshot(firstRoot, "Renamed dashboard"));
 
     expect(await registry.contains(firstRoot)).toBeTrue();
-    expect(await registry.contains(firstRoot, join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"))).toBeTrue();
+    expect(await registry.contains(firstRoot, join(firstRoot, ".dash-bored", "arvid", "dash-bored.yaml"))).toBeTrue();
     expect(await registry.contains(join(directory, "unknown"))).toBeFalse();
     expect(await new ProjectRegistry(registryPath).list()).toEqual([
-      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Renamed dashboard", iconDataUrl: null },
-      { projectRoot: secondRoot, configPath: join(secondRoot, "dash-bored", "dash-bored.yaml"), dashboardName: null, iconDataUrl: null },
-      { projectRoot: firstRoot, configPath: join(firstRoot, "dash-bored", "arvid", "dash-bored.yaml"), dashboardName: "Arvid dashboard", iconDataUrl: null },
+      { projectRoot: firstRoot, configPath: join(firstRoot, ".dash-bored", "dash-bored.yaml"), dashboardName: "Renamed dashboard", iconDataUrl: null },
+      { projectRoot: secondRoot, configPath: join(secondRoot, ".dash-bored", "dash-bored.yaml"), dashboardName: null, iconDataUrl: null },
+      { projectRoot: firstRoot, configPath: join(firstRoot, ".dash-bored", "arvid", "dash-bored.yaml"), dashboardName: "Arvid dashboard", iconDataUrl: null },
     ]);
   });
 
@@ -75,7 +75,7 @@ describe("ProjectRegistry", () => {
     const directory = await temporaryDirectory();
     cleanup.push(directory);
     const projectRoot = join(directory, "project");
-    const namedConfigPath = join(projectRoot, "dash-bored", "arvid", "dash-bored.yaml");
+    const namedConfigPath = join(projectRoot, ".dash-bored", "arvid", "dash-bored.yaml");
     const registry = new ProjectRegistry(join(directory, "state", "projects-v1.json"));
 
     await registry.remember(snapshot(projectRoot, "Canonical", "data:image/svg+xml;base64,canonical"));
@@ -87,7 +87,7 @@ describe("ProjectRegistry", () => {
     expect(await registry.list()).toEqual([
       {
         projectRoot,
-        configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
+        configPath: join(projectRoot, ".dash-bored", "dash-bored.yaml"),
         dashboardName: "Canonical",
         iconDataUrl: "data:image/svg+xml;base64,canonical",
       },
@@ -105,7 +105,7 @@ describe("ProjectRegistry", () => {
     cleanup.push(directory);
     const registryPath = join(directory, "state", "projects-v1.json");
     const projectRoot = join(directory, "project");
-    const item = { projectRoot, configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Restore me", iconDataUrl: null };
+    const item = { projectRoot, configPath: join(projectRoot, ".dash-bored", "dash-bored.yaml"), dashboardName: "Restore me", iconDataUrl: null };
     const registry = new ProjectRegistry(registryPath);
 
     await registry.remember(snapshot(projectRoot, item.dashboardName));

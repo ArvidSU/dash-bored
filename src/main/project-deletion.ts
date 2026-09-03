@@ -1,6 +1,6 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-import type { ProjectListItem, ProjectSnapshot } from "../shared/contracts";
+import { CONFIG_DIRECTORY, CONFIG_FILE, type ProjectListItem, type ProjectSnapshot } from "../shared/contracts";
 import {
   CoreError,
   inspectProjectDeletion,
@@ -65,13 +65,13 @@ async function moveProjectFilesToTrash(
   if (info.isSymbolicLink()) {
     throw new CoreError(
       "PROJECT_DELETE_PATH_INVALID",
-      "The app-owned dash-bored/ path is a symbolic link and cannot be moved to Trash.",
+      "The app-owned .dash-bored/ path is a symbolic link and cannot be moved to Trash.",
     );
   }
   if (!info.isDirectory()) {
     throw new CoreError(
       "PROJECT_DELETE_PATH_INVALID",
-      "The app-owned dash-bored/ path is not a directory and cannot be moved to Trash.",
+      "The app-owned .dash-bored/ path is not a directory and cannot be moved to Trash.",
     );
   }
 
@@ -81,14 +81,14 @@ async function moveProjectFilesToTrash(
   } catch (error) {
     throw new CoreError(
       "PROJECT_FILES_TRASH_FAILED",
-      `Could not move the app-owned dash-bored/ directory to Trash: ${error instanceof Error ? error.message : String(error)}`,
+      `Could not move the app-owned .dash-bored/ directory to Trash: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
   }
   if (!moved) {
     throw new CoreError(
       "PROJECT_FILES_TRASH_FAILED",
-      "The operating system could not move the app-owned dash-bored/ directory to Trash.",
+      "The operating system could not move the app-owned .dash-bored/ directory to Trash.",
     );
   }
 }
@@ -106,7 +106,7 @@ export async function deleteRegisteredProject(
   options: ProjectDeletionServiceOptions,
 ): Promise<ProjectSnapshot> {
   const projects = await options.registry.list();
-  const configPath = options.configPath ?? join(options.projectRoot, "dash-bored", "dash-bored.yaml");
+  const configPath = options.configPath ?? join(options.projectRoot, CONFIG_DIRECTORY, CONFIG_FILE);
   const project = findRegisteredProject(projects, options.projectRoot, configPath);
   const preview = await inspectProjectDeletion(project, projects);
   if (options.removeFiles && !preview.analysisComplete) {

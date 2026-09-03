@@ -17,7 +17,7 @@ A component reference outside the built-in `@dash-bored/*` namespace and the
 bundle-local `./components/*` directory may resolve to another standalone
 dashboard bundle or its `dash-bored.yaml`. For example,
 `component: "./arvid"` in the canonical config loads
-`dash-bored/arvid/dash-bored.yaml`. This is a component boundary, not a
+`.dash-bored/arvid/dash-bored.yaml`. This is a component boundary, not a
 preprocessing directive.
 
 Paths may be absolute or relative; relative paths resolve from the directory

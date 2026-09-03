@@ -33,8 +33,8 @@ import type { DashboardHost, HostEvent } from "./rpc-client";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
 
-const PROJECT_ROOT = "/ui-harness/dash-bored";
-const CONFIG_PATH = "/ui-harness/dash-bored/dash-bored.yaml";
+const PROJECT_ROOT = "/ui-harness/.dash-bored";
+const CONFIG_PATH = "/ui-harness/.dash-bored/dash-bored.yaml";
 
 function builtin(
   id: string,
@@ -477,7 +477,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     async getDashboardAgentDiff(taskId: string) {
       const task = agentTasks.find((item) => item.id === taskId);
       if (!task) throw new Error("That dashboard agent task is no longer available.");
-      return `diff --git a/dash-bored/dash-bored.yaml b/dash-bored/dash-bored.yaml\nindex fixture..updated 100644\n--- a/dash-bored/dash-bored.yaml\n+++ b/dash-bored/dash-bored.yaml\n@@ -1,3 +1,3 @@\n-# Fixture dashboard\n+# Updated by ${task.request}\n`;
+      return `diff --git a/.dash-bored/dash-bored.yaml b/.dash-bored/dash-bored.yaml\nindex fixture..updated 100644\n--- a/.dash-bored/dash-bored.yaml\n+++ b/.dash-bored/dash-bored.yaml\n@@ -1,3 +1,3 @@\n-# Fixture dashboard\n+# Updated by ${task.request}\n`;
     },
     async setDiagnostics(next) {
       currentDiagnostics = structuredClone(next);

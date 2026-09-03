@@ -74,7 +74,7 @@ describe("initializeProject", () => {
     const skillVisibility = nodes.find((node) => node.id === "show-install-dash-bored-skill");
     const agentCommand = nodes.find((node) => node.id === "setup-dashboard-with-agent");
     expect(environmentEditor.component).toBe("@dash-bored/env");
-    expect(environmentEditor.props.path).toBe("dash-bored/.env");
+    expect(environmentEditor.props.path).toBe(".dash-bored/.env");
     expect(cliCommand.id).toBe("install-dash-bored-cli");
     expect(cliCommand.props.command).toContain("install-cli");
     expect(cliVisibility.component).toBe("@dash-bored/conditional");
@@ -103,7 +103,7 @@ describe("initializeProject", () => {
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
     expect(lock).toEqual({ lockfileVersion: 1, components: {} });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);
-    expect((await readdir(join(project, "dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
+    expect((await readdir(join(project, ".dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
 
   });
 
@@ -122,18 +122,18 @@ describe("initializeProject", () => {
     const result = await initializeProject(project, "people/arvid");
 
     const canonicalProject = await realpath(project);
-    expect(result.configPath).toBe(join(canonicalProject, "dash-bored", "people", "arvid", "dash-bored.yaml"));
+    expect(result.configPath).toBe(join(canonicalProject, ".dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
     expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: {} });
     expect(await readFile(result.environmentPath, "utf8")).toContain('DASH_BORED_AGENT="codex exec"');
     expect(
       configuredNodes(parse(await readFile(result.configPath, "utf8")).root)
         .find((node) => node.id === "dashboard-environment").props.path,
-    ).toBe("dash-bored/people/arvid/.env");
+    ).toBe(".dash-bored/people/arvid/.env");
     expect((await stat(result.componentsPath)).isDirectory()).toBeTrue();
-    expect((await stat(join(project, "dash-bored", "dash-bored.yaml"))).isFile()).toBeTrue();
-    expect((await stat(join(project, "dash-bored", "dash-bored-lock.yaml"))).isFile()).toBeTrue();
-    expect((await stat(join(project, "dash-bored", "components"))).isDirectory()).toBeTrue();
+    expect((await stat(join(project, ".dash-bored", "dash-bored.yaml"))).isFile()).toBeTrue();
+    expect((await stat(join(project, ".dash-bored", "dash-bored-lock.yaml"))).isFile()).toBeTrue();
+    expect((await stat(join(project, ".dash-bored", "components"))).isDirectory()).toBeTrue();
 
     await expect(initializeProject(project, "people/arvid")).rejects.toThrow(
       "existing files were not overwritten",
@@ -151,7 +151,7 @@ describe("initializeProject", () => {
   test("preserves an existing base bundle while initializing a named bundle", async () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-init-"));
     temporaryDirectories.push(project);
-    const baseDirectory = join(project, "dash-bored");
+    const baseDirectory = join(project, ".dash-bored");
     const baseConfig = "schemaVersion: 1\nname: Keep me\nroot:\n  component: '@dash-bored/markdown'\n  props:\n    content: custom\n";
     const baseLock = "lockfileVersion: 1\ncomponents: {}\n";
     await mkdir(join(baseDirectory, "components"), { recursive: true });
@@ -168,7 +168,7 @@ describe("initializeProject", () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-init-"));
     const outside = await mkdtemp(join(tmpdir(), "dash-bored-init-"));
     temporaryDirectories.push(project, outside);
-    await symlink(outside, join(project, "dash-bored"));
+    await symlink(outside, join(project, ".dash-bored"));
 
     await expect(initializeProject(project)).rejects.toThrow("must not be a symbolic link");
     expect(await readdir(outside)).toEqual([]);

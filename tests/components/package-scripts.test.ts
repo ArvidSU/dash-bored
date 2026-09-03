@@ -7,7 +7,7 @@ import {
   packageWorkingDirectory,
   parsePackageScripts,
   stripAnsi,
-} from "../../dash-bored/components/package-scripts/package-scripts";
+} from "../../.dash-bored/components/package-scripts/package-scripts";
 
 describe("package scripts component", () => {
   test("parses and sorts string-valued package scripts", () => {

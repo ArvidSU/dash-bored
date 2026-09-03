@@ -217,17 +217,17 @@ export function AppDialogs({
             />
             <span>
               <strong>Also move project files to Trash</strong>
-              <small>Moves only {deletionDialog.preview.filesDirectory} and its nested dash-bored bundles, components, locks, and environment files.</small>
+              <small>Moves only {deletionDialog.preview.filesDirectory} and its nested .dash-bored bundles, components, locks, and environment files.</small>
             </span>
           </label>
         ) : (
-          <p className="dashboard-delete-no-files">No app-owned dash-bored/ directory was found, so only the sidebar entry will be removed.</p>
+          <p className="dashboard-delete-no-files">No app-owned .dash-bored/ directory was found, so only the sidebar entry will be removed.</p>
         )}
 
         {deletionDialog.removeFiles ? (
           <section className="dashboard-delete-warning" role="alert">
             <strong>Project files will be moved to the OS Trash.</strong>
-            <p>This removes the dashboard’s app-owned files and can break the links listed above. Source project files outside dash-bored/ are never touched.</p>
+            <p>This removes the dashboard’s app-owned files and can break the links listed above. Source project files outside .dash-bored/ are never touched.</p>
           </section>
         ) : null}
 

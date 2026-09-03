@@ -40,7 +40,7 @@ export async function createProject(
   config: DashboardConfig = defaultConfig,
   lock: DashboardLock = { lockfileVersion: 1, components: {} },
 ): Promise<void> {
-  const directory = join(root, "dash-bored");
+  const directory = join(root, ".dash-bored");
   await mkdir(join(directory, "components"), { recursive: true });
   await Promise.all([
     writeFile(join(directory, "dash-bored.yaml"), stringify(config), "utf8"),
@@ -60,7 +60,7 @@ export async function writeLocalComponent(
     propsSchema?: Record<string, unknown>;
   } = {},
 ): Promise<void> {
-  const directory = join(root, "dash-bored", "components", name);
+  const directory = join(root, ".dash-bored", "components", name);
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, "component.yaml"),

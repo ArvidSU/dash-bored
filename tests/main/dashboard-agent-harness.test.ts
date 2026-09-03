@@ -12,8 +12,8 @@ describe("DashboardAgentHarness", () => {
         prompt: "Change the dashboard.",
         request: "Change the dashboard.",
         projectRoot: process.cwd(),
-        configPath: "/project/dash-bored/dash-bored.yaml",
-        componentPath: "/project/dash-bored/dash-bored.yaml#root",
+        configPath: "/project/.dash-bored/dash-bored.yaml",
+        componentPath: "/project/.dash-bored/dash-bored.yaml#root",
       });
 
       expect(launch.taskId).toStartWith("component-agent-");
@@ -28,7 +28,7 @@ describe("DashboardAgentHarness", () => {
       expect((await harness.resizeTerminal(launch.taskId, 80, 24)).process.phase).toBe("running");
       expect((await harness.writeTerminal(launch.taskId, "\n")).process.phase).toBe("running");
 
-      harness.markDashboardChanged("/project/dash-bored/dash-bored.yaml");
+      harness.markDashboardChanged("/project/.dash-bored/dash-bored.yaml");
       expect(harness.list()[0]?.dashboardChanged).toBeTrue();
       expect(updates.some((task) => task.dashboardChanged)).toBeTrue();
 

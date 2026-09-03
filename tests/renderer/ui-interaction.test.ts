@@ -285,7 +285,7 @@ describe("renderer fixture interactions", () => {
     expect(await command.getByRole("tab", { name: "Terminal", exact: true }).getAttribute("aria-selected")).toBe("true");
     await command.getByRole("tab", { name: "Diff", exact: true }).click();
     await command.locator(".agent-task-modal__diff").getByText("diff --git", { exact: false }).waitFor();
-    expect(await command.locator(".agent-task-modal__diff").getByText("dash-bored/dash-bored.yaml", { exact: false }).count()).toBe(1);
+    expect(await command.locator(".agent-task-modal__diff").getByText(".dash-bored/dash-bored.yaml", { exact: false }).count()).toBe(1);
     await command.getByRole("tab", { name: "Command", exact: true }).click();
     expect(await command.locator(".agent-task-modal__command").getByText("codex exec 'Show a clearer fixture state.'", { exact: true }).count()).toBe(1);
     await command.getByRole("button", { name: "Copy command", exact: true }).click();
@@ -333,7 +333,7 @@ describe("renderer fixture interactions", () => {
     await task.click();
     const command = active.getByRole("dialog", { name: "Agent command" });
     await command.locator(".agent-task-modal__request").getByText("Fix dashboard configuration diagnostics.", { exact: true }).waitFor();
-    expect(await command.getByText("/ui-harness/dash-bored/dash-bored.yaml#diagnostics", { exact: true }).count()).toBe(1);
+    expect(await command.getByText("/ui-harness/.dash-bored/dash-bored.yaml#diagnostics", { exact: true }).count()).toBe(1);
     await command.getByRole("button", { name: "Close terminal", exact: true }).click();
     await task.getByText("Not working", { exact: true }).waitFor();
     await command.getByRole("button", { name: "Close", exact: true }).click();
@@ -397,7 +397,7 @@ describe("renderer fixture interactions", () => {
     await handle.press("End");
     expect((await frame.boundingBox())?.height).toBeCloseTo(initial.height, 0);
     expect(await active.evaluate(() => window.localStorage.getItem(
-      "dash-bored:component-heights:/ui-harness/dash-bored/dash-bored.yaml",
+      "dash-bored:component-heights:/ui-harness/.dash-bored/dash-bored.yaml",
     ))).toBe("{}");
   }, 20_000);
 

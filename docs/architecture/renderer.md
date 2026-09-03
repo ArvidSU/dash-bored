@@ -114,7 +114,7 @@ Focusing a node makes it a virtual root
 in the application viewport and provides breadcrumb navigation back to its
 configured ancestors; it never rewrites YAML or changes which bundle owns the
 node. Copy uses an unambiguous locator such as
-`/project/dash-bored/dash-bored.yaml#root.children.layout.first.child.node`.
+`/project/..dash-bored/dash-bored.yaml#root.children.layout.first.child.node`.
 Resolved nodes
 retain both the canonical owning YAML and their YAML-style path, including
 nodes reached through standalone config links.
@@ -175,7 +175,7 @@ request and shows a compact item with the user's prompt, start time, and a
 Working/Not working state in an app-level Agent work drawer across dashboard
 navigation. Clicking an item opens a three-tab modal: the regular command
 component against that task's PTY-backed process, a bounded git diff for the
-owning `dash-bored/` bundle, and the complete contextualized command with a copy
+owning `.dash-bored/` bundle, and the complete contextualized command with a copy
 action. The terminal includes retained output after the process exits. Tasks
 retain their component/YAML locator, request, contextualized prompt, command, and
 whether the owning dashboard changed while the CLI was running. A process exit
@@ -223,7 +223,7 @@ rewriting project files.
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks
 the main process for a typed deletion preview before showing the confirmation
-dialog. The preview reports whether the app-owned `project/dash-bored/`
+dialog. The preview reports whether the app-owned `project/.dash-bored/`
 directory exists, which other registered dashboards directly or transitively
 link into it, the linked config paths, and whether analysis completed. A
 dashboard-only removal is the default. File removal is available only after a
@@ -310,7 +310,7 @@ deletes project files unless the user explicitly selects file removal. The
 main-process deletion transaction recomputes the preview, unloads the active
 runtime (watcher, process manager, and capability bindings), revokes trust when
 file removal is selected, atomically removes the registry entry, and moves only
-the canonical top-level `project/dash-bored/` directory to the operating
+the canonical top-level `project/.dash-bored/` directory to the operating
 system Trash. The source project and paths outside that directory are not
 targets.
 

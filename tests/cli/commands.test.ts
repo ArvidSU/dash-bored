@@ -80,7 +80,7 @@ describe("dash-bored command arguments", () => {
     const result = await run(project, "init", "--help");
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("dash-bored init [name ...] [--project <path>]");
-    expect(await exists(join(project, "dash-bored"))).toBeFalse();
+    expect(await exists(join(project, ".dash-bored"))).toBeFalse();
   });
 
   test("unknown flags fail instead of silently targeting the current directory", async () => {
@@ -90,7 +90,7 @@ describe("dash-bored command arguments", () => {
     const result = await run(project, "init", "--unknown");
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("Unknown option for init: --unknown");
-    expect(await exists(join(project, "dash-bored"))).toBeFalse();
+    expect(await exists(join(project, ".dash-bored"))).toBeFalse();
   });
 
   test("init accepts a named config and explicit project path", async () => {
@@ -101,10 +101,10 @@ describe("dash-bored command arguments", () => {
     const result = await run(cwd, "init", "arvid", "--project", project);
 
     expect(result.exitCode).toBe(0);
-    expect(await exists(join(project, "dash-bored", "dash-bored.yaml"))).toBeTrue();
-    expect(await exists(join(project, "dash-bored", "arvid", "dash-bored.yaml"))).toBeTrue();
-    expect(await exists(join(project, "dash-bored", "arvid", "dash-bored-lock.yaml"))).toBeTrue();
-    expect(await exists(join(project, "dash-bored", "arvid", "components"))).toBeTrue();
+    expect(await exists(join(project, ".dash-bored", "dash-bored.yaml"))).toBeTrue();
+    expect(await exists(join(project, ".dash-bored", "arvid", "dash-bored.yaml"))).toBeTrue();
+    expect(await exists(join(project, ".dash-bored", "arvid", "dash-bored-lock.yaml"))).toBeTrue();
+    expect(await exists(join(project, ".dash-bored", "arvid", "components"))).toBeTrue();
   });
 
   test("init interprets every positional name as another bundle directory", async () => {
@@ -114,7 +114,7 @@ describe("dash-bored command arguments", () => {
     const result = await run(project, "init", "arvid", "cicd", "deployments");
 
     expect(result.exitCode).toBe(0);
-    const bundle = join(project, "dash-bored", "arvid", "cicd", "deployments");
+    const bundle = join(project, ".dash-bored", "arvid", "cicd", "deployments");
     expect(await exists(join(bundle, "dash-bored.yaml"))).toBeTrue();
     expect(await exists(join(bundle, "dash-bored-lock.yaml"))).toBeTrue();
     expect(await exists(join(bundle, "components"))).toBeTrue();

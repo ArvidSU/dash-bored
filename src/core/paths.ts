@@ -22,7 +22,7 @@ export interface ResolveProjectLocationOptions {
 
 const CONFIG_NAME_SEGMENT = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
-/** Parse a slash-separated named configuration path below dash-bored/. */
+/** Parse a slash-separated named configuration path below .dash-bored/. */
 export function parseConfigName(name: string): string[] {
   if (name === ".") return [];
   if (

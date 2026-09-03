@@ -302,8 +302,8 @@ describe("application action providers", () => {
     const actions = buildApplicationActions({
       snapshot: snapshot(),
       projects: [
-        { projectRoot: "/workspace/example", configPath: "/workspace/example/dash-bored/dash-bored.yaml", dashboardName: "Example" },
-        { projectRoot: "/workspace/other", configPath: "/workspace/other/dash-bored/dash-bored.yaml", dashboardName: "Other" },
+        { projectRoot: "/workspace/example", configPath: "/workspace/example/.dash-bored/dash-bored.yaml", dashboardName: "Example" },
+        { projectRoot: "/workspace/other", configPath: "/workspace/other/.dash-bored/dash-bored.yaml", dashboardName: "Other" },
       ],
       activeView: "settings",
       sidebarExpanded: false,

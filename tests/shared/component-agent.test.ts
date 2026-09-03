@@ -47,7 +47,7 @@ function configSource(
   componentCatalog: ComponentCatalogItem[],
 ): DashboardConfigSource {
   return {
-    configPath: "/project/dash-bored/dash-bored.yaml",
+    configPath: "/project/.dash-bored/dash-bored.yaml",
     config: { schemaVersion: 2, name: "Test", root },
     configRevision: "revision",
     componentCatalog,
@@ -55,7 +55,7 @@ function configSource(
 }
 
 function tree(): ResolvedComponentNode {
-  const sourceConfigPath = "/project/dash-bored/dash-bored.yaml";
+  const sourceConfigPath = "/project/.dash-bored/dash-bored.yaml";
   return {
     id: "root",
     component: "@dash-bored/group",
@@ -87,7 +87,7 @@ describe("component agent context", () => {
     const node = findResolvedNode(tree(), "status");
     expect(node).not.toBeNull();
     expect(componentPath(node!)).toBe(
-      "/project/dash-bored/dash-bored.yaml#root.children.layout.child.node",
+      "/project/.dash-bored/dash-bored.yaml#root.children.layout.child.node",
     );
     expect(findResolvedNode(tree(), "missing")).toBeNull();
   });
@@ -95,14 +95,14 @@ describe("component agent context", () => {
   test("enriches the request with dash-bored and exact component context", () => {
     const prompt = buildComponentAgentPrompt({
       projectRoot: "/project",
-      configPath: "/project/dash-bored/dash-bored.yaml",
-      componentPath: "/project/dash-bored/dash-bored.yaml#root.children.layout.child.node",
+      configPath: "/project/.dash-bored/dash-bored.yaml",
+      componentPath: "/project/.dash-bored/dash-bored.yaml#root.children.layout.child.node",
       componentId: "status",
       componentReference: "@dash-bored/status",
     }, "  Make the status green when healthy.  ");
 
     expect(prompt).toContain("dash-bored product and component-tree model");
-    expect(prompt).toContain("Target component path: /project/dash-bored/dash-bored.yaml#root.children.layout.child.node");
+    expect(prompt).toContain("Target component path: /project/.dash-bored/dash-bored.yaml#root.children.layout.child.node");
     expect(prompt).toEndWith("User request:\nMake the status green when healthy.");
   });
 
@@ -115,7 +115,7 @@ describe("component agent context", () => {
   test("gives a diagnostics repair request the owning dashboard and reported issues", () => {
     const prompt = buildDiagnosticsAgentPrompt({
       projectRoot: "/project",
-      configPath: "/project/dash-bored/dash-bored.yaml",
+      configPath: "/project/.dash-bored/dash-bored.yaml",
       diagnostics: [{
         severity: "error",
         code: "COMPONENT_UNAVAILABLE",
@@ -125,7 +125,7 @@ describe("component agent context", () => {
     });
 
     expect(prompt).toContain("fixing a dash-bored dashboard configuration");
-    expect(prompt).toContain("Owning dashboard config: /project/dash-bored/dash-bored.yaml");
+    expect(prompt).toContain("Owning dashboard config: /project/.dash-bored/dash-bored.yaml");
     expect(prompt).toContain("- ERROR COMPONENT_UNAVAILABLE: Component ./components/missing is unavailable. (root.component)");
   });
 
@@ -136,7 +136,7 @@ describe("component agent context", () => {
     }, "split");
     const prompt = buildComponentCreationAgentPrompt({
       projectRoot: "/project",
-      configPath: "/project/dash-bored/dash-bored.yaml",
+      configPath: "/project/.dash-bored/dash-bored.yaml",
       insertionPath,
     }, "  Show deployment health by region.  ");
 

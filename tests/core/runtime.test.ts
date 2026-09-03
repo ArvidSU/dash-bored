@@ -158,7 +158,7 @@ describe("ProjectRuntime", () => {
     await runtime.startProcess("server");
     expect(runtime.getSnapshot().processes[0]?.phase).toBe("running");
 
-    await writeFile(join(root, "dash-bored", "dash-bored.yaml"), "not: valid: yaml");
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), "not: valid: yaml");
     const failedReload = await runtime.reload();
     expect(failedReload.tree).not.toBeNull();
     expect(failedReload.processes[0]?.phase).toBe("running");
@@ -178,7 +178,7 @@ describe("ProjectRuntime", () => {
       icon: "icon.svg",
     });
     await writeFile(
-      join(root, "dash-bored", "icon.svg"),
+      join(root, ".dash-bored", "icon.svg"),
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8"/></svg>',
     );
     const runtime = new ProjectRuntime({
@@ -192,7 +192,7 @@ describe("ProjectRuntime", () => {
     const trusted = await runtime.trust();
     expect(trusted.iconDataUrl).toStartWith("data:image/svg+xml;base64,");
 
-    await writeFile(join(root, "dash-bored", "icon.svg"), "not an image");
+    await writeFile(join(root, ".dash-bored", "icon.svg"), "not an image");
     const broken = await runtime.reload();
     expect(broken.tree).not.toBeNull();
     expect(broken.iconDataUrl).toBeNull();
@@ -216,7 +216,7 @@ describe("ProjectRuntime", () => {
       name: "Changed",
       root: { component: "@dash-bored/markdown", props: { content: "updated" } },
     } as const;
-    await writeFile(join(root, "dash-bored", "dash-bored.yaml"), stringify(changed));
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(changed));
 
     await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"));
     expect(runtime.getSnapshot().dashboardName).toBe("Changed");
@@ -268,10 +268,10 @@ describe("ProjectRuntime", () => {
     });
   });
 
-  test("creates and watches dashboard files below a selected project named dash-bored", async () => {
+  test("creates and watches dashboard files below a selected project named .dash-bored", async () => {
     const parent = await temporaryDirectory();
     cleanup.push(parent);
-    const root = join(parent, "dash-bored");
+    const root = join(parent, ".dash-bored");
     await mkdir(root);
     const runtime = new ProjectRuntime({
       trustStore: new TrustStore(join(root, ".state", "trust.json")),
@@ -280,7 +280,7 @@ describe("ProjectRuntime", () => {
     const loaded = await runtime.load(root, { inputKind: "project-root" });
 
     expect(loaded.tree?.component).toBe("@dash-bored/group");
-    expect((await stat(join(root, "dash-bored", "components"))).isDirectory()).toBeTrue();
+    expect((await stat(join(root, ".dash-bored", "components"))).isDirectory()).toBeTrue();
     await expect(access(join(root, "dash-bored.yaml"))).rejects.toThrow();
     expect(() => runtime.watch()).not.toThrow();
     expect(runtime.getSnapshot().diagnostics).toEqual([]);
@@ -294,7 +294,7 @@ describe("ProjectRuntime", () => {
       name: "Canonical",
       root: { component: "@dash-bored/markdown", props: { content: "Canonical" } },
     });
-    const named = join(root, "dash-bored", "arvid");
+    const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
     await Promise.all([
       writeFile(
@@ -350,10 +350,10 @@ describe("ProjectRuntime", () => {
     const saved = await runtime.saveDashboardConfig(changed, expectedRevision);
     expect(saved.dashboardName).toBe("Edited in app");
     expect(saved.configRevision).not.toBe(expectedRevision);
-    expect(await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8")).toContain("Edited in app");
-    expect((await readdir(join(root, "dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
+    expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toContain("Edited in app");
+    expect((await readdir(join(root, ".dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
 
-    const sourceAfterSave = await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8");
+    const sourceAfterSave = await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8");
     await expect(runtime.saveDashboardConfig({ ...changed, name: "Stale" }, expectedRevision)).rejects.toMatchObject({
       code: "DASHBOARD_CONFIG_CONFLICT",
     });
@@ -363,7 +363,7 @@ describe("ProjectRuntime", () => {
     await expect(runtime.saveDashboardConfig(invalid, saved.configRevision!)).rejects.toMatchObject({
       code: "DASHBOARD_DRAFT_INVALID",
     });
-    expect(await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8")).toBe(sourceAfterSave);
+    expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toBe(sourceAfterSave);
   });
 
   test("invalidates trust for newly requested permissions and preflights trusted local code", async () => {
@@ -371,7 +371,7 @@ describe("ProjectRuntime", () => {
     cleanup.push(root);
     await createProject(root);
     await writeLocalComponent(root, "broken", "this is not valid typescript !!!");
-    const configPath = join(root, "dash-bored", "dash-bored.yaml");
+    const configPath = join(root, ".dash-bored", "dash-bored.yaml");
     const runtime = new ProjectRuntime({
       trustStore: new TrustStore(join(root, ".state", "trust.json")),
     });
@@ -458,7 +458,7 @@ describe("ProjectRuntime", () => {
       name: "Base",
       root: { id: "personal", component: "./arvid" },
     });
-    const named = join(root, "dash-bored", "arvid");
+    const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
@@ -468,7 +468,7 @@ describe("ProjectRuntime", () => {
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
-    const baseSource = await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8");
+    const baseSource = await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8");
     const runtime = new ProjectRuntime({
       trustStore: new TrustStore(join(root, ".state", "trust.json")),
     });
@@ -490,6 +490,6 @@ describe("ProjectRuntime", () => {
     );
     expect(resolvedChildren(saved.tree)[0]?.props.content).toBe("After");
     expect(await readFile(join(named, "dash-bored.yaml"), "utf8")).toContain("After");
-    expect(await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8")).toBe(baseSource);
+    expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toBe(baseSource);
   });
 });

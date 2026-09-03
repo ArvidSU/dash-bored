@@ -13,7 +13,7 @@ and repeatable tasks over decorative examples.
 ## Start from the project
 
 Read the project's instructions and inspect its actual scripts, services,
-documentation, and existing `dash-bored/` tree before editing. Preserve
+documentation, and existing `.dash-bored/` tree before editing. Preserve
 unrelated work and existing dashboard workflows.
 
 The desktop app puts its matching CLI on `PATH`, so use `dash-bored` directly.

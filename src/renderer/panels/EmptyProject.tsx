@@ -18,7 +18,7 @@ export function EmptyProject({
       <h1>Put the project in front of you.</h1>
       <p>
         Choose a project folder to load its workflows, status, and tools into one
-        focused workspace. Missing <code>dash-bored/</code> files are created for you.
+        focused workspace. Missing <code>.dash-bored/</code> files are created for you.
       </p>
       <button className="button button--primary button--large" type="button" disabled={pending} onClick={onChoose}>
         {pending ? "Opening…" : "Choose a project"}

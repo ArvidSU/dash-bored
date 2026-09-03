@@ -110,7 +110,7 @@ root:
                     props:
                       label: Config-link boundary
                       state: healthy
-                      detail: This content is loaded from dash-bored/dogfood/dash-bored.yaml.
+                      detail: This content is loaded from .dash-bored/dogfood/dash-bored.yaml.
               second:
                 type: child
                 child:

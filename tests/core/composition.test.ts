@@ -151,7 +151,7 @@ describe("component child composition", () => {
   test("validates manifest cardinality, presentation, and allowed tiled axes", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
-    const directory = join(root, "dash-bored", "components", "horizontal-pair");
+    const directory = join(root, ".dash-bored", "components", "horizontal-pair");
     await createProject(root, {
       schemaVersion: 2,
       name: "Axes",
@@ -203,7 +203,7 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root);
-    await writeFile(join(root, "dash-bored", "dash-bored.yaml"), stringify({
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
       schemaVersion: 2,
       name: "Ratio",
       root: {

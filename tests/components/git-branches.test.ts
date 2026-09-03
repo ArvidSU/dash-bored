@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   gitBranchesCommand,
   parseGitBranchesOutput,
-} from "../../dash-bored/components/git-branches/git-branches";
+} from "../../.dash-bored/components/git-branches/git-branches";
 
 describe("git branches component", () => {
   test("parses branch workload and preserves branches without upstreams", () => {

@@ -58,7 +58,7 @@ function linkConfig(name: string, references: readonly string[]): DashboardConfi
 function project(root: string, dashboardName: string): ProjectListItem {
   return {
     projectRoot: root,
-    configPath: join(root, "dash-bored", "dash-bored.yaml"),
+    configPath: join(root, ".dash-bored", "dash-bored.yaml"),
     dashboardName,
   };
 }
@@ -78,24 +78,24 @@ describe("project deletion dependency analysis", () => {
       realpath(absoluteSource),
       realpath(transitiveSource),
     ]);
-    const targetFiles = join(targetRoot, "dash-bored");
+    const targetFiles = join(targetRoot, ".dash-bored");
     await writeFile(
-      join(relativeSource, "dash-bored", "dash-bored.yaml"),
-      stringify(linkConfig("Relative source", [relative(join(relativeSourceRoot, "dash-bored"), targetFiles)])),
+      join(relativeSource, ".dash-bored", "dash-bored.yaml"),
+      stringify(linkConfig("Relative source", [relative(join(relativeSourceRoot, ".dash-bored"), targetFiles)])),
     );
     await writeFile(
-      join(absoluteSource, "dash-bored", "dash-bored.yaml"),
+      join(absoluteSource, ".dash-bored", "dash-bored.yaml"),
       stringify(linkConfig("Absolute source", [targetFiles])),
     );
 
-    const nested = join(transitiveSource, "dash-bored", "nested");
+    const nested = join(transitiveSource, ".dash-bored", "nested");
     await mkdir(nested, { recursive: true });
     await writeFile(
       join(nested, "dash-bored.yaml"),
       stringify(linkConfig("Nested link", [targetFiles])),
     );
     await writeFile(
-      join(transitiveSource, "dash-bored", "dash-bored.yaml"),
+      join(transitiveSource, ".dash-bored", "dash-bored.yaml"),
       stringify(linkConfig("Transitive source", ["./nested"])),
     );
 
@@ -127,15 +127,15 @@ describe("project deletion dependency analysis", () => {
     await Promise.all([createProject(target), createProject(source)]);
 
     const [targetRoot, sourceRoot] = await Promise.all([realpath(target), realpath(source)]);
-    const unreadable = join(targetRoot, "dash-bored", "private");
+    const unreadable = join(targetRoot, ".dash-bored", "private");
     await mkdir(unreadable, { recursive: true });
     const unreadableConfig = join(unreadable, "dash-bored.yaml");
     await writeFile(unreadableConfig, stringify(linkConfig("Private", [])));
     await writeFile(join(unreadable, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n");
     await writeFile(
-      join(source, "dash-bored", "dash-bored.yaml"),
+      join(source, ".dash-bored", "dash-bored.yaml"),
       stringify(linkConfig("Broken links", [
-        join(targetRoot, "dash-bored", "missing"),
+        join(targetRoot, ".dash-bored", "missing"),
         unreadable,
       ])),
     );
@@ -154,7 +154,7 @@ describe("project deletion dependency analysis", () => {
           projectRoot: sourceRoot,
           dashboardName: "Broken links",
           configPaths: [
-            join(targetRoot, "dash-bored", "missing"),
+            join(targetRoot, ".dash-bored", "missing"),
             unreadable,
           ].sort(),
         },
@@ -178,8 +178,8 @@ describe("project deletion dependency analysis", () => {
     ]);
 
     await writeFile(
-      join(source, "dash-bored", "dash-bored.yaml"),
-      stringify(linkConfig("External source", [join(outsideRoot, "dash-bored")])),
+      join(source, ".dash-bored", "dash-bored.yaml"),
+      stringify(linkConfig("External source", [join(outsideRoot, ".dash-bored")])),
     );
     const safePreview = await inspectProjectDeletion(
       project(targetRoot, "Target"),
@@ -188,8 +188,8 @@ describe("project deletion dependency analysis", () => {
     expect(safePreview.analysisComplete).toBeTrue();
     expect(safePreview.dependencies).toEqual([]);
 
-    await rm(join(target, "dash-bored"), { recursive: true });
-    await symlink(join(outside, "dash-bored"), join(target, "dash-bored"));
+    await rm(join(target, ".dash-bored"), { recursive: true });
+    await symlink(join(outside, ".dash-bored"), join(target, ".dash-bored"));
     const unsafePreview = await inspectProjectDeletion(project(targetRoot, "Target"), [project(targetRoot, "Target")]);
     expect(unsafePreview.filesExist).toBeFalse();
     expect(unsafePreview.analysisComplete).toBeFalse();
@@ -222,7 +222,7 @@ describe("project deletion dependency analysis", () => {
 
   test("fails closed when a registered local component is inside the target files", async () => {
     const target = await temporaryDirectory();
-    const source = join(target, "dash-bored", "nested-dashboard");
+    const source = join(target, ".dash-bored", "nested-dashboard");
     cleanup.push(target);
     await createProject(target);
     await mkdir(source, { recursive: true });
@@ -254,10 +254,10 @@ describe("project deletion dependency analysis", () => {
       realpath(source),
       realpath(outside),
     ]);
-    const linkedPath = join(targetRoot, "dash-bored", "external-link");
-    await symlink(join(outsideRoot, "dash-bored"), linkedPath);
+    const linkedPath = join(targetRoot, ".dash-bored", "external-link");
+    await symlink(join(outsideRoot, ".dash-bored"), linkedPath);
     await writeFile(
-      join(source, "dash-bored", "dash-bored.yaml"),
+      join(source, ".dash-bored", "dash-bored.yaml"),
       stringify(linkConfig("Symlink source", [linkedPath])),
     );
 

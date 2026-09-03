@@ -199,7 +199,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     children: tiled(child({
       component: "@dash-bored/markdown",
       props: {
-        content: "1. Compose generic components in `dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
+        content: "1. Compose generic components in `.dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
       },
     })),
   };
@@ -335,7 +335,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       id: "welcome",
       component: "@dash-bored/markdown",
       props: {
-        content: `# ${projectName}\n\nThis dashboard lives with your project in \`dash-bored/\`. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to search app, dashboard, and component actions, or choose **Components** to arrange components and configure their props. Collapse a panel to declutter; focusing one makes it the temporary dashboard root without changing any files.\n`,
+        content: `# ${projectName}\n\nThis dashboard lives with your project in \`.dash-bored/\`. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to search app, dashboard, and component actions, or choose **Components** to arrange components and configure their props. Collapse a panel to declutter; focusing one makes it the temporary dashboard root without changing any files.\n`,
       },
     },
     {

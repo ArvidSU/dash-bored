@@ -253,7 +253,7 @@ root:
                                         cleanup, dash-bored previews direct and transitive config links;
                                         incomplete analysis keeps file removal disabled.
 
-                                        If selected, only this project's app-owned `dash-bored/` directory
+                                        If selected, only this project's app-owned `.dash-bored/` directory
                                         moves to the OS Trash. Source project files are never targeted.
       - metadata:
           label: Development
@@ -550,7 +550,7 @@ root:
                       id: agent-environment
                       component: "@dash-bored/env"
                       props:
-                        path: dash-bored/.env
+                        path: .dash-bored/.env
                 second:
                   type: split
                   axis: vertical

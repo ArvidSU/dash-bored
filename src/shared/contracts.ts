@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export const CONFIG_DIRECTORY = "dash-bored";
+export const CONFIG_DIRECTORY = ".dash-bored";
 export const CONFIG_FILE = "dash-bored.yaml";
 export const LOCK_FILE = "dash-bored-lock.yaml";
 export const COMPONENTS_DIRECTORY = "components";

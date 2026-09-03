@@ -7,7 +7,7 @@ describe("ui harness host", () => {
     const host = createUiHarnessHost();
     const snapshot = await host.getSnapshot();
 
-    expect(snapshot.projectRoot).toBe("/ui-harness/dash-bored");
+    expect(snapshot.projectRoot).toBe("/ui-harness/.dash-bored");
     expect(snapshot.trusted).toBeTrue();
     expect(snapshot.tree).toMatchObject({
       id: "harness-root",
@@ -30,8 +30,8 @@ describe("ui harness host", () => {
     expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/tabs")?.manifest?.renderMode)
       .toBe("layout");
     expect(await host.listProjects()).toEqual([{
-      projectRoot: "/ui-harness/dash-bored",
-      configPath: "/ui-harness/dash-bored/dash-bored.yaml",
+      projectRoot: "/ui-harness/.dash-bored",
+      configPath: "/ui-harness/.dash-bored/dash-bored.yaml",
       dashboardName: "Visual verification fixture",
     }]);
   });

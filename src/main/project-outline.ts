@@ -4,13 +4,13 @@ import {
   resolveProjectLocation,
 } from "../core/index";
 import { join } from "node:path";
-import type { ProjectOutline } from "../shared/contracts";
+import { CONFIG_DIRECTORY, CONFIG_FILE, type ProjectOutline } from "../shared/contracts";
 import type { ProjectRegistry } from "./project-registry";
 
 export async function getRegisteredProjectOutline(
   registry: ProjectRegistry,
   projectRoot: string,
-  configPath = join(projectRoot, "dash-bored", "dash-bored.yaml"),
+  configPath = join(projectRoot, CONFIG_DIRECTORY, CONFIG_FILE),
 ): Promise<ProjectOutline> {
   if (!(await registry.contains(projectRoot, configPath))) {
     throw new CoreError(

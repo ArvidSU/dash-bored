@@ -1,6 +1,6 @@
 .hutch/
 .env.worktree
-dash-bored/.env
+.dash-bored/.env
 .cottontail-tmp/
 node_modules/
 dist/

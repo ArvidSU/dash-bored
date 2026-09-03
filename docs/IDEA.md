@@ -152,7 +152,7 @@ A project should be able to contain:
 project/
 ├── src/
 ├── package.json
-└── dash-bored/
+└── .dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
     ├── .env
@@ -165,7 +165,7 @@ Projects may keep more than one standalone dashboard bundle when different
 people or workflows need different cockpits:
 
 ```
-project/dash-bored/
+project/.dash-bored/
 ├── dash-bored.yaml
 ├── dash-bored-lock.yaml
 ├── .env

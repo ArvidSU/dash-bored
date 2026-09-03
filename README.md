@@ -156,7 +156,7 @@ dash-bored files, without overwriting existing files:
 
 ```text
 project/
-└── dash-bored/
+└── .dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
     ├── .env
@@ -182,7 +182,7 @@ and an observed dashboard change; review the result rather than treating those
 signals as proof that an external agent completed the request. Each Agent work
 item shows the user's prompt, start time, and Working/Not working state; clicking
 it opens Terminal, Diff, and Command tabs. Diff is scoped to the owning
-`dash-bored/` folder, while Command shows the full contextualized invocation
+`.dash-bored/` folder, while Command shows the full contextualized invocation
 with a copy action. When configuration diagnostics are present, **Fix with
 agent** asks the configured CLI to repair the
 owning dashboard and includes the current reported issues, even when the tree
@@ -229,16 +229,16 @@ dash-bored init arvid --project /path/to/project
 This creates all four bundle artifacts independently of the main dashboard:
 
 ```text
-project/dash-bored/arvid/
+project/..dash-bored/arvid/
 ├── dash-bored.yaml
 ├── dash-bored-lock.yaml
 ├── .env
 └── components/
 ```
 
-The command does not edit `project/dash-bored/dash-bored.yaml` or automatically
+The command does not edit `project/..dash-bored/dash-bored.yaml` or automatically
 link the new dashboard into it. Each positional name adds another directory
-level, so `dash-bored init arvid cicd` creates `dash-bored/arvid/cicd/`.
+level, so `dash-bored init arvid cicd` creates `.dash-bored/arvid/cicd/`.
 Safe slash-separated names such as `dash-bored init people/arvid` remain
 supported; every leaf is a complete bundle.
 
@@ -262,9 +262,9 @@ or the path to its `dash-bored.yaml`. `open` accepts the same three forms and
 renders exactly the bundle selected by the path. For example:
 
 ```sh
-dash-bored open ./dash-bored/arvid
+dash-bored open ./.dash-bored/arvid
 # equivalent:
-dash-bored open ./dash-bored/arvid/dash-bored.yaml
+dash-bored open ./.dash-bored/arvid/dash-bored.yaml
 ```
 
 The app receives the selected config path separately from the project root, so
@@ -272,20 +272,20 @@ opening a named bundle does not fall back to the canonical dashboard. `init`
 uses `--project <path>` to select another project root because its positional
 argument is the optional bundle name.
 Running the desktop app without a project presents a project chooser; selecting
-an uninitialized project creates the same root-level `dash-bored/` structure
-before loading it. A selected folder containing a nested `dash-bored/` is the
-project root, even when that folder is itself named `dash-bored`. The same
+an uninitialized project creates the same root-level `.dash-bored/` structure
+before loading it. A selected folder containing a nested `.dash-bored/` is the
+project root, even when that folder is itself named `.dash-bored`. The same
 **Add dashboard** chooser
 also opens standalone bundles: select a directory containing
 `dash-bored.yaml`, and that bundle is rendered directly without merging it into
 the canonical dashboard. A selected directory containing a nested
-`dash-bored/` directory continues to open as a project root. Each selected
+`.dash-bored/` directory continues to open as a project root. Each selected
 config is remembered as its own sidebar entry, so the canonical dashboard and
 named bundles from the same project can be switched independently.
 
 ## Configure a dashboard
 
-`dash-bored/dash-bored.yaml` contains one recursive component node:
+`.dash-bored/dash-bored.yaml` contains one recursive component node:
 
 ```yaml
 schemaVersion: 2
@@ -519,7 +519,7 @@ dependency scan is incomplete because a link is broken, unreadable, or a
 registered dashboard's local component files are inside the files being
 removed, project file removal is disabled. Otherwise, you may select **Also
 move project files to Trash**. This moves only the app-owned
-`project/dash-bored/` directory (and
+`project/.dash-bored/` directory (and
 its named bundles, components, lock files, and environment files) to the OS
 Trash. Source files elsewhere in the project are never removed. Removing the
 active dashboard unloads its watcher, supervised processes, and trust state;
@@ -551,7 +551,7 @@ which only rereads the active project's configuration.
 Create a directory below the project's component root:
 
 ```text
-project/dash-bored/components/service-health/
+project/..dash-bored/components/service-health/
 ├── component.yaml
 ├── index.tsx
 └── styles.css                 # optional

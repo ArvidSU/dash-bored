@@ -31,7 +31,7 @@ the skill tells agents to discover the live component catalog from that CLI.
 The application pins Electrobun 2.0.1 and uses its Bun main-process mode:
 
 ```text
-project/dash-bored/                 # canonical standalone bundle
+project/.dash-bored/                 # canonical standalone bundle
   dash-bored.yaml
   dash-bored-lock.yaml
   .env

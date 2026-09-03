@@ -131,7 +131,7 @@ describe("external component submodule operations", () => {
     const added = await addComponent(parent, source.url, { name: "widgets" });
     expect(added).toEqual({ name: "widgets", commit: source.head });
 
-    const lockPath = join(parent, "dash-bored", "dash-bored-lock.yaml");
+    const lockPath = join(parent, ".dash-bored", "dash-bored-lock.yaml");
     const parsed = await parseDashboardLock(lockPath);
     expect(parsed.value?.components["widgets"]).toEqual({
       url: source.url,
@@ -140,7 +140,7 @@ describe("external component submodule operations", () => {
     });
 
     const reserialized = serializeDashboardLock(parsed.value!);
-    const roundTripPath = join(parent, "dash-bored", "dash-bored-lock.roundtrip.yaml");
+    const roundTripPath = join(parent, ".dash-bored", "dash-bored-lock.roundtrip.yaml");
     await writeFile(roundTripPath, reserialized, "utf8");
     const reparsed = await parseDashboardLock(roundTripPath);
     expect(reparsed.value).toEqual(parsed.value);
@@ -188,7 +188,7 @@ describe("external component submodule operations", () => {
     const source = await makeSourceRepo(root, "widgets", ["filesystem:read"]);
     const parent = await makeParentRepo(root, "parent");
     await addComponent(parent, source.url, { name: "widgets" });
-    const submodule = join("dash-bored", "components", "external", "widgets");
+    const submodule = join(".dash-bored", "components", "external", "widgets");
 
     git(parent, "submodule", "deinit", "-f", "--", submodule);
     const uninitialized = await statusComponents(parent, "widgets");
@@ -211,7 +211,7 @@ describe("external component submodule operations", () => {
     cleanup.push(root);
     const parent = await makeParentRepo(root, "parent");
     await writeFile(
-      join(parent, "dash-bored", "dash-bored-lock.yaml"),
+      join(parent, ".dash-bored", "dash-bored-lock.yaml"),
       stringify({
         lockfileVersion: 1,
         components: {
@@ -235,7 +235,7 @@ describe("external component submodule operations", () => {
     const source = await makeSourceRepo(root, "widgets", ["filesystem:read"]);
     const parent = await makeParentRepo(root, "parent", externalConfig());
     await addComponent(parent, source.url, { name: "widgets" });
-    const submodule = join(parent, "dash-bored", "components", "external", "widgets");
+    const submodule = join(parent, ".dash-bored", "components", "external", "widgets");
 
     const second = await commitSourceVersion(source, "v2", ["filesystem:read", "network:http"]);
     const drifted = await statusComponents(parent, "widgets");
@@ -243,7 +243,7 @@ describe("external component submodule operations", () => {
 
     const updated = await updateComponent(parent, "widgets", {});
     expect(updated).toEqual({ name: "widgets", commit: second, changed: true });
-    const parsed = await parseDashboardLock(join(parent, "dash-bored", "dash-bored-lock.yaml"));
+    const parsed = await parseDashboardLock(join(parent, ".dash-bored", "dash-bored-lock.yaml"));
     expect(parsed.value?.components["widgets"]?.commit).toBe(second);
 
     const repeated = await updateComponent(parent, "widgets", {});
@@ -251,7 +251,7 @@ describe("external component submodule operations", () => {
 
     await writeFile(join(submodule, "index.tsx"), "export default () => \"dirty\";\n", "utf8");
     await expect(updateComponent(parent, "widgets", {})).rejects.toThrow(/local changes/);
-    const afterFailed = await parseDashboardLock(join(parent, "dash-bored", "dash-bored-lock.yaml"));
+    const afterFailed = await parseDashboardLock(join(parent, ".dash-bored", "dash-bored-lock.yaml"));
     expect(afterFailed.value?.components["widgets"]?.commit).toBe(second);
   });
 
@@ -288,7 +288,7 @@ describe("external component submodule operations", () => {
     const removed = await removeComponent(parent, "widgets");
     expect(removed).toEqual({ name: "widgets" });
 
-    const parsed = await parseDashboardLock(join(parent, "dash-bored", "dash-bored-lock.yaml"));
+    const parsed = await parseDashboardLock(join(parent, ".dash-bored", "dash-bored-lock.yaml"));
     expect(parsed.value?.components).toEqual({});
     expect(await listComponents(parent)).toEqual([]);
     const gitmodules = await readFile(join(parent, ".gitmodules"), "utf8").catch(() => "");
@@ -307,7 +307,7 @@ describe("external component submodule operations", () => {
     const source = await makeSourceRepo(root, "widgets", ["filesystem:read"]);
     const parent = await makeParentRepo(root, "parent");
     await addComponent(parent, source.url, { name: "widgets" });
-    const submodule = join("dash-bored", "components", "external", "widgets");
+    const submodule = join(".dash-bored", "components", "external", "widgets");
 
     git(parent, "submodule", "deinit", "-f", "--", submodule);
     const synced = await syncComponents(parent);
@@ -383,7 +383,7 @@ describe("external component submodule operations", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const parent = await makeParentRepo(root, "parent");
-    await mkdir(join(parent, "dash-bored", "components", "external", "ghost"), { recursive: true });
+    await mkdir(join(parent, ".dash-bored", "components", "external", "ghost"), { recursive: true });
 
     const definition = await loadProjectDefinition(parent);
     const ghost = definition.componentCatalog.find(
@@ -397,7 +397,7 @@ describe("external component submodule operations", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const parent = await makeParentRepo(root, "parent");
-    const hollow = join(parent, "dash-bored", "components", "external", "hollow");
+    const hollow = join(parent, ".dash-bored", "components", "external", "hollow");
     await mkdir(hollow, { recursive: true });
     await writeFile(join(hollow, "README.md"), "# not a component\n", "utf8");
 

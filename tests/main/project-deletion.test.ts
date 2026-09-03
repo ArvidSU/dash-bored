@@ -23,7 +23,7 @@ afterEach(async () => {
 function snapshot(projectRoot: string, dashboardName: string | null): ProjectSnapshot {
   return {
     projectRoot,
-    configPath: join(projectRoot, "dash-bored", "dash-bored.yaml"),
+    configPath: join(projectRoot, ".dash-bored", "dash-bored.yaml"),
     dashboardName,
     iconDataUrl: null,
     config: null,
@@ -97,7 +97,7 @@ describe("registered dashboard deletion", () => {
     expect(moved).toEqual([]);
     expect(await registry.list()).toEqual([]);
     expect(await new ProjectRegistry(join(root, ".state", "projects.json")).list()).toEqual([]);
-    expect(await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8")).toContain("Test project");
+    expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toContain("Test project");
   });
 
   test("unloads the active runtime, revokes trust, and moves only dash-bored/ to Trash", async () => {
@@ -126,8 +126,8 @@ describe("registered dashboard deletion", () => {
 
     expect(result.projectRoot).toBeNull();
     expect(runtime.getSnapshot().processes).toEqual([]);
-    expect(moved).toEqual([join(canonicalRoot, "dash-bored")]);
-    await expect(access(join(root, "dash-bored"))).rejects.toThrow();
+    expect(moved).toEqual([join(canonicalRoot, ".dash-bored")]);
+    await expect(access(join(root, ".dash-bored"))).rejects.toThrow();
     expect(await trustStore.getGrant(canonicalRoot)).toBeNull();
     expect(await registry.list()).toEqual([]);
   });
@@ -149,11 +149,11 @@ describe("registered dashboard deletion", () => {
       moveToTrash: () => false,
     })).rejects.toMatchObject({ code: "PROJECT_FILES_TRASH_FAILED" });
 
-    expect(await registry.list()).toEqual([{ projectRoot: canonicalRoot, configPath: join(canonicalRoot, "dash-bored", "dash-bored.yaml"), dashboardName: "Rollback dashboard", iconDataUrl: null }]);
+    expect(await registry.list()).toEqual([{ projectRoot: canonicalRoot, configPath: join(canonicalRoot, ".dash-bored", "dash-bored.yaml"), dashboardName: "Rollback dashboard", iconDataUrl: null }]);
     expect(runtime.getSnapshot().projectRoot).toBe(canonicalRoot);
     expect(runtime.getSnapshot().trusted).toBeTrue();
     expect(await trustStore.getGrant(canonicalRoot)).not.toBeNull();
-    expect(await readFile(join(root, "dash-bored", "dash-bored.yaml"), "utf8")).toContain("Test project");
+    expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toContain("Test project");
   });
 
   test("refuses file removal when dependency analysis is incomplete", async () => {
@@ -164,7 +164,7 @@ describe("registered dashboard deletion", () => {
     await createProject(source, {
       schemaVersion: 2,
       name: "Broken source",
-      root: { component: join((await realpath(target)), "dash-bored", "missing") },
+      root: { component: join((await realpath(target)), ".dash-bored", "missing") },
     });
     const targetSetup = await setupRegisteredProject(target, "Target");
     const sourceRoot = await realpath(source);
