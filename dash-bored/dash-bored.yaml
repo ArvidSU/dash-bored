@@ -199,7 +199,7 @@ root:
                                           tags:
                                             - improvement
                                         - description: Keyboard shortcut editor, in settings, tied in with command pallet actions
-                                          done: false
+                                          done: true
                                           tags:
                                             - feature
                                         - description: Theme and styling as component?

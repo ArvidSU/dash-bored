@@ -40,15 +40,31 @@ describe("initializeProject", () => {
 
     expect(config.schemaVersion).toBe(2);
     expect(config.root.component).toBe("@dash-bored/group");
+    expect(config.icon).toBe("./assets/icon.svg");
     const nodes = configuredNodes(config.root);
     expect(nodes.find((node) => node.id === "welcome")).toBeDefined();
-    const gettingStarted = nodes.find((node) => node.id === "getting-started");
-    expect(gettingStarted.component).toBe("@dash-bored/group");
-    expect(gettingStarted.children.layout).toMatchObject({
+    const concepts = nodes.find((node) => node.id === "concepts");
+    expect(concepts.component).toBe("@dash-bored/group");
+    expect(concepts.children.layout).toMatchObject({
       type: "split",
       axis: "horizontal",
-      ratio: 0.42,
+      ratio: 0.5,
     });
+    const demonstration = nodes.find((node) => node.id === "demonstration");
+    expect(demonstration.component).toBe("@dash-bored/card");
+    const statusDemo = nodes.find((node) => node.id === "status-demo");
+    expect(statusDemo.component).toBe("@dash-bored/status");
+    expect(statusDemo.props.state).toBe("healthy");
+    const chartDemo = nodes.find((node) => node.id === "chart-demo");
+    expect(chartDemo.component).toBe("@dash-bored/chart");
+    expect(chartDemo.props.labels.length).toBe(chartDemo.props.series[0].values.length);
+    const demoTodos = nodes.find((node) => node.id === "demo-todos");
+    expect(demoTodos.component).toBe("@dash-bored/todo-list");
+    expect(demoTodos.props.todos.length).toBeGreaterThan(0);
+    for (const todo of demoTodos.props.todos) {
+      expect(todo.description).toBeString();
+      expect(todo.done).toBeBoolean();
+    }
     const environmentEditor = nodes.find((node) => node.id === "dashboard-environment");
     const cliCommand = nodes.find((node) => node.id === "install-dash-bored-cli");
     const globalSkillCommand = nodes.find((node) => node.id === "install-dash-bored-global-skill");
@@ -80,6 +96,7 @@ describe("initializeProject", () => {
     expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain(
       "Inspect this project before making changes.",
     );
+    expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain("assets/icon.svg");
     expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
     expect(environment).toContain("DASH_BORED_AGENT_PROMPT=\"Set up the dash-bored dashboard for");
     expect(environment).toContain("Inspect this project before making changes.");

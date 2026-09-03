@@ -58,7 +58,10 @@ dash-bored open [project]
   guided dashboard with an editable bundle-local `.env` file, a
   agent-customization command that invokes the packaged `dash-bored agent`
   wrapper with the app-wide `DASH_BORED_AGENT`, and a
-  command that installs the packaged dash-bored skill into the project. It
+  command that installs the packaged dash-bored skill into the project. The
+  starter presets a bundle-local `icon` (`./assets/icon.svg`, a silent generic
+  glyph until the file exists), and its agent prompt instructs the agent to
+  generate a project-customized SVG there while building the cockpit. It
   never overwrites existing files.
 - `init <name ...>` joins every positional name as another safe directory
   level and creates a complete standalone bundle at that leaf, including its

@@ -143,10 +143,12 @@ function starterAgentPrompt(projectName: string): string {
   return [
     `Set up the dash-bored dashboard for ${projectName}.`,
     "Inspect this project before making changes.",
-    "Use the installed portable dash-bored skill for product-specific guidance.",
+    "Use the installed dash-bored skill for product-specific guidance.",
     "Customize the dash-bored configuration that contains the node id setup-dashboard-with-agent into a useful project cockpit.",
-    "Keep the dashboard project-owned and task-focused: expose important status, documentation, and repeatable workflows with built-in components where possible, and add small local components only when they are genuinely useful.",
-    "Follow AGENTS.md and the project's own instructions, preserve unrelated changes, validate the finished dashboard, and summarize what you changed.",
+    "Keep the dashboard project-owned and task-focused: every tab should explain what its panels do, demonstrate live status where possible, and expose the repeatable actions.",
+    "Prefer built-in components, and add small local components only when they are genuinely useful.",
+    "Generate a small SVG icon customized for this project: write it to assets/icon.svg next to that dash-bored.yaml (creating the directory if needed) and set that file's top-level icon to ./assets/icon.svg. Keep the artwork simple and geometric so it stays readable at sidebar size, with no scripts or external references.",
+    "Follow AGENTS.md and the project's own instructions, preserve unrelated changes and validate the finished dashboard.",
   ].join(" ");
 }
 
@@ -197,29 +199,84 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     children: tiled(child({
       component: "@dash-bored/markdown",
       props: {
-        content: "1. Compose generic components in `dash-bored/dash-bored.yaml`.\n2. Trust the project when it needs files, network access, or commands.\n3. Keep improving the dashboard as project friction appears.\n",
+        content: "1. Compose generic components in `dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
       },
     })),
   };
-  const availableComponents: ComponentNode = {
-    id: "available-components",
+  const waysToChange: ComponentNode = {
+    id: "ways-to-change",
     component: "@dash-bored/card",
     props: {
-      title: "What you can add",
-      description: "Start with built-ins; generate a local component for project-specific needs.",
+      title: "Ways to change it",
+      description: "Four paths into the same YAML.",
     },
     children: tiled(child({
       component: "@dash-bored/markdown",
       props: {
-        content: "**Layout:** recursive horizontal and vertical tiles, tabs, and cards  \n**Display:** Markdown previews, status, and webviews  \n**Workflow:** commands, live output, and environment editing  \n**Custom:** React components under `dash-bored/components/`\n",
+        content: "**Components flyout** — arrange components and fill in their props visually  \n**Edit component** — open any panel's menu to edit its declared props  \n**Command-K palette** — focus any node, start or stop processes, run component actions  \n**Change with agent** — describe a change in words and let your CLI agent edit the YAML\n",
       },
     })),
+  };
+  const demonstration: ComponentNode = {
+    id: "demonstration",
+    component: "@dash-bored/card",
+    props: {
+      title: "See it work",
+      description: "Live components that need no setup and no trust.",
+    },
+    children: tiled(vertical([
+      {
+        component: "@dash-bored/markdown",
+        props: {
+          content: "Each panel here is a real component, not a screenshot. The status and chart render from data in `dash-bored.yaml`, and the checklist stores its items there too — tick one, then press **Save dashboard** to publish the draft.\n",
+        },
+      },
+      {
+        id: "demo-live-panels",
+        component: "@dash-bored/group",
+        children: tiled({
+          type: "split",
+          axis: "horizontal",
+          ratio: 0.4,
+          first: child({
+            id: "status-demo",
+            component: "@dash-bored/status",
+            props: {
+              label: "Starter dashboard",
+              state: "healthy",
+              detail: "Rendering safe content before project trust.",
+            },
+          }),
+          second: child({
+            id: "chart-demo",
+            component: "@dash-bored/chart",
+            props: {
+              title: "Sample chart",
+              type: "bar",
+              labels: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+              series: [{ label: "Example checks", values: [3, 5, 4, 6, 8] }],
+            },
+          }),
+        }),
+      },
+      {
+        id: "demo-todos",
+        component: "@dash-bored/todo-list",
+        props: {
+          todos: [
+            { description: "Trust the project to enable commands and editing", done: false, tags: ["onboarding"] },
+            { description: "Run \"Set up this dashboard\" below so your agent can customize this cockpit", done: false, tags: ["onboarding"] },
+            { description: "Press Command-K and focus any node to try navigation", done: false, tags: ["onboarding"] },
+          ],
+        },
+      },
+    ])),
   };
   const agentSetupChildren: ComponentNode[] = [
     {
       component: "@dash-bored/markdown",
       props: {
-        content: "Choose your CLI agent once in application Settings. The app puts its matching dash-bored CLI on PATH for dashboard commands; optionally install a shell link for use outside the app. Install the portable Agent Skill globally for all projects, or only in this project so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Finally, run the setup command to ask the agent to inspect this project and build a useful dashboard. Review each command and trust the project when you are ready.\n",
+        content: "Choose your CLI agent once in application Settings (`DASH_BORED_AGENT`), or edit it below in `.env`. The app puts its matching dash-bored CLI on PATH for dashboard commands; optionally install a shell link for use outside the app. Install the portable skill globally for all projects, or only in this project, so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow.\n\nWhen ready, run **Set up this dashboard**: the agent inspects this project, replaces this starter content with a project-specific cockpit, and generates a custom SVG icon for the sidebar. Review each command and trust the project when you are ready.\n",
       },
     },
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
@@ -278,20 +335,21 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       id: "welcome",
       component: "@dash-bored/markdown",
       props: {
-        content: `# ${projectName}\n\nThis dashboard lives with your project. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to find dashboard actions, or choose **Components** to arrange components and configure their props.\n`,
+        content: `# ${projectName}\n\nThis dashboard lives with your project in \`dash-bored/\`. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to search app, dashboard, and component actions, or choose **Components** to arrange components and configure their props. Collapse a panel to declutter; focusing one makes it the temporary dashboard root without changing any files.\n`,
       },
     },
     {
-      id: "getting-started",
+      id: "concepts",
       component: "@dash-bored/group",
       children: tiled({
         type: "split",
         axis: "horizontal",
-        ratio: 0.42,
+        ratio: 0.5,
         first: child(howItWorks),
-        second: child(availableComponents),
+        second: child(waysToChange),
       }),
     },
+    demonstration,
     {
       id: "agent-setup",
       component: "@dash-bored/card",
@@ -305,6 +363,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   return {
     schemaVersion: 2,
     name: projectName,
+    icon: "./assets/icon.svg",
     root: {
       component: "@dash-bored/group",
       children: tiled(vertical(rootNodes)),
