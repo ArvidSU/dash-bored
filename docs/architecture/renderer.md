@@ -257,8 +257,11 @@ Each component frame keeps those choices in one compact Add menu with contextual
 labels such as “Tile left of Project pulse” or “Insert between Overview and
 Configure”; opening the library never renders every possible target across the
 dashboard. During a pointer drag, valid frames receive a quiet readiness outline
-and only the nearest compatible edge under the pointer becomes a filled spatial
-drop target. The source remains in place with a picked-up treatment and the
+and the pointer region decides the advertised target: the centered region
+offers a filled drop-inside target when the hovered container accepts children
+(center appends, so a Tabs center drop becomes the last tab), while the edge
+bands offer the nearest compatible sibling boundary for tiling beside the
+component. The source remains in place with a picked-up treatment and the
 target renders a compact component-and-destination preview; neither changes
 layout geometry or becomes a second topology representation. Handle gestures
 prevent native text selection before their movement threshold is crossed.

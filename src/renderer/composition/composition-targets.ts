@@ -38,6 +38,21 @@ export interface CompositionResolution {
 }
 
 /**
+ * Centered pointer region that resolves to a drop-inside target on a
+ * container frame. Edge bands keep offering sibling insertions so tiling
+ * beside a component stays reachable without a second gesture.
+ */
+const COMPOSITION_INSIDE_CENTER_MIN = 0.25;
+const COMPOSITION_INSIDE_CENTER_MAX = 0.75;
+
+function inCompositionInsideCenter(xRatio: number, yRatio: number): boolean {
+  return xRatio >= COMPOSITION_INSIDE_CENTER_MIN
+    && xRatio <= COMPOSITION_INSIDE_CENTER_MAX
+    && yRatio >= COMPOSITION_INSIDE_CENTER_MIN
+    && yRatio <= COMPOSITION_INSIDE_CENTER_MAX;
+}
+
+/**
  * Pure composition-target resolution over a draft config: node paths,
  * compatible drop zones, pointer-hit zones, validity, and default targets.
  * Created per render via `useMemo`; the returned functions are stable for
@@ -132,7 +147,7 @@ export function createCompositionTargets(resolution: CompositionResolution): {
       const parent = nodeAtPath(compositionConfig.root, parentPath);
       const manifest = catalogManifest(compositionCatalog, parent.component);
       const childCount = childEdges(parent.children).length;
-      return compatibleCompositionDropZones(
+      const siblingZones = compatibleCompositionDropZones(
         deriveInsertionTargets({
           target: parent,
           manifest,
@@ -151,6 +166,31 @@ export function createCompositionTargets(resolution: CompositionResolution): {
         payload,
         compositionTargetIsValid,
       );
+      // A container also accepts drops into itself, not just tiling beside
+      // it. Validity stays planner-checked, so moves into the node's own
+      // subtree are rejected exactly like any other invalid target.
+      const rawNode = nodeAtPath(compositionConfig.root, path);
+      const ownManifest = catalogManifest(compositionCatalog, rawNode.component);
+      const ownChildCount = childEdges(rawNode.children).length;
+      const insideZones = compatibleCompositionDropZones(
+        deriveInsertionTargets({
+          target: rawNode,
+          manifest: ownManifest,
+          parentPath: path,
+          currentChildCount: ownChildCount,
+        }).map((target) => {
+          const decorated = decorateCompositionInsertionTarget(target, ownManifest, ownChildCount);
+          return {
+            id: compositionTargetId(decorated),
+            label: contextualInsertionLabel(rawNode, decorated, compositionCatalog),
+            side: "inside" as const,
+            target: decorated,
+          };
+        }),
+        payload,
+        compositionTargetIsValid,
+      );
+      return [...siblingZones, ...insideZones];
     } catch {
       return [];
     }
@@ -171,8 +211,15 @@ export function createCompositionTargets(resolution: CompositionResolution): {
       || yRatio > 1
     ) return null;
     const zones = compositionDropZonesForNode(node, payload);
-    const inside = zones.find((zone) => zone.side === "inside");
-    if (inside) return inside;
+    const inside = zones.filter((zone) => zone.side === "inside");
+    const edges = zones.filter((zone) => zone.side !== "inside");
+    if (edges.length === 0) return inside[0] ?? null;
+    if (inside.length > 0 && inCompositionInsideCenter(xRatio, yRatio)) {
+      // Center drops append inside the hovered container. Derivation order
+      // is stable with the append boundary last (ascending managed indices,
+      // depth-first tiled leaves), so the last valid inside target wins.
+      return inside[inside.length - 1]!;
+    }
     const distance = (zone: CompositionDropZone): number => {
       if (zone.side === "left") return xRatio;
       if (zone.side === "right") return 1 - xRatio;
@@ -180,7 +227,7 @@ export function createCompositionTargets(resolution: CompositionResolution): {
       if (zone.side === "bottom") return 1 - yRatio;
       return Number.POSITIVE_INFINITY;
     };
-    return [...zones].sort((left, right) => distance(left) - distance(right))[0] ?? null;
+    return [...edges].sort((left, right) => distance(left) - distance(right))[0] ?? null;
   }
 
   function compositionPointerTargetAt(
