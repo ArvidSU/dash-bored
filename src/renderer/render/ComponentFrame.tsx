@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type {
   CSSProperties,
   DragEvent as ReactDragEvent,
+  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from "react";
@@ -89,6 +90,7 @@ export function ComponentFrame({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuPopoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const clickTimerRef = useRef<number | null>(null);
   const composition = useContext(CompositionContext);
   const compositionRef = useRef(composition);
   const pointerMoveRef = useRef<{
@@ -359,6 +361,84 @@ export function ComponentFrame({
     action();
   }
 
+  useEffect(() => () => {
+    if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
+  }, []);
+
+  /**
+   * Single click on frame chrome collapses, double click opens Edit. Only
+   * clicks landing on the frame or viewport element itself (background, gaps,
+   * padding) qualify: component-rendered content owns its clicks, so selecting
+   * text or clicking component surfaces never collapses the frame. Controls,
+   * embedded surfaces, composition affordances, and nested component nodes
+   * keep their own behavior.
+   */
+  function isFrameChromeClick(event: ReactMouseEvent<HTMLElement>): boolean {
+    if (event.button !== 0) return false;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+    if (compositionDragActive || heightDragging || open) return false;
+    const target = event.target instanceof globalThis.Element ? event.target : null;
+    if (!target) return false;
+    // A frame can contain another component frame. Only the nearest frame owns
+    // the gesture, otherwise clicking a nested card would collapse ancestors.
+    if (target.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId !== node.id) return false;
+    // Stop at the content boundary: anything inside rendered component content
+    // (including static text) belongs to the component, not the frame.
+    if (target !== frameRef.current && target !== viewportRef.current) return false;
+    if (target.closest(
+      "button, a[href], input, select, textarea, audio, video, canvas, iframe,"
+      + " [contenteditable='true'], [role='dialog'], [role='menu'],"
+      + " [data-composition-controls], [data-composition-drag-handle],"
+      + " .component-node__menu, .component-node__menu-popover,"
+      + " .component-node__height-resizer, .component-node__drag-handle,"
+      + " .composition-drop-indicator, .xterm",
+    )) return false;
+    // A click that ends a text selection is not a collapse gesture.
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return false;
+    return true;
+  }
+
+  function handleFrameClick(event: ReactMouseEvent<HTMLElement>): void {
+    if (!isFrameChromeClick(event)) return;
+    // The second click of a double-click also fires click: leave the pending
+    // single-click timer alone so double-click wins without collapsing first.
+    if (clickTimerRef.current !== null) return;
+    clickTimerRef.current = window.setTimeout(() => {
+      clickTimerRef.current = null;
+      onToggleCollapse();
+    }, 260);
+  }
+
+  function handleFrameDoubleClick(event: ReactMouseEvent<HTMLElement>): void {
+    if (!isFrameChromeClick(event)) return;
+    event.preventDefault();
+    if (clickTimerRef.current !== null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    onEditComponent(node);
+  }
+
+  function handleCollapsedClick(event: ReactMouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation();
+    if (clickTimerRef.current !== null) return;
+    clickTimerRef.current = window.setTimeout(() => {
+      clickTimerRef.current = null;
+      onToggleCollapse();
+    }, 260);
+  }
+
+  function handleCollapsedDoubleClick(event: ReactMouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation();
+    event.preventDefault();
+    if (clickTimerRef.current !== null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    onEditComponent(node);
+  }
+
   return (
     <Element
       className={`${className}${collapsed ? " component-node--collapsed" : ""}${heightResizable && !collapsed ? " component-node--height-resizable" : ""}${heightCapped ? " component-node--height-capped" : ""}${heightDragging ? " component-node--height-dragging" : ""}${compositionDropZone ? " component-node--drop-ready" : ""}${compositionDragActive ? " component-node--composition-dragging" : ""}${compositionDragSource ? " component-node--composition-drag-source" : ""}`}
@@ -371,6 +451,8 @@ export function ComponentFrame({
       aria-grabbed={compositionDragSource || undefined}
       role={role}
       aria-live={ariaLive}
+      onClick={handleFrameClick}
+      onDoubleClick={handleFrameDoubleClick}
       onPointerDown={(event) => {
         if (!composition?.active || composition.dragging !== null || !compositionPath || compositionPath.length === 0) return;
         if (canStartCompositionDrag(event, node.id)) {
@@ -541,7 +623,9 @@ export function ComponentFrame({
           type="button"
           aria-label={`Expand ${name} component`}
           aria-expanded={false}
-          onClick={onToggleCollapse}
+          title={`Click to expand, double-click to edit ${name}`}
+          onClick={handleCollapsedClick}
+          onDoubleClick={handleCollapsedDoubleClick}
         >
           <span className="component-node__collapsed-indicator" aria-hidden="true">›</span>
           <span className="component-node__collapsed-name">{name}</span>

@@ -19,7 +19,8 @@ modules under feature directories:
   `CompositionFlyout.tsx`, `DashboardEditor.tsx`, `DashboardOutlineTree.tsx`.
 - `render/` — node rendering: `NodeRenderer.tsx` (recursive rendering plus
   the staggered update-polish batch hook), `ComponentFrame.tsx` (per-node
-  frame: menu, collapse shell, height resizing, drag/drop affordances),
+  frame: menu, collapse shell, single-click collapse / double-click edit on
+  frame chrome, height resizing, drag/drop affordances),
   `ComponentWebviewSurface.tsx`, `SplitLayout.tsx` + `split-layout.ts`,
   `local-host.tsx` (permission-gated `LocalComponentHost` factory),
   `local-components.tsx`.
@@ -50,7 +51,8 @@ Pure helpers and their contracts:
 - `composition/composition-targets.ts` — pure drop-zone/validity/default-target resolution
   over a draft config (`createCompositionTargets`, memoized per render).
 - `render/local-host.tsx` — permission-gated `LocalComponentHost` factory.
-- `render/ComponentFrame.tsx` — per-node frame: menu, collapse shell, height
+- `render/ComponentFrame.tsx` — per-node frame: menu, collapse shell,
+  single-click collapse / double-click edit on frame chrome, height
   resizing, drag/drop affordances.
 - `render/NodeRenderer.tsx` — recursive node rendering plus the staggered
   update-polish batch hook.
@@ -105,7 +107,9 @@ Every rendered node exposes a keyboard-accessible context menu, also available
 through right-click. It contains Focus, Edit component, Collapse or Expand
 component, Copy component path, and Change with agent. Edit component opens the
 same schema-driven props and child-metadata dialog used by composition editing.
-Components may also replace only their own declared props through the generic
+Single click on the frame or viewport background collapses or expands the node;
+double click there opens the same Edit dialog. Clicks inside rendered component
+content never trigger either gesture. Components may also replace only their own declared props through the generic
 dashboard host. That change begins or updates the owning dashboard draft; it
 never reloads the project or bypasses Save/Cancel.
 The popover is rendered in a document-level fixed overlay with viewport
