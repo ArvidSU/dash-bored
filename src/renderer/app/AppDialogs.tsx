@@ -5,7 +5,8 @@ import type {
   ProjectListItem,
   ResolvedComponentNode,
 } from "../../shared/contracts";
-import { ComponentDialog, EditorModal } from "../composition/DashboardEditor";
+import { ComponentDialog } from "../composition/DashboardEditor";
+import { EditorModal } from "../lib/editor-modal";
 import type { InsertionTarget, NodePath } from "../composition/dashboard-editor";
 import { catalogManifest, countNodes, nodeAtPath } from "../composition/dashboard-editor";
 import { projectLabel } from "../lib/action-providers";

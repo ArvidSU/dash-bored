@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { DashboardAgentTask, LocalComponentHost, ProcessSnapshot } from "../../shared/contracts";
-import { EditorModal } from "../composition/DashboardEditor";
+import { EditorModal } from "../lib/editor-modal";
 import { RightDrawer } from "../lib/right-drawer";
 import { packagedComponent } from "../builtins";
 import { writeClipboardText } from "../lib/clipboard";

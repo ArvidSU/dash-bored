@@ -33,7 +33,33 @@ const MAX_TREE_NODES = 2_000;
 const MAX_CATALOG_DIRECTORIES = 1_000;
 const MAX_CATALOG_DEPTH = 16;
 const LOCAL_REFERENCE_PREFIX = "./components/";
+const EXTERNAL_REFERENCE_PREFIX = "./components/external/";
 const MAX_CONFIG_LINK_DEPTH = 16;
+
+export const EXTERNAL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+/** The pinned submodule name for any reference below `./components/external/`, or null. */
+export function externalComponentNameFromReference(reference: string): string | null {
+  if (!reference.startsWith(EXTERNAL_REFERENCE_PREFIX)) return null;
+  const rest = reference.slice(EXTERNAL_REFERENCE_PREFIX.length);
+  const slash = rest.indexOf("/");
+  const name = slash === -1 ? rest : rest.slice(0, slash);
+  if (name.length === 0 || !EXTERNAL_NAME_PATTERN.test(name)) return null;
+  if (slash !== -1 && rest.slice(slash + 1).split("/").some((segment) => segment.length === 0)) {
+    return null;
+  }
+  return name;
+}
+
+export function isExternalReference(reference: string): boolean {
+  return externalComponentNameFromReference(reference) !== null;
+}
+
+/** Only the submodule root itself (`./components/external/<name>`), not nested paths below it. */
+export function isExternalRootReference(reference: string): boolean {
+  const name = externalComponentNameFromReference(reference);
+  return name !== null && reference === `${EXTERNAL_REFERENCE_PREFIX}${name}`;
+}
 
 export interface LocalComponentDefinition {
   reference: string;
@@ -181,8 +207,28 @@ export async function discoverComponentCatalog(
   }));
   let visited = 0;
 
-  const visit = async (directory: string, depth: number): Promise<void> => {
-    if (depth > MAX_CATALOG_DEPTH || visited >= MAX_CATALOG_DIRECTORIES) return;
+  interface CatalogEntryLike {
+    name: string;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+    isFile(): boolean;
+  }
+
+  const visitChildDirectories = async (
+    childEntries: readonly CatalogEntryLike[],
+    directory: string,
+    depth: number,
+  ): Promise<boolean> => {
+    const found = await Promise.all(
+      childEntries
+        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && entry.name !== ".git")
+        .map((entry) => visit(resolve(directory, entry.name), depth + 1)),
+    );
+    return found.some(Boolean);
+  };
+
+  const visit = async (directory: string, depth: number): Promise<boolean> => {
+    if (depth > MAX_CATALOG_DEPTH || visited >= MAX_CATALOG_DIRECTORIES) return false;
     visited += 1;
     let entries;
     try {
@@ -203,7 +249,7 @@ export async function discoverComponentCatalog(
           ],
         });
       }
-      return;
+      return false;
     }
 
     const manifestEntry = entries.find((entry) => entry.isFile() && entry.name === "component.yaml");
@@ -216,19 +262,60 @@ export async function discoverComponentCatalog(
       const diagnostics = [...loaded.diagnostics, ...containmentDiagnostics];
       catalog.push({
         reference,
-        source: "local",
+        source: isExternalReference(reference) ? "external" : "local",
         available: loaded.definition !== null && diagnostics.length === 0,
         manifest: loaded.definition?.manifest ?? null,
         diagnostics,
       });
-      return;
+      return true;
     }
 
-    await Promise.all(
-      entries
-        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
-        .map((entry) => visit(resolve(directory, entry.name), depth + 1)),
-    );
+    // An external component directory is a submodule checkout. Only an
+    // actually empty directory means `dash-bored component sync` can help.
+    // An initialized checkout without a root manifest may still hold
+    // components deeper inside (monorepo-style repos), so descend first and
+    // report a distinct diagnostic only when nothing resolves below it.
+    const externalReference = localReferenceFromDirectory(location.componentsDirectory, directory);
+    if (
+      directory !== location.componentsDirectory &&
+      isExternalRootReference(externalReference)
+    ) {
+      if (entries.length === 0) {
+        catalog.push({
+          reference: externalReference,
+          source: "external",
+          available: false,
+          manifest: null,
+          diagnostics: [
+            diagnostic({
+              code: "COMPONENT_EXTERNAL_UNINITIALIZED",
+              message: `External component ${externalReference} is not initialized. Run \`dash-bored component sync\`.`,
+              path: externalReference,
+            }),
+          ],
+        });
+        return false;
+      }
+      const found = await visitChildDirectories(entries, directory, depth);
+      if (!found) {
+        catalog.push({
+          reference: externalReference,
+          source: "external",
+          available: false,
+          manifest: null,
+          diagnostics: [
+            diagnostic({
+              code: "COMPONENT_EXTERNAL_NO_MANIFEST",
+              message: `External component ${externalReference} is checked out but contains no component.yaml.`,
+              path: externalReference,
+            }),
+          ],
+        });
+      }
+      return found;
+    }
+
+    return visitChildDirectories(entries, directory, depth);
   };
 
   await visit(location.componentsDirectory, 0);

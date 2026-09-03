@@ -6,12 +6,13 @@ import { access, realpath } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { initializeProject } from "./init-project";
 import { ensureProjectFiles, inspectProject } from "../core/index";
+import { runComponentCommand } from "./component";
 import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 import { installDashBoredCli } from "./install-cli";
 
-const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent"]);
+const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent", "component"]);
 
 interface ParsedCommandArguments {
   project: string;
@@ -34,6 +35,12 @@ Usage:
   dash-bored validate [project] [--json]
   dash-bored inspect [project]
   dash-bored agent [agent-command]
+  dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
+  dash-bored component list [project]
+  dash-bored component status [<name>] [project]
+  dash-bored component update <name> [--to <ref>] [project]
+  dash-bored component remove <name> [project]
+  dash-bored component sync [project]
   dash-bored --help
   dash-bored --version`;
 }
@@ -304,6 +311,7 @@ async function main(): Promise<number> {
   }
 
   const parsed = parseCommandArguments(command, args.slice(1));
+  if (command === "component") return runComponentCommand(args.slice(1));
   if (parsed.help) {
     console.log(usage());
     return 0;

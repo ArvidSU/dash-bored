@@ -1,11 +1,12 @@
 import { readFile, stat } from "node:fs/promises";
 import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
-import { parseDocument } from "yaml";
+import { parseDocument, stringify } from "yaml";
 import type {
   ComponentManifest,
   DashboardConfig,
   DashboardLock,
   Diagnostic,
+  ExternalComponentLockEntry,
 } from "../shared/contracts";
 import { diagnostic, errorMessage } from "./diagnostics";
 
@@ -106,13 +107,28 @@ const configSchema = {
   },
 } as const;
 
+const lockEntrySchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["url", "commit", "path"],
+  properties: {
+    url: { type: "string", minLength: 1, maxLength: 2048 },
+    commit: { type: "string", pattern: "^[0-9a-fA-F]{40}$" },
+    path: { type: "string", pattern: "^components/external/[A-Za-z][A-Za-z0-9_-]*$" },
+  },
+} as const;
+
 const lockSchema = {
   type: "object",
   additionalProperties: false,
   required: ["lockfileVersion", "components"],
   properties: {
     lockfileVersion: { const: 1 },
-    components: { type: "object" },
+    components: {
+      type: "object",
+      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+      additionalProperties: lockEntrySchema,
+    },
   },
 } as const;
 
@@ -328,20 +344,55 @@ export function validateDashboardConfigValue(
 
 export async function parseDashboardLock(file: string): Promise<ParsedYaml<DashboardLock>> {
   const result = await parseTyped<DashboardLock>(file, "LOCK", validateLock);
-  if (result.value !== null && Object.keys(result.value.components).length > 0) {
-    return {
-      value: null,
-      diagnostics: [
+  if (result.value === null) return result;
+  // The lock entry path must match its key: components/<name> pins
+  // components/external/<name>. Report mismatches as diagnostics.
+  const diagnostics: Diagnostic[] = [];
+  for (const [name, entry] of Object.entries(result.value.components)) {
+    const expected = `components/external/${name}`;
+    if ((entry as ExternalComponentLockEntry).path !== expected) {
+      diagnostics.push(
         diagnostic({
-          code: "LOCK_EXTERNAL_COMPONENTS_UNSUPPORTED",
-          message: "External lock-file components are not supported in this milestone.",
+          code: "LOCK_COMPONENT_PATH_INVALID",
+          message: `Lock entry ${name} must pin ${expected}.`,
           file,
-          path: "/components",
+          path: `/components/${name}/path`,
         }),
-      ],
-    };
+      );
+    }
   }
+  if (diagnostics.length > 0) return { value: null, diagnostics };
   return result;
+}
+
+export function validateDashboardLockValue(
+  value: unknown,
+  file = "dash-bored-lock.yaml",
+): Diagnostic[] {
+  if (!validateLock(value)) return schemaDiagnostics(file, "LOCK", validateLock.errors);
+  const lock = value as DashboardLock;
+  const diagnostics: Diagnostic[] = [];
+  for (const [name, entry] of Object.entries(lock.components)) {
+    if (entry.path !== `components/external/${name}`) {
+      diagnostics.push(
+        diagnostic({
+          code: "LOCK_COMPONENT_PATH_INVALID",
+          message: `Lock entry ${name} must pin components/external/${name}.`,
+          file,
+          path: `/components/${name}/path`,
+        }),
+      );
+    }
+  }
+  return diagnostics;
+}
+
+export function serializeDashboardLock(lock: DashboardLock): string {
+  const sorted: Record<string, ExternalComponentLockEntry> = {};
+  for (const name of Object.keys(lock.components).sort()) {
+    sorted[name] = lock.components[name]!;
+  }
+  return stringify({ lockfileVersion: 1, components: sorted }, { lineWidth: 0 });
 }
 
 export async function parseComponentManifest(file: string): Promise<ParsedYaml<ComponentManifest>> {

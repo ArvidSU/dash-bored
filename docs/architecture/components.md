@@ -113,7 +113,59 @@ while the containing tab is hidden.
 
 Generic tree validation runs before component-specific props and children are
 validated. The requested project permission set is the union of permissions
-declared by every resolved component, packaged or project-local.
+declared by every resolved component, packaged, project-local, or external.
+
+## External components
+
+An external component is a git submodule below `components/external/`,
+referenced like any local component:
+
+```yaml
+component: "./components/external/service-health"
+```
+
+The name is the single directory segment below `components/external/`; deeper
+paths inside the submodule resolve as external components too (monorepo
+layouts). Reserved-namespace collisions are rejected by the same containment
+rules as local components. Inside its directory the external component has
+the same shape (`component.yaml`, `index.tsx`, contained relative imports),
+the same manifest contract, and the same compile, host, and children behavior
+as a project-local component. Only provenance and trust differ.
+
+The pin lives in `dash-bored-lock.yaml`:
+
+```yaml
+lockfileVersion: 1
+components:
+  service-health:
+    url: https://example.com/service-health.git
+    commit: 0123456789abcdef0123456789abcdef01234567
+    path: components/external/service-health
+```
+
+The lock entry path must match its key (`components/<name>` pins
+`components/external/<name>`); mismatches are reported as diagnostics. A pin
+change alters the code under trust, so every reload re-runs the
+permission-union trust check against the manifests at the pinned commits: a
+pin whose manifests declare a new permission invalidates the existing grant
+and requires a new TrustPanel decision, exactly like adding a permission
+(regression test "a pin update declaring new permissions invalidates trust"
+in `tests/core/external-components.test.ts`). A pin that changes code without
+declaring new permissions stays trusted; reviewing the pinned commit is the
+control for that case.
+
+An external directory without a manifest at its root is not necessarily
+broken: discovery descends into initialized checkouts, so monorepo-style
+repos may provide components deeper inside (referenced as
+`./components/external/<name>/<path…>`, all labeled `external`). Only an
+actually empty directory is an uninitialized checkout and stays in the
+catalog as unavailable with a `COMPONENT_EXTERNAL_UNINITIALIZED` diagnostic
+pointing at `dash-bored component sync`. A checked-out tree with no manifest
+anywhere reports `COMPONENT_EXTERNAL_NO_MANIFEST` instead, so the library
+flyout can show the Sync hint and the dashboard keeps rendering around it.
+The renderer never runs git: add, update, remove, and sync are CLI operations
+(`dash-bored component add|update|remove|sync`), and the flyout previews those
+exact commands with a one-click copy.
 
 ## Local React contract and compilation
 

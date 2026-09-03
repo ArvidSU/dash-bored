@@ -50,6 +50,12 @@ dash-bored install-skill [project] [--global]
 dash-bored validate [project] [--json]
 dash-bored inspect [project]
 dash-bored open [project]
+dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
+dash-bored component list [project]
+dash-bored component status [<name>] [project]
+dash-bored component update <name> [--to <ref>] [project]
+dash-bored component remove <name> [project]
+dash-bored component sync [project]
 ```
 
 - `init` and `init .` target the canonical bundle in the current project;
@@ -97,6 +103,16 @@ dash-bored open [project]
   dashboard, launches the packaged desktop application when invoked by its
   embedded or linked CLI (and the development application from source), and
   forwards termination signals.
+- `component add <url> [--name] [--ref]` clones a component repository as a
+  git submodule below `components/external/` and pins its commit in
+  `dash-bored-lock.yaml`. `list` shows pinned externals, `status [<name>]`
+  reports pin drift, dirty checkouts, and uninitialized checkouts (a lone bare
+  argument is a component name; pass a path to target another project),
+  `update <name> [--to]` moves a pin,
+  `remove <name>` detaches a submodule, and `sync` initializes or updates
+  checkouts to their pinned commits. A pin change re-runs the permission-union
+  trust check. The renderer never runs these commands; the library flyout
+  previews their exact text with a one-click copy.
 
 `bun run build:cli` uses Bun's standalone-executable build to inline the CLI,
 its core dependencies, and the skill text assets into `dist/tools/dash-bored`.

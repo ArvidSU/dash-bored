@@ -143,19 +143,47 @@ describe("project paths and YAML", () => {
     expect(invalid.diagnostics.some((item) => item.code === "CONFIG_SCHEMA_INVALID")).toBeTrue();
   });
 
-  test("requires an empty v1 lock file", async () => {
+  test("parses a non-empty v1 lock file with valid external entries", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
-    await createProject(root);
-    await writeFile(
-      join(root, "dash-bored", "dash-bored-lock.yaml"),
-      "lockfileVersion: 1\ncomponents:\n  example: {}\n",
-    );
+    await createProject(root, defaultConfig, {
+      lockfileVersion: 1,
+      components: {
+        example: {
+          url: "https://example.com/example.git",
+          commit: "0123456789abcdef0123456789abcdef01234567",
+          path: "components/external/example",
+        },
+      },
+    });
+
+    const result = await inspectProject(root);
+    expect(result.ok).toBeTrue();
+    expect(result.lock?.components["example"]).toEqual({
+      url: "https://example.com/example.git",
+      commit: "0123456789abcdef0123456789abcdef01234567",
+      path: "components/external/example",
+    });
+  });
+
+  test("rejects a lock entry whose path does not match its key", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, defaultConfig, {
+      lockfileVersion: 1,
+      components: {
+        example: {
+          url: "https://example.com/example.git",
+          commit: "0123456789abcdef0123456789abcdef01234567",
+          path: "components/external/other",
+        },
+      },
+    });
 
     const result = await inspectProject(root);
     expect(result.ok).toBeFalse();
     expect(result.diagnostics.map((item) => item.code)).toContain(
-      "LOCK_EXTERNAL_COMPONENTS_UNSUPPORTED",
+      "LOCK_COMPONENT_PATH_INVALID",
     );
   });
 

@@ -28,7 +28,9 @@ modules under feature directories:
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
   `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
   `clipboard.ts`, `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
-  `right-drawer.tsx` (shared Agent work / component-library drawer shell).
+  `right-drawer.tsx` (shared Agent work / component-library drawer shell,
+  with an optional header-actions slot), `editor-modal.tsx` (centered modal
+  layer above the drawer; the drawer shell yields outside/Escape/focus to it).
 - `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one
   directory per shipped component (`types.ts`, `shared.tsx` helpers).
 
@@ -248,8 +250,8 @@ dashboards stops the prior dashboard's watcher and supervised processes before
 the next target becomes active.
 
 The header's Components button opens the right-hand library without entering a
-separate mode. The flyout keeps one searchable catalog for packaged and local
-components, offers keyboard insertion and an agent fallback, and supplies
+separate mode. The flyout keeps one searchable catalog for packaged, local,
+and external components, offers keyboard insertion and an agent fallback, and supplies
 contextual insertion targets plus full-frame node dragging on the rendered
 composition. Every movable non-root frame supplies a small drag handle and a
 component menu; only the deepest hovered frame reveals those controls, while

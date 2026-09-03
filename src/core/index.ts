@@ -10,4 +10,5 @@ export * from "./project-files";
 export * from "./project-runtime";
 export * from "./tree";
 export * from "./trust";
+export * from "./external-components";
 export * from "./yaml";

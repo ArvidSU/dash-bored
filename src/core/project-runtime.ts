@@ -34,6 +34,16 @@ import { validatePropsSchema } from "./yaml";
 
 const DEFAULT_WATCH_DEBOUNCE_MS = 120;
 
+/**
+ * Submodule checkouts keep their git internals below the watched bundle
+ * directory (a `.git` file or directory inside components/external/<name>).
+ * Those internals churn on every fetch/checkout without changing the rendered
+ * dashboard, so the watcher skips them but keeps watching working-tree files.
+ */
+function isGitInternalPath(filename: string): boolean {
+  return filename.split(/[\\/]/).some((segment) => segment === ".git");
+}
+
 export interface ProjectRuntimeOptions {
   trustStore: TrustStore;
   onSnapshot?: (snapshot: ProjectSnapshot) => void;
@@ -581,7 +591,8 @@ export class ProjectRuntime {
     if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
     if (this.watcher !== null) return;
     try {
-      this.watcher = watchFileSystem(this.location.configDirectory, { recursive: true }, () => {
+      this.watcher = watchFileSystem(this.location.configDirectory, { recursive: true }, (_eventType, filename) => {
+        if (typeof filename === "string" && isGitInternalPath(filename)) return;
         if (this.watchTimer !== null) clearTimeout(this.watchTimer);
         this.watchTimer = setTimeout(() => {
           this.watchTimer = null;

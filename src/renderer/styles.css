@@ -2957,6 +2957,52 @@ img.sidebar__project-icon {
   font-size: 1rem;
 }
 
+.right-drawer__header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.library-card__drag-handle {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 22px;
+  margin-top: 0.1rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--faint);
+  cursor: grab;
+  background: transparent;
+  touch-action: none;
+}
+
+.library-card__drag-handle svg {
+  width: 18px;
+  height: 8px;
+  fill: currentColor;
+}
+
+.library-card__drag-handle:hover:not(:disabled),
+.library-card__drag-handle:focus-visible {
+  border-color: rgb(151 163 180 / 45%);
+  color: var(--text);
+  background: rgb(28 32 40 / 96%);
+  outline: none;
+}
+
+.library-card__drag-handle:active:not(:disabled) {
+  cursor: grabbing;
+}
+
+.library-card__drag-handle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .right-drawer__header p {
   margin-top: 0.35rem;
   color: var(--muted);

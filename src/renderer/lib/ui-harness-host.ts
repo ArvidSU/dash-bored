@@ -366,7 +366,9 @@ function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedCompone
     id: node.id ?? path,
     component: node.component,
     props: structuredClone(node.props ?? {}),
-    source: item?.source ?? "builtin",
+    // External catalog sources are core-owned and ResolvedComponentNode does
+    // not carry them yet; the fixture falls back without inventing a mapping.
+    source: (item?.source === "external" ? undefined : item?.source) ?? "builtin",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: path,
     ...(item?.manifest ? { manifest: structuredClone(item.manifest) } : {}),

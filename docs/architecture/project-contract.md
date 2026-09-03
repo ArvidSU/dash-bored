@@ -13,6 +13,8 @@ project/
     ├── dash-bored-lock.yaml
     ├── .env
     └── components/
+        └── external/
+            └── service-health/
 ```
 
 A project may also contain named dashboard bundles. Each repeats the complete
@@ -324,9 +326,16 @@ lockfileVersion: 1
 components: {}
 ```
 
-Built-ins and files below the project's `components/` directory are not locked.
-External npm and Git components are intentionally unavailable in this
-architecture, so any
-non-empty external component entry is reported as unsupported rather than
-silently ignored. This keeps the file format ready for reproducible external
-resolution without pretending that resolution exists today.
+Built-ins and files below the project's `components/` directory are not locked,
+except for external components: each submodule below `components/external/`
+is pinned in the lock file as
+`components: { <name>: { url, commit, path } }`, where `commit` is the exact
+40-hex SHA and `path` is `components/external/<name>` matching the entry key.
+A pin change alters the code under trust and re-runs the permission-union
+trust check. Only an actually empty external directory is reported as an
+uninitialized checkout (`COMPONENT_EXTERNAL_UNINITIALIZED`) with a pointer at
+`dash-bored component sync`; discovery descends into initialized checkouts
+(monorepo-style layouts resolve deeper manifests as
+`./components/external/<name>/<path…>`), and a checkout with no manifest
+anywhere reports `COMPONENT_EXTERNAL_NO_MANIFEST`. Neither silently resolves
+to something else.

@@ -113,6 +113,21 @@ Validation, editor behavior, and runtime behavior are generic. No logic is
 keyed to a component ID; differences come from declarative schemas, formats,
 and capabilities.
 
+## External components direction
+
+Reusable components travel as git submodules, referenced by repository URL
+only. There is no marketplace, no registry, and no auto-update: a component
+is added from a URL, pinned to an exact commit in `dash-bored-lock.yaml`, and
+updated only by an explicit user action. This keeps reuse reproducible and
+reviewable without a second distribution model.
+
+An external component uses exactly the same manifest, render, host, children,
+and capability contract as a project-local one. It differs only by provenance
+(`components/external/<name>`) and trust: like any project code it runs in
+the shared renderer after a project trust decision, and changing its pin
+re-runs the permission-union trust check. The library flyout surfaces that
+trust delta and never bypasses it.
+
 ## Design Principles
 
 ### 1. Configuration over application logic

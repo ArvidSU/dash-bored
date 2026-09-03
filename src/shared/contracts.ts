@@ -57,9 +57,18 @@ export interface DashboardConfig {
   root: ComponentNode;
 }
 
+export interface ExternalComponentLockEntry {
+  /** Clone URL or local path the submodule was added from. */
+  url: string;
+  /** Exact pinned commit SHA checked out for this component. */
+  commit: string;
+  /** Bundle-relative component path: "components/external/<name>". */
+  path: string;
+}
+
 export interface DashboardLock {
   lockfileVersion: 1;
-  components: Record<string, never>;
+  components: Record<string, ExternalComponentLockEntry>;
 }
 
 export type ComponentChildPresentation =
@@ -116,7 +125,7 @@ export interface ComponentManifest {
 
 export interface ComponentCatalogItem {
   reference: string;
-  source: "builtin" | "local" | "config";
+  source: "builtin" | "local" | "config" | "external";
   available: boolean;
   manifest: ComponentManifest | null;
   diagnostics: Diagnostic[];

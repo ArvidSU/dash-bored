@@ -21,6 +21,8 @@ export interface RightDrawerProps {
   children: ReactNode;
   /** Accessible label for the header close button. Defaults to `Close ${title}`. */
   closeLabel?: string;
+  /** Optional actions rendered in the header between the title and the close button. */
+  headerActions?: ReactNode;
   /** Focused on open; when omitted focus is left alone (trap still applies). */
   initialFocusRef?: RefObject<HTMLElement | null>;
   /** Selector for the trigger to restore focus to when the drawer had no prior owner. */
@@ -40,6 +42,7 @@ export function RightDrawer({
   filters,
   children,
   closeLabel,
+  headerActions,
   initialFocusRef,
   restoreFocusSelector,
   folded = false,
@@ -159,6 +162,7 @@ export function RightDrawer({
           <h2 id={titleId}>{title}</h2>
           {description ? <p id={descriptionId}>{description}</p> : null}
         </div>
+        {headerActions ? <div className="right-drawer__header-actions">{headerActions}</div> : null}
         <button className="button button--quiet" type="button" aria-label={closeLabel ?? `Close ${title}`} onClick={onClose}>
           Close
         </button>
