@@ -6,7 +6,7 @@ import type {
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
 import { buildCompositionPreviewTree } from "../../src/renderer/composition/composition-preview";
-import { insertNode, updateNodeProps } from "../../src/renderer/composition/dashboard-editor";
+import { insertNode, nodePathFromSourcePath, updateNodeProps } from "../../src/renderer/composition/dashboard-editor";
 
 function manifest(id: string, children?: ComponentManifest["children"]): ComponentManifest {
   return {
@@ -110,5 +110,59 @@ describe("composition draft preview", () => {
         },
       },
     });
+  });
+
+  test("emits resolver-compatible sourcePaths so in-place prop edits can locate their node", () => {
+    const tiled = buildCompositionPreviewTree(config, resolved, catalog, "/project/dash-bored.yaml");
+    expect(tiled.sourcePath).toBe("root");
+    if (tiled.children?.type !== "tiled" || tiled.children.layout.type !== "child") {
+      throw new Error("expected tiled child preview");
+    }
+    const tiledChild = tiled.children.layout.child.node;
+    expect(tiledChild.sourcePath).toBe("root.children.layout.child.node");
+    expect(tiledChild.sourceConfigPath).toBe("/project/dash-bored.yaml");
+    expect(nodePathFromSourcePath(tiledChild.sourcePath!)).not.toBeNull();
+
+    const managedConfig: DashboardConfig = {
+      schemaVersion: 2,
+      name: "Preview",
+      root: {
+        id: "root",
+        component: group.id,
+        children: {
+          type: "managed",
+          items: [{ node: { id: "first", component: markdown.id, props: { content: "old" } } }],
+        },
+      },
+    };
+    const managedResolved: ResolvedComponentNode = {
+      id: "root",
+      component: group.id,
+      props: {},
+      source: "builtin",
+      manifest: group,
+      sourceConfigPath: "/project/dash-bored.yaml",
+      sourcePath: "root",
+      children: {
+        type: "managed",
+        items: [{
+          node: {
+            id: "first",
+            component: markdown.id,
+            props: { content: "old" },
+            source: "builtin",
+            manifest: markdown,
+            sourceConfigPath: "/project/dash-bored.yaml",
+            sourcePath: "root.children.items[0].node",
+          },
+        }],
+      },
+    };
+    const managed = buildCompositionPreviewTree(managedConfig, managedResolved, catalog, "/project/dash-bored.yaml");
+    if (managed.children?.type !== "managed") throw new Error("expected managed preview");
+    const managedChild = managed.children.items[0]!.node;
+    expect(managedChild.sourcePath).toBe("root.children.items[0].node");
+    expect(managedChild.sourceConfigPath).toBe("/project/dash-bored.yaml");
+    expect(nodePathFromSourcePath(managedChild.sourcePath!)).not.toBeNull();
   });
 });

@@ -145,7 +145,7 @@ function mapChildren(
         const locator: ComponentChildLocator = { type: "managed", index };
         const templateChild = templateForChild(edge, template, locator, index, resolvedById);
         return {
-          node: resolveNode(edge.node, templateChild, `${path}.items[${index}].node`),
+          node: resolveNode(edge.node, templateChild, `${path}.children.items[${index}].node`),
           ...(edge.metadata === undefined ? {} : { metadata: structuredClone(edge.metadata) }),
         };
       }),
@@ -161,7 +161,7 @@ function mapChildren(
       template,
       resolvedById,
       resolveNode,
-      `${path}.layout`,
+      `${path}.children.layout`,
       leafIndex,
     ),
   };
