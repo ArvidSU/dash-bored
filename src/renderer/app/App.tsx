@@ -548,8 +548,14 @@ export function App(): ReactNode {
   }
 
   function toggleAgentActivity(): void {
-    setAgentActivityOpen((open) => !open);
-    if (!agentActivityOpen) compositionInteraction.closeLibrary();
+    // Render-state based (like the library toggle): the shared drawer also
+    // closes on outside pointer-down, which fires before this click handler.
+    if (agentActivityOpen) {
+      setAgentActivityOpen(false);
+      return;
+    }
+    setAgentActivityOpen(true);
+    compositionInteraction.closeLibrary();
   }
 
   async function ensureCurrentDashboardEdit(): Promise<DashboardEditSession | null> {

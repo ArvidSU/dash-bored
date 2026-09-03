@@ -215,7 +215,7 @@ root:
                                           tags:
                                             - feature
                                         - description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
-                                          done: false
+                                          done: true
                                           tags:
                                             - Improvement
                                         - description: Add conditional component, hide “install cli/skill" components in default dashboard if already done

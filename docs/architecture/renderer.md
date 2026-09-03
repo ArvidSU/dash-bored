@@ -27,7 +27,8 @@ modules under feature directories:
   `component-height.ts`, `component-view-state.ts`, `component-updates.ts`,
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
   `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
-  `clipboard.ts`, `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`.
+  `clipboard.ts`, `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
+  `right-drawer.tsx` (shared Agent work / component-library drawer shell).
 - `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one
   directory per shipped component (`types.ts`, `shared.tsx` helpers).
 
@@ -179,7 +180,11 @@ whether the owning dashboard changed while the CLI was running. A process exit
 or observed file change is never represented as agent success: the UI asks the
 user to review the dashboard. This harness does not accept arbitrary commands,
 manage agent sessions, persist work across app quit, or add a provider SDK;
-quitting dash-bored stops its child agent processes.
+quitting dash-bored stops its child agent processes. The Agent work panel and
+the component library flyout are mutually exclusive right-side drawers sharing
+one shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
+focus trap and restore, unified header/body geometry below the modal layer);
+the library's drag fold-away and node-removal trash mode stay library-only.
 The generated starter remains an ordinary `@dash-bored/command`. It invokes the
 `dash-bored agent "${DASH_BORED_AGENT:-codex exec}"` wrapper with its
 request in `DASH_BORED_AGENT_PROMPT`; the wrapper runs that resolved agent

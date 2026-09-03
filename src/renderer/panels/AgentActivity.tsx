@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { DashboardAgentTask, LocalComponentHost, ProcessSnapshot } from "../../shared/contracts";
 import { EditorModal } from "../composition/DashboardEditor";
+import { RightDrawer } from "../lib/right-drawer";
 import { packagedComponent } from "../builtins";
 import { writeClipboardText } from "../lib/clipboard";
 
@@ -186,18 +187,17 @@ export function AgentActivity({
     );
   }
 
-  if (!open) return null;
   return (
     <>
-      <aside className="agent-activity" aria-label="Agent work" role="dialog" aria-modal="false">
-        <header className="agent-activity__header">
-          <div>
-            <span className="eyebrow">Dashboard agent activity</span>
-            <h2>Agent work</h2>
-            <p>Tracks configured dashboard-agent CLI work. It does not host or direct the agent.</p>
-          </div>
-          <button className="button button--quiet" type="button" onClick={onClose}>Close</button>
-        </header>
+      <RightDrawer
+        open={open}
+        onClose={onClose}
+        title="Agent work"
+        eyebrow="Dashboard agent activity"
+        description="Tracks configured dashboard-agent CLI work. It does not host or direct the agent."
+        closeLabel="Close"
+        restoreFocusSelector=".agent-activity-trigger"
+      >
         {tasks.length === 0 ? (
           <p className="agent-activity__empty">Agent requests you send from the dashboard appear here.</p>
         ) : (
@@ -225,8 +225,8 @@ export function AgentActivity({
             })}
           </ol>
         )}
-      </aside>
-      {selectedTask && AgentCommand ? (
+      </RightDrawer>
+      {open && selectedTask && AgentCommand ? (
         <EditorModal title="Agent command" className="editor-modal__panel--wide" onDismiss={() => setSelectedTaskId(null)}>
           <div className="agent-task-modal">
             <p className="agent-task-modal__request">{selectedTask.request}</p>
