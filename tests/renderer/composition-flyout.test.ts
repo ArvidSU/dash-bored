@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test";
 import {
   parseComponentCatalogDragPayload,
   serializeComponentCatalogDragPayload,
-} from "../../src/renderer/CompositionFlyout";
+} from "../../src/renderer/composition/CompositionFlyout";
 import {
   compositionPayloadFromDragEvent,
   compatibleCompositionDropZones as filterCompositionDropZones,
-} from "../../src/renderer/composition-dnd";
-import type { CompositionDropZone } from "../../src/renderer/composition-context";
+} from "../../src/renderer/composition/composition-dnd";
+import type { CompositionDropZone } from "../../src/renderer/composition/composition-context";
 
 describe("component library drag payloads", () => {
   test("round-trips a catalog reference without carrying component-specific state", () => {

@@ -5,12 +5,12 @@ import type {
   ComponentNode,
   DashboardConfig,
 } from "../../src/shared/contracts";
-import { childEdges } from "../../src/renderer/component-children";
+import { childEdges } from "../../src/renderer/lib/component-children";
 import {
   canPlanCompositionOperation,
   planCompositionOperation,
   type CompositionOperationRequest,
-} from "../../src/renderer/composition-operation";
+} from "../../src/renderer/composition/composition-operation";
 
 function manifest(id: string, children?: ComponentManifest["children"]): ComponentManifest {
   return {

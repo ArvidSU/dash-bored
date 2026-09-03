@@ -9,7 +9,7 @@ import {
   type ChartData,
   type ChartSeries,
   type ChartValue,
-} from "../../chart-data";
+} from "../../lib/chart-data";
 
 export type ChartType = "line" | "bar";
 

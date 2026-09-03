@@ -13,7 +13,7 @@ import {
   serializeEnv,
   updateEnvEntry,
   type EnvDocument,
-} from "../../env";
+} from "../../lib/env";
 
 export default function EnvEditor({ props, host: componentHost }: ComponentRendererProps): ReactNode {
   const filesystem = componentHost.filesystem;

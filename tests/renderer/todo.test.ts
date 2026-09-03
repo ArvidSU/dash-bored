@@ -4,7 +4,7 @@ import {
   sortTodos,
   todoItemsFromProps,
   todoTags,
-} from "../../src/renderer/todo";
+} from "../../src/renderer/lib/todo";
 
 describe("dashboard YAML todo state", () => {
   test("reads only complete todo values from component props", () => {

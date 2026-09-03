@@ -6,7 +6,7 @@ import {
   componentPermissionLabels,
   componentProvenanceLabel,
   filterComponentCatalog,
-} from "../../src/renderer/component-library";
+} from "../../src/renderer/lib/component-library";
 
 function item(
   reference: string,

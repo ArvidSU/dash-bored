@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { ShellRunResult } from "../../../shared/contracts";
-import { ComponentVisibilityContext } from "../../ComponentCompositor";
+import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
 import type { ComponentRendererProps } from "../types";
 import { childSurface, stringProp } from "../shared";
 

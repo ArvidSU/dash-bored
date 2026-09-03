@@ -12,8 +12,8 @@ import {
   sortTodos,
   todoItemsFromProps,
   todoTags,
-} from "../../todo";
-import type { TodoItem } from "../../todo";
+} from "../../lib/todo";
+import type { TodoItem } from "../../lib/todo";
 
 interface TodoListProps {
   props: Record<string, unknown>;

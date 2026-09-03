@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ComponentVisibilityContext } from "./ComponentCompositor";
-import { ComponentWebviewSurface } from "./ComponentWebviewSurface";
+import { ComponentVisibilityContext } from "./composition/ComponentCompositor";
+import { ComponentWebviewSurface } from "./render/ComponentWebviewSurface";
 import "./styles.css";
 
 function NativeWebviewProbe() {

@@ -3,7 +3,7 @@ import type { ResolvedComponentNode } from "../../src/shared/contracts";
 import {
   changedComponentIds,
   updateStaggerMs,
-} from "../../src/renderer/component-updates";
+} from "../../src/renderer/lib/component-updates";
 
 function node(
   id: string,

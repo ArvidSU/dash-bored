@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createUiHarnessHost } from "../../src/renderer/ui-harness-host";
-import { childNodes } from "../../src/renderer/component-children";
+import { createUiHarnessHost } from "../../src/renderer/lib/ui-harness-host";
+import { childNodes } from "../../src/renderer/lib/component-children";
 
 describe("ui harness host", () => {
   test("supplies the real renderer with a deterministic dashboard fixture", async () => {

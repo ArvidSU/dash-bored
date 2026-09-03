@@ -5,9 +5,9 @@ import type {
   ComponentNode,
   DashboardConfig,
 } from "../../src/shared/contracts";
-import { childEdges } from "../../src/renderer/component-children";
-import { siblingMoveTarget } from "../../src/renderer/composition-movement";
-import { insertNode, moveNode } from "../../src/renderer/dashboard-editor";
+import { childEdges } from "../../src/renderer/lib/component-children";
+import { siblingMoveTarget } from "../../src/renderer/composition/composition-movement";
+import { insertNode, moveNode } from "../../src/renderer/composition/dashboard-editor";
 
 function leaf(id: string): ComponentNode {
   return { id, component: "leaf" };

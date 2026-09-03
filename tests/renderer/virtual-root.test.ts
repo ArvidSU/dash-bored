@@ -5,7 +5,7 @@ import {
   nodeLabel,
   resolveVirtualRoot,
   virtualRootStorageKey,
-} from "../../src/renderer/virtual-root";
+} from "../../src/renderer/lib/virtual-root";
 
 const leaf: ResolvedComponentNode = {
   id: "only-button",

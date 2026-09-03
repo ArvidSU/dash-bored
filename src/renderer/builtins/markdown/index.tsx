@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import "./markdown.css";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
-import { safeMarkdownUrl } from "../../safe-url";
+import { safeMarkdownUrl } from "../../lib/safe-url";
 
 type MarkdownView = "preview" | "raw";
 

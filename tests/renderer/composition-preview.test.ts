@@ -5,8 +5,8 @@ import type {
   DashboardConfig,
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
-import { buildCompositionPreviewTree } from "../../src/renderer/composition-preview";
-import { insertNode, updateNodeProps } from "../../src/renderer/dashboard-editor";
+import { buildCompositionPreviewTree } from "../../src/renderer/composition/composition-preview";
+import { insertNode, updateNodeProps } from "../../src/renderer/composition/dashboard-editor";
 
 function manifest(id: string, children?: ComponentManifest["children"]): ComponentManifest {
   return {

@@ -6,7 +6,7 @@ import {
   countComponentDescendants,
   parseCollapsedComponentIds,
   serializeCollapsedComponentIds,
-} from "../../src/renderer/component-view-state";
+} from "../../src/renderer/lib/component-view-state";
 
 const leaf: ResolvedComponentNode = {
   id: "chart",

@@ -10,7 +10,7 @@ import {
   deriveRootReplacementTarget,
   inferTiledDirection,
   resolvePointerInsertionTarget,
-} from "../../src/renderer/composition-placement";
+} from "../../src/renderer/composition/composition-placement";
 
 function manifest(
   children?: ComponentManifest["children"],

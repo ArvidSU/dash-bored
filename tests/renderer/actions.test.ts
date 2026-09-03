@@ -3,16 +3,16 @@ import {
   ActionExecutor,
   ActionRegistry,
   rankActions,
-} from "../../src/renderer/actions";
+} from "../../src/renderer/lib/actions";
 import type {
   ComponentActionOwner,
   PaletteAction,
-} from "../../src/renderer/actions";
+} from "../../src/renderer/lib/actions";
 import {
   buildApplicationActions,
   buildProcessActions,
   buildNodeFocusActions,
-} from "../../src/renderer/action-providers";
+} from "../../src/renderer/lib/action-providers";
 import type {
   ProjectSnapshot,
   ResolvedComponentNode,

@@ -4,7 +4,7 @@ import {
   parseChartData,
   readChartDataPath,
   resolveChartEndpoint,
-} from "../../src/renderer/chart-data";
+} from "../../src/renderer/lib/chart-data";
 
 describe("chart data", () => {
   test("normalizes chart-shaped data and fills missing labels", () => {

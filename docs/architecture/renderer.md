@@ -1,5 +1,64 @@
 # dash-bored - Architecture: Renderer and shipped examples
 
+## Renderer module map
+
+`src/renderer/app/App.tsx` is the orchestrator (app state, project actions,
+composition orchestration, workspace render). Everything else lives in focused
+modules under feature directories:
+
+- `app/` — shell and orchestration: `App.tsx`, `app-shell.tsx`,
+  `AppDialogs.tsx` (all dashboard modals), `app-utils.ts` (pure
+  snapshot/task/project helpers, edit-session types), `main.tsx` (entry),
+  `use-dashboard-view-state.ts` (renderer-owned presentation state).
+- `panels/` — app-level views: `DiagnosticsPanel.tsx`, `TrustPanel.tsx`,
+  `EmptyProject.tsx`, `AgentPromptPanel.tsx`, `AgentActivity.tsx`,
+  `SettingsPanel.tsx`, `CommandPalette.tsx`.
+- `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
+  `composition-*.ts(x)` (targets, labels, dnd, placement, movement,
+  operation, preview, interaction-controller), `ComponentCompositor.tsx`,
+  `CompositionFlyout.tsx`, `DashboardEditor.tsx`, `DashboardOutlineTree.tsx`.
+- `render/` — node rendering: `NodeRenderer.tsx` (recursive rendering plus
+  the staggered update-polish batch hook), `ComponentFrame.tsx` (per-node
+  frame: menu, collapse shell, height resizing, drag/drop affordances),
+  `ComponentWebviewSurface.tsx`, `SplitLayout.tsx` + `split-layout.ts`,
+  `local-host.tsx` (permission-gated `LocalComponentHost` factory),
+  `local-components.tsx`.
+- `lib/` — shared model and services: `component-children.ts`,
+  `component-height.ts`, `component-view-state.ts`, `component-updates.ts`,
+  `component-library.ts`, `actions.ts`, `action-providers.ts`,
+  `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
+  `clipboard.ts`, `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`.
+- `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one
+  directory per shipped component (`types.ts`, `shared.tsx` helpers).
+
+Placement rules for new modules: app chrome goes in `app/`, a full-screen
+view in `panels/`, draft/topology editing in `composition/`, per-node
+rendering in `render/`. Anything imported from two or more of those goes in
+`lib/`. A new `@dash-bored/*` component gets `builtins/<name>/index.tsx` plus
+registration in `builtins/index.tsx` and `src/core/builtins.ts`. Vite entries
+stay at the root (`index.html`, `ui-harness.html` → `app/main.tsx`). Update
+this map when adding a module.
+
+Pure helpers and their contracts:
+
+- `app/app-utils.ts` — pure snapshot/task/project helpers, edit-session types,
+  per-dashboard empty states.
+- `composition/composition-labels.ts` — human labels for drop targets and dragged payloads.
+- `composition/composition-targets.ts` — pure drop-zone/validity/default-target resolution
+  over a draft config (`createCompositionTargets`, memoized per render).
+- `render/local-host.tsx` — permission-gated `LocalComponentHost` factory.
+- `render/ComponentFrame.tsx` — per-node frame: menu, collapse shell, height
+  resizing, drag/drop affordances.
+- `render/NodeRenderer.tsx` — recursive node rendering plus the staggered
+  update-polish batch hook.
+- `app/use-dashboard-view-state.ts` — renderer-owned presentation state
+  (collapse, split ratios, height caps, virtual-root focus) with per-dashboard
+  localStorage persistence; never part of a draft.
+- `panels/DiagnosticsPanel.tsx`, `panels/TrustPanel.tsx`, `panels/EmptyProject.tsx`,
+  `panels/AgentPromptPanel.tsx`, `panels/SettingsPanel.tsx` — app-level panels.
+- `app/AppDialogs.tsx` — all dashboard modals (composition, removal, agent,
+  discard, deletion).
+
 ## Renderer and shipped examples
 
 The initial shipped set is intentionally generic. These are public contract

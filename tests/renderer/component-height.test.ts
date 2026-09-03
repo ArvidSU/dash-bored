@@ -7,7 +7,7 @@ import {
   parseComponentHeightOverrides,
   pruneComponentHeightOverrides,
   serializeComponentHeightOverrides,
-} from "../../src/renderer/component-height";
+} from "../../src/renderer/lib/component-height";
 
 function node(
   id: string,

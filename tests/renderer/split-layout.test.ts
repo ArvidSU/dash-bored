@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import type { ComponentChildLayout, ResolvedComponentNode } from "../../src/shared/contracts";
-import { layoutStructureKey } from "../../src/renderer/component-children";
+import { layoutStructureKey } from "../../src/renderer/lib/component-children";
 import {
   clampSplitRatioForSize,
   collectResizableSplitDefaults,
@@ -11,7 +11,7 @@ import {
   pruneSplitRatioOverrides,
   serializeSplitRatioOverrides,
   splitRatioOverridesStorageKey,
-} from "../../src/renderer/split-layout";
+} from "../../src/renderer/render/split-layout";
 
 function leaf(id: string): ComponentChildLayout<ResolvedComponentNode> {
   return {
@@ -57,7 +57,7 @@ describe("core tiled split sizing", () => {
 
   test("keeps vertical topology in document flow without pane scrollbars or separators", async () => {
     const styles = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
-    const splitLayout = await readFile(new URL("../../src/renderer/SplitLayout.tsx", import.meta.url), "utf8");
+    const splitLayout = await readFile(new URL("../../src/renderer/render/SplitLayout.tsx", import.meta.url), "utf8");
 
     expect(styles).toMatch(/\.split--vertical \.split__pane\s*\{[^}]*flex:\s*0 0 auto;[^}]*overflow:\s*visible;/s);
     expect(styles).toMatch(/\.split-container\s*\{[^}]*height:\s*auto;/s);

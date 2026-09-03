@@ -8,7 +8,7 @@ import {
   removeEnvEntry,
   serializeEnv,
   updateEnvEntry,
-} from "../../src/renderer/env";
+} from "../../src/renderer/lib/env";
 
 describe("env document editing", () => {
   test("parses common dotenv entries while preserving comments and raw lines", () => {

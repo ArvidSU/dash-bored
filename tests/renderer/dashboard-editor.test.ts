@@ -23,7 +23,7 @@ import {
   updateDashboardMetadata,
   updateNodeProps,
   updateTiledSplitRatio,
-} from "../../src/renderer/dashboard-editor";
+} from "../../src/renderer/composition/dashboard-editor";
 
 function manifest(
   id: string,
