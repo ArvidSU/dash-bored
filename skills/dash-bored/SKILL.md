@@ -145,9 +145,11 @@ not assume `.env` is git-ignored — check. `DASH_BORED_AGENT` /
 `DASH_BORED_AGENT_PROMPT` starter values live there; the app also publishes
 the configured agent command into dashboard command environments.
 
-## Add local components only when useful
+## Add local components
 
-When built-ins cannot express the need, create a small component in the owning
+Prefer a built-in component when one fits. When nothing in the catalog fits,
+create a small component by default — one-off local components are a core
+capability of the product, not a last resort — in the owning
 bundle's `components/<name>/` directory with `component.yaml`, `index.tsx`,
 and optional relative TS/TSX/CSS. Reference it as `./components/<name>`.
 
