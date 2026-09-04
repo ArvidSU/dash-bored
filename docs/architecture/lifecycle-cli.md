@@ -84,7 +84,11 @@ dash-bored component sync [project]
   OpenCode. The skill uses only the portable `name` and `description`
   frontmatter; `agents/openai.yaml` is optional presentation metadata rather
   than a runtime dependency. The skill, metadata, and local-component
-  reference are text assets embedded in the standalone executable.
+  reference are text assets embedded in the standalone executable. The
+  generated per-component built-in reference
+  (`references/builtins.md`, rendered by `bun run generate:components` from
+  `BUILTIN_COMPONENTS`) is embedded the same way; see
+  `docs/architecture/components.md` ("Generated built-in reference").
   Installation is idempotent when files and aliases match and refuses to
   replace modified files or conflicting paths. `--global` does not accept a
   project path.

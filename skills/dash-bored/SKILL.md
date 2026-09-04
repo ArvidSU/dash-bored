@@ -24,7 +24,10 @@ available built-in and local component. For each entry, use
 `manifest.propsSchema` for props, `manifest.children` for child cardinality
 and presentation, and `manifest.permissions` for the trust impact. Check
 `available` and `diagnostics`; never guess a component shape from its name or
-from this skill.
+from this skill. [references/builtins.md](references/builtins.md) is the
+generated per-component reference (props, permissions, resources, children)
+shipped with this dash-bored version — consult it instead of guessing or
+reading app source.
 
 If the project is not initialized, run `dash-bored init .`. A standalone
 bundle owns its own `dash-bored.yaml`, `dash-bored-lock.yaml`, `.env`, and

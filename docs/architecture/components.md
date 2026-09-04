@@ -115,6 +115,19 @@ Generic tree validation runs before component-specific props and children are
 validated. The requested project permission set is the union of permissions
 declared by every resolved component, packaged, project-local, or external.
 
+## Generated built-in reference
+
+`scripts/generate-component-reference.ts` renders
+`skills/dash-bored/references/builtins.md` directly from `BUILTIN_COMPONENTS`
+in `src/core/builtins.ts` — never by parsing source text — so agents using the
+shipped skill get per-component props, permissions, `resources.process`
+mappings, and children contracts without reading app source. The output is
+deterministic (manifest order, no timestamps) and committed; regenerate it
+with `bun run generate:components` after changing any built-in manifest. The
+CLI embeds the file at build time via `src/cli/skill-payload.ts`, and the
+drift test in `tests/scripts/generate-component-reference.test.ts` regenerates
+the markdown in memory and fails when it diverges from the committed file.
+
 ## External components
 
 An external component is a git submodule below `components/external/`,
