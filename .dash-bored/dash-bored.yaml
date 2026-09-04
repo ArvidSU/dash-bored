@@ -224,7 +224,7 @@ root:
                                             - feature
                                             - component
                                         - description: unify agent work and component library look
-                                          done: false
+                                          done: true
                                           tags:
                                             - improvement
                       second:

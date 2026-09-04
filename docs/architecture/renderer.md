@@ -190,6 +190,9 @@ quitting dash-bored stops its child agent processes. The Agent work panel and
 the component library flyout are mutually exclusive right-side drawers sharing
 one shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
 focus trap and restore, unified header/body geometry below the modal layer);
+agent-process updates do not reopen a drawer the user dismissed, while a newly
+activated task still opens it automatically. Closing the panel only changes
+renderer visibility and never stops the attached agent process.
 the library's drag fold-away and node-removal trash mode stay library-only.
 The generated starter remains an ordinary `@dash-bored/command`. It invokes the
 `dash-bored agent "${DASH_BORED_AGENT:-codex exec}"` wrapper with its

@@ -892,7 +892,7 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTodoDone()).toBeFalse();
   }, 20_000);
 
-  test("the generated starter command process enters Agent work", async () => {
+  test("the generated starter command remains active when Agent work closes", async () => {
     const active = currentPage();
     await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
@@ -906,9 +906,30 @@ describe("renderer fixture interactions", () => {
     await task.click();
     const command = active.getByRole("dialog", { name: "Agent command" });
     await command.locator(".command__terminal .xterm").waitFor();
-    await command.getByRole("button", { name: "Close terminal", exact: true }).click();
-    await task.getByText("Not working", { exact: true }).waitFor();
+
     await command.getByRole("button", { name: "Close", exact: true }).click();
     await activity.getByRole("button", { name: "Close", exact: true }).click();
+    await active.getByRole("button", { name: "Open agent work", exact: true }).waitFor();
+
+    const activeProcess = await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.writeProcessTerminal("setup-dashboard-with-agent", "still running\n");
+      return (await host.getSnapshot()).processes.find((process) => process.id === "setup-dashboard-with-agent");
+    });
+    expect(activeProcess?.phase).toBe("running");
+    expect(await active.getByRole("button", { name: "Open agent work", exact: true }).count()).toBe(1);
+
+    await active.getByRole("button", { name: "Open agent work", exact: true }).click();
+    const reopenedActivity = active.getByRole("dialog", { name: "Agent work" });
+    const reopenedTask = reopenedActivity.locator(".agent-task").first();
+    await reopenedTask.click();
+    const reopenedCommand = active.getByRole("dialog", { name: "Agent command" });
+    await reopenedCommand.locator(".command__terminal .xterm").waitFor();
+    expect(await reopenedCommand.getByRole("button", { name: "Close terminal", exact: true }).count()).toBe(1);
+    await reopenedCommand.getByRole("button", { name: "Close terminal", exact: true }).click();
+    await reopenedTask.getByText("Not working", { exact: true }).waitFor();
+    await reopenedCommand.getByRole("button", { name: "Close", exact: true }).click();
+    await reopenedActivity.getByRole("button", { name: "Close", exact: true }).click();
   }, 20_000);
 });

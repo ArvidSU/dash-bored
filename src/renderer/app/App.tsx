@@ -107,7 +107,7 @@ export function App(): ReactNode {
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const [dashboardAgentTasks, setDashboardAgentTasks] = useState<DashboardAgentTask[]>([]);
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
-  const knownDashboardAgentTaskIds = useRef(new Set<string>());
+  const activeDashboardAgentTaskIds = useRef(new Set<string>());
   const pendingProcessEvents = useRef(new Map<string, ProcessSnapshot>());
   const nextActionNoticeId = useRef(0);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -179,6 +179,20 @@ export function App(): ReactNode {
 
   useEffect(() => {
     let active = true;
+    const syncAgentActivity = (
+      taskId: string,
+      phase: ProcessSnapshot["phase"],
+      openOnActivation = true,
+    ): void => {
+      const isActive = phase === "running" || phase === "stopping";
+      const wasActive = activeDashboardAgentTaskIds.current.has(taskId);
+      if (!isActive) {
+        activeDashboardAgentTaskIds.current.delete(taskId);
+        return;
+      }
+      activeDashboardAgentTaskIds.current.add(taskId);
+      if (openOnActivation && !wasActive) setAgentActivityOpen(true);
+    };
     const unsubscribe = host.subscribe((event) => {
       if (!active) return;
       if (event.type === "snapshot") {
@@ -187,6 +201,11 @@ export function App(): ReactNode {
           .map((process) => starterDashboardAgentTask(event.snapshot.configPath, process))
           .find((task): task is DashboardAgentTask => task !== null);
         if (starter) setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, starter));
+        syncAgentActivity(
+          "setup-dashboard-with-agent",
+          starter?.process.phase ?? "idle",
+          false,
+        );
         setProjects((current) => rememberProject(current, event.snapshot));
       } else if (event.type === "process") {
         pendingProcessEvents.current.set(event.process.id, event.process);
@@ -198,18 +217,11 @@ export function App(): ReactNode {
           setDashboardAgentTasks((current) => starter
             ? replaceDashboardAgentTask(current, starter)
             : current.filter((task) => task.id !== event.process.id));
-          if (event.process.phase === "running" || event.process.phase === "stopping") {
-            setAgentActivityOpen(true);
-          }
+          syncAgentActivity(event.process.id, event.process.phase);
         }
       } else if (event.type === "agent-task") {
         setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, event.task));
-        if (!knownDashboardAgentTaskIds.current.has(event.task.id)) {
-          knownDashboardAgentTaskIds.current.add(event.task.id);
-          if (event.task.process.phase === "running" || event.task.process.phase === "stopping") {
-            setAgentActivityOpen(true);
-          }
-        }
+        syncAgentActivity(event.task.id, event.task.process.phase);
       } else {
         setPaletteOpen(true);
       }
@@ -230,7 +242,10 @@ export function App(): ReactNode {
           const withStarter = starter ? replaceDashboardAgentTask(initialAgentTasks, starter) : initialAgentTasks;
           return current.reduce(replaceDashboardAgentTask, withStarter);
         });
-        knownDashboardAgentTaskIds.current = new Set(initialAgentTasks.map((task) => task.id));
+        for (const task of initialAgentTasks) {
+          syncAgentActivity(task.id, task.process.phase, false);
+        }
+        if (starter) syncAgentActivity(starter.id, starter.process.phase, false);
       })
       .catch((error: unknown) => {
         if (active) setActionError(errorMessage(error));
