@@ -18,6 +18,7 @@ const LazyWebview = lazy(() => import("./webview"));
 const LazyStatus = lazy(() => import("./status"));
 const LazyCommand = lazy(() => import("./command"));
 const LazyMarkdown = lazy(() => import("./markdown"));
+const LazySetupAgent = lazy(() => import("./setup-agent"));
 
 function ComponentLoading(): ReactNode {
   return <div className="component-state">Loading component…</div>;
@@ -39,6 +40,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),
   "@dash-bored/card": lazyBuiltin(LazyCard),
   "@dash-bored/markdown": lazyBuiltin(LazyMarkdown),
+  "@dash-bored/setup-agent": lazyBuiltin(LazySetupAgent),
   "@dash-bored/status": lazyBuiltin(LazyStatus),
   "@dash-bored/chart": lazyBuiltin(LazyChart),
   "@dash-bored/live-chart": lazyBuiltin(LazyLiveChart),

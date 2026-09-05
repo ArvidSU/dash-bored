@@ -535,10 +535,12 @@ root:
                     component: "@dash-bored/markdown"
                     props:
                       content: |
-                        Choose the CLI coding agent below, install the version-matched
+                        Choose the CLI coding agent in Settings, install the version-matched
                         dash-bored skill globally or just for this repository, then ask the
                         agent to inspect this repository and improve its development cockpit.
                         The app already exposes its bundled CLI to these commands.
+                        App settings override the bundle environment; the environment panel
+                        shows the effective agent command and where it comes from.
               second:
                 type: split
                 axis: vertical
@@ -562,7 +564,7 @@ root:
                         id: show-install-cli-link
                         component: "@dash-bored/conditional"
                         props:
-                          command: test -L "$HOME/.local/bin/dash-bored" && "$HOME/.local/bin/dash-bored" --version >/dev/null 2>&1
+                          command: dash-bored install-cli --check
                           invert: true
                           pollIntervalMs: 2000
                         children:
@@ -574,7 +576,7 @@ root:
                                 id: install-cli-link
                                 component: "@dash-bored/command"
                                 props:
-                                  label: Install dash-bored CLI in ~/.local/bin
+                                  label: Install or update dash-bored CLI in ~/.local/bin
                                   command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
                                   cwd: .
                   second:
@@ -588,7 +590,7 @@ root:
                           id: show-install-agent-skill-global
                           component: "@dash-bored/conditional"
                           props:
-                            command: test -f "$HOME/.agents/skills/dash-bored/SKILL.md"
+                            command: dash-bored install-skill --global --check
                             invert: true
                             pollIntervalMs: 2000
                           children:
@@ -600,7 +602,7 @@ root:
                                   id: install-agent-skill-global
                                   component: "@dash-bored/command"
                                   props:
-                                    label: Install dash-bored skill globally
+                                    label: Install or update dash-bored skill globally
                                     command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
                                     cwd: .
                     second:
@@ -614,7 +616,7 @@ root:
                             id: show-install-agent-skill
                             component: "@dash-bored/conditional"
                             props:
-                              command: test -f ".agents/skills/dash-bored/SKILL.md"
+                              command: dash-bored install-skill . --check
                               invert: true
                               pollIntervalMs: 2000
                             children:
@@ -626,7 +628,7 @@ root:
                                     id: install-agent-skill
                                     component: "@dash-bored/command"
                                     props:
-                                      label: Install portable dash-bored skill for this project
+                                      label: Install or update portable dash-bored skill for this project
                                       command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
                                       cwd: .
                       second:
@@ -634,13 +636,7 @@ root:
                         child:
                           node:
                             id: configure-with-agent
-                            component: "@dash-bored/command"
-                            props:
-                              label: Improve this dashboard with an agent
-                              command: dash-bored agent "${DASH_BORED_AGENT:-codex exec}"
-                              cwd: .
-                              env:
-                                DASH_BORED_AGENT_PROMPT: Use the installed dash-bored skill. Inspect this repository and its current dash-bored dashboard, then improve the development cockpit where that is genuinely useful. Preserve unrelated changes, validate the result, and summarize the workflows and permissions you changed.
+                            component: "@dash-bored/setup-agent"
       - metadata:
           label: Dogfood
         node:

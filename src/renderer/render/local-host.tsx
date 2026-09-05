@@ -27,6 +27,9 @@ export function createLocalHost(
       updateProps(props): Promise<void> {
         return onUpdateProps(props);
       },
+      ...(trusted && permissions.has("process:execute")
+        ? { setupWithAgent: () => host.setupDashboardWithAgent({ nodeId: node.id }) }
+        : {}),
     },
     actions: {
       register(action) {

@@ -139,12 +139,13 @@ export async function replaceDashboardConfigAtomic(
   }
 }
 
-function starterAgentPrompt(projectName: string): string {
+export function starterAgentPrompt(projectName: string, configPath?: string): string {
   return [
     `Set up the dash-bored dashboard for ${projectName}.`,
+    ...(configPath ? [`Use ${configPath} as the exact owning configuration.`] : []),
     "Inspect this project before making changes.",
     "Use the installed dash-bored skill for product-specific guidance.",
-    "Customize the dash-bored configuration that contains the node id setup-dashboard-with-agent into a useful project cockpit.",
+    "Customize the owning dashboard configuration into a useful project cockpit, preserving unrelated dashboards and files.",
     "Keep the dashboard project-owned and task-focused: every tab should explain what its panels do, demonstrate live status where possible, and expose the repeatable actions.",
     "Prefer built-in components when they fit. When nothing in the catalog fits, build a small project-local component by default — one-off components are a core capability of the product, not a last resort.",
     "The dashboard belongs to the project: never include explanations of the dash-bored app itself, its onboarding, or its concepts in the finished dashboard content.",
@@ -164,7 +165,6 @@ function formatDotenvValue(value: string): string {
 
 function defaultConfig(bundleNameSource: string, environmentPath: string): DashboardConfig {
   const projectName = basename(bundleNameSource) || "Project";
-  const agentPrompt = starterAgentPrompt(projectName);
   const child = (node: ComponentNode): ComponentChildLayout => ({
     type: "child",
     child: { node },
@@ -323,13 +323,8 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     ),
     {
       id: "setup-dashboard-with-agent",
-      component: "@dash-bored/command",
-      props: {
-        label: "Set up this dashboard",
-        command: 'dash-bored agent "${DASH_BORED_AGENT:-codex exec}"',
-        cwd: ".",
-        env: { DASH_BORED_AGENT_PROMPT: agentPrompt },
-      },
+      component: "@dash-bored/setup-agent",
+      props: {},
     },
   ];
   const rootNodes: ComponentNode[] = [
@@ -415,16 +410,11 @@ async function createProjectFilesAtLocation(
       : location.configDirectory,
     relativeEnvironmentPath,
   );
-  const projectName = location.configDirectory === join(location.projectRoot, CONFIG_DIRECTORY)
-    ? basename(location.projectRoot) || "Project"
-    : basename(location.configDirectory) || "Project";
-  const agentPrompt = starterAgentPrompt(projectName);
   const lock: DashboardLock = { lockfileVersion: 1, components: {} };
   const environment = [
     "# Starter values shown in the dashboard environment editor.",
     "# DASH_BORED_AGENT is also configurable app-wide in Settings.",
     `DASH_BORED_AGENT=${formatDotenvValue("codex exec")}`,
-    `DASH_BORED_AGENT_PROMPT=${formatDotenvValue(agentPrompt)}`,
     "",
   ].join("\n");
   let configCreated = false;

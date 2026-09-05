@@ -1,4 +1,5 @@
 import Ajv, { type ErrorObject } from "ajv";
+import { listBuiltinManifests } from "../../core/builtins";
 import type {
   AppSettings,
   CompiledLocalComponent,
@@ -238,6 +239,10 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
   },
 }));
 
+catalog.push(...listBuiltinManifests()
+  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env")
+  .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
+
 catalog.push({
   reference: "./components/host-stability",
   source: "local",
@@ -396,6 +401,7 @@ export interface UiHarnessHost extends DashboardHost {
   getPersistedConfig(): DashboardConfig;
   /** Test-only diagnostics control is exposed only on the ui-harness page. */
   setDiagnostics(diagnostics: Diagnostic[]): Promise<void>;
+  finishAgentTask(taskId: string, validation: NonNullable<DashboardAgentTask["validation"]>): Promise<void>;
 }
 
 export function createUiHarnessHost(): UiHarnessHost {
@@ -413,10 +419,19 @@ export function createUiHarnessHost(): UiHarnessHost {
   const processSnapshots = new Map<string, ProcessSnapshot>();
   const files = new Map<string, string>([
     ["README.md", "# Fixture document\n\nThis file is loaded by the Markdown component.\n"],
+    [".dash-bored/.env", "DASH_BORED_AGENT=bundle-agent\n"],
   ]);
   const emit = (event: HostEvent): void => listeners.forEach((listener) => listener(event));
   const snapshot = (): ProjectSnapshot => {
+  const tree = resolveFixtureNode(persistedConfig.root);
+  const environmentByNode: NonNullable<ProjectSnapshot["environmentByNode"]> = {};
+  const visitEnvironment = (node: ResolvedComponentNode): void => {
+    environmentByNode[node.id] = { values: [{ key: "DASH_BORED_AGENT", value: settings.dashBoredAgent, source: "app" }] };
+    for (const edge of fixtureChildEdges(node.children)) visitEnvironment(edge.node as ResolvedComponentNode);
+  };
+  visitEnvironment(tree);
   return {
+    environmentByNode,
     projectRoot: PROJECT_ROOT,
     configPath: CONFIG_PATH,
     dashboardName: persistedConfig.name,
@@ -426,7 +441,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     componentCatalog: structuredClone(catalog),
     trusted: true,
     requestedPermissions: validateFixtureDraft(persistedConfig).requestedPermissions,
-    tree: resolveFixtureNode(persistedConfig.root),
+    tree,
     components: [hostStabilityComponent],
     processes: [...processSnapshots.values()].map((process) => structuredClone(process)),
     diagnostics: structuredClone(currentDiagnostics),
@@ -457,6 +472,14 @@ export function createUiHarnessHost(): UiHarnessHost {
   };
 
   return {
+    async finishAgentTask(taskId, validation) {
+      const task = agentTasks.find((candidate) => candidate.id === taskId);
+      if (!task) throw new Error("Fixture agent task not found.");
+      task.process = { ...task.process, phase: "exited", exitCode: 0,
+        logs: [{ sequence: 1, stream: "stdout", text: "Created project workflows and checked the dashboard.\n" }] };
+      task.validation = validation;
+      emit({ type: "agent-task", task: structuredClone(task) });
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -464,13 +487,19 @@ export function createUiHarnessHost(): UiHarnessHost {
     getPersistedConfig() { return structuredClone(persistedConfig); },
     async getSnapshot() { return snapshot(); },
     async getAppSettings() { return structuredClone(settings); },
-    async updateAppSettings(next) { settings = structuredClone(next); return structuredClone(settings); },
+    async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
     async runComponentCreationAgent(request: ComponentCreationAgentRequest) { return launch(request); },
     async runDiagnosticsAgent() {
       return launch({
         prompt: "Fix dashboard configuration diagnostics.",
         componentPath: `${CONFIG_PATH}#diagnostics`,
+      });
+    },
+    async setupDashboardWithAgent(_request: { nodeId: string }) {
+      return launch({
+        prompt: "Set up the fixture dashboard.",
+        componentPath: `${CONFIG_PATH}#setup-agent`,
       });
     },
     async getDashboardAgentTasks() { return structuredClone(agentTasks); },

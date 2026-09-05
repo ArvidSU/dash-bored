@@ -892,7 +892,7 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTodoDone()).toBeFalse();
   }, 20_000);
 
-  test("the generated starter command remains active when Agent work closes", async () => {
+  test("the legacy starter command remains active when Agent work closes", async () => {
     const active = currentPage();
     await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
@@ -932,4 +932,80 @@ describe("renderer fixture interactions", () => {
     await reopenedCommand.getByRole("button", { name: "Close", exact: true }).click();
     await reopenedActivity.getByRole("button", { name: "Close", exact: true }).click();
   }, 20_000);
+  test("setup agent inserts lazily, survives starter replacement, and shows validation truthfully", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 390, height: 844 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library" }).waitFor();
+      expect(await proof.locator(".setup-agent").count()).toBe(0);
+      await proof.getByRole("button", { name: "Open component library" }).click();
+      await proof.getByRole("button", { name: "Insert Dashboard setup agent", exact: true }).click();
+      await proof.getByRole("button", { name: "Add component", exact: true }).click();
+      await proof.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+      await proof.getByRole("tab").last().click();
+      await proof.getByRole("button", { name: "Save dashboard", exact: true }).click();
+      const setup = proof.locator(".setup-agent");
+      await setup.waitFor({ state: "attached" });
+      const setupTab = await setup.locator("xpath=ancestor::*[@role='tabpanel'][1]").getAttribute("aria-labelledby");
+      if (setupTab) await proof.locator(`[id="${setupTab}"]`).click();
+      await setup.getByText("Runs codex exec", { exact: true }).waitFor();
+      await setup.getByText("Command source: App settings", { exact: true }).waitFor();
+      const bounds = await setup.boundingBox();
+      expect(bounds!.width).toBeLessThanOrEqual(390);
+      await setup.getByRole("button", { name: "Set up this dashboard", exact: true }).click();
+      const activity = proof.getByRole("dialog", { name: "Agent work" });
+      const row = activity.locator(".agent-task").first();
+      await row.waitFor();
+      expect(await row.getByText("Dashboard validated", { exact: true }).count()).toBe(0);
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const snapshot = await host.getSnapshot();
+        await host.saveDashboardConfig({ schemaVersion: 2, name: "Configured project", root: { id: "ready", component: "@dash-bored/status", props: { label: "Project ready", state: "healthy" } } }, snapshot.configRevision!);
+      });
+      expect(await proof.locator(".setup-agent").count()).toBe(0);
+      await row.getByText("Working", { exact: true }).waitFor();
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        await host.finishAgentTask((await host.getDashboardAgentTasks())[0]!.id, { status: "trust-required", diagnostics: [], message: "Review newly requested permissions." });
+      });
+      await row.getByText("Review project trust", { exact: true }).waitFor();
+      expect(await row.getByText("Dashboard validated", { exact: true }).count()).toBe(0);
+      await row.click();
+      const details = proof.getByRole("dialog", { name: "Agent command" });
+      await details.getByText("Review newly requested permissions.", { exact: true }).waitFor();
+      await details.getByText("Recent agent output", { exact: true }).click();
+      await details.locator("details .agent-task-modal__diff").getByText("Created project workflows and checked the dashboard.", { exact: true }).waitFor();
+      await proof.screenshot({ path: "/tmp/dash-bored-setup-proof.png", fullPage: true });
+    } finally {
+      await proof.close();
+    }
+  }, 30_000);
+
+  test("environment panel shows the winning app setting while preserving bundle defaults", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library" }).waitFor();
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const snapshot = await host.getSnapshot();
+        await host.saveDashboardConfig({ schemaVersion: 2, name: "Environment proof", root: { id: "env-proof", component: "@dash-bored/env", props: { path: ".dash-bored/.env" } } }, snapshot.configRevision!);
+      });
+      const editor = proof.getByRole("region", { name: "Environment editor for .dash-bored/.env", exact: true });
+      await editor.locator(".env-editor__effective").getByText("codex exec", { exact: true }).waitFor();
+      await editor.getByText("Source: Settings", { exact: true }).waitFor();
+      expect(await editor.getByRole("textbox", { name: "Variable value for DASH_BORED_AGENT", exact: true }).inputValue()).toBe("bundle-agent");
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        await host.updateAppSettings({ ...await host.getAppSettings(), dashBoredAgent: "fixture-agent --run" });
+      });
+      await editor.locator(".env-editor__effective").getByText("fixture-agent --run", { exact: true }).waitFor();
+      expect(await editor.getByRole("textbox", { name: "Variable value for DASH_BORED_AGENT", exact: true }).inputValue()).toBe("bundle-agent");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
 });

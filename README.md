@@ -137,8 +137,11 @@ Packaged desktop builds contain a standalone, version-matched `dash-bored` CLI.
 The app prepends that embedded tool to `PATH` for dashboard commands and agents
 it launches, so users do not need a separate CLI installation. The starter
 dashboard also offers an explicit `dash-bored install-cli` action that creates
-an idempotent link at `~/.local/bin/dash-bored` for use from external shells;
-it refuses to replace an existing file or different link.
+an idempotent link at `~/.local/bin/dash-bored` for use from external shells.
+Later app launches refresh installer-owned links and skill files. Modified
+files and unrecognized links are preserved, with a notice explaining the conflict.
+Use `dash-bored install-cli --check` or `dash-bored install-skill --global --check`
+to check an installation without changing it.
 
 ## Start a project dashboard
 
@@ -167,12 +170,24 @@ The generated dashboard is immediately valid and combines a short guided tour,
 a sampler of the available component primitives, and a setup action that asks your
 chosen CLI coding agent to tailor the dashboard to the project. It uses
 `codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
-**Settings → Dashboard agent**. A newly initialized dashboard also prepopulates
-its environment editor with editable `DASH_BORED_AGENT` and
-`DASH_BORED_AGENT_PROMPT` values. The setup command invokes the packaged
-`dash-bored agent "${DASH_BORED_AGENT:-codex exec}"`, so the wrapper runs the
-same resolved agent command while Agent work follows its process alongside later
-dashboard changes. Every rendered component has a context menu
+**Settings → General → Dashboard agent**. The bundle environment editor shows
+the effective agent command and its source; app settings override the bundle's
+`.env` default. Other command variables load from each component's owning
+bundle, with explicit command overrides taking precedence. Saving `.env` affects
+new launches and leaves existing terminals running.
+
+**Set up this dashboard** starts a tracked agent task with a prompt generated
+for that bundle. No prompt needs to be copied into YAML or `.env`. Agent work
+keeps its terminal output available even when the agent replaces the starter.
+After the agent finishes, the app validates the saved dashboard and local
+components. A successful run that leaves fixable configuration errors gets one
+automatic repair attempt; the result is validated again. Stopping the task,
+leaving the dashboard, or revoking trust prevents an automatic repair. A valid
+dashboard that adds permissions still requires trust before becoming live.
+Validation establishes configuration correctness; review the workflows the
+agent created to decide whether they meet your needs.
+
+Every rendered component has a context menu
 with Focus, Edit component, Copy component path, and Change with agent. The
 Edit component action opens the declared props and child metadata editor. The
 last action shows the resolved command before sending and enriches your request with the owning
@@ -193,8 +208,14 @@ bundled CLI to external shells, install the skill globally with
 component-authoring reference to `~/.agents/skills/dash-bored/`; the project
 form writes to `.agents/skills/dash-bored/`. Both create
 `.claude/skills/dash-bored` as a link to the same canonical payload. Repeated
-installs are safe, and modified installed files or conflicting paths are never
-overwritten.
+installs are safe. The app refreshes previously installed global skills at
+startup and project skills for registered or newly opened dashboards, using
+file hashes to preserve local edits. An older installation without ownership
+metadata can be adopted when its contents match; otherwise the notice asks you
+to move it aside before reinstalling. Install globally for convenience when
+you use dashboards in several projects. The shipped reference includes the
+live catalog, host response types, theme guidance, and a complete local-component
+example; agents do not need the app source to author a dashboard.
 You can also create these files without
 opening the app by running
 `dash-bored init .`; unlike `open`, explicit initialization fails if a

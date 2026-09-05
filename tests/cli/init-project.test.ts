@@ -89,17 +89,11 @@ describe("initializeProject", () => {
     expect(skillVisibility.component).toBe("@dash-bored/conditional");
     expect(skillVisibility.props.command).toBe("dash-bored install-skill . --check");
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
-    expect(agentCommand.component).toBe("@dash-bored/command");
-    expect(agentCommand.props.command).toContain("dash-bored");
-    expect(agentCommand.props.command).toContain(" agent");
-    expect(agentCommand.props.command).toContain("${DASH_BORED_AGENT:-codex exec}");
-    expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain(
-      "Inspect this project before making changes.",
-    );
-    expect(agentCommand.props.env.DASH_BORED_AGENT_PROMPT).toContain("assets/icon.svg");
+    expect(agentCommand.component).toBe("@dash-bored/setup-agent");
+    expect(agentCommand.props.env).toBeUndefined();
+    expect(agentCommand.props.command).toBeUndefined();
     expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
-    expect(environment).toContain("DASH_BORED_AGENT_PROMPT=\"Set up the dash-bored dashboard for");
-    expect(environment).toContain("Inspect this project before making changes.");
+    expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
     expect(lock).toEqual({ lockfileVersion: 1, components: {} });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);

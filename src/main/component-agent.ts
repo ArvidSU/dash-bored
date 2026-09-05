@@ -17,12 +17,15 @@ export function componentAgentInvocation(command: string): string {
 }
 
 export interface LaunchComponentAgentOptions {
+  purpose?: DashboardAgentTask["purpose"];
   command: string;
   prompt: string;
   projectRoot: string;
   componentPath: string;
   configPath: string;
   request: string;
+  env?: Record<string, string>;
+  onFinished?: (task: DashboardAgentTask) => void | Promise<void>;
 }
 
 export interface DashboardAgentHarnessOptions {
@@ -42,6 +45,9 @@ export class DashboardAgentHarness {
   private operation: Promise<void> = Promise.resolve();
   private readonly tasks = new Map<string, DashboardAgentTask>();
   private readonly onTask?: (task: DashboardAgentTask) => void;
+  private readonly finishers = new Map<string, (task: DashboardAgentTask) => void | Promise<void>>();
+  private readonly finished = new Set<string>();
+  private closed = false;
 
   constructor(options: DashboardAgentHarnessOptions = {}) {
     this.onTask = options.onTask;
@@ -60,14 +66,36 @@ export class DashboardAgentHarness {
     if (!task) return;
     task.process = process;
     this.emit(task);
+    if ((process.phase === "exited" || process.phase === "failed") && !this.finished.has(task.id)) {
+      this.finished.add(task.id);
+      const finisher = this.finishers.get(task.id);
+      this.finishers.delete(task.id);
+      if (finisher && !this.closed) {
+        void Promise.resolve().then(() => finisher(structuredClone(task))).catch((error) => {
+          this.setValidation(task.id, {
+            status: "failed",
+            diagnostics: [{
+              severity: "error",
+              code: "DASHBOARD_AGENT_FINISH_FAILED",
+              message: error instanceof Error ? error.message : String(error),
+            }],
+          });
+        });
+      }
+    }
     this.pruneCompletedTasks();
   }
 
   private pruneCompletedTasks(): void {
     const completed = [...this.tasks.values()]
-      .filter((task) => task.process.phase === "exited" || task.process.phase === "failed")
+      .filter((task) => (task.process.phase === "exited" || task.process.phase === "failed")
+        && task.validation?.status !== "checking" && task.validation?.status !== "repairing")
       .sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""));
-    for (const task of completed.slice(MAX_COMPLETED_AGENT_TASKS)) this.tasks.delete(task.id);
+    for (const task of completed.slice(MAX_COMPLETED_AGENT_TASKS)) {
+      this.tasks.delete(task.id);
+      this.finishers.delete(task.id);
+      this.finished.delete(task.id);
+    }
   }
 
   list(): DashboardAgentTask[] {
@@ -77,10 +105,15 @@ export class DashboardAgentHarness {
   }
 
   async stop(id: string): Promise<DashboardAgentTask> {
-    await this.manager.stop(id);
     const task = this.tasks.get(id);
-    if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
-    return { ...task, process: { ...task.process, logs: task.process.logs.map((entry) => ({ ...entry })) } };
+    if (task) {
+      task.cancelled = true;
+      this.emit(task);
+    }
+    if (this.manager.get(id)) await this.manager.stop(id);
+    const stopped = this.tasks.get(id);
+    if (!stopped) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
+    return { ...stopped, process: { ...stopped.process, logs: stopped.process.logs.map((entry) => ({ ...entry })) } };
   }
 
   async writeTerminal(id: string, input: string): Promise<DashboardAgentTask> {
@@ -107,6 +140,17 @@ export class DashboardAgentHarness {
     }
   }
 
+  setValidation(id: string, validation: DashboardAgentTask["validation"]): void {
+    const task = this.tasks.get(id);
+    if (!task) return;
+    task.validation = validation;
+    this.emit(task);
+  }
+
+  isCancelled(id: string): boolean {
+    return this.closed || this.tasks.get(id)?.cancelled === true;
+  }
+
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.operation.then(operation, operation);
     this.operation = result.then(
@@ -117,7 +161,9 @@ export class DashboardAgentHarness {
   }
 
   launch(options: LaunchComponentAgentOptions): Promise<ComponentAgentLaunch> {
+    if (this.closed) throw new CoreError("DASHBOARD_AGENT_HARNESS_CLOSED", "The dashboard agent harness is closed.");
     return this.enqueue(async () => {
+      if (this.closed) throw new CoreError("DASHBOARD_AGENT_HARNESS_CLOSED", "The dashboard agent harness is closed.");
       const prompt = options.prompt.trim();
       if (prompt.length === 0 || prompt.length > MAX_AGENT_PROMPT_LENGTH) {
         throw new CoreError(
@@ -133,10 +179,16 @@ export class DashboardAgentHarness {
       const id = `component-agent-${randomUUID()}`;
       const definition: ProcessDefinition = {
         id,
-        command: componentAgentInvocation(options.command),
+        // Agent work has a finite lifetime even though it uses a PTY. Replace
+        // the interactive shell so the task finishes when the configured CLI
+        // finishes; ordinary command terminals remain persistent.
+        command: process.platform === "win32"
+          ? `${componentAgentInvocation(options.command)}\nexit\n`
+          : `exec /bin/sh -c '${componentAgentInvocation(options.command).replaceAll("'", "'\\''")}'`,
         interactive: true,
         projectRoot: options.projectRoot,
         env: {
+          ...(options.env ?? {}),
           DASH_BORED_AGENT: options.command,
           DASH_BORED_AGENT_PROMPT: prompt,
           DASH_BORED_COMPONENT_PATH: options.componentPath,
@@ -144,6 +196,7 @@ export class DashboardAgentHarness {
       };
       const task: DashboardAgentTask = {
         id,
+        ...(options.purpose ? { purpose: options.purpose } : {}),
         command: options.command,
         prompt,
         componentPath: options.componentPath,
@@ -161,6 +214,7 @@ export class DashboardAgentHarness {
         },
       };
       this.tasks.set(id, task);
+      if (options.onFinished) this.finishers.set(id, options.onFinished);
       this.definitions.push(definition);
       await this.manager.reconcile(this.definitions);
       const launched = await this.manager.start(id);
@@ -180,6 +234,14 @@ export class DashboardAgentHarness {
   }
 
   async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    for (const task of this.tasks.values()) {
+      if (task.process.phase === "running" || task.process.phase === "stopping") {
+        task.cancelled = true;
+        this.emit(task);
+      }
+    }
     await this.operation.catch(() => undefined);
     await this.manager.close();
   }

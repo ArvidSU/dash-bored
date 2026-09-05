@@ -35,6 +35,27 @@ function isRunning(task: DashboardAgentTask): boolean {
   return task.process.phase === "running" || task.process.phase === "stopping";
 }
 
+function validationLabel(task: DashboardAgentTask): string | null {
+  switch (task.validation?.status) {
+    case "checking": return "Checking dashboard";
+    case "repairing": return "Repairing dashboard";
+    case "valid": return "Dashboard validated";
+    case "failed": return "Setup needs attention";
+    case "trust-required": return "Review project trust";
+    case "cancelled": return "Follow-up cancelled";
+    default: return null;
+  }
+}
+
+function recentAgentOutput(task: DashboardAgentTask): string {
+  return task.process.logs.filter((entry) => entry.stream !== "system")
+    .map((entry) => entry.text).join("")
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    .trim().slice(-4_000);
+}
+
 export function activeDashboardAgentTaskCount(tasks: readonly DashboardAgentTask[]): number {
   return tasks.filter(isRunning).length;
 }
@@ -219,6 +240,7 @@ export function AgentActivity({
                     <span className={`phase phase--${working ? "running" : "exited"}`}>
                       {working ? "Working" : "Not working"}
                     </span>
+                    {validationLabel(task) ? <span>{validationLabel(task)}</span> : null}
                   </button>
                 </li>
               );
@@ -231,6 +253,26 @@ export function AgentActivity({
           <div className="agent-task-modal">
             <p className="agent-task-modal__request">{selectedTask.request}</p>
             <code className="agent-task-modal__path" title={selectedTask.componentPath}>{selectedTask.componentPath}</code>
+            {selectedTask.validation ? (
+              <div role="status">
+                <strong>{validationLabel(selectedTask)}</strong>
+                {selectedTask.validation.message ? <p>{selectedTask.validation.message}</p> : null}
+                {selectedTask.validation.status === "checking" && !selectedTask.cancelled ? (
+                  <button className="button button--quiet" type="button" onClick={() => void onStop(selectedTask.id)}>
+                    Cancel automatic follow-up
+                  </button>
+                ) : null}
+                {selectedTask.validation.diagnostics.length > 0 ? (
+                  <ul>{selectedTask.validation.diagnostics.map((item, index) => <li key={`${item.code}-${index}`}>{item.code}: {item.message}</li>)}</ul>
+                ) : null}
+              </div>
+            ) : null}
+            {!isRunning(selectedTask) && recentAgentOutput(selectedTask) ? (
+              <details>
+                <summary>Recent agent output</summary>
+                <pre className="agent-task-modal__diff">{recentAgentOutput(selectedTask)}</pre>
+              </details>
+            ) : null}
             <div className="agent-task-modal__tabs" role="tablist" aria-label="Agent task details">
               {tabButton("terminal", "Terminal")}
               {tabButton("diff", "Diff")}

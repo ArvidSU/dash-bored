@@ -176,6 +176,10 @@ export interface ComponentAgentRequest {
   prompt: string;
 }
 
+export interface DashboardSetupAgentRequest {
+  nodeId: string;
+}
+
 export type ComponentChildLocator =
   | { type: "managed"; index: number }
   | { type: "tiled"; path: Array<"first" | "second"> };
@@ -216,6 +220,7 @@ export interface ComponentAgentLaunch {
 /** A dashboard-only invocation of the user's configured CLI agent. */
 export interface DashboardAgentTask {
   id: string;
+  purpose?: "setup" | "setup-repair";
   command: string;
   /** Fully contextualized prompt passed as the configured command's argument. */
   prompt: string;
@@ -225,6 +230,13 @@ export interface DashboardAgentTask {
   startedAt?: string;
   /** The dashboard changed while this task was running; it is not a success claim. */
   dashboardChanged: boolean;
+  /** Explicitly stopped by the user or application shutdown. */
+  cancelled?: boolean;
+  validation?: {
+    status: "checking" | "repairing" | "valid" | "failed" | "trust-required" | "cancelled";
+    diagnostics: Diagnostic[];
+    message?: string;
+  };
   process: ProcessSnapshot;
 }
 
@@ -455,6 +467,8 @@ export interface LocalComponentHost {
     reload(): Promise<void>;
     /** Replaces this component's props in the owning dashboard draft. */
     updateProps(props: Record<string, unknown>): Promise<void>;
+    /** Starts the app-owned starter setup agent for this component. */
+    setupWithAgent?(): Promise<ComponentAgentLaunch>;
   };
   actions: { register(action: ComponentAction): () => void };
   filesystem?: {

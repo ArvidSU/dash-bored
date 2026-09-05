@@ -1,0 +1,11 @@
+.setup-agent {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+
+.setup-agent small { color: var(--muted); }
+.setup-agent [role="alert"] { color: var(--negative); }

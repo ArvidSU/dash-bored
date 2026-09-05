@@ -26,11 +26,13 @@ import type { DashboardRPC } from "../shared/rpc";
 import { keyboardShortcutAccelerator } from "../shared/keyboard-shortcut";
 import { AppSettingsStore } from "./app-settings";
 import { DashboardAgentHarness } from "./component-agent";
+import { assertAgentAvailable } from "./agent-preflight";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment } from "./tool-environment";
 import { updateInstalledTools } from "./installed-tools";
+import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
 
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
 
@@ -301,6 +303,32 @@ async function runDiagnosticsAgent() {
   });
 }
 
+async function setupDashboardWithAgent(nodeId: string) {
+  const snapshot = runtime.getSnapshot();
+  const session = runtime.getSessionToken();
+  if (!snapshot.projectRoot || !snapshot.configPath || !snapshot.tree) {
+    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before running its setup agent.");
+  }
+  if (!snapshot.trusted) {
+    throw new CoreError("PROJECT_UNTRUSTED", "Trust this project before running its setup agent.");
+  }
+  const node = findSetupNode(runtime, nodeId);
+  if (!node) {
+    throw new CoreError("DASHBOARD_SETUP_NODE_INVALID", "That setup action is no longer present in the active dashboard.");
+  }
+  const configPath = node.sourceConfigPath ?? snapshot.configPath;
+  if (dashboardAgentHarness.list().some((task) => task.configPath === configPath
+    && task.purpose !== undefined
+    && (task.process.phase === "running" || task.process.phase === "stopping"
+      || task.validation?.status === "checking" || task.validation?.status === "repairing"))) {
+    throw new CoreError("DASHBOARD_SETUP_RUNNING", "Setup is already active for this dashboard. Open Agent work to view or stop it.");
+  }
+  const sourceLocation = await resolveProjectLocation(configPath);
+  const settings = await appSettingsStore.get();
+  if (runtime.getSessionToken() !== session) throw new CoreError("DASHBOARD_SETUP_STALE", "The active dashboard changed. Run setup from its current panel.");
+  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command: settings.dashBoredAgent, location: sourceLocation, preflight: assertAgentAvailable }).launch(node);
+}
+
 async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
   const paths = await Utils.openFileDialog({
     startingFolder: process.cwd(),
@@ -344,6 +372,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       runComponentCreationAgent: ({ configPath, target, prompt }) =>
         runComponentCreationAgent(configPath, target, prompt),
       runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),
+      setupDashboardWithAgent: ({ nodeId }) => setupDashboardWithAgent(nodeId),
       getDashboardAgentTasks: () => dashboardAgentHarness.list(),
       getDashboardAgentDiff: ({ taskId }) => getDashboardAgentDiff(taskId),
       stopDashboardAgentTask: ({ taskId }) => dashboardAgentHarness.stop(taskId),

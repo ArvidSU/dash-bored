@@ -228,9 +228,16 @@ read-only descriptors, and render/visibility projection), and `host`:
 
 ```ts
 interface LocalComponentHost {
+  // Read-only public configuration; arbitrary environment values are not exposed.
+  environment?: {
+    values: Array<{ key: "DASH_BORED_AGENT"; value: string; source: "app" | "process" | "bundle" | "component" | "unset" }>;
+    error?: string;
+  };
   dashboard: {
     reload(): Promise<void>;
     updateProps(props: Record<string, unknown>): Promise<void>;
+    // Requires trust and process:execute; starts a tracked setup request.
+    setupWithAgent?(): Promise<{ taskId: string; command: string; componentPath: string; pid: number | null }>;
   };
   actions: { register(action: ComponentAction): () => void };
   filesystem?: {
@@ -312,7 +319,7 @@ interface ShellRunRequest {
   nodeId: string; // Supplied by the host, omitted in local calls.
   command: string;
   cwd?: string; // Relative to the owning project root; defaults to that root.
-  env?: Record<string, string>; // Overlays the host process environment.
+  env?: Record<string, string>; // Overrides app, inherited, and owning-bundle defaults.
   timeoutMs?: number;
 }
 interface ShellRunResult {

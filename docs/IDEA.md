@@ -61,6 +61,12 @@ The desktop app carries a version-matched dash-bored CLI and skill payload so
 the generated dashboard, the agent's discovery commands, and the component
 contract do not depend on a separate global dash-bored installation.
 
+Previously installed CLI links and skill payloads follow app updates while
+preserving local edits and reporting conflicts. The setup action owns its agent
+task independently of the starter component. After completion the app validates
+the saved dashboard and may request one bounded repair of configuration errors;
+validation does not replace the user's review of usefulness or permission changes.
+
 Every rendered component should make that workflow immediate through a small
 context menu. Alongside Focus, users can edit a component's declared props,
 collapse or expand it to keep large dashboards compact, copy an exact

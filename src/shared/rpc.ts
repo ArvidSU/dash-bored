@@ -3,6 +3,7 @@ import type {
   AppSettings,
   ComponentAgentLaunch,
   ComponentAgentRequest,
+  DashboardSetupAgentRequest,
   ComponentCreationAgentRequest,
   DashboardConfig,
   DashboardAgentTask,
@@ -34,6 +35,7 @@ export type DashboardRPC = {
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
       runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
       runDiagnosticsAgent: { params: {}; response: ComponentAgentLaunch };
+      setupDashboardWithAgent: { params: DashboardSetupAgentRequest; response: ComponentAgentLaunch };
       getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
       getDashboardAgentDiff: { params: { taskId: string }; response: string };
       stopDashboardAgentTask: { params: { taskId: string }; response: DashboardAgentTask };

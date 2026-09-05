@@ -26,6 +26,7 @@ export interface DiagnosticsAgentContext {
   projectRoot: string;
   configPath: string;
   diagnostics: readonly Diagnostic[];
+  originalPrompt?: string;
 }
 
 export function findResolvedNode(
@@ -279,5 +280,6 @@ export function buildDiagnosticsAgentPrompt(
     "",
     "Reported diagnostics:",
     diagnostics,
+    ...(context.originalPrompt ? ["", "Original setup request:", context.originalPrompt] : []),
   ].join("\n");
 }

@@ -38,6 +38,15 @@ const chartCommonProperties = {
 const manifests: ComponentManifest[] = [
   {
     schemaVersion: 2,
+    id: "@dash-bored/setup-agent",
+    name: "Dashboard setup agent",
+    description: "Runs the configured CLI agent to customize this starter dashboard.",
+    entry: "builtin:setup-agent",
+    propsSchema: objectSchema({}),
+    permissions: ["process:execute"],
+  },
+  {
+    schemaVersion: 2,
     id: "@dash-bored/tabs",
     name: "Tabs",
     description: "Switches between labeled dashboard panels.",

@@ -7,6 +7,19 @@ Generated from `BUILTIN_COMPONENTS` in `src/core/builtins.ts`; this file
 ships inside the dash-bored skill for this version. Types come from each
 component's JSON Schema `propsSchema`.
 
+## @dash-bored/setup-agent
+
+Dashboard setup agent — Runs the configured CLI agent to customize this starter dashboard.
+
+Props:
+
+None.
+
+Children: none (leaf component).
+
+Permissions: `process:execute`.
+
+
 ## @dash-bored/tabs
 
 Tabs — Switches between labeled dashboard panels.

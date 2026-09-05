@@ -45,7 +45,11 @@ interface LocalComponentHost {
     values: Array<{ key: "DASH_BORED_AGENT"; value: string; source: "app" | "process" | "bundle" | "component" | "unset" }>;
     error?: string;
   };
-  dashboard: { reload(): Promise<void> };
+  dashboard: {
+    reload(): Promise<void>;
+    updateProps(props: Record<string, unknown>): Promise<void>;
+    setupWithAgent?(): Promise<ComponentAgentLaunch>;
+  };
   actions: { register(action: ComponentAction): () => void };
   filesystem?: {
     readText(path: string): Promise<string>;
@@ -66,6 +70,10 @@ Packaged and local renderers receive exactly the same `LocalComponentRenderProps
 shape: typed `props`, generic rendered `children` and handles, and a
 `LocalComponentHost`. The host is shaped solely by manifest permissions. No
 packaged component receives an API that a local component cannot declare.
+
+The optional `dashboard.setupWithAgent` method is exposed only to trusted
+nodes declaring `process:execute`. Its RPC rechecks the current node's permission
+and owning config before launching; automatic repair never expands project trust.
 
 Action registration is renderer-local and grants no host permission. A local
 action ID begins with an ASCII letter and contains only letters, digits,

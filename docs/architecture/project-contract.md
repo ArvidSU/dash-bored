@@ -54,8 +54,9 @@ creates only missing artifacts and never replaces an existing configuration,
 lock, or environment file, so a partially initialized project is repaired
 without discarding project state.
 The starter `.env` is created with owner-only permissions for project-local
-component and command variables, and is prepopulated with editable starter
-values for `DASH_BORED_AGENT` and `DASH_BORED_AGENT_PROMPT`. `DASH_BORED_AGENT`
+component and command variables, and is prepopulated with an editable starter
+value for `DASH_BORED_AGENT`. `DASH_BORED_AGENT_PROMPT` is generated once when
+the setup action launches. `DASH_BORED_AGENT`
 is also app-wide: the main process persists its application setting in the
 Electrobun user-data directory, publishes it to dashboard command environments,
 and exposes it in Settings.

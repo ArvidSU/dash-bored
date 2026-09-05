@@ -3,6 +3,7 @@ import type {
   AppSettings,
   ComponentAgentLaunch,
   ComponentAgentRequest,
+  DashboardSetupAgentRequest,
   ComponentCreationAgentRequest,
   DashboardConfig,
   DashboardAgentTask,
@@ -41,6 +42,7 @@ export interface DashboardHost {
   runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
   runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
   runDiagnosticsAgent(): Promise<ComponentAgentLaunch>;
+  setupDashboardWithAgent(request: DashboardSetupAgentRequest): Promise<ComponentAgentLaunch>;
   getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
   getDashboardAgentDiff(taskId: string): Promise<string>;
   stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask>;
@@ -152,6 +154,11 @@ const liveHost: DashboardHost = {
   async runDiagnosticsAgent(): Promise<ComponentAgentLaunch> {
     ensureTransport();
     return await rpc.request.runDiagnosticsAgent({});
+  },
+
+  async setupDashboardWithAgent(request: DashboardSetupAgentRequest): Promise<ComponentAgentLaunch> {
+    ensureTransport();
+    return await rpc.request.setupDashboardWithAgent(request);
   },
 
   async getDashboardAgentTasks(): Promise<DashboardAgentTask[]> {

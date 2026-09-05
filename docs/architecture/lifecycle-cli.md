@@ -62,8 +62,8 @@ dash-bored component sync [project]
   `--project <path>` selects another project root. Initialization creates the
   required files and empty component directory, uses the bundle name in a valid
   guided dashboard with an editable bundle-local `.env` file, a
-  agent-customization command that invokes the packaged `dash-bored agent`
-  wrapper with the app-wide `DASH_BORED_AGENT`, and a
+  first-class setup-agent component that invokes the configured app-owned
+  dashboard-agent harness with the app-wide `DASH_BORED_AGENT`, and a
   command that installs the packaged dash-bored skill into the project. The
   starter presets a bundle-local `icon` (`./assets/icon.svg`, a silent generic
   glyph until the file exists), and its agent prompt instructs the agent to

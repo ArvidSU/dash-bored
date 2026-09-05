@@ -81,6 +81,9 @@ Pick components by need:
   remembered quick action; users can keep typing in the same shell. Commands
   never auto-start on open, trust, or reload. Keep paths relative to the
   project root.
+- `@dash-bored/setup-agent` — starts the app-owned dashboard setup task,
+  with a generated bundle-specific prompt, validation, and at most one repair
+  attempt. Requires `process:execute`; its button remains available for recovery.
 - `@dash-bored/env` — edits a project-local dotenv file (`path`) via
   key-value or bulk/raw editing. Key-value saves preserve comments and blank
   lines; writes are bounded, project-contained, and atomic.
@@ -145,11 +148,19 @@ These are renderer/app state, never YAML — do not try to configure them:
 
 ## Environment and secrets
 
-Put editable runtime choices in the bundle-local `.env` and source that file
-from commands that consume them. Never put secrets in dashboard YAML, and do
-not assume `.env` is git-ignored — check. `DASH_BORED_AGENT` /
-`DASH_BORED_AGENT_PROMPT` starter values live there; the app also publishes
-the configured agent command into dashboard command environments.
+Put editable runtime choices in the bundle-local `.env`. The runtime loads
+it as data for processes and bounded shell calls from the component's owning
+bundle; commands do not need to source it. Explicit command/request env values
+override app settings, inherited process values, and bundle defaults, in that
+order. The environment panel shows the effective agent command and its source.
+Saving defaults changes future launches without restarting existing terminals.
+Never put secrets in dashboard YAML, and do not assume `.env` is git-ignored.
+Setup generates its prompt at launch; do not copy it into YAML or `.env`.
+
+Install the skill globally once when working across several projects. The app
+refreshes previously installed payloads using file hashes, preserving local
+edits and reporting conflicts. Use `dash-bored install-skill . --check` (or
+`--global --check`) to detect missing or stale guidance without writing files.
 
 ## Add local components
 

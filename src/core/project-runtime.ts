@@ -148,6 +148,12 @@ export class ProjectRuntime {
   private operation: Promise<void> = Promise.resolve();
   private readonly sessionRevokedRoots = new Set<string>();
   private closed = false;
+  private sessionToken = 0;
+
+  /** Invalidates deferred setup follow-ups after navigation, revocation, or quit. */
+  getSessionToken(): number {
+    return this.sessionToken;
+  }
 
   constructor(options: ProjectRuntimeOptions) {
     this.trustStore = options.trustStore;
@@ -368,6 +374,7 @@ export class ProjectRuntime {
       const locationChanged = this.location?.projectRoot !== nextLocation.projectRoot
         || this.location?.configPath !== nextLocation.configPath;
       if (locationChanged) {
+        this.sessionToken += 1;
         this.stopWatching();
         await this.processManager?.close();
         this.processManager = null;
@@ -394,6 +401,7 @@ export class ProjectRuntime {
   async unload(): Promise<ProjectSnapshot> {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
+      this.sessionToken += 1;
       this.stopWatching();
       await this.processManager?.close();
       this.processManager = null;
@@ -552,6 +560,7 @@ export class ProjectRuntime {
   async revoke(): Promise<ProjectSnapshot> {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
+      this.sessionToken += 1;
       if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
 
       // Disable privileged calls before waiting for persistence or process cleanup.
@@ -696,6 +705,7 @@ export class ProjectRuntime {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.sessionToken += 1;
     this.stopWatching();
     await this.operation.catch(() => undefined);
     await this.processManager?.close();

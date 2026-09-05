@@ -193,13 +193,30 @@ focus trap and restore, unified header/body geometry below the modal layer);
 agent-process updates do not reopen a drawer the user dismissed, while a newly
 activated task still opens it automatically. Closing the panel only changes
 renderer visibility and never stops the attached agent process.
-the library's drag fold-away and node-removal trash mode stay library-only.
-The generated starter remains an ordinary `@dash-bored/command`. It invokes the
-`dash-bored agent "${DASH_BORED_AGENT:-codex exec}"` wrapper with its
-request in `DASH_BORED_AGENT_PROMPT`; the wrapper runs that resolved agent
-command with the prompt as one environment-backed argument. Agent work
-recognizes that generated command process by its stable node ID and shows its
-existing process lifecycle alongside harness-launched requests.
+The library's drag fold-away and node-removal trash mode stay library-only.
+The generated starter uses the packaged `@dash-bored/setup-agent` component.
+Its generic dashboard host action passes the node ID to the main process, which
+revalidates the active trusted owning config and launches the app-owned agent
+harness. The harness publishes one generated `DASH_BORED_AGENT_PROMPT`, keeps
+the finite agent process and its output in Agent work, and leaves validation and
+repair status visible after the starter node is removed by the agent.
+
+Setup completion rereads and compiles the owning bundle through the CLI's core
+loader, independently of the renderer's last-known-good snapshot. A clean CLI
+exit with bundle-fixable errors permits one diagnostics repair, carrying the
+original request and exact config locator; the repair result is validated again.
+Read failures, abnormal exits, explicit cancellation, navigation/session changes,
+shutdown, and trust changes prevent another launch. Added permissions require
+review even when the configuration validates. The main process checks generic
+`process:execute` permission for the calling node; it never dispatches by a
+component ID. Setup's prompt is generated at launch and wins over any stale
+prompt value in inherited or bundle environment.
+
+Agent work shows checking, repairing, validated, failed, trust-required, and
+cancelled states independently of CLI exit. A completed task can reveal a
+bounded, ANSI-stripped recent-output excerpt; this is terminal output, not a
+provider-specific final answer. Ordinary command terminals stay persistent;
+tracked agent invocations replace their shell so CLI exit ends the task.
 
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
 horizontal splits may be recursively nested for tiled layouts and stack based
