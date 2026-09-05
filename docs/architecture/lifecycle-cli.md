@@ -45,8 +45,8 @@ The package exposes a `dash-bored` executable through its `bin` field:
 
 ```text
 dash-bored init [name ...] [--project <path>]
-dash-bored install-cli
-dash-bored install-skill [project] [--global]
+dash-bored install-cli [--check]
+dash-bored install-skill [project] [--global] [--check]
 dash-bored validate [project] [--json]
 dash-bored inspect [project]
 dash-bored open [project]
@@ -90,13 +90,20 @@ dash-bored component sync [project]
   `BUILTIN_COMPONENTS`) is embedded the same way; see
   `docs/architecture/components.md` ("Generated built-in reference").
   Installation is idempotent when files and aliases match and refuses to
-  replace modified files or conflicting paths. `--global` does not accept a
+  replace modified files or conflicting paths. A `skill-version.json` sidecar
+  records the shipped version and SHA-256 hash of each payload file, allowing
+  later installs to update files previously owned by dash-bored while
+  preserving local edits. `--check` performs the same ownership and freshness
+  checks without creating or changing files. `--global` does not accept a
   project path.
 - `install-cli` creates a symlink from `~/.local/bin/dash-bored` to the CLI
   bundled in the application on macOS or Linux. It is an explicit user action,
   reports when that directory is absent from `PATH`, and refuses to replace an
-  existing file or a link to another target. The Windows app still carries the
-  CLI for in-app use, but this shell-link command is not yet supported there.
+  existing file or a link to another target. A `.dash-bored-cli.json` receipt
+  records the bundled source and version so an existing dash-bored link can be
+  refreshed safely; `--check` reports missing or stale links without changing
+  them. The Windows app still carries the CLI for in-app use, but this
+  shell-link command is not yet supported there.
 - `validate` runs project, manifest, resolver, schema, and local compilation
   validation. It emits stable diagnostics and a non-zero status on errors.
 - `inspect` writes JSON describing the resolved tree, the complete component
@@ -128,7 +135,16 @@ launched from the dashboard can resolve the matching CLI without a global
 installation. The optional shell link resolves back into the application, so
 `dash-bored open` can locate the packaged launcher.
 
-Files are published atomically and never overwritten. Explicit `init` remains
-strict: an existing configuration, lock, or environment file is an error.
+Project artifacts are published atomically and never overwritten by
+initialization. Explicit `init` remains strict: an existing configuration, lock,
+or environment file is an error.
 Opening is idempotent and fills in missing required artifacts while preserving
 those that already exist.
+
+At application startup, the main process refreshes only previously installed
+global and registered-project skills and the managed CLI link. It skips absent
+installations, reports updates and conflicts as informational or warning
+diagnostics, and never makes the refresh a prerequisite for opening a
+dashboard. A project skill is checked once when that project is opened; the
+resulting installed-tool diagnostics are retained on later load and reload
+snapshots.

@@ -131,7 +131,7 @@ export interface ComponentCatalogItem {
   diagnostics: Diagnostic[];
 }
 
-export type DiagnosticSeverity = "error" | "warning";
+export type DiagnosticSeverity = "error" | "warning" | "info";
 
 export interface Diagnostic {
   severity: DiagnosticSeverity;

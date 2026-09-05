@@ -29,8 +29,8 @@ function usage(): string {
 
 Usage:
   dash-bored init [name ...] [--project <path>]
-  dash-bored install-cli
-  dash-bored install-skill [project] [--global]
+  dash-bored install-cli [--check]
+  dash-bored install-skill [project] [--global] [--check]
   dash-bored open [project]
   dash-bored validate [project] [--json]
   dash-bored inspect [project]
@@ -310,7 +310,12 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const parsed = parseCommandArguments(command, args.slice(1));
+  const commandArgs = args.slice(1);
+  const checkIndex = (command === "install-skill" || command === "install-cli") ? commandArgs.indexOf("--check") : -1;
+  const separatorIndex = commandArgs.indexOf("--");
+  const check = checkIndex >= 0 && (separatorIndex < 0 || checkIndex < separatorIndex);
+  if (check) commandArgs.splice(checkIndex, 1);
+  const parsed = parseCommandArguments(command, commandArgs);
   if (command === "component") return runComponentCommand(args.slice(1));
   if (parsed.help) {
     console.log(usage());
@@ -333,9 +338,9 @@ async function main(): Promise<number> {
   }
 
   if (command === "install-skill") {
-    const result = await installDashBoredSkill(project, { global: parsed.global });
+    const result = await installDashBoredSkill(project, { global: parsed.global, check });
     console.log(
-      result.created.length === 0 && result.linked.length === 0
+      result.created.length === 0 && result.updated.length === 0 && result.linked.length === 0
         ? `dash-bored skill is already installed${parsed.global ? " globally" : ""} in ${result.skillPath}`
         : `Installed portable dash-bored skill${parsed.global ? " globally" : ""} in ${result.skillPath}`,
     );
@@ -344,9 +349,9 @@ async function main(): Promise<number> {
   }
 
   if (command === "install-cli") {
-    const result = await installDashBoredCli();
+    const result = await installDashBoredCli({ check });
     console.log(
-      result.created
+      result.created || result.updated
         ? `Installed dash-bored CLI at ${result.targetPath}`
         : `dash-bored CLI is already installed at ${result.targetPath}`,
     );

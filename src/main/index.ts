@@ -8,6 +8,7 @@ import Electrobun, {
 import { isAbsolute, join, relative, sep } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import type {
+  Diagnostic,
   DashboardAgentTask,
   DashboardConfigSource,
   DashboardInsertionTarget,
@@ -29,8 +30,9 @@ import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-de
 import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment } from "./tool-environment";
+import { updateInstalledTools } from "./installed-tools";
 
-configureBundledToolEnvironment(import.meta.dirname);
+const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
 
 const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
   ?? `http://127.0.0.1:${process.env.DASH_BORED_VITE_PORT ?? "5173"}`;
@@ -121,9 +123,30 @@ async function mainViewUrl(): Promise<string> {
 
 let mainWindow: BrowserWindow | null = null;
 
+const installedToolDiagnostics: Diagnostic[] = [];
+const checkedSkillRoots = new Set<string>();
+function withInstalledToolDiagnostics(snapshot: ProjectSnapshot): ProjectSnapshot {
+  return { ...snapshot, diagnostics: [...snapshot.diagnostics, ...installedToolDiagnostics] };
+}
+
+async function refreshInstalledTools(options: Parameters<typeof updateInstalledTools>[0]): Promise<Diagnostic[]> {
+  try {
+    return await updateInstalledTools(options);
+  } catch (error) {
+    // A refresh is maintenance work; an unexpected enumeration or path error
+    // must remain visible without preventing the dashboard from opening.
+    return [{
+      severity: "warning",
+      code: "INSTALLED_TOOL_UPDATE_FAILED",
+      file: options.homeDirectory,
+      message: `Could not refresh installed dash-bored tools: ${error instanceof Error ? error.message : String(error)}`,
+    }];
+  }
+}
+
 function sendSnapshot(snapshot: ProjectSnapshot): void {
   (mainWindow?.webview.rpc as { send?: { snapshot(value: ProjectSnapshot): void } } | undefined)
-    ?.send?.snapshot(snapshot);
+    ?.send?.snapshot(withInstalledToolDiagnostics(snapshot));
 }
 
 function sendAgentTask(task: DashboardAgentTask): void {
@@ -145,6 +168,15 @@ function reloadApp(): void {
 
 const trustStore = new TrustStore(join(Utils.paths.userData, "trusted-projects-v1.json"));
 const projectRegistry = new ProjectRegistry(join(Utils.paths.userData, "projects-v1.json"));
+const registeredRoots = [...new Set((await projectRegistry.list().catch((error: unknown) => {
+  console.error("Could not read projects for installed-tool updates.", error);
+  return [];
+})).map((project) => project.projectRoot))];
+installedToolDiagnostics.push(...await refreshInstalledTools({
+  ...(bundledTools ? { cliPath: join(bundledTools.toolsDirectory, process.platform === "win32" ? "dash-bored.exe" : "dash-bored") } : {}),
+  projectRoots: registeredRoots,
+}));
+for (const root of registeredRoots) checkedSkillRoots.add(root);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
 process.env.DASH_BORED_AGENT = initialAppSettings.dashBoredAgent;
@@ -153,6 +185,13 @@ const runtime = new ProjectRuntime({
   trustStore,
   onSnapshot(snapshot) {
     sendSnapshot(snapshot);
+    if (snapshot.projectRoot && !checkedSkillRoots.has(snapshot.projectRoot)) {
+      checkedSkillRoots.add(snapshot.projectRoot);
+      void refreshInstalledTools({ projectRoots: [snapshot.projectRoot], includeGlobal: false }).then((diagnostics) => {
+        installedToolDiagnostics.push(...diagnostics);
+        if (diagnostics.length) sendSnapshot(runtime.getSnapshot());
+      });
+    }
     if (snapshot.configPath) dashboardAgentHarness.markDashboardChanged(snapshot.configPath);
     void projectRegistry.remember(snapshot).catch((error: unknown) => {
       console.error("Could not persist the dashboard list.", error);
@@ -269,10 +308,10 @@ async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
     allowsMultipleSelection: false,
   });
   const selected = paths[0];
-  if (!selected) return runtime.getSnapshot();
+  if (!selected) return withInstalledToolDiagnostics(runtime.getSnapshot());
   await runtime.load(selected, { inputKind: "auto" });
   runtime.watch();
-  return runtime.getSnapshot();
+  return withInstalledToolDiagnostics(runtime.getSnapshot());
 }
 
 async function openProject(projectRoot: string, configPath: string): Promise<ProjectSnapshot> {
@@ -284,14 +323,14 @@ async function openProject(projectRoot: string, configPath: string): Promise<Pro
   }
   await runtime.load(configPath, { inputKind: "auto" });
   runtime.watch();
-  return runtime.getSnapshot();
+  return withInstalledToolDiagnostics(runtime.getSnapshot());
 }
 
 const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
   maxRequestTime: 65_000,
   handlers: {
     requests: {
-      getSnapshot: () => runtime.getSnapshot(),
+      getSnapshot: () => withInstalledToolDiagnostics(runtime.getSnapshot()),
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
@@ -324,15 +363,15 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
           configPath,
           removeFiles,
           moveToTrash: (path) => Utils.moveToTrash(path),
-        }),
-      trustProject: () => runtime.trust(),
-      revokeTrust: () => runtime.revoke(),
-      reloadProject: () => runtime.reload(),
+        }).then(withInstalledToolDiagnostics),
+      trustProject: () => runtime.trust().then(withInstalledToolDiagnostics),
+      revokeTrust: () => runtime.revoke().then(withInstalledToolDiagnostics),
+      reloadProject: () => runtime.reload().then(withInstalledToolDiagnostics),
       getDashboardConfigSource: ({ configPath }) => runtime.getDashboardConfigSource(configPath),
       validateDashboardDraft: ({ config, configPath }) => runtime.validateDashboardDraft(config, configPath),
       validateComponentProps: ({ reference, props }) => runtime.validateComponentProps(reference, props),
       saveDashboardConfig: ({ config, expectedConfigRevision, configPath }) =>
-        runtime.saveDashboardConfig(config, expectedConfigRevision, configPath),
+        runtime.saveDashboardConfig(config, expectedConfigRevision, configPath).then(withInstalledToolDiagnostics),
       startProcess: ({ nodeId }) => runtime.startProcess(nodeId),
       openProcessTerminal: ({ nodeId }) => runtime.openProcessTerminal(nodeId),
       runProcessQuickAction: ({ nodeId }) => runtime.runProcessQuickAction(nodeId),

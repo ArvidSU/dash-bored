@@ -2373,6 +2373,10 @@ img.sidebar__project-icon {
   background: var(--warning);
 }
 
+.diagnostic--info .diagnostic__marker {
+  background: var(--accent);
+}
+
 .diagnostic--error .diagnostic__marker {
   background: var(--negative);
 }

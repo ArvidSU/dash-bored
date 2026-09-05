@@ -79,15 +79,15 @@ describe("initializeProject", () => {
     expect(cliCommand.props.command).toContain("install-cli");
     expect(cliVisibility.component).toBe("@dash-bored/conditional");
     expect(cliVisibility.props.invert).toBeTrue();
-    expect(cliVisibility.props.command).toContain(".local/bin/dash-bored");
+    expect(cliVisibility.props.command).toBe("dash-bored install-cli --check");
     expect(globalSkillCommand.id).toBe("install-dash-bored-global-skill");
     expect(globalSkillCommand.props.command).toContain("install-skill --global");
     expect(globalSkillVisibility.component).toBe("@dash-bored/conditional");
-    expect(globalSkillVisibility.props.command).toContain(".agents/skills/dash-bored/SKILL.md");
+    expect(globalSkillVisibility.props.command).toBe("dash-bored install-skill --global --check");
     expect(skillCommand.id).toBe("install-dash-bored-skill");
     expect(skillCommand.props.command).toContain("install-skill .");
     expect(skillVisibility.component).toBe("@dash-bored/conditional");
-    expect(skillVisibility.props.command).toContain(".agents/skills/dash-bored/SKILL.md");
+    expect(skillVisibility.props.command).toBe("dash-bored install-skill . --check");
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
     expect(agentCommand.component).toBe("@dash-bored/command");
     expect(agentCommand.props.command).toContain("dash-bored");

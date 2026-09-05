@@ -284,12 +284,12 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
     conditional(
       "show-install-dash-bored-cli",
-      "test -L \"$HOME/.local/bin/dash-bored\" && \"$HOME/.local/bin/dash-bored\" --version >/dev/null 2>&1",
+      "dash-bored install-cli --check",
       {
         id: "install-dash-bored-cli",
         component: "@dash-bored/command",
         props: {
-          label: "Install dash-bored CLI in ~/.local/bin",
+          label: "Install or update dash-bored CLI in ~/.local/bin",
           command: "dash-bored install-cli",
           cwd: ".",
         },
@@ -297,12 +297,12 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     ),
     conditional(
       "show-install-dash-bored-global-skill",
-      "test -f \"$HOME/.agents/skills/dash-bored/SKILL.md\"",
+      "dash-bored install-skill --global --check",
       {
         id: "install-dash-bored-global-skill",
         component: "@dash-bored/command",
         props: {
-          label: "Install dash-bored skill globally",
+          label: "Install or update dash-bored skill globally",
           command: "dash-bored install-skill --global",
           cwd: ".",
         },
@@ -310,12 +310,12 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     ),
     conditional(
       "show-install-dash-bored-skill",
-      "test -f \".agents/skills/dash-bored/SKILL.md\"",
+      "dash-bored install-skill . --check",
       {
         id: "install-dash-bored-skill",
         component: "@dash-bored/command",
         props: {
-          label: "Install portable dash-bored skill for this project",
+          label: "Install or update portable dash-bored skill for this project",
           command: "dash-bored install-skill .",
           cwd: ".",
         },

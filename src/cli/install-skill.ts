@@ -7,19 +7,22 @@ import {
   open,
   readFile,
   realpath,
+  rename,
   stat,
   symlink,
   unlink,
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { DASH_BORED_SKILL_FILES } from "./skill-payload";
+import { DASH_BORED_SKILL_FILES, skillContentHash } from "./skill-payload";
 
 const SKILL_FILES = Object.entries(DASH_BORED_SKILL_FILES);
 
 export interface InstallSkillOptions {
   /** Install below the current user's home directory instead of a project. */
   global?: boolean;
+  /** Read-only verification; rejects missing, stale, or conflicting installs. */
+  check?: boolean;
   /** Override the home directory for tests or an explicitly selected user scope. */
   homeDirectory?: string;
 }
@@ -29,16 +32,18 @@ export interface InstallSkillResult {
   skillPath: string;
   claudeSkillPath: string;
   created: string[];
+  updated: string[];
   linked: string[];
 }
 
-async function ensureDirectory(path: string, label: string): Promise<void> {
+async function ensureDirectory(path: string, label: string, check = false): Promise<void> {
   try {
     const info = await lstat(path);
     if (info.isSymbolicLink()) throw new Error(`${label} must not be a symbolic link: ${path}`);
     if (!info.isDirectory()) throw new Error(`${label} is not a directory: ${path}`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if (check) throw new Error(`Missing ${label}: ${path}`);
     await mkdir(path);
   }
 }
@@ -56,7 +61,7 @@ async function existingContents(path: string): Promise<string | null> {
   }
 }
 
-async function writeExclusiveAtomic(path: string, contents: string): Promise<void> {
+async function writeExclusiveAtomic(path: string, contents: string, previous: string | null = null): Promise<void> {
   const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   const handle = await open(
     temporaryPath,
@@ -69,7 +74,12 @@ async function writeExclusiveAtomic(path: string, contents: string): Promise<voi
     await handle.sync();
     await handle.close();
     closed = true;
-    await link(temporaryPath, path);
+    if (previous === null) {
+      await link(temporaryPath, path);
+    } else {
+      if (await existingContents(path) !== previous) throw new Error(`Skill file changed during update: ${path}`);
+      await rename(temporaryPath, path);
+    }
   } finally {
     if (!closed) await handle.close().catch(() => undefined);
     await unlink(temporaryPath).catch(() => undefined);
@@ -120,36 +130,51 @@ export async function installDashBoredSkill(
   const claudePath = join(projectRoot, ".claude");
   const claudeSkillsPath = join(claudePath, "skills");
   const claudeSkillPath = join(claudeSkillsPath, "dash-bored");
-  await ensureDirectory(agentsPath, "agent configuration directory");
-  await ensureDirectory(skillsPath, "agent skills directory");
-  await ensureDirectory(skillPath, "dash-bored skill directory");
-  await ensureDirectory(claudePath, "Claude configuration directory");
-  await ensureDirectory(claudeSkillsPath, "Claude skills directory");
+  await ensureDirectory(agentsPath, "agent configuration directory", options.check);
+  await ensureDirectory(skillsPath, "agent skills directory", options.check);
+  await ensureDirectory(skillPath, "dash-bored skill directory", options.check);
+  await ensureDirectory(claudePath, "Claude configuration directory", options.check);
+  await ensureDirectory(claudeSkillsPath, "Claude skills directory", options.check);
   for (const relativePath of SKILL_FILES.map(([path]) => path)) {
     const directory = dirname(join(skillPath, relativePath));
     if (directory !== skillPath) {
-      await ensureDirectory(directory, "dash-bored skill support directory");
+      await ensureDirectory(directory, "dash-bored skill support directory", options.check);
     }
   }
 
+  const receipt = await existingContents(join(skillPath, "skill-version.json"));
+  let previousHashes: Record<string, string> = {};
+  if (receipt !== null) {
+    try {
+      const value = JSON.parse(receipt);
+      if (typeof value.skillVersion !== "string" || (value.files !== undefined &&
+        (value.files === null || typeof value.files !== "object" || Array.isArray(value.files) ||
+          !Object.values(value.files).every((hash) => typeof hash === "string" && /^[a-f0-9]{64}$/.test(hash))))) throw new Error();
+      previousHashes = value.files ?? {};
+    } catch {
+      throw new Error(`Invalid dash-bored skill receipt; preserve or move it before reinstalling: ${skillPath}/skill-version.json`);
+    }
+  }
   const files = await Promise.all(SKILL_FILES.map(async ([relativePath, source]) => {
     const destination = join(skillPath, relativePath);
     const existing = await existingContents(destination);
-    if (existing !== null && existing !== source) {
-      throw new Error(
-        `Refusing to overwrite a modified dash-bored skill file: ${destination}`,
-      );
+    if (existing !== null && existing !== source && relativePath !== "skill-version.json" &&
+      previousHashes[relativePath] !== skillContentHash(existing)) {
+      throw new Error(`Refusing to overwrite a modified dash-bored skill file: ${destination}. Move your customized skill aside, then reinstall.`);
     }
+    if (options.check && existing !== source) throw new Error(`Missing or stale dash-bored skill file: ${destination}`);
     return { relativePath, source, destination, existing };
   }));
   const aliasExists = await existingSkillAlias(claudeSkillPath, skillPath);
 
+  if (options.check && !aliasExists) throw new Error(`Missing agent skill alias: ${claudeSkillPath}`);
   const created: string[] = [];
+  const updated: string[] = [];
   for (const file of files) {
-    if (file.existing !== null) continue;
+    if (file.existing === file.source) continue;
     try {
-      await writeExclusiveAtomic(file.destination, file.source);
-      created.push(file.relativePath);
+      await writeExclusiveAtomic(file.destination, file.source, file.existing);
+      (file.existing === null ? created : updated).push(file.relativePath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       if (await existingContents(file.destination) !== file.source) {
@@ -174,5 +199,5 @@ export async function installDashBoredSkill(
     }
   }
 
-  return { projectRoot, skillPath, claudeSkillPath, created, linked };
+  return { projectRoot, skillPath, claudeSkillPath, created, updated, linked };
 }

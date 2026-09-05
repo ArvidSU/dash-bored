@@ -36,10 +36,13 @@ export function Diagnostics({
 }): ReactNode {
   if (diagnostics.length === 0) return null;
   const errors = diagnostics.filter((item) => item.severity === "error").length;
-  const warnings = diagnostics.length - errors;
+  const warnings = diagnostics.filter((item) => item.severity === "warning").length;
+  const notices = diagnostics.filter((item) => item.severity === "info").length;
+  const canRepairConfiguration = diagnostics.some((item) => !item.code.startsWith("INSTALLED_TOOL_"));
   const summary = [
     errors ? `${errors} ${errors === 1 ? "error" : "errors"}` : null,
     warnings ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : null,
+    notices ? `${notices} ${notices === 1 ? "notice" : "notices"}` : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -47,10 +50,10 @@ export function Diagnostics({
   return (
     <details className="diagnostics" open={errors > 0}>
       <summary>
-        <span>Configuration diagnostics</span>
+        <span>{canRepairConfiguration ? "Configuration diagnostics" : "Installed tools"}</span>
         <span className="diagnostics__header-actions">
-          <span className={errors ? "badge badge--error" : "badge badge--warning"}>{summary}</span>
-          <button
+          <span className={errors ? "badge badge--error" : warnings ? "badge badge--warning" : "badge"}>{summary}</span>
+          {canRepairConfiguration ? <button
             className="button button--quiet button--small diagnostics__fix"
             type="button"
             disabled={pending}
@@ -61,7 +64,7 @@ export function Diagnostics({
             }}
           >
             {pending ? "Starting…" : "Fix with agent"}
-          </button>
+          </button> : null}
         </span>
       </summary>
       <ul>
