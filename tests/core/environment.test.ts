@@ -1,15 +1,35 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import { environmentSnapshot, mergeEnvironment, readBundleEnvironment } from "../../src/core/environment";
 import { CapabilityService } from "../../src/core/capabilities";
 import { ProcessManager } from "../../src/core/process-manager";
+import type { ResolvedComponentNode } from "../../src/shared/contracts";
 
 const temporaryRoots: string[] = [];
 
+function findLinkedNode(node: ResolvedComponentNode | null): ResolvedComponentNode | null {
+  if (!node) return null;
+  if (node.sourceConfigPath?.includes("/arvid/dash-bored.yaml")) return node;
+  const children = node.children;
+  if (!children) return null;
+  if (children.type === "managed") {
+    for (const item of children.items) {
+      const found = findLinkedNode(item.node);
+      if (found) return found;
+    }
+    return null;
+  }
+  const visit = (layout: typeof children.layout): ResolvedComponentNode | null => {
+    if (layout.type === "child") return findLinkedNode(layout.child.node);
+    return visit(layout.first) ?? visit(layout.second);
+  };
+  return visit(children.layout);
+}
+
 afterEach(async () => {
-  for (const root of temporaryRoots.splice(0)) await Bun.$`rm -rf ${root}`;
+  for (const root of temporaryRoots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 
 async function bundle(values: string): Promise<string> {
@@ -49,10 +69,62 @@ describe("environment contracts", () => {
   });
 
   test("keeps named and linked bundle environment isolated", async () => {
-    const first = await bundle("DASH_BORED_AGENT=first\n");
-    const second = await bundle("DASH_BORED_AGENT=second\n");
-    expect(await readBundleEnvironment(first)).toEqual({ DASH_BORED_AGENT: "first" });
-    expect(await readBundleEnvironment(second)).toEqual({ DASH_BORED_AGENT: "second" });
+    const root = await mkdtemp(join(tmpdir(), "dash-bored-runtime-env-"));
+    temporaryRoots.push(root);
+    const dashboard = join(root, ".dash-bored");
+    const named = join(dashboard, "arvid");
+    await mkdir(join(named, "components"), { recursive: true });
+    await writeFile(join(dashboard, ".env"), "DASH_BORED_AGENT=canonical\n", "utf8");
+    await writeFile(join(named, ".env"), "DASH_BORED_AGENT=named\n", "utf8");
+    await writeFile(join(dashboard, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n", "utf8");
+    await writeFile(join(named, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n", "utf8");
+    await writeFile(join(named, "dash-bored.yaml"), [
+      "schemaVersion: 2",
+      "name: Named",
+      "root:",
+      "  id: named-command",
+      "  component: '@dash-bored/command'",
+      "  props:",
+      "    label: Named",
+      "    command: 'sleep 30'",
+    ].join("\n") + "\n", "utf8");
+    await writeFile(join(dashboard, "dash-bored.yaml"), [
+      "schemaVersion: 2",
+      "name: Canonical",
+      "root:",
+      "  id: linked-bundle",
+      "  component: ./arvid",
+    ].join("\n") + "\n", "utf8");
+
+    const { ProjectRuntime, TrustStore } = await import("../../src/core");
+    const runtime = new ProjectRuntime({
+      trustStore: new TrustStore(join(root, ".state", "trust.json")),
+      getPublishedEnvironment: () => ({}),
+    });
+    try {
+      const loaded = await runtime.load(root);
+      const linked = await runtime.trust();
+      const linkedNode = findLinkedNode(linked.tree);
+      expect(loaded.diagnostics).toEqual([]);
+      expect(linkedNode?.sourceConfigPath).toBe(await realpath(join(named, "dash-bored.yaml")));
+      expect(linked.environmentByNode?.[linkedNode!.id]?.values[0]).toEqual({
+        key: "DASH_BORED_AGENT", value: "named", source: "bundle",
+      });
+      const shell = await runtime.runShell({ nodeId: linkedNode!.id, command: "printf '%s' \"$DASH_BORED_AGENT\"" });
+      expect(shell.stdout).toBe("named");
+      await runtime.startProcess(linkedNode!.id);
+      const runningPid = runtime.getSnapshot().processes.find((process) => process.id === linkedNode!.id)?.pid;
+      expect(runningPid).toBeNumber();
+      await writeFile(join(named, ".env"), "DASH_BORED_AGENT=refreshed\n", "utf8");
+      const refreshed = await runtime.refreshEnvironment();
+      expect(refreshed.environmentByNode?.[linkedNode!.id]?.values[0]?.value).toBe("refreshed");
+      expect(runtime.getSnapshot().processes.find((process) => process.id === linkedNode!.id)?.pid).toBe(runningPid);
+      const nextShell = await runtime.runShell({ nodeId: linkedNode!.id, command: "printf '%s' \"$DASH_BORED_AGENT\"" });
+      expect(nextShell.stdout).toBe("refreshed");
+      expect(await readFile(join(named, ".env"), "utf8")).toContain("refreshed");
+    } finally {
+      await runtime.close();
+    }
   });
 
   test("passes environment precedence to real process and capability launches", async () => {
