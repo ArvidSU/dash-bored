@@ -4,6 +4,19 @@ import { resolve } from "node:path";
 import { generateComponentReference } from "../../scripts/generate-component-reference";
 
 describe("generated built-in component reference", () => {
+  test("shipped guidance references only catalog components or the authoring API", async () => {
+    const { listBuiltinManifests } = await import("../../src/core/builtins");
+    const known = new Set(["@dash-bored/component", ...listBuiltinManifests().map((manifest) => manifest.id)]);
+    const guidance = await Promise.all(["SKILL.md", "references/components.md", "references/builtins.md"].map((file) =>
+      readFile(resolve(import.meta.dirname, "../../skills/dash-bored", file), "utf8"),
+    ));
+    for (const source of guidance) {
+      for (const [reference] of source.matchAll(/@dash-bored\/[a-z][a-z0-9-]*/g)) {
+        expect(known.has(reference)).toBeTrue();
+      }
+    }
+  });
+
   test("matches the committed file byte-for-byte", async () => {
     const committed = await readFile(
       resolve(import.meta.dirname, "../../skills/dash-bored/references/builtins.md"),

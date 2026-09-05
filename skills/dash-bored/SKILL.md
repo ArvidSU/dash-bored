@@ -12,9 +12,12 @@ and repeatable tasks over decorative examples.
 
 ## Start from the project
 
-Read the project's instructions and inspect its actual scripts, services,
-documentation, and existing `.dash-bored/` tree before editing. Preserve
-unrelated work and existing dashboard workflows.
+Read the project's instructions, README, and one relevant workflow source
+(such as `package.json`, a task file, or compose configuration) once. Inspect
+its existing `.dash-bored/` tree and preserve unrelated work and workflows.
+Start with those bounded inputs; follow additional files only to resolve a
+specific command, path, or contract question. Dashboard authoring should not
+require exploring the dash-bored application's source tree.
 
 The desktop app puts its matching CLI on `PATH`, so use `dash-bored` directly.
 Available commands: `init`, `install-cli`, `install-skill`, `open`,
@@ -176,8 +179,9 @@ and validation loop shipped with this dash-bored version. Essentials:
   with `process:observe`. Resource nodes require stable IDs, and palette
   start/stop actions derive from these resources.
 - TSX imports only contained relative files plus `@dash-bored/component`
-  (`defineComponent`, hooks); no bare package imports, no Node/Electrobun
-  APIs, nothing outside the component directory. Register palette actions via
+  (`defineComponent`, hooks); the shared `react` and JSX runtimes are also
+  supported. Other bare package imports, Node/Electrobun APIs, and files
+  outside the component directory are unsupported. Register palette actions via
   `host.actions.register` (IDs: letter-first, letters/digits/`_`/`-`) and
   return its disposer from the effect. Render projected children through the
   generic child surface.
@@ -189,7 +193,12 @@ and validation loop shipped with this dash-bored version. Essentials:
 
 ## Verify UI changes visually
 
-For renderer UI work, start the isolated proof fixture with `bun run
+For a project dashboard, reload it in the installed app and exercise the
+changed visible workflow when available. The commands below are specific to
+a checkout of the dash-bored application; do not assume another project owns
+its fixture, test scripts, or source tree.
+
+For renderer UI work in the dash-bored application, start the isolated proof fixture with `bun run
 ui:fixture`, then open `http://127.0.0.1:5488/ui-harness.html` in the available
 browser-control surface. It mounts the normal `App` with deterministic fixture
 data — inspect the actual CSS, sidebar, tabs, component library, and tiled
