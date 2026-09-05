@@ -12,6 +12,7 @@ import type {
 } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveContainedPath, resolveUncontainedPath } from "./paths";
+import { resolveEnvironment, type PublishedEnvironment } from "./environment";
 
 const DEFAULT_FILE_LIMIT = 1024 * 1024;
 const DEFAULT_IMAGE_LIMIT = 2 * 1024 * 1024;
@@ -77,6 +78,8 @@ export interface CapabilityContext {
   projectRootsByNode?: ReadonlyMap<string, string>;
   /** Bundle directory per node; used to resolve dashboard-owned image paths. */
   configDirectoriesByNode?: ReadonlyMap<string, string>;
+  configPathsByNode?: ReadonlyMap<string, string>;
+  getPublishedEnvironment?: PublishedEnvironment;
 }
 
 export interface CapabilityLimits {
@@ -388,7 +391,7 @@ export class CapabilityService {
     const subprocess = Bun.spawn({
       cmd: [...shell, request.command],
       cwd,
-      env: { ...process.env, ...request.env },
+      env: await resolveEnvironment(context.configPathsByNode?.get(request.nodeId), context.getPublishedEnvironment?.(), request.env),
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",

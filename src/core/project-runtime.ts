@@ -1,7 +1,9 @@
 import { watch as watchFileSystem, type FSWatcher } from "node:fs";
 import { realpath } from "node:fs/promises";
+import { dirname } from "node:path";
 import type {
   CompiledLocalComponent,
+  ComponentEnvironmentSnapshot,
   ComponentPropsValidation,
   DashboardConfig,
   DashboardConfigSource,
@@ -31,6 +33,7 @@ import {
 import { ProcessManager, type ProcessDefinition } from "./process-manager";
 import { TrustStore } from "./trust";
 import { validatePropsSchema } from "./yaml";
+import { environmentSnapshot, readBundleEnvironment, resolveEnvironment, type PublishedEnvironment } from "./environment";
 
 const DEFAULT_WATCH_DEBOUNCE_MS = 120;
 
@@ -49,6 +52,7 @@ export interface ProjectRuntimeOptions {
   onSnapshot?: (snapshot: ProjectSnapshot) => void;
   onProcess?: (snapshot: ProcessSnapshot) => void;
   watchDebounceMs?: number;
+  getPublishedEnvironment?: PublishedEnvironment;
 }
 
 export interface LoadProjectOptions {
@@ -88,6 +92,7 @@ function processDefinitions(
       definitions.push({
         id: node.id,
         command: String(command),
+        configPath: node.sourceConfigPath,
         ...(resource.interactive === true ? { interactive: true } : {}),
         ...(projectRootsByNode.get(node.id) === undefined
           ? {}
@@ -133,6 +138,7 @@ export class ProjectRuntime {
   private readonly onSnapshot?: (snapshot: ProjectSnapshot) => void;
   private readonly onProcess?: (snapshot: ProcessSnapshot) => void;
   private readonly watchDebounceMs: number;
+  private readonly getPublishedEnvironment: PublishedEnvironment;
   private readonly capabilities = new CapabilityService();
   private snapshot: ProjectSnapshot = emptySnapshot();
   private location: ProjectLocation | null = null;
@@ -148,6 +154,7 @@ export class ProjectRuntime {
     this.onSnapshot = options.onSnapshot;
     this.onProcess = options.onProcess;
     this.watchDebounceMs = options.watchDebounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS;
+    this.getPublishedEnvironment = options.getPublishedEnvironment ?? (() => ({}));
   }
 
   private emitSnapshot(): ProjectSnapshot {
@@ -241,16 +248,26 @@ export class ProjectRuntime {
       this.processManager = new ProcessManager({
         projectRoot: definition.location.projectRoot,
         onProcess: this.handleProcess,
+        getPublishedEnvironment: this.getPublishedEnvironment,
       });
     }
     await this.processManager.reconcile(
       trusted ? processDefinitions(definition.tree, definition.projectRootsByNode) : [],
     );
+    const configPathsByNode = new Map<string, string>();
+    const collectConfigPaths = (node: ResolvedComponentNode): void => {
+      configPathsByNode.set(node.id, node.sourceConfigPath ?? definition.location.configPath);
+      visitResolvedChildren(node, collectConfigPaths);
+    };
+    collectConfigPaths(definition.tree);
     this.capabilities.configure({
       projectRoot: definition.location.projectRoot,
       trusted,
       permissionsByNode: definition.permissionsByNode,
       projectRootsByNode: definition.projectRootsByNode,
+      configPathsByNode,
+      configDirectoriesByNode: new Map([...configPathsByNode].map(([id, path]) => [id, dirname(path)])),
+      getPublishedEnvironment: this.getPublishedEnvironment,
     });
     this.snapshot = {
       projectRoot: definition.location.projectRoot,
@@ -268,7 +285,50 @@ export class ProjectRuntime {
       diagnostics: definition.diagnostics,
       revision: this.snapshot.revision + 1,
     };
+    this.snapshot.environmentByNode = await this.readEnvironmentSnapshots();
     return this.emitSnapshot();
+  }
+
+  private async readEnvironmentSnapshots(): Promise<Record<string, ComponentEnvironmentSnapshot>> {
+    if (!this.snapshot.trusted || !this.snapshot.tree) return {};
+    const result: Record<string, ComponentEnvironmentSnapshot> = {};
+    const bundles = new Map<string, Promise<Record<string, string>>>();
+    const published = this.getPublishedEnvironment();
+    const visit = async (node: ResolvedComponentNode): Promise<void> => {
+      const path = node.sourceConfigPath ?? this.snapshot.configPath ?? undefined;
+      const resource = node.manifest?.resources?.process;
+      const explicit = resource?.envProp ? node.props[resource.envProp] as Record<string, string> | undefined : undefined;
+      try {
+        if (path && !bundles.has(path)) bundles.set(path, readBundleEnvironment(path));
+        result[node.id] = environmentSnapshot(path ? await bundles.get(path)! : {}, published, explicit);
+      } catch (error) {
+        result[node.id] = { ...environmentSnapshot({}, published, explicit), error: errorMessage(error) };
+      }
+      const pending: Promise<void>[] = [];
+      visitResolvedChildren(node, (child) => { pending.push(visit(child)); });
+      await Promise.all(pending);
+    };
+    await visit(this.snapshot.tree);
+    return result;
+  }
+
+  /** Refresh public environment state without reconciling or interrupting running commands. */
+  async refreshEnvironment(): Promise<ProjectSnapshot> {
+    return this.enqueue(async () => {
+      this.snapshot = {
+        ...this.snapshot,
+        environmentByNode: await this.readEnvironmentSnapshots(),
+        revision: this.snapshot.revision + 1,
+      };
+      return this.emitSnapshot();
+    });
+  }
+
+  /** Main-process launch support; deliberately absent from renderer RPC. */
+  async getLaunchEnvironment(configPath?: string, explicit: Record<string, string> = {}): Promise<Record<string, string>> {
+    if (!this.snapshot.trusted) throw new CoreError("PROJECT_UNTRUSTED", "Trust this project before starting a command.");
+    const location = await this.sourceLocation(configPath);
+    return resolveEnvironment(location.configPath, this.getPublishedEnvironment(), explicit);
   }
 
   /** Resolve an optional config-file icon without making it part of the component tree. */
@@ -574,8 +634,9 @@ export class ProjectRuntime {
     return this.capabilities.readText(request);
   }
 
-  writeText(request: FileWriteRequest): Promise<void> {
-    return this.capabilities.writeText(request);
+  async writeText(request: FileWriteRequest): Promise<void> {
+    await this.capabilities.writeText(request);
+    await this.refreshEnvironment();
   }
 
   http(request: HttpRequest): Promise<HttpResponsePayload> {

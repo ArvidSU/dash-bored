@@ -40,6 +40,11 @@ interface ComponentAction {
 }
 
 interface LocalComponentHost {
+  /** Only the configured agent command is exposed; arbitrary environment values stay in the main process. */
+  environment?: {
+    values: Array<{ key: "DASH_BORED_AGENT"; value: string; source: "app" | "process" | "bundle" | "component" | "unset" }>;
+    error?: string;
+  };
   dashboard: { reload(): Promise<void> };
   actions: { register(action: ComponentAction): () => void };
   filesystem?: {
@@ -98,6 +103,13 @@ Capability behavior is bounded:
   request time.
 - Short shell calls bound output and execution time; an optional relative
   working directory must remain inside the project root.
+- Process and shell launches receive a fresh environment assembled in this
+  order: component-declared values, app-published settings, inherited process
+  values, then the owning bundle's `.env` defaults. Bundle files are parsed as
+  dotenv data; they are never evaluated as shell code or copied into
+  `process.env`. The renderer receives only the allowlisted effective
+  `DASH_BORED_AGENT` value and its winning source, never arbitrary bundle or
+  process secrets.
 - The app-owned Agent work Diff tab runs only a fixed, argument-vector `git diff`
   scoped to the task's canonical `.dash-bored/` bundle and bounds its output to
   512 KiB. It is not exposed as an arbitrary component shell capability.

@@ -1,4 +1,4 @@
-import type { LocalComponentHost, ProcessSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { ComponentEnvironmentSnapshot, LocalComponentHost, ProcessSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import type { ActionRegistry } from "../lib/actions";
 import { ComponentWebviewSurface } from "./ComponentWebviewSurface";
 import { host } from "../lib/rpc-client";
@@ -10,6 +10,7 @@ export function createLocalHost(
   trusted: boolean,
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
   onUpdateProps: (props: Record<string, unknown>) => Promise<void>,
+  environment?: ComponentEnvironmentSnapshot,
 ): LocalComponentHost {
   const permissions = new Set(node.manifest?.permissions ?? []);
   const actionOwner = {
@@ -18,6 +19,7 @@ export function createLocalHost(
     componentName: node.manifest?.name ?? node.component,
   };
   const componentHost: LocalComponentHost = {
+    ...(trusted && environment ? { environment } : {}),
     dashboard: {
       async reload(): Promise<void> {
         await host.reloadProject();

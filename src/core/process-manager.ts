@@ -1,6 +1,7 @@
 import type { ProcessLogEntry, ProcessSnapshot } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveContainedPath } from "./paths";
+import { resolveEnvironment, type PublishedEnvironment } from "./environment";
 
 const DEFAULT_MAX_LOG_BYTES = 512 * 1024;
 const DEFAULT_MAX_LOG_ENTRIES = 2_000;
@@ -11,6 +12,8 @@ export interface ProcessDefinition {
   command: string;
   interactive?: boolean;
   projectRoot?: string;
+  /** Owning bundle, independent of the command's working directory. */
+  configPath?: string;
   cwd?: string;
   env?: Record<string, string>;
 }
@@ -21,6 +24,7 @@ export interface ProcessManagerOptions {
   maxLogBytes?: number;
   maxLogEntries?: number;
   stopGraceMs?: number;
+  getPublishedEnvironment?: PublishedEnvironment;
 }
 
 interface ManagedProcess {
@@ -42,6 +46,7 @@ function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
     command: definition.command,
     ...(definition.interactive === true ? { interactive: true } : {}),
     ...(definition.projectRoot === undefined ? {} : { projectRoot: definition.projectRoot }),
+    ...(definition.configPath === undefined ? {} : { configPath: definition.configPath }),
     ...(definition.cwd === undefined ? {} : { cwd: definition.cwd }),
     ...(definition.env === undefined ? {} : { env: { ...definition.env } }),
   };
@@ -52,6 +57,7 @@ function definitionKey(definition: ProcessDefinition): string {
     command: definition.command,
     interactive: definition.interactive === true,
     projectRoot: definition.projectRoot ?? null,
+    configPath: definition.configPath ?? null,
     cwd: definition.cwd ?? null,
     env: Object.entries(definition.env ?? {}).sort(([left], [right]) => left.localeCompare(right)),
   });
@@ -82,6 +88,7 @@ export class ProcessManager {
   private readonly maxLogBytes: number;
   private readonly maxLogEntries: number;
   private readonly stopGraceMs: number;
+  private readonly getPublishedEnvironment: PublishedEnvironment;
   private readonly processes = new Map<string, ManagedProcess>();
   private closed = false;
 
@@ -91,6 +98,7 @@ export class ProcessManager {
     this.maxLogBytes = options.maxLogBytes ?? DEFAULT_MAX_LOG_BYTES;
     this.maxLogEntries = options.maxLogEntries ?? DEFAULT_MAX_LOG_ENTRIES;
     this.stopGraceMs = options.stopGraceMs ?? DEFAULT_STOP_GRACE_MS;
+    this.getPublishedEnvironment = options.getPublishedEnvironment ?? (() => ({}));
   }
 
   private create(definition: ProcessDefinition): ManagedProcess {
@@ -265,6 +273,11 @@ export class ProcessManager {
     processState.signal = null;
 
     try {
+      const environment = await resolveEnvironment(
+        processState.definition.configPath,
+        this.getPublishedEnvironment(),
+        processState.definition.env,
+      );
       if (processState.definition.interactive) {
         const shell = process.platform === "win32"
           ? ["cmd.exe"]
@@ -273,7 +286,7 @@ export class ProcessManager {
         const subprocess = Bun.spawn({
           cmd: shell,
           cwd,
-          env: { ...process.env, ...processState.definition.env, TERM: "xterm-256color" },
+          env: { ...environment, TERM: "xterm-256color" },
           detached: process.platform !== "win32",
           terminal: {
             cols: 100,
@@ -301,7 +314,7 @@ export class ProcessManager {
       const subprocess = Bun.spawn({
         cmd: [...shell, processState.definition.command],
         cwd,
-        env: { ...process.env, ...processState.definition.env },
+        env: environment,
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",

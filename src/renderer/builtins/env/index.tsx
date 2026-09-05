@@ -17,6 +17,8 @@ import {
 
 export default function EnvEditor({ props, host: componentHost }: ComponentRendererProps): ReactNode {
   const filesystem = componentHost.filesystem;
+  const environment = componentHost.environment;
+  const effectiveAgent = environment?.values.find((entry) => entry.key === "DASH_BORED_AGENT");
   const editorId = useId().replaceAll(":", "");
   const path = stringProp(props, ["path"]);
   const [document, setDocument] = useState<EnvDocument>(() => parseEnv(""));
@@ -167,6 +169,20 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
           </button>
         </div>
       </header>
+      {effectiveAgent ? (
+        <div className="env-editor__effective" aria-label="Effective command environment">
+          <strong>Agent command</strong>
+          <code>{effectiveAgent.value.trim() || "Not configured"}</code>
+          <span>Source: {{ app: "Settings", process: "App process environment", bundle: "Bundle .env", component: "Component environment", unset: "None" }[effectiveAgent.source]}</span>
+          <p>{effectiveAgent.source === "app"
+            ? "Change the agent command in Settings → General. It overrides the bundle .env value."
+            : effectiveAgent.value.trim()
+              ? "Settings → General can set an app-wide agent command."
+              : "Open Settings → General and set the Agent command before starting agent work."}</p>
+          <p>Saved values apply to new commands. Restart an open terminal to use them.</p>
+          {environment?.error ? <p role="alert">{environment.error}</p> : null}
+        </div>
+      ) : null}
       {error ? <div className="component-state component-state--error" role="alert">{error}</div> : null}
       {mode === "raw" ? (
         <div className="env-editor__raw-wrap">

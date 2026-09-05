@@ -1431,6 +1431,7 @@ export function App(): ReactNode {
                       node={visibleVirtualRoot?.node ?? snapshot.tree}
                       trusted={snapshot.trusted}
                       processesRef={processesRef}
+                      environmentByNode={snapshot.environmentByNode}
                       localComponents={localComponents}
                       actionRegistry={actionRegistry}
                       actionScope={actionScope}

@@ -176,8 +176,6 @@ export interface ComponentAgentRequest {
   prompt: string;
 }
 
-/** Starts the generated dashboard's one built-in setup request. */
-
 export type ComponentChildLocator =
   | { type: "managed"; index: number }
   | { type: "tiled"; path: Array<"first" | "second"> };
@@ -255,6 +253,8 @@ export interface ProcessSnapshot {
 }
 
 export interface ProjectSnapshot {
+  /** Public configuration only; never the inherited process environment or bundle secrets. */
+  environmentByNode?: Record<string, ComponentEnvironmentSnapshot>;
   projectRoot: string | null;
   /** Canonical YAML currently rendered, including standalone named bundles. */
   configPath?: string | null;
@@ -439,7 +439,18 @@ export interface ComponentAction {
   run(): void | Promise<void>;
 }
 
+export interface ComponentEnvironmentSnapshot {
+  values: Array<{
+    key: "DASH_BORED_AGENT";
+    value: string;
+    source: "app" | "process" | "bundle" | "component" | "unset";
+  }>;
+  error?: string;
+}
+
 export interface LocalComponentHost {
+  /** Read-only, allowlisted configuration values and their winning source. */
+  environment?: ComponentEnvironmentSnapshot;
   dashboard: {
     reload(): Promise<void>;
     /** Replaces this component's props in the owning dashboard draft. */

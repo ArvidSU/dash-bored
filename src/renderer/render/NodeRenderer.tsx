@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { ProcessSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { ComponentEnvironmentSnapshot, ProcessSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import type { ComponentHeightOverrides } from "../lib/component-height";
 import { componentRendersSurface } from "../lib/component-height";
 import type { SplitRatioOverrides } from "./split-layout";
@@ -17,6 +17,7 @@ import { createLocalHost } from "./local-host";
 export interface NodeRendererProps {
   node: ResolvedComponentNode;
   trusted: boolean;
+  environmentByNode?: Readonly<Record<string, ComponentEnvironmentSnapshot>>;
   /**
    * Stays stable while process output arrives, so unrelated local-component
    * effects do not restart for every terminal log update. `get()` still reads
@@ -74,6 +75,7 @@ function ComponentUpdatePolish({
 export function NodeRenderer({
   node,
   trusted,
+  environmentByNode,
   processesRef,
   localComponents,
   actionRegistry,
@@ -103,6 +105,9 @@ export function NodeRenderer({
     () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, updateProps),
     [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted, updateProps],
   );
+  // Keep capability objects stable while public values update, so unsaved editor
+  // contents and long-running component effects survive environment refreshes.
+  localHost.environment = trusted ? environmentByNode?.[node.id] : undefined;
   useEffect(
     () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
     [actionRegistry, actionScope, node.id],
@@ -125,6 +130,7 @@ export function NodeRenderer({
             node={child}
             trusted={trusted}
             processesRef={processesRef}
+            environmentByNode={environmentByNode}
             localComponents={localComponents}
             actionRegistry={actionRegistry}
             actionScope={actionScope}

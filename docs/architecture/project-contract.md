@@ -59,6 +59,14 @@ values for `DASH_BORED_AGENT` and `DASH_BORED_AGENT_PROMPT`. `DASH_BORED_AGENT`
 is also app-wide: the main process persists its application setting in the
 Electrobun user-data directory, publishes it to dashboard command environments,
 and exposes it in Settings.
+
+At launch, each command or shell call resolves the `.env` beside its owning
+`dash-bored.yaml`, including when a node comes from a named or linked bundle.
+The effective order is component request, app setting, inherited process
+environment, then bundle defaults. Editing a bundle `.env` refreshes the
+displayed effective agent value while preserving unchanged running processes;
+changing app settings refreshes the same display through the runtime without
+mutating the main process environment.
 Directories selected in the desktop chooser are always treated as project
 roots, including when the selected directory itself is named `.dash-bored`.
 

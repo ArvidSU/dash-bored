@@ -179,10 +179,11 @@ installedToolDiagnostics.push(...await refreshInstalledTools({
 for (const root of registeredRoots) checkedSkillRoots.add(root);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
-process.env.DASH_BORED_AGENT = initialAppSettings.dashBoredAgent;
+let publishedEnvironment = { DASH_BORED_AGENT: initialAppSettings.dashBoredAgent };
 const dashboardAgentHarness = new DashboardAgentHarness({ onTask: sendAgentTask });
 const runtime = new ProjectRuntime({
   trustStore,
+  getPublishedEnvironment: () => publishedEnvironment,
   onSnapshot(snapshot) {
     sendSnapshot(snapshot);
     if (snapshot.projectRoot && !checkedSkillRoots.has(snapshot.projectRoot)) {
@@ -334,8 +335,9 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
-        process.env.DASH_BORED_AGENT = updated.dashBoredAgent;
+        publishedEnvironment = { DASH_BORED_AGENT: updated.dashBoredAgent };
         setApplicationMenu(updated);
+        await runtime.refreshEnvironment();
         return updated;
       },
       runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
