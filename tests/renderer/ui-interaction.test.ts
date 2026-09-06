@@ -583,8 +583,10 @@ describe("renderer fixture interactions", () => {
     if (!sourceBox || !targetBox) throw new Error("Fixture drag geometry is unavailable.");
 
     await active.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await active.waitForTimeout(100);
     await active.mouse.down();
-    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 8, { steps: 4 });
+    await active.waitForTimeout(100);
+    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 8, { steps: 12 });
     const indicator = target.locator(":scope > .composition-drop-indicator--bottom");
     await indicator.waitFor();
     const indicatorBox = await indicator.boundingBox();

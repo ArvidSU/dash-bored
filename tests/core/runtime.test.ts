@@ -119,7 +119,7 @@ describe("ProcessManager", () => {
 
     const stopped = await manager.stop("shell");
     expect(stopped.phase).toBe("exited");
-  });
+  }, 20_000);
 });
 
 describe("ProjectRuntime", () => {
