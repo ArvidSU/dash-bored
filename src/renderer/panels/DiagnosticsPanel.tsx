@@ -28,17 +28,22 @@ function DiagnosticItem({ diagnostic }: { diagnostic: Diagnostic }): ReactNode {
 export function Diagnostics({
   diagnostics,
   pending,
+  repairPending,
   onFixWithAgent,
+  onRepairInstalledTools,
 }: {
   diagnostics: Diagnostic[];
   pending: boolean;
+  repairPending: boolean;
   onFixWithAgent: () => void;
+  onRepairInstalledTools: () => void;
 }): ReactNode {
   if (diagnostics.length === 0) return null;
   const errors = diagnostics.filter((item) => item.severity === "error").length;
   const warnings = diagnostics.filter((item) => item.severity === "warning").length;
   const notices = diagnostics.filter((item) => item.severity === "info").length;
   const canRepairConfiguration = diagnostics.some((item) => !item.code.startsWith("INSTALLED_TOOL_"));
+  const canRepairInstalledTools = diagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT");
   const summary = [
     errors ? `${errors} ${errors === 1 ? "error" : "errors"}` : null,
     warnings ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : null,
@@ -53,10 +58,23 @@ export function Diagnostics({
         <span>{canRepairConfiguration ? "Configuration diagnostics" : "Installed tools"}</span>
         <span className="diagnostics__header-actions">
           <span className={errors ? "badge badge--error" : warnings ? "badge badge--warning" : "badge"}>{summary}</span>
+          {canRepairInstalledTools ? <button
+            className="button button--quiet button--small diagnostics__fix"
+            type="button"
+            disabled={pending || repairPending}
+            title="Move the conflicting installed tools to Trash, then install the current version"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onRepairInstalledTools();
+            }}
+          >
+            {repairPending ? "Reinstalling…" : "Remove old and reinstall"}
+          </button> : null}
           {canRepairConfiguration ? <button
             className="button button--quiet button--small diagnostics__fix"
             type="button"
-            disabled={pending}
+            disabled={pending || repairPending}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();

@@ -192,6 +192,17 @@ describe("renderer fixture interactions", () => {
     await settings.getByRole("tab", { name: "General" }).waitFor();
     expect(await settings.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
 
+    const agentInput = settings.getByRole("textbox", { name: "DASH_BORED_AGENT" });
+    expect(await settings.getByRole("button", { name: "Clear app-wide DASH_BORED_AGENT setting", exact: true }).count()).toBe(0);
+    await agentInput.fill("");
+    await settings.locator(".settings-agent").getByRole("button", { name: "Save", exact: true }).click();
+    await active.getByRole("status").getByText("App-wide DASH_BORED_AGENT cleared; the project .env will be used when available.", { exact: true }).waitFor();
+    await active.waitForFunction(() => (document.querySelector<HTMLInputElement>("#dash-bored-agent")?.value ?? "") === "");
+    expect(await agentInput.inputValue()).toBe("");
+    await agentInput.fill("codex exec");
+    await settings.locator(".settings-agent").getByRole("button", { name: "Save", exact: true }).click();
+    expect(await agentInput.inputValue()).toBe("codex exec");
+
     await settings.getByRole("tab", { name: "Actions" }).click();
     expect(await settings.getByRole("tab", { name: "Actions" }).getAttribute("aria-selected")).toBe("true");
     await settings.getByRole("searchbox", { name: "Search actions" }).fill("reload app");
@@ -344,6 +355,48 @@ describe("renderer fixture interactions", () => {
       await host.setDiagnostics([]);
     });
     await activity.getByRole("button", { name: "Close", exact: true }).click();
+    await active.setViewportSize({ width: 1280, height: 800 });
+  }, 20_000);
+
+  test("installed-tool conflicts can be replaced without launching an agent", async () => {
+    const active = currentPage();
+    await active.setViewportSize({ width: 390, height: 844 });
+    await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      await host.setDiagnostics([
+        {
+          severity: "warning",
+          code: "INSTALLED_TOOL_UPDATE_CONFLICT",
+          file: "/Users/fixture/.agents/skills/dash-bored",
+          message: "The installed skill has local changes.",
+        },
+        {
+          severity: "warning",
+          code: "INSTALLED_TOOL_UPDATE_CONFLICT",
+          file: "/Users/fixture/.local/bin/dash-bored",
+          message: "The installed CLI link points to another executable.",
+        },
+      ]);
+    });
+
+    const diagnostics = active.locator("details.diagnostics");
+    await diagnostics.getByText("Installed tools", { exact: true }).waitFor();
+    const repair = diagnostics.getByRole("button", { name: "Remove old and reinstall", exact: true });
+    await repair.waitFor();
+    const tasksBefore = await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      return (await host.getDashboardAgentTasks()).length;
+    });
+    await repair.click();
+    await active.getByRole("status").getByText("Moved the old installed tools to Trash and installed the current dash-bored tools.", { exact: true }).waitFor();
+    expect(await diagnostics.count()).toBe(0);
+    expect(await active.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      return (await host.getDashboardAgentTasks()).length;
+    })).toBe(tasksBefore);
     await active.setViewportSize({ width: 1280, height: 800 });
   }, 20_000);
 
@@ -1003,6 +1056,16 @@ describe("renderer fixture interactions", () => {
       });
       await editor.locator(".env-editor__effective").getByText("fixture-agent --run", { exact: true }).waitFor();
       expect(await editor.getByRole("textbox", { name: "Variable value for DASH_BORED_AGENT", exact: true }).inputValue()).toBe("bundle-agent");
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        await host.updateAppSettings({ ...await host.getAppSettings(), dashBoredAgent: null });
+      });
+      await editor.locator(".env-editor__effective").getByText("bundle-agent", { exact: true }).waitFor();
+      await editor.getByText("Source: Bundle .env", { exact: true }).waitFor();
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        await host.updateAppSettings({ ...await host.getAppSettings(), dashBoredAgent: "codex exec" });
+      });
     } finally {
       await proof.close();
     }

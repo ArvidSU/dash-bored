@@ -65,6 +65,9 @@ describe("environment contracts", () => {
     expect(environmentSnapshot(parsed, published, explicit)).toEqual({
       values: [{ key: "DASH_BORED_AGENT", value: "component command", source: "component" }],
     });
+    expect(environmentSnapshot(parsed, {}, {}, {})).toEqual({
+      values: [{ key: "DASH_BORED_AGENT", value: "bundle command", source: "bundle" }],
+    });
     expect(process.env.DASH_BORED_AGENT).not.toBe("component command");
   });
 

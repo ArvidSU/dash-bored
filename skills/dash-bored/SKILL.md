@@ -21,7 +21,9 @@ require exploring the dash-bored application's source tree.
 
 The desktop app puts its matching CLI on `PATH`, so use `dash-bored` directly.
 Available commands: `init`, `install-cli`, `install-skill`, `open`,
-`validate`, `inspect`, `agent`. Run `dash-bored inspect .` before composing:
+`validate`, `inspect`, `agent`. Start with `dash-bored inspect . --summary`
+to select components, then `dash-bored inspect . --component <reference>`
+for each selected contract. Full `dash-bored inspect .` is available when needed:
 its `componentCatalog` is the version-authoritative description of every
 available built-in and local component. For each entry, use
 `manifest.propsSchema` for props, `manifest.children` for child cardinality
@@ -38,6 +40,12 @@ bundle owns its own `dash-bored.yaml`, `dash-bored-lock.yaml`, `.env`, and
 organization, not inheritance: they share nothing implicitly. Compose one by
 referencing its bundle path as a component (e.g. `component: "./arvid"`); it
 renders in the allocated rectangle with its own lock, env, and components.
+
+Keep discovery output bounded: save full JSON to a temporary file if needed and
+extract selected fields rather than printing the whole catalog repeatedly. Read
+only the relevant reference sections. Use available search tools, falling back
+to `find`/`grep` when `rg` is absent. Check `git rev-parse --is-inside-work-tree`
+before using Git status/diff; outside Git, compare the files you actually changed.
 
 ## Compose the dashboard
 
@@ -66,7 +74,17 @@ Structure:
   bounded shell `command` succeeds; `invert: true` means "show until done"
   for setup/recovery actions. Optional `cwd`, `env`, `timeoutMs`,
   `pollIntervalMs`. Requires `process:execute`, polls only while its panel is
-  visible, and fails open before trust or when the check cannot run.
+  visible, and fails open before trust or when the check cannot run. It is a recovery
+  visibility control, not a health observation: never wrap a positive healthy
+  indicator in a conditional or pair inverted conditions as a health state.
+  Use one bounded observation with explicit unknown/healthy/unavailable states;
+  a small local HTTP component is appropriate for a plain health endpoint.
+
+Keep additions tied to the requested workflows. A raw JSON health endpoint does
+not need a webview; extra permissions need a project-specific use. Add todo lists only for actual
+project work items or an explicit request, not as a checklist repeating buttons.
+Update an existing YAML file in place, or write a complete replacement atomically;
+do not delete and re-add the same path in one patch operation.
 
 Pick components by need:
 
@@ -107,44 +125,12 @@ project file and exposes a refresh action (`project-pulse`); a component that
 turns config entries into palette actions (`package-scripts` reads
 `package.json` scripts); a bounded-shell observer panel (`git-branches`).
 
-## Respect app-owned behavior
+## App runtime boundaries
 
-These are renderer/app state, never YAML — do not try to configure them:
-
-- **Draft Save/Cancel.** The component-library flyout opens read-only; the
-  first insertion, move, removal, replacement, metadata edit, or ratio resize
-  starts a draft. Save validates and atomically publishes the owning bundle's
-  YAML; Cancel discards it. The per-node Edit dialog edits declared props and
-  child metadata through the same boundary.
-- **Presentation state.** Collapse/expand, Focus-as-temporary-root (with
-  breadcrumbs back), runtime split-ratio drags, and surface height caps are
-  per-user, keyed by config path and node ID, persisted locally. They never
-  change YAML. Collapsing unmounts a subtree (stops polling/views) but does
-  not stop a running command process.
-- **Command palette** (`Command/Ctrl+K`) merges app navigation/lifecycle,
-  per-node Focus actions, process start/stop derived from declared resources,
-  and actions registered by mounted local components. Known actions stay
-  searchable while unavailable, with a reason. Users favorite actions and
-  assign shortcuts in Settings (General/Actions tabs); favorites sort first
-  without bypassing trust or availability.
-- **Node menu.** Every rendered node offers Focus, Edit component, Collapse /
-  Expand, Copy component path (a YAML locator for agent prompts), and Change
-  with agent.
-- **Agent integration.** The app-wide `DASH_BORED_AGENT` setting (Settings →
-  General; starter `.env` holds an editable default) selects the CLI used by
-  Change-with-agent, Fix-with-agent (in diagnostics details), the Agent work
-  drawer (Working/Not working items with terminal / bundle-diff / full-command
-  tabs), and the flyout's natural-language "build a component" fallback. Agent
-  context travels in `DASH_BORED_AGENT_PROMPT` as one quoted argument. This is
-  a narrow harness around the user's CLI, not a provider integration.
-- **Trust.** One project-level decision over the union of all resolved
-  component permissions, keyed by canonical project root. Untrusted projects
-  still parse and render safe layout/inline content but cannot compile local
-  code, run commands, touch files, fetch HTTP, or embed webviews. Adding a
-  permission invalidates trust and asks again.
-- **Reload vs recovery.** `Reload dashboard` rereads config and keeps the
-  last-known-good tree on validation failure. `Reload app` only reloads the
-  renderer window.
+Trust gates host capabilities. Adding permissions requires a new user trust
+decision. Drafts, focus, collapse, shortcuts and agent-task state belong to the
+app; do not invent YAML settings for them. For work involving these features,
+read [references/app-runtime.md](references/app-runtime.md).
 
 ## Environment and secrets
 
@@ -152,8 +138,10 @@ Put editable runtime choices in the bundle-local `.env`. The runtime loads
 it as data for processes and bounded shell calls from the component's owning
 bundle; commands do not need to source it. Explicit command/request env values
 override app settings, inherited process values, and bundle defaults, in that
-order. The environment panel shows the effective agent command and its source.
-Saving defaults changes future launches without restarting existing terminals.
+order. The app-wide `DASH_BORED_AGENT` setting can be cleared by saving an
+empty Settings field so the owning bundle's `.env` value can win. The environment panel shows the
+effective agent command and its source. Saving defaults changes future launches
+without restarting existing terminals.
 Never put secrets in dashboard YAML, and do not assume `.env` is git-ignored.
 Setup generates its prompt at launch; do not copy it into YAML or `.env`.
 
@@ -170,8 +158,11 @@ capability of the product, not a last resort — in the owning
 bundle's `components/<name>/` directory with `component.yaml`, `index.tsx`,
 and optional relative TS/TSX/CSS. Reference it as `./components/<name>`.
 
-Read [references/components.md](references/components.md) before authoring.
-It defines the manifest, renderer API, capability mapping, import boundary,
+Consult [references/components.md](references/components.md) by section:
+**Local component layout**, **TSX contract**, and **HTTP and bounded shell payloads**
+cover a leaf observer. Read **Child projection and managed tabs** only for local
+containers, and the worked Git example only for Git observers. Do not read the
+whole reference for a simple leaf component. It defines the manifest, renderer API, capability mapping, import boundary,
 and validation loop shipped with this dash-bored version. Essentials:
 
 - Manifest: `schemaVersion: 2`, `id`, `name`, `description`, `entry`,
@@ -198,7 +189,7 @@ and validation loop shipped with this dash-bored version. Essentials:
   generic child surface.
 - Validation loop: reuse a built-in if one fits → add manifest + code → add
   the node to the owning `dash-bored.yaml` → `dash-bored validate .` (also
-  compiles local code) → `dash-bored inspect .` to confirm catalog
+  compiles local code) → `dash-bored inspect . --component <reference>` to confirm catalog
   availability, permissions, and tree placement. Keep privileged behavior
   visible, bounded, and user-initiated where practical.
 
@@ -228,8 +219,9 @@ user-owned watcher just to obtain a smoke test.
 
 Run `dash-bored validate .` after editing. Resolve validation or compilation
 errors rather than leaving the dashboard on its last-known-good snapshot. Run
-`dash-bored inspect .` again and confirm the resolved tree and catalog match
-the intended configuration.
+`dash-bored inspect . --summary` again and check diagnostics and permissions.
+Inspect individual new component contracts as needed; request the full tree only
+when placement cannot be verified from the owning YAML.
 
 Summarize the useful workflows exposed, any permissions added, and which
 runtime or native interactions were not exercised.

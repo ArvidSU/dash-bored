@@ -31,7 +31,7 @@ export default function SetupAgent({ host }: ComponentRendererProps): ReactNode 
   return (
     <div className="setup-agent">
       <strong>Dashboard agent</strong>
-      <span>{missing ? "Choose a CLI agent in Settings → General → Dashboard agent." : `Runs ${command}`}</span>
+      <span>{missing ? "Set an agent in Settings or declare DASH_BORED_AGENT in this bundle's .env." : `Runs ${command}`}</span>
       {configured && !missing ? <small>Command source: {configured.source === "app" ? "App settings" : configured.source}</small> : null}
       <button className="button button--primary" type="button" onClick={() => void start()} disabled={pending}>
         {pending ? "Starting…" : "Set up this dashboard"}

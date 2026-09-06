@@ -16,6 +16,8 @@ import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DASH_BORED_SKILL_FILES, skillContentHash } from "./skill-payload";
 
+import { LEGACY_SKILL_PAYLOADS } from "./legacy-skill-hashes";
+
 const SKILL_FILES = Object.entries(DASH_BORED_SKILL_FILES);
 
 export interface InstallSkillOptions {
@@ -153,6 +155,18 @@ export async function installDashBoredSkill(
       previousHashes = value.files ?? {};
     } catch {
       throw new Error(`Invalid dash-bored skill receipt; preserve or move it before reinstalling: ${skillPath}/skill-version.json`);
+    }
+  }
+  if (receipt === null) {
+    for (const payload of LEGACY_SKILL_PAYLOADS) {
+      const legacyMatches = await Promise.all(Object.entries(payload.files).map(async ([path, hash]) => {
+        const contents = await existingContents(join(skillPath, path));
+        return contents !== null && skillContentHash(contents) === hash;
+      }));
+      if (legacyMatches.every(Boolean)) {
+        previousHashes = { ...payload.files };
+        break;
+      }
     }
   }
   const files = await Promise.all(SKILL_FILES.map(async ([relativePath, source]) => {

@@ -5,8 +5,10 @@ import Electrobun, {
   Updater,
   Utils,
 } from "electrobun/main";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
+import { resolveEnvironment } from "../core/environment";
 import type {
   Diagnostic,
   DashboardAgentTask,
@@ -24,14 +26,19 @@ import {
 } from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
 import { keyboardShortcutAccelerator } from "../shared/keyboard-shortcut";
-import { AppSettingsStore } from "./app-settings";
+import { AppSettingsStore, resolveDashBoredAgent } from "./app-settings";
 import { DashboardAgentHarness } from "./component-agent";
 import { assertAgentAvailable } from "./agent-preflight";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment } from "./tool-environment";
-import { updateInstalledTools } from "./installed-tools";
+import {
+  installedCliPath,
+  installedSkillPath,
+  repairInstalledTools as repairInstalledToolConflicts,
+  updateInstalledTools,
+} from "./installed-tools";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
 
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
@@ -146,6 +153,74 @@ async function refreshInstalledTools(options: Parameters<typeof updateInstalledT
   }
 }
 
+function installedSkillRootFromDiagnostic(file: string): string | null {
+  const resolvedFile = resolve(file);
+  const root = resolve(resolvedFile, "..", "..", "..");
+  return installedSkillPath(root) === resolvedFile ? root : null;
+}
+
+function replaceInstalledToolDiagnostics(paths: readonly string[], next: readonly Diagnostic[]): void {
+  const replaced = new Set(paths.map((path) => resolve(path)));
+  const retained = installedToolDiagnostics.filter((diagnostic) =>
+    diagnostic.file === undefined || !replaced.has(resolve(diagnostic.file)),
+  );
+  installedToolDiagnostics.splice(0, installedToolDiagnostics.length, ...retained, ...next);
+}
+
+async function repairInstalledToolConflictsForUser(): Promise<ProjectSnapshot> {
+  const home = resolve(homedir());
+  const cliTarget = installedCliPath(home);
+  const globalSkillTarget = installedSkillPath(home);
+  let repairCli = false;
+  let repairGlobalSkill = false;
+  const projectRoots = new Set<string>();
+
+  for (const diagnostic of installedToolDiagnostics) {
+    if (diagnostic.code !== "INSTALLED_TOOL_UPDATE_CONFLICT" || !diagnostic.file) continue;
+    const file = resolve(diagnostic.file);
+    if (file === cliTarget) {
+      repairCli = true;
+      continue;
+    }
+    const skillRoot = installedSkillRootFromDiagnostic(file);
+    if (skillRoot === null) continue;
+    if (skillRoot === home || file === globalSkillTarget) repairGlobalSkill = true;
+    else projectRoots.add(skillRoot);
+  }
+
+  if (!repairCli && !repairGlobalSkill && projectRoots.size === 0) {
+    throw new CoreError(
+      "INSTALLED_TOOL_CONFLICTS_NOT_FOUND",
+      "There are no current installed-tool conflicts to repair.",
+    );
+  }
+  const cliPath = bundledTools
+    ? join(bundledTools.toolsDirectory, process.platform === "win32" ? "dash-bored.exe" : "dash-bored")
+    : undefined;
+  if (repairCli && cliPath === undefined) {
+    throw new CoreError(
+      "INSTALLED_TOOL_REPAIR_UNAVAILABLE",
+      "The bundled dash-bored CLI is unavailable, so the conflicting link was left untouched.",
+    );
+  }
+
+  const repairedPaths = [
+    ...(repairGlobalSkill ? [globalSkillTarget] : []),
+    ...[...projectRoots].map((root) => installedSkillPath(root)),
+    ...(repairCli ? [cliTarget] : []),
+  ];
+  const diagnostics = await repairInstalledToolConflicts({
+    cliPath,
+    homeDirectory: home,
+    repairGlobalSkill,
+    repairCli,
+    projectRoots: [...projectRoots],
+    moveToTrash: async (path) => await Utils.moveToTrash(path),
+  });
+  replaceInstalledToolDiagnostics(repairedPaths, diagnostics);
+  return withInstalledToolDiagnostics(runtime.getSnapshot());
+}
+
 function sendSnapshot(snapshot: ProjectSnapshot): void {
   (mainWindow?.webview.rpc as { send?: { snapshot(value: ProjectSnapshot): void } } | undefined)
     ?.send?.snapshot(withInstalledToolDiagnostics(snapshot));
@@ -181,7 +256,9 @@ installedToolDiagnostics.push(...await refreshInstalledTools({
 for (const root of registeredRoots) checkedSkillRoots.add(root);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
-let publishedEnvironment = { DASH_BORED_AGENT: initialAppSettings.dashBoredAgent };
+let publishedEnvironment: Record<string, string> = initialAppSettings.dashBoredAgent === null
+  ? {}
+  : { DASH_BORED_AGENT: initialAppSettings.dashBoredAgent };
 const dashboardAgentHarness = new DashboardAgentHarness({ onTask: sendAgentTask });
 const runtime = new ProjectRuntime({
   trustStore,
@@ -206,6 +283,11 @@ const runtime = new ProjectRuntime({
   },
 });
 
+async function resolveAgentCommand(configPath: string, settings: Awaited<ReturnType<AppSettingsStore["get"]>>): Promise<string> {
+  if (settings.dashBoredAgent !== null) return settings.dashBoredAgent;
+  return resolveDashBoredAgent(settings.dashBoredAgent, await resolveEnvironment(configPath, publishedEnvironment));
+}
+
 async function runComponentAgent(nodeId: string, userPrompt: string) {
   const snapshot = runtime.getSnapshot();
   if (!snapshot.tree || !snapshot.projectRoot) {
@@ -222,6 +304,7 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
   const sourceLocation = await resolveProjectLocation(source.configPath);
   const locator = componentPath(node);
   const settings = await appSettingsStore.get();
+  const command = await resolveAgentCommand(source.configPath, settings);
   const prompt = buildComponentAgentPrompt({
     projectRoot: sourceLocation.projectRoot,
     configPath: source.configPath,
@@ -230,7 +313,7 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
     componentReference: node.component,
   }, userPrompt);
   return dashboardAgentHarness.launch({
-    command: settings.dashBoredAgent,
+    command,
     prompt,
     projectRoot: sourceLocation.projectRoot,
     componentPath: locator,
@@ -262,13 +345,14 @@ async function runComponentCreationAgent(
   const insertionPath = validatedInsertionPath(source, target);
   const locator = `${source.configPath}#${insertionPath}`;
   const settings = await appSettingsStore.get();
+  const command = await resolveAgentCommand(source.configPath, settings);
   const prompt = buildComponentCreationAgentPrompt({
     projectRoot: sourceLocation.projectRoot,
     configPath: source.configPath,
     insertionPath,
   }, userPrompt);
   return dashboardAgentHarness.launch({
-    command: settings.dashBoredAgent,
+    command,
     prompt,
     projectRoot: sourceLocation.projectRoot,
     componentPath: locator,
@@ -288,13 +372,14 @@ async function runDiagnosticsAgent() {
   const sourceLocation = await resolveProjectLocation(snapshot.configPath);
   const locator = `${snapshot.configPath}#diagnostics`;
   const settings = await appSettingsStore.get();
+  const command = await resolveAgentCommand(snapshot.configPath, settings);
   const prompt = buildDiagnosticsAgentPrompt({
     projectRoot: sourceLocation.projectRoot,
     configPath: snapshot.configPath,
     diagnostics: snapshot.diagnostics,
   });
   return dashboardAgentHarness.launch({
-    command: settings.dashBoredAgent,
+    command,
     prompt,
     projectRoot: sourceLocation.projectRoot,
     componentPath: locator,
@@ -325,13 +410,14 @@ async function setupDashboardWithAgent(nodeId: string) {
   }
   const sourceLocation = await resolveProjectLocation(configPath);
   const settings = await appSettingsStore.get();
+  const command = await resolveAgentCommand(configPath, settings);
   if (runtime.getSessionToken() !== session) throw new CoreError("DASHBOARD_SETUP_STALE", "The active dashboard changed. Run setup from its current panel.");
-  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command: settings.dashBoredAgent, location: sourceLocation, preflight: assertAgentAvailable }).launch(node);
+  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command, location: sourceLocation, preflight: assertAgentAvailable }).launch(node);
 }
 
 async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
   const paths = await Utils.openFileDialog({
-    startingFolder: process.cwd(),
+    startingFolder: homedir(),
     canChooseFiles: false,
     canChooseDirectory: true,
     allowsMultipleSelection: false,
@@ -363,7 +449,9 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
-        publishedEnvironment = { DASH_BORED_AGENT: updated.dashBoredAgent };
+        publishedEnvironment = updated.dashBoredAgent === null
+          ? {}
+          : { DASH_BORED_AGENT: updated.dashBoredAgent };
         setApplicationMenu(updated);
         await runtime.refreshEnvironment();
         return updated;
@@ -372,6 +460,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       runComponentCreationAgent: ({ configPath, target, prompt }) =>
         runComponentCreationAgent(configPath, target, prompt),
       runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),
+      repairInstalledTools: (_request) => repairInstalledToolConflictsForUser(),
       setupDashboardWithAgent: ({ nodeId }) => setupDashboardWithAgent(nodeId),
       getDashboardAgentTasks: () => dashboardAgentHarness.list(),
       getDashboardAgentDiff: ({ taskId }) => getDashboardAgentDiff(taskId),

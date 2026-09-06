@@ -175,10 +175,12 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
           <code>{effectiveAgent.value.trim() || "Not configured"}</code>
           <span>Source: {{ app: "Settings", process: "App process environment", bundle: "Bundle .env", component: "Component environment", unset: "None" }[effectiveAgent.source]}</span>
           <p>{effectiveAgent.source === "app"
-            ? "Change the agent command in Settings → General. It overrides the bundle .env value."
+            ? "Change the app-wide command in Settings → General, or leave it empty and save to use this bundle's .env value. While set, it overrides this bundle's .env value."
             : effectiveAgent.value.trim()
-              ? "Settings → General can set an app-wide agent command."
-              : "Open Settings → General and set the Agent command before starting agent work."}</p>
+              ? effectiveAgent.source === "bundle"
+                ? "The app-wide setting is clear, so this bundle's .env value is active."
+                : "Settings → General can set an app-wide agent command."
+              : "Set an app-wide command in Settings → General or declare DASH_BORED_AGENT in this bundle's .env."}</p>
           <p>Saved values apply to new commands. Restart an open terminal to use them.</p>
           {environment?.error ? <p role="alert">{environment.error}</p> : null}
         </div>

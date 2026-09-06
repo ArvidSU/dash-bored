@@ -1,11 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmod, mkdtemp, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, readFile, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installDashBoredSkill } from "../../src/cli/install-skill";
 import { DASH_BORED_SKILL_FILES, skillContentHash } from "../../src/cli/skill-payload";
 import { installDashBoredCli } from "../../src/cli/install-cli";
-import { updateInstalledTools } from "../../src/main/installed-tools";
+import { repairInstalledTools, updateInstalledTools } from "../../src/main/installed-tools";
 import { APP_VERSION } from "../../src/shared/app-metadata";
 
 const cleanup: string[] = [];
@@ -109,11 +109,103 @@ test("startup refreshes installed global and project skills and CLI, reports con
   await executable(newSource);
   await installDashBoredCli({ sourcePath: oldSource, targetDirectory: join(home, ".local/bin") });
   const results = await updateInstalledTools({ homeDirectory: home, projectRoots: [project, absentProject], cliPath: newSource });
-  expect(results.filter((result) => result.code === "INSTALLED_TOOL_UPDATED")).toHaveLength(2);
   expect(results.filter((result) => result.code === "INSTALLED_TOOL_UPDATE_CONFLICT")).toHaveLength(1);
+  expect(results.some((result) => result.code === "INSTALLED_TOOL_UPDATED")).toBeFalse();
   expect(await readFile(join(prior.skillPath, "SKILL.md"), "utf8")).toBe("local customization\n");
   expect(await Bun.file(join(absentProject, ".agents/skills/dash-bored/SKILL.md")).exists()).toBeFalse();
   const emptyHome = await root();
   expect(await updateInstalledTools({ homeDirectory: emptyHome, cliPath: newSource })).toEqual([]);
   expect(await Bun.file(join(emptyHome, ".local/bin/dash-bored")).exists()).toBeFalse();
+});
+
+async function legacySkill(project: string, version = "0.2.2") {
+  const skillPath = join(project, ".agents/skills/dash-bored");
+  await cp(join(import.meta.dirname, `../fixtures/skill-v${version}`), skillPath, { recursive: true });
+  return skillPath;
+}
+
+test("startup adopts complete pristine v0.2.2 skills and subsequent checks are clean", async () => {
+  const home = await root();
+  const project = await root();
+  await legacySkill(home);
+  await legacySkill(project);
+  const diagnostics = await updateInstalledTools({ homeDirectory: home, projectRoots: [project] });
+  expect(diagnostics).toEqual([]);
+  for (const directory of [home, project]) {
+    expect((await installDashBoredSkill(directory, { check: true })).updated).toEqual([]);
+  }
+});
+
+test("an edited legacy payload cannot claim ownership of any old file", async () => {
+  const project = await root();
+  const skillPath = await legacySkill(project);
+  const original = await readFile(join(skillPath, "SKILL.md"), "utf8");
+  await writeFile(join(skillPath, "references/components.md"), "my local guidance");
+  await expect(installDashBoredSkill(project)).rejects.toThrow("modified");
+  expect(await readFile(join(skillPath, "SKILL.md"), "utf8")).toBe(original);
+  expect(await readFile(join(skillPath, "references/components.md"), "utf8")).toBe("my local guidance");
+  expect(await Bun.file(join(skillPath, "skill-version.json")).exists()).toBeFalse();
+});
+
+test("partial legacy skills cannot be silently adopted", async () => {
+  const project = await root();
+  const skillPath = await legacySkill(project);
+  const original = await readFile(join(skillPath, "SKILL.md"), "utf8");
+  await rm(join(skillPath, "agents/openai.yaml"));
+  await expect(installDashBoredSkill(project)).rejects.toThrow("modified");
+  expect(await readFile(join(skillPath, "SKILL.md"), "utf8")).toBe(original);
+  expect(await Bun.file(join(skillPath, "skill-version.json")).exists()).toBeFalse();
+});
+
+test("pristine v0.2.3 payload upgrades, but mixing release files is a conflict", async () => {
+  const project = await root();
+  await legacySkill(project, "0.2.3");
+  await installDashBoredSkill(project);
+  expect((await installDashBoredSkill(project, { check: true })).updated).toEqual([]);
+  const mixed = await root();
+  const skillPath = await legacySkill(mixed, "0.2.3");
+  const older = await readFile(join(import.meta.dirname, "../fixtures/skill-v0.2.2/SKILL.md"));
+  await writeFile(join(skillPath, "SKILL.md"), older);
+  await expect(installDashBoredSkill(mixed)).rejects.toThrow("modified");
+  expect(await readFile(join(skillPath, "SKILL.md"))).toEqual(older);
+  expect(await Bun.file(join(skillPath, "skill-version.json")).exists()).toBeFalse();
+});
+
+test("explicit repair trashes conflicting installs before reinstalling the current tools", async () => {
+  const home = await root();
+  const priorSkill = await installDashBoredSkill(home);
+  await writeFile(join(priorSkill.skillPath, "SKILL.md"), "custom global guidance\n");
+  const oldSource = join(home, "old-cli");
+  const newSource = join(home, "new-cli");
+  await executable(oldSource);
+  await executable(newSource);
+  await installDashBoredCli({ sourcePath: oldSource, targetDirectory: join(home, ".local", "bin") });
+
+  const trash = join(home, "trash");
+  await mkdir(trash);
+  const trashed: string[] = [];
+  let trashIndex = 0;
+  const diagnostics = await repairInstalledTools({
+    homeDirectory: home,
+    cliPath: newSource,
+    repairGlobalSkill: true,
+    repairCli: true,
+    moveToTrash: async (path) => {
+      trashed.push(path);
+      await rename(path, join(trash, String(trashIndex++)));
+      return true;
+    },
+  });
+
+  expect(diagnostics).toEqual([]);
+  expect(trashed).toEqual(expect.arrayContaining([
+    priorSkill.skillPath,
+    priorSkill.claudeSkillPath,
+    join(home, ".local", "bin", "dash-bored"),
+    join(home, ".local", "bin", ".dash-bored-cli.json"),
+  ]));
+  expect(await readFile(join(priorSkill.skillPath, "SKILL.md"), "utf8")).toBe(DASH_BORED_SKILL_FILES["SKILL.md"]);
+  expect(await readlink(join(home, ".local", "bin", "dash-bored"))).toBe(newSource);
+  const recoveredSkill = await readFile(join(trash, "1", "SKILL.md"), "utf8");
+  expect(recoveredSkill).toBe("custom global guidance\n");
 });

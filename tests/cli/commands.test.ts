@@ -155,6 +155,9 @@ describe("dash-bored command arguments", () => {
         "utf8",
       ),
     );
+    expect(await readFile(join(project, ".agents/skills/dash-bored/references/app-runtime.md"), "utf8")).toBe(
+      await readFile(resolve(import.meta.dirname, "../../skills/dash-bored/references/app-runtime.md"), "utf8"),
+    );
     const claudeSkillPath = join(project, ".claude", "skills", "dash-bored");
     expect((await lstat(claudeSkillPath)).isSymbolicLink()).toBeTrue();
     expect(await realpath(claudeSkillPath)).toBe(await realpath(join(project, ".agents", "skills", "dash-bored")));
@@ -283,4 +286,21 @@ describe("dash-bored command arguments", () => {
       (item: { reference: string }) => item.reference === "@dash-bored/stack",
     )).toBeFalse();
   });
+});
+
+test("bounded inspect preserves diagnostics and exposes only requested schemas", async () => {
+  const project = await mkdtemp(join(tmpdir(), "dash-bored-inspect-"));
+  temporaryDirectories.push(project);
+  expect((await run(project, "init", ".")).exitCode).toBe(0);
+  const full = await run(project, "inspect", ".");
+  const summary = await run(project, "inspect", ".", "--summary");
+  expect(summary.exitCode).toBe(0);
+  expect(summary.stdout.length).toBeLessThan(full.stdout.length / 2);
+  expect(JSON.parse(summary.stdout).componentCatalog[0].manifest).toBeUndefined();
+  const selected = await run(project, "inspect", ".", "--component", "@dash-bored/command");
+  expect(selected.exitCode).toBe(0);
+  expect(JSON.parse(selected.stdout).component.manifest.propsSchema.required).toContain("command");
+  expect((await run(project, "inspect", ".", "--component", "missing")).exitCode).toBe(1);
+  expect((await run(project, "inspect", ".", "--component")).exitCode).toBe(2);
+  expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
 });

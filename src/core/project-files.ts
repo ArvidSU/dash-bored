@@ -143,7 +143,7 @@ export function starterAgentPrompt(projectName: string, configPath?: string): st
   return [
     `Set up the dash-bored dashboard for ${projectName}.`,
     ...(configPath ? [`Use ${configPath} as the exact owning configuration.`] : []),
-    "Inspect this project before making changes.",
+    "Inspect this project before making changes; use dash-bored inspect . --summary, then --component <reference> for selected contracts.",
     "Use the installed dash-bored skill for product-specific guidance.",
     "Customize the owning dashboard configuration into a useful project cockpit, preserving unrelated dashboards and files.",
     "Keep the dashboard project-owned and task-focused: every tab should explain what its panels do, demonstrate live status where possible, and expose the repeatable actions.",
@@ -278,7 +278,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     {
       component: "@dash-bored/markdown",
       props: {
-        content: "Choose your CLI agent once in application Settings (`DASH_BORED_AGENT`), or edit it below in `.env`. The app puts its matching dash-bored CLI on PATH for dashboard commands; optionally install a shell link for use outside the app. Install the portable skill globally for all projects, or only in this project, so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Install the skill globally (`dash-bored install-skill --global`) once if you plan to add dashboards to several projects; the per-project install covers only this project.\n\nWhen ready, run **Set up this dashboard**: the agent inspects this project, replaces this starter content with a project-specific cockpit, and generates a custom SVG icon for the sidebar. Review each command and trust the project when you are ready.\n",
+        content: "Choose your CLI agent in application Settings (`DASH_BORED_AGENT`), or leave that field empty and save to use the value declared below in `.env`. The app puts its matching dash-bored CLI on PATH for dashboard commands; optionally install a shell link for use outside the app. Install the portable skill globally for all projects, or only in this project, so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Install the skill globally (`dash-bored install-skill --global`) once if you plan to add dashboards to several projects; the per-project install covers only this project.\n\nWhen ready, run **Set up this dashboard**: the agent inspects this project, replaces this starter content with a project-specific cockpit, and generates a custom SVG icon for the sidebar. Review each command and trust the project when you are ready.\n",
       },
     },
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },

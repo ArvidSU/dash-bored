@@ -161,8 +161,8 @@ export interface ResolvedComponentNode {
 }
 
 export interface AppSettings {
-  /** App-wide CLI command used for natural-language dashboard changes. */
-  dashBoredAgent: string;
+  /** App-wide CLI command used for natural-language dashboard changes, or null to use the owning bundle. */
+  dashBoredAgent: string | null;
   /** Action ids promoted ahead of other matching command-palette results. */
   favoriteActionIds: string[];
   /** App-local keyboard shortcut that opens the command palette. */

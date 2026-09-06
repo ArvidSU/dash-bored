@@ -1,0 +1,4 @@
+interface:
+  display_name: "dash-bored"
+  short_description: "Build and improve project dashboards"
+  default_prompt: "Use $dash-bored to turn this project into a useful local dashboard."

@@ -62,10 +62,14 @@ the generated dashboard, the agent's discovery commands, and the component
 contract do not depend on a separate global dash-bored installation.
 
 Previously installed CLI links and skill payloads follow app updates while
-preserving local edits and reporting conflicts. The setup action owns its agent
+preserving local edits and reporting conflicts. Successful maintenance is not a
+diagnostic; only an unresolved conflict needs to remain visible. The setup
+action owns its agent
 task independently of the starter component. After completion the app validates
 the saved dashboard and may request one bounded repair of configuration errors;
 validation does not replace the user's review of usefulness or permission changes.
+When an installed-tool conflict is shown, the user may explicitly move the
+conflicting managed install to the OS Trash and reinstall the current payload.
 
 Every rendered component should make that workflow immediate through a small
 context menu. Alongside Focus, users can edit a component's declared props,
@@ -255,6 +259,10 @@ can assign app-local keyboard shortcuts to the command palette and individual
 actions, and can favorite actions from either Settings or the palette. Favorites
 sort ahead of other matching results without bypassing search, availability,
 confirmation, trust, or action lifecycle rules.
+
+The app-wide `DASH_BORED_AGENT` choice is an override, not a replacement for a
+bundle's declared environment. Users can leave the Settings field empty and
+save to return agent selection to the owning dashboard bundle.
 
 Components register actions while they are mounted. The palette makes those
 actions easier to find; it does not bypass project trust or add capabilities.

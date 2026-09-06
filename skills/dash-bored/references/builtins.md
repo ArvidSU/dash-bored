@@ -51,7 +51,7 @@ Permissions: none.
 
 ## @dash-bored/conditional
 
-Conditional visibility — Shows its tiled child while a bounded shell condition succeeds.
+Conditional visibility — Recovery visibility for one tiled child based on a bounded shell check. Starts visible and fails open before trust or on host errors; unsuitable for asserting healthy status.
 
 Props:
 

@@ -29,6 +29,7 @@ export interface AppDialogsProps {
     removeFiles: boolean;
   } | null;
   agentCommand: string;
+  agentCommandForNode?: (node: ResolvedComponentNode) => string;
   agentCreatePending: boolean;
   onApplyCompositionDraft: (next: DashboardConfig) => void;
   onDismissCompositionDialog: () => void;
@@ -55,6 +56,7 @@ export function AppDialogs({
   discardConfirmation,
   deletionDialog,
   agentCommand,
+  agentCommandForNode,
   agentCreatePending,
   onApplyCompositionDraft,
   onDismissCompositionDialog,
@@ -149,7 +151,7 @@ export function AppDialogs({
       <AgentPromptPanel
         key={agentDialog.id}
         node={agentDialog}
-        agentCommand={agentCommand}
+        agentCommand={agentCommandForNode?.(agentDialog) ?? agentCommand}
         pending={pendingAction === `component-agent:${agentDialog.id}`}
         onDismiss={() => onDismissAgentDialog()}
         onSend={(prompt) => onRunComponentAgent(agentDialog, prompt)}

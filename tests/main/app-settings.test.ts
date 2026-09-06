@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { AppSettingsStore } from "../../src/main/app-settings";
+import { AppSettingsStore, resolveDashBoredAgent } from "../../src/main/app-settings";
 import {
   removeTemporaryDirectory,
   temporaryDirectory,
@@ -68,6 +68,11 @@ describe("AppSettingsStore", () => {
       },
     });
     expect((await stat(path)).mode & 0o777).toBe(0o600);
+
+    const cleared = await store.update({ ...updated, dashBoredAgent: null });
+    expect(cleared.dashBoredAgent).toBeNull();
+    expect(await new AppSettingsStore(path, "ignored").get()).toMatchObject({ dashBoredAgent: null });
+    expect(JSON.parse(await readFile(path, "utf8")).dashBoredAgent).toBeNull();
   });
 
   test("falls back for corrupt state and rejects invalid updates without changing memory", async () => {
@@ -92,5 +97,11 @@ describe("AppSettingsStore", () => {
       code: "APP_SETTINGS_INVALID",
     });
     expect((await store.get()).dashBoredAgent).toBe("gemini -p");
+  });
+
+  test("uses the bundle environment after the app override is cleared", () => {
+    expect(resolveDashBoredAgent(null, { DASH_BORED_AGENT: "project-agent --run" })).toBe("project-agent --run");
+    expect(resolveDashBoredAgent(null, {})).toBe("codex exec");
+    expect(resolveDashBoredAgent("app-agent", { DASH_BORED_AGENT: "project-agent" })).toBe("app-agent");
   });
 });

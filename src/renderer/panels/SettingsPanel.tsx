@@ -78,16 +78,16 @@ export function SettingsPanel({
   appSettings: AppSettings;
   actions: readonly PaletteAction[];
   pendingAction: string | null;
-  onSaveAgent: (command: string) => void;
+  onSaveAgent: (command: string | null) => void;
   onUpdateSettings: (settings: AppSettings, notice: string) => void;
   onReload: () => void;
   onTrust: () => void;
   onRevoke: () => void;
 }): ReactNode {
-  const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent);
+  const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent ?? "");
   const [activeTab, setActiveTab] = useState<"general" | "actions">("general");
   const [actionQuery, setActionQuery] = useState("");
-  useEffect(() => setAgentDraft(appSettings.dashBoredAgent), [appSettings.dashBoredAgent]);
+  useEffect(() => setAgentDraft(appSettings.dashBoredAgent ?? ""), [appSettings.dashBoredAgent]);
   const normalizedAgentDraft = agentDraft.trim();
   const savingSettings = pendingAction === "save-settings";
   const favoriteIds = useMemo(() => new Set(appSettings.favoriteActionIds), [appSettings.favoriteActionIds]);
@@ -175,11 +175,11 @@ export function SettingsPanel({
       <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
         <div>
           <h2 id="agent-settings-title">Dashboard agent</h2>
-          <p>Set the app-wide <code>DASH_BORED_AGENT</code> command used by every component’s Change with agent action.</p>
+          <p>Set the app-wide <code>DASH_BORED_AGENT</code> command used by every component’s Change with agent action, or clear it to use the active dashboard’s <code>.env</code>.</p>
         </div>
         <form className="settings-agent" onSubmit={(event) => {
           event.preventDefault();
-          if (normalizedAgentDraft) onSaveAgent(normalizedAgentDraft);
+          onSaveAgent(normalizedAgentDraft || null);
         }}>
           <label htmlFor="dash-bored-agent">DASH_BORED_AGENT</label>
           <div className="settings-agent__controls">
@@ -188,6 +188,7 @@ export function SettingsPanel({
               type="text"
               spellCheck={false}
               maxLength={1_024}
+              placeholder="Leave empty — use project .env"
               value={agentDraft}
               disabled={savingSettings}
               onChange={(event) => setAgentDraft(event.target.value)}
@@ -195,12 +196,16 @@ export function SettingsPanel({
             <button
               className="button button--secondary"
               type="submit"
-              disabled={savingSettings || !normalizedAgentDraft || normalizedAgentDraft === appSettings.dashBoredAgent}
+              disabled={savingSettings || normalizedAgentDraft === (appSettings.dashBoredAgent ?? "")}
             >
               {savingSettings ? "Saving…" : "Save"}
             </button>
           </div>
-          <span>Example: <code>{normalizedAgentDraft || "codex exec"} &quot;Change this thing&quot;</code></span>
+          <span className="settings-agent__hint">
+            {appSettings.dashBoredAgent === null
+              ? "Unset — the active dashboard's .env value is used when available."
+              : <>Example: <code>{normalizedAgentDraft || "codex exec"} &quot;Change this thing&quot;</code></>}
+          </span>
         </form>
       </section>
       <section className="settings-card" aria-labelledby="project-settings-title">

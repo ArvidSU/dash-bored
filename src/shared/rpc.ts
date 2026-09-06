@@ -35,6 +35,7 @@ export type DashboardRPC = {
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
       runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
       runDiagnosticsAgent: { params: {}; response: ComponentAgentLaunch };
+      repairInstalledTools: { params: {}; response: ProjectSnapshot };
       setupDashboardWithAgent: { params: DashboardSetupAgentRequest; response: ComponentAgentLaunch };
       getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
       getDashboardAgentDiff: { params: { taskId: string }; response: string };

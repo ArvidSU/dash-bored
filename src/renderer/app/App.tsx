@@ -666,10 +666,12 @@ export function App(): ReactNode {
     });
   }
 
-  function saveAgentSetting(command: string): void {
+  function saveAgentSetting(command: string | null): void {
     updateAppSettings(
       { ...appSettings, dashBoredAgent: command },
-      `DASH_BORED_AGENT is now ${command}.`,
+      command === null
+        ? "App-wide DASH_BORED_AGENT cleared; the project .env will be used when available."
+        : `DASH_BORED_AGENT is now ${command}.`,
     );
   }
 
@@ -705,6 +707,17 @@ export function App(): ReactNode {
       const launched = await host.runDiagnosticsAgent();
       setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    });
+  }
+
+  async function repairInstalledTools(): Promise<void> {
+    await perform("installed-tools-repair", async () => {
+      const repaired = await host.repairInstalledTools();
+      setSnapshot(repaired);
+      const hasConflicts = repaired.diagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT");
+      showActionNotice(hasConflicts
+        ? "Installed-tool repair needs attention; review the remaining warning."
+        : "Moved the old installed tools to Trash and installed the current dash-bored tools.");
     });
   }
 
@@ -1365,6 +1378,13 @@ export function App(): ReactNode {
     appSettings.commandPaletteShortcut,
     typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform),
   );
+  function effectiveAgentCommandForNode(nodeId?: string): string {
+    const environmentValue = nodeId === undefined
+      ? undefined
+      : snapshot?.environmentByNode?.[nodeId]?.values.find((entry) => entry.key === "DASH_BORED_AGENT")?.value.trim();
+    return environmentValue || appSettings.dashBoredAgent || "codex exec";
+  }
+  const effectiveAgentCommand = effectiveAgentCommandForNode(snapshot?.tree?.id);
   const visibleVirtualRoot = editingComposition ? compositionVirtualRoot : virtualRoot;
   const workspace = (
     <>
@@ -1394,7 +1414,7 @@ export function App(): ReactNode {
                 diagnostics={editSession.validation.diagnostics}
                 projectRoot={editSession.projectRoot}
                 configPath={editSession.configPath}
-                agentCommand={appSettings.dashBoredAgent}
+                agentCommand={effectiveAgentCommand}
                 agentPending={pendingAction === "component-agent:create"}
                 onBuildWithAgent={requestComponentCreationAgent}
                 onChange={(draft) => setEditSession((current) => current ? { ...current, draft } : current)}
@@ -1408,7 +1428,9 @@ export function App(): ReactNode {
             <Diagnostics
               diagnostics={snapshot.diagnostics}
               pending={pendingAction === "diagnostics-agent"}
+              repairPending={pendingAction === "installed-tools-repair"}
               onFixWithAgent={() => void runDiagnosticsAgent()}
+              onRepairInstalledTools={() => void repairInstalledTools()}
             />
 
             {snapshot.tree ? (
@@ -1605,7 +1627,8 @@ export function App(): ReactNode {
         pendingAction={pendingAction}
         discardConfirmation={discardConfirmation}
         deletionDialog={deletionDialog}
-        agentCommand={appSettings.dashBoredAgent}
+        agentCommand={effectiveAgentCommand}
+        agentCommandForNode={(node) => effectiveAgentCommandForNode(node.id)}
         agentCreatePending={pendingAction === "component-agent:create"}
         onApplyCompositionDraft={applyCompositionDraft}
         onDismissCompositionDialog={compositionInteraction.dismissDialog}

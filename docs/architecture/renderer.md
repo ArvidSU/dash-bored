@@ -82,7 +82,9 @@ examples, not privileged component types:
   terminal session.
 - `@dash-bored/conditional` runs a bounded shell condition while its panel is
   visible and projects one tiled child on success, with optional inversion for
-  "show until done" setup actions.
+  "show until done" setup actions. It starts visible and fails open when a check
+  cannot run; do not use it to assert positive health. A health observation
+  should expose one explicit unknown/healthy/unavailable state.
 - `@dash-bored/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
   unrecognized lines; writes are bounded, project-contained, and atomic.
@@ -240,9 +242,11 @@ including the command-palette shortcut and `DASH_BORED_AGENT`; Actions presents
 the same currently known action catalog as the palette, with search, favorite
 toggles, and per-action shortcut recording. The separate versioned, owner-only
 user-data file persists those preferences. The inherited agent environment
-value supplies the first default, with `codex exec` as the fallback. Updating it
-affects later component agent launches and later dashboard commands without
-rewriting project files.
+value supplies the first default, with `codex exec` as the fallback. The app-wide
+agent setting can be cleared by saving an empty field; after clearing, the owning
+bundle's effective environment supplies the command. Updating it affects later
+component agent launches and later dashboard commands without rewriting project
+files.
 
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks

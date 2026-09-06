@@ -76,7 +76,7 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/conditional",
     name: "Conditional visibility",
-    description: "Shows its tiled child while a bounded shell condition succeeds.",
+    description: "Recovery visibility for one tiled child based on a bounded shell check. Starts visible and fails open before trust or on host errors; unsuitable for asserting healthy status.",
     entry: "builtin:conditional",
     renderMode: "layout",
     propsSchema: objectSchema({

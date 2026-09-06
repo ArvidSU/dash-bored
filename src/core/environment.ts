@@ -53,11 +53,12 @@ export function environmentSnapshot(
   bundle: Readonly<Record<string, string>>,
   published: Readonly<Record<string, string>> = {},
   explicit: Readonly<Record<string, string>> = {},
+  inherited: NodeJS.ProcessEnv = process.env,
 ): ComponentEnvironmentSnapshot {
   const key = "DASH_BORED_AGENT";
   const source = Object.hasOwn(explicit, key) ? "component"
     : Object.hasOwn(published, key) ? "app"
-      : process.env[key] !== undefined ? "process"
+      : inherited[key] !== undefined ? "process"
         : Object.hasOwn(bundle, key) ? "bundle" : "unset";
-  return { values: [{ key, value: mergeEnvironment(bundle, published, explicit)[key] ?? "", source }] };
+  return { values: [{ key, value: mergeEnvironment(bundle, published, explicit, inherited)[key] ?? "", source }] };
 }

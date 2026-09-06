@@ -48,7 +48,7 @@ dash-bored init [name ...] [--project <path>]
 dash-bored install-cli [--check]
 dash-bored install-skill [project] [--global] [--check]
 dash-bored validate [project] [--json]
-dash-bored inspect [project]
+dash-bored inspect [project] [--summary | --component <reference>]
 dash-bored open [project]
 dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
 dash-bored component list [project]
@@ -63,7 +63,8 @@ dash-bored component sync [project]
   required files and empty component directory, uses the bundle name in a valid
   guided dashboard with an editable bundle-local `.env` file, a
   first-class setup-agent component that invokes the configured app-owned
-  dashboard-agent harness with the app-wide `DASH_BORED_AGENT`, and a
+  dashboard-agent harness with the app-wide `DASH_BORED_AGENT` override when
+  set, and a
   command that installs the packaged dash-bored skill into the project. The
   starter presets a bundle-local `icon` (`./assets/icon.svg`, a silent generic
   glyph until the file exists), and its agent prompt instructs the agent to
@@ -84,7 +85,9 @@ dash-bored component sync [project]
   OpenCode. The skill uses only the portable `name` and `description`
   frontmatter; `agents/openai.yaml` is optional presentation metadata rather
   than a runtime dependency. The skill, metadata, and local-component
-  reference are text assets embedded in the standalone executable. The
+  reference are text assets embedded in the standalone executable. Detailed
+  app-state guidance lives in the separately embedded `references/app-runtime.md`
+  so routine dashboard authoring need not load it. The
   generated per-component built-in reference
   (`references/builtins.md`, rendered by `bun run generate:components` from
   `BUILTIN_COMPONENTS`) is embedded the same way; see
@@ -93,7 +96,10 @@ dash-bored component sync [project]
   replace modified files or conflicting paths. A `skill-version.json` sidecar
   records the shipped version and SHA-256 hash of each payload file, allowing
   later installs to update files previously owned by dash-bored while
-  preserving local edits. `--check` performs the same ownership and freshness
+  preserving local edits. A receipt-free installation is adopted only when all
+  three files exactly match the recorded hashes for one complete v0.2.2 or v0.2.3 release. Partial, mixed,
+  or customized legacy payloads remain conflicts; individual matching files do
+  not confer ownership of the rest. `--check` performs the same ownership and freshness
   checks without creating or changing files. `--global` does not accept a
   project path.
 - `install-cli` creates a symlink from `~/.local/bin/dash-bored` to the CLI
@@ -106,7 +112,11 @@ dash-bored component sync [project]
   shell-link command is not yet supported there.
 - `validate` runs project, manifest, resolver, schema, and local compilation
   validation. It emits stable diagnostics and a non-zero status on errors.
-- `inspect` writes JSON describing the resolved tree, the complete component
+- `inspect --summary` emits project status, diagnostics, permissions and a compact
+  catalog without schemas or repeated tree/config data. `--component <reference>`
+  emits one authoritative catalog entry (including its schema) and project
+  diagnostics. Unknown references fail; modes cannot be combined. Full
+  `inspect` writes JSON describing the resolved tree, the complete component
   catalog, component metadata used by the tree, requested permissions, and
   diagnostics. Agents read `componentCatalog[].manifest.propsSchema`, `children`,
   and `permissions` before editing instead of relying on static examples.
@@ -143,8 +153,15 @@ those that already exist.
 
 At application startup, the main process refreshes only previously installed
 global and registered-project skills and the managed CLI link. It skips absent
-installations, reports updates and conflicts as informational or warning
-diagnostics, and never makes the refresh a prerequisite for opening a
-dashboard. A project skill is checked once when that project is opened; the
-resulting installed-tool diagnostics are retained on later load and reload
-snapshots.
+installations, keeps successful maintenance out of the diagnostics snapshot,
+and reports only conflicts or unexpected failures. It never makes the refresh a
+prerequisite for opening a dashboard. A project skill is checked once when that
+project is opened; any unresolved installed-tool diagnostics are retained on
+later load and reload snapshots.
+
+The Installed tools diagnostics panel exposes an explicit recovery action for
+`INSTALLED_TOOL_UPDATE_CONFLICT`. The main process derives targets from its own
+diagnostics, moves the conflicting managed skill directory and Claude alias or
+CLI link and receipt to the OS Trash, then installs the current bundled payload.
+It never accepts paths from the renderer or silently replaces conflicts during
+startup; a failed repair remains a warning so the action can be tried again.

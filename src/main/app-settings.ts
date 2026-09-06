@@ -56,11 +56,22 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
     else seen.add(shortcut);
   }
   return {
-    dashBoredAgent: normalizeDashBoredAgent(value.dashBoredAgent ?? defaultAgent),
+    dashBoredAgent: value.dashBoredAgent === null
+      ? null
+      : normalizeDashBoredAgent(value.dashBoredAgent ?? defaultAgent),
     favoriteActionIds: normalizeActionIds(value.favoriteActionIds),
     commandPaletteShortcut: paletteShortcut,
     actionShortcuts,
   };
+}
+
+/** Resolve the command used for an agent launch after app settings and bundle environment are merged. */
+export function resolveDashBoredAgent(
+  appSetting: string | null,
+  environment: Readonly<Record<string, string>>,
+): string {
+  if (appSetting !== null) return appSetting;
+  return environment.DASH_BORED_AGENT?.trim() || DEFAULT_DASH_BORED_AGENT;
 }
 
 export function normalizeDashBoredAgent(value: unknown): string {

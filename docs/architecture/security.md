@@ -112,8 +112,8 @@ Capability behavior is bounded:
 - Short shell calls bound output and execution time; an optional relative
   working directory must remain inside the project root.
 - Process and shell launches receive a fresh environment assembled in this
-  order: component-declared values, app-published settings, inherited process
-  values, then the owning bundle's `.env` defaults. Bundle files are parsed as
+  order: component-declared values, app-published settings when configured,
+  inherited process values, then the owning bundle's `.env` defaults. Bundle files are parsed as
   dotenv data; they are never evaluated as shell code or copied into
   `process.env`. The renderer receives only the allowlisted effective
   `DASH_BORED_AGENT` value and its winning source, never arbitrary bundle or

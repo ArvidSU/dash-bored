@@ -31,6 +31,7 @@ import type {
   ShellRunResult,
 } from "../../shared/contracts";
 import type { DashboardHost, HostEvent } from "./rpc-client";
+import { envEntries, parseEnv } from "../../shared/env";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
 
@@ -425,8 +426,16 @@ export function createUiHarnessHost(): UiHarnessHost {
   const snapshot = (): ProjectSnapshot => {
   const tree = resolveFixtureNode(persistedConfig.root);
   const environmentByNode: NonNullable<ProjectSnapshot["environmentByNode"]> = {};
+  const bundleAgent = envEntries(parseEnv(files.get(".dash-bored/.env") ?? ""))
+    .find(({ entry }) => entry.key === "DASH_BORED_AGENT")?.entry.value;
   const visitEnvironment = (node: ResolvedComponentNode): void => {
-    environmentByNode[node.id] = { values: [{ key: "DASH_BORED_AGENT", value: settings.dashBoredAgent, source: "app" }] };
+    environmentByNode[node.id] = {
+      values: [{
+        key: "DASH_BORED_AGENT",
+        value: settings.dashBoredAgent ?? bundleAgent ?? "",
+        source: settings.dashBoredAgent !== null ? "app" : bundleAgent !== undefined ? "bundle" : "unset",
+      }],
+    };
     for (const edge of fixtureChildEdges(node.children)) visitEnvironment(edge.node as ResolvedComponentNode);
   };
   visitEnvironment(tree);
@@ -495,6 +504,10 @@ export function createUiHarnessHost(): UiHarnessHost {
         prompt: "Fix dashboard configuration diagnostics.",
         componentPath: `${CONFIG_PATH}#diagnostics`,
       });
+    },
+    async repairInstalledTools() {
+      currentDiagnostics = [];
+      return emitSnapshot();
     },
     async setupDashboardWithAgent(_request: { nodeId: string }) {
       return launch({

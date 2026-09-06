@@ -33,7 +33,7 @@ Usage:
   dash-bored install-skill [project] [--global] [--check]
   dash-bored open [project]
   dash-bored validate [project] [--json]
-  dash-bored inspect [project]
+  dash-bored inspect [project] [--summary | --component <reference>]
   dash-bored agent [agent-command]
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
@@ -315,6 +315,25 @@ async function main(): Promise<number> {
   const separatorIndex = commandArgs.indexOf("--");
   const check = checkIndex >= 0 && (separatorIndex < 0 || checkIndex < separatorIndex);
   if (check) commandArgs.splice(checkIndex, 1);
+  let summary = false;
+  let componentReference: string | undefined;
+  if (command === "inspect") {
+    const end = commandArgs.indexOf("--");
+    const index = commandArgs.findIndex((argument, i) => (end < 0 || i < end) && (argument === "--summary" || argument === "--component"));
+    if (index >= 0) {
+      if (commandArgs[index] === "--summary") {
+        summary = true;
+        commandArgs.splice(index, 1);
+      } else {
+        componentReference = commandArgs[index + 1];
+        if (!componentReference || componentReference.startsWith("--")) {
+          console.error("inspect --component requires a component reference.");
+          return 2;
+        }
+        commandArgs.splice(index, 2);
+      }
+    }
+  }
   const parsed = parseCommandArguments(command, commandArgs);
   if (command === "component") return runComponentCommand(args.slice(1));
   if (parsed.help) {
@@ -377,7 +396,18 @@ async function main(): Promise<number> {
 
   if (command === "inspect") {
     const result = await inspect(project, false);
-    console.log(JSON.stringify(result, null, process.stdout.isTTY ? 2 : 0));
+    const catalog = result.componentCatalog;
+    const selected = componentReference ? catalog.find((item) => item.reference === componentReference) : undefined;
+    if (componentReference && !selected) {
+      console.error(`Component not found in project catalog: ${componentReference}`);
+      return 1;
+    }
+    const output = summary ? {
+      ok: result.ok, projectRoot: result.projectRoot, permissions: result.permissions, diagnostics: result.diagnostics,
+      componentCatalog: catalog.map(({ reference, available, manifest }) => ({ reference, available,
+        name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions })),
+    } : componentReference ? { ok: result.ok, diagnostics: result.diagnostics, component: selected } : result;
+    console.log(JSON.stringify(output, null, process.stdout.isTTY ? 2 : 0));
     return result.ok ? 0 : 1;
   }
 

@@ -59,12 +59,15 @@ value for `DASH_BORED_AGENT`. `DASH_BORED_AGENT_PROMPT` is generated once when
 the setup action launches. `DASH_BORED_AGENT`
 is also app-wide: the main process persists its application setting in the
 Electrobun user-data directory, publishes it to dashboard command environments,
-and exposes it in Settings.
+and exposes it in Settings. Clearing that setting removes the app-published
+override, allowing the owning bundle's `.env` value to win.
 
 At launch, each command or shell call resolves the `.env` beside its owning
 `dash-bored.yaml`, including when a node comes from a named or linked bundle.
 The effective order is component request, app setting, inherited process
-environment, then bundle defaults. Editing a bundle `.env` refreshes the
+environment, then bundle defaults. When the app setting is cleared, the
+remaining environment resolution uses the inherited process value or owning
+bundle default. Editing a bundle `.env` refreshes the
 displayed effective agent value while preserving unchanged running processes;
 changing app settings refreshes the same display through the runtime without
 mutating the main process environment.

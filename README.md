@@ -139,9 +139,13 @@ it launches, so users do not need a separate CLI installation. The starter
 dashboard also offers an explicit `dash-bored install-cli` action that creates
 an idempotent link at `~/.local/bin/dash-bored` for use from external shells.
 Later app launches refresh installer-owned links and skill files. Modified
-files and unrecognized links are preserved, with a notice explaining the conflict.
+files and unrecognized links are preserved, with a notice explaining the conflict;
+successful refreshes do not remain in the diagnostics panel.
 Use `dash-bored install-cli --check` or `dash-bored install-skill --global --check`
 to check an installation without changing it.
+The Installed tools warning also offers **Remove old and reinstall**. This
+explicit action moves the conflicting managed skill directory/alias or CLI
+link/receipt to the OS Trash before installing the current payload.
 
 ## Start a project dashboard
 
@@ -170,11 +174,12 @@ The generated dashboard is immediately valid and combines a short guided tour,
 a sampler of the available component primitives, and a setup action that asks your
 chosen CLI coding agent to tailor the dashboard to the project. It uses
 `codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
-**Settings → General → Dashboard agent**. The bundle environment editor shows
-the effective agent command and its source; app settings override the bundle's
-`.env` default. Other command variables load from each component's owning
-bundle, with explicit command overrides taking precedence. Saving `.env` affects
-new launches and leaves existing terminals running.
+**Settings → General → Dashboard agent**. Leave that field empty and save when
+the active dashboard's `.env` should provide the command. The bundle environment
+editor shows the effective agent command and its source; a set app setting
+overrides the bundle's `.env` default. Other command variables load from each
+component's owning bundle, with explicit command overrides taking precedence.
+Saving `.env` affects new launches and leaves existing terminals running.
 
 **Set up this dashboard** starts a tracked agent task with a prompt generated
 for that bundle. No prompt needs to be copied into YAML or `.env`. Agent work
@@ -211,11 +216,11 @@ form writes to `.agents/skills/dash-bored/`. Both create
 installs are safe. The app refreshes previously installed global skills at
 startup and project skills for registered or newly opened dashboards, using
 file hashes to preserve local edits. An older installation without ownership
-metadata can be adopted when its contents match; otherwise the notice asks you
-to move it aside before reinstalling. Install globally for convenience when
-you use dashboards in several projects. The shipped reference includes the
-live catalog, host response types, theme guidance, and a complete local-component
-example; agents do not need the app source to author a dashboard.
+metadata can be adopted when its contents match; otherwise the Installed tools
+warning offers an explicit Trash-and-reinstall action. Install globally for
+convenience when you use dashboards in several projects. The shipped reference
+includes the live catalog, host response types, theme guidance, and a complete
+local-component example; agents do not need the app source to author a dashboard.
 You can also create these files without
 opening the app by running
 `dash-bored init .`; unlike `open`, explicit initialization fails if a
@@ -734,3 +739,23 @@ The developer build supports one project per window and local components only.
 It does not yet include external package resolution, a component marketplace,
 file editing, multi-project windows, or custom AI infrastructure. Those
 omissions are intentional until the core runtime is proven.
+
+## Release onboarding evaluation
+
+Use the opt-in [Docker release QA and macOS checklist](docs/release-qa.md)
+to check fresh installation, existing-user tool updates, and repeated
+Codex/luna dashboard-building runs with saved logs and review evidence.
+Run `bun run qa:release --help` for options; this is separate from ordinary QA.
+
+Pristine v0.2.2 and v0.2.3 agent skills are recognized by the complete historical file-hash
+set and upgraded automatically. Customized or unrecognized legacy skills still
+require moving the old skill directory aside and reinstalling; preserve those
+files for comparison. This does not migrate schema-v1 dashboards. Keep their
+`dash-bored/` directory intact, initialize a new schema-v2 bundle with
+`dash-bored init .`, and ask your agent to recreate the required workflows in
+`.dash-bored/` using the old dashboard as read-only reference. Review and validate
+the new bundle before retiring the original.
+
+For bounded agent discovery, use `dash-bored inspect . --summary` followed by
+`dash-bored inspect . --component @dash-bored/command` (or another exact catalog
+reference). Full `inspect` output remains available when the entire tree is needed.
