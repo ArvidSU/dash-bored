@@ -491,14 +491,14 @@ describe("renderer fixture interactions", () => {
     if (!statusBox || !cardHeaderBox) throw new Error("Nested menu geometry is unavailable.");
 
     await active.mouse.move(statusBox.x + statusBox.width / 2, statusBox.y + statusBox.height / 2);
-    await active.waitForTimeout(150);
+    await active.waitForTimeout(250);
     expect(await statusMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
     expect(await statusMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
     expect(await cardMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
     expect(await cardMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
 
     await active.mouse.move(cardHeaderBox.x + cardHeaderBox.width / 2, cardHeaderBox.y + cardHeaderBox.height / 2);
-    await active.waitForTimeout(150);
+    await active.waitForTimeout(250);
     expect(await cardMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
     expect(await cardMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
     expect(await statusMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
@@ -559,7 +559,7 @@ describe("renderer fixture interactions", () => {
     await active.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
     await active.mouse.down();
     await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 4 });
-    await active.waitForTimeout(150);
+    await active.waitForTimeout(250);
     await active.mouse.up();
 
     const library = active.getByRole("dialog", { name: "Component library" });
@@ -611,14 +611,14 @@ describe("renderer fixture interactions", () => {
     if (!statusBox || !cardHeaderBox) throw new Error("Nested handle geometry is unavailable.");
 
     await active.mouse.move(statusBox.x + statusBox.width / 2, statusBox.y + statusBox.height / 2);
-    await active.waitForTimeout(150);
+    await active.waitForTimeout(250);
     expect(await statusHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
     expect(await statusHandle.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
     expect(await cardHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
     expect(await cardHandle.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
 
     await active.mouse.move(cardHeaderBox.x + cardHeaderBox.width / 2, cardHeaderBox.y + cardHeaderBox.height / 2);
-    await active.waitForTimeout(150);
+    await active.waitForTimeout(250);
     expect(await cardHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
     expect(await statusHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
   });
