@@ -69,3 +69,13 @@ The following are not part of this architecture yet:
 
 These can be added only after their contracts are reflected here and remain
 consistent with the product principles in [Product vision](../IDEA.md).
+
+## Release onboarding evidence
+
+The opt-in `scripts/release-qa/` harness compiles pinned source revisions into
+Linux CLI test images. Fresh non-root containers exercise CLI and skill installs,
+the candidate app startup tool-refresh function, project initialization and an
+optional external agent using the shipped starter prompt. It records correctness
+and timing separately from qualitative review. It does not add Linux distribution
+or replace macOS packaging and native checks. See the
+[release QA workflow](../release-qa.md) for commands, evidence and the macOS checklist.

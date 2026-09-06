@@ -1,0 +1,1 @@
+{"name":"release-qa-fixture","private":true,"scripts":{"test":"bun test","build":"bun -e 'await Bun.write(\"build.txt\", \"built\\n\")'","start":"bun server.ts"}}

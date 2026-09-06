@@ -485,6 +485,13 @@ root:
                               props:
                                 path: .github/workflows/release.yml
       - metadata:
+          label: Onboarding QA
+        node:
+          id: onboarding-qa-guide
+          component: "@dash-bored/markdown"
+          props:
+            path: docs/release-qa.md
+      - metadata:
           label: Documentation
         node:
           id: documentation

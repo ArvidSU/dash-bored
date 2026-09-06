@@ -24,6 +24,8 @@
     "icon:generate": "sh ./scripts/generate-macos-icon.sh",
     "release:prepare": "bun ./scripts/prepare-macos-release.ts",
     "typecheck": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && tsc --noEmit'",
+    "qa:release": "python3 scripts/release-qa/runner.py run",
+    "qa:release:test": "python3 -m unittest discover -s tests/release-qa",
     "qa:fast": "sh ./scripts/with-worktree-env.sh sh -c 'tsc --noEmit && bun test && vite build && bun run build:cli'",
     "test": "bun test",
     "test:renderer-ui": "bun test tests/renderer/ui-interaction.test.ts",
