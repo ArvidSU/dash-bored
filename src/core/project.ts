@@ -1,3 +1,5 @@
+import { loadThemeCatalog } from "./themes";
+import { resolveTheme, type ThemeCatalogItem } from "../shared/themes";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -30,6 +32,7 @@ import {
 } from "./yaml";
 
 export interface ProjectDefinition {
+  themeCatalog: ThemeCatalogItem[];
   ok: boolean;
   location: ProjectLocation;
   config: DashboardConfig | null;
@@ -132,10 +135,15 @@ async function buildProjectDefinition(
     }
   }
 
+  const themeCatalog = await loadThemeCatalog(location.configDirectory);
+  if (config?.theme) {
+    for (const message of resolveTheme(themeCatalog, config.theme).errors) diagnostics.push(diagnostic({ code: "THEME_UNAVAILABLE", severity: "warning", message, file: location.configPath, path: "/theme" }));
+  }
   const ok = !hasErrors(diagnostics) && tree !== null;
   if (!ok) tree = null;
   return {
     ok,
+    themeCatalog,
     location,
     config,
     configRevision,
@@ -162,6 +170,7 @@ export async function loadProjectDefinition(
   } catch (error) {
     return {
       ok: false,
+      themeCatalog: [],
       location,
       config: null,
       configRevision: null,
@@ -234,6 +243,7 @@ export async function inspectProject(
     const definition = await loadProjectDefinition(input, options);
     return {
       ok: definition.ok,
+      themeCatalog: definition.themeCatalog,
       projectRoot: definition.location.projectRoot,
       config: definition.config,
       lock: definition.lock,
@@ -246,6 +256,7 @@ export async function inspectProject(
   } catch (error) {
     return {
       ok: false,
+      themeCatalog: [],
       projectRoot: resolve(input),
       config: null,
       lock: null,

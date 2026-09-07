@@ -27,6 +27,7 @@ import type { DashboardRPC } from "../../shared/rpc";
 import { createUiHarnessHost } from "./ui-harness-host";
 
 export type HostEvent =
+  | { type: "themes"; catalog: import("../../shared/themes").ThemeCatalogItem[] }
   | { type: "snapshot"; snapshot: ProjectSnapshot }
   | { type: "process"; process: ProcessSnapshot }
   | { type: "agent-task"; task: DashboardAgentTask }
@@ -37,6 +38,7 @@ type HostEventListener = (event: HostEvent) => void;
 export interface DashboardHost {
   subscribe(listener: HostEventListener): () => void;
   getSnapshot(): Promise<ProjectSnapshot>;
+  getThemes(): Promise<import("../../shared/themes").ThemeCatalogItem[]>;
   getAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
@@ -88,6 +90,7 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
   maxRequestTime: 65_000,
   handlers: {
     messages: {
+      themes: (catalog) => emit({ type: "themes", catalog }),
       snapshot: (snapshot) => emit({ type: "snapshot", snapshot }),
       process: (process) => emit({ type: "process", process }),
       agentTask: (task) => emit({ type: "agent-task", task }),
@@ -130,6 +133,7 @@ const liveHost: DashboardHost = {
     return snapshotRequest(() => rpc.request.getSnapshot({}));
   },
 
+  async getThemes() { ensureTransport(); return rpc.request.getThemes({}); },
   async getAppSettings(): Promise<AppSettings> {
     ensureTransport();
     return await rpc.request.getAppSettings({});

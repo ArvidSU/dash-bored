@@ -57,7 +57,7 @@ or bundled-CLI contracts.
 
 The following are not part of this architecture yet:
 
-- npm, Git, registry, or marketplace component resolution
+- npm, registry, or marketplace component resolution
 - marketplace component search, publishing, or shared templates; direct
   in-process component generation without the configured external agent
 - Linux, Windows, and Intel Mac distribution; Windows shell-link installation

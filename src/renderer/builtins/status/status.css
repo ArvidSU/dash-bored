@@ -7,7 +7,7 @@
   padding: 9px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgb(255 255 255 / 1.5%);
+  background: color-mix(in srgb, var(--text) 1.5%, transparent);
   font-size: 11px;
 }
 
@@ -16,21 +16,21 @@
   height: 8px;
   border-radius: 50%;
   background: var(--faint);
-  box-shadow: 0 0 0 3px rgb(93 102 116 / 12%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--faint) 12%, transparent);
 }
 
-.status__dot--positive { background: var(--positive); box-shadow: 0 0 0 3px rgb(112 226 160 / 12%); }
-.status__dot--warning { background: var(--warning); box-shadow: 0 0 0 3px rgb(244 198 107 / 12%); }
-.status__dot--negative { background: var(--negative); box-shadow: 0 0 0 3px rgb(255 123 123 / 12%); }
+.status__dot--positive { background: var(--positive); box-shadow: 0 0 0 3px color-mix(in srgb, var(--positive) 12%, transparent); }
+.status__dot--warning { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent); }
+.status__dot--negative { background: var(--negative); box-shadow: 0 0 0 3px color-mix(in srgb, var(--negative) 12%, transparent); }
 
 .status__label {
-  color: #d5dbe4;
+  color: var(--text);
   font-weight: 650;
 }
 
 .status__value {
   color: var(--muted);
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 

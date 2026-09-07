@@ -445,8 +445,7 @@ Use the renderer's semantic CSS variables so the component fits its dashboard:
 Scope selectors under a component-specific class; local CSS shares the
 renderer document. Inherit fonts, use semantic HTML and text status alongside
 color, and keep keyboard focus visible. Do not redefine `:root`, `body`, or
-app tokens from a component. There is no component theme property or theme
-package contract. Use `min-width: 0`, fluid widths, and an internal scroll
+app tokens from a component. Theme packages are separate from component nodes; see [theme tokens](theme-tokens.md). The reactive `useTheme()` hook returns the active `reference`, `appearance`, and resolved `tokens`. Use `min-width: 0`, fluid widths, and an internal scroll
 region for large output rather than fixed tile dimensions.
 
 ## Worked example: poll git status

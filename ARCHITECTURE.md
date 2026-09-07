@@ -21,5 +21,7 @@ Read the pages in this order for a full system view:
 7. [Distribution and exclusions](./docs/architecture/distribution.md) — macOS
    packaging, release verification, and deferred scope.
 
+[Themes](./docs/architecture/themes.md) defines token packages, selection, rendering, and git distribution.
+
 Product intent lives in [docs/IDEA.md](./docs/IDEA.md). User-facing setup,
 commands, and workflows live in [README.md](./README.md).

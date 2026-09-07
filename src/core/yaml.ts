@@ -96,6 +96,7 @@ const configSchema = {
   properties: {
     schemaVersion: { const: 2 },
     name: { type: "string", minLength: 1, maxLength: 200 },
+    theme: { type: "string", minLength: 1, maxLength: 2048 },
     icon: { type: "string", minLength: 1, maxLength: 2048 },
     root: { $ref: "#/$defs/componentNode" },
   },
@@ -124,6 +125,7 @@ const lockSchema = {
   required: ["lockfileVersion", "components"],
   properties: {
     lockfileVersion: { const: 1 },
+    themes: { type: "object", propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_-]*$" }, additionalProperties: { ...lockEntrySchema, properties: { ...lockEntrySchema.properties, path: { type: "string", pattern: "^themes/external/[A-Za-z][A-Za-z0-9_-]*$" } } } },
     components: {
       type: "object",
       propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
@@ -361,6 +363,9 @@ export async function parseDashboardLock(file: string): Promise<ParsedYaml<Dashb
       );
     }
   }
+  for (const [name, entry] of Object.entries(result.value.themes ?? {})) {
+    if (entry.path !== `themes/external/${name}`) diagnostics.push(diagnostic({ code: "LOCK_THEME_PATH_INVALID", message: `Theme ${name} must pin themes/external/${name}.`, file }));
+  }
   if (diagnostics.length > 0) return { value: null, diagnostics };
   return result;
 }
@@ -384,6 +389,9 @@ export function validateDashboardLockValue(
       );
     }
   }
+  for (const [name, entry] of Object.entries(lock.themes ?? {})) {
+    if (entry.path !== `themes/external/${name}`) diagnostics.push(diagnostic({ code: "LOCK_THEME_PATH_INVALID", message: `Theme ${name} must pin themes/external/${name}.`, file }));
+  }
   return diagnostics;
 }
 
@@ -392,7 +400,7 @@ export function serializeDashboardLock(lock: DashboardLock): string {
   for (const name of Object.keys(lock.components).sort()) {
     sorted[name] = lock.components[name]!;
   }
-  return stringify({ lockfileVersion: 1, components: sorted }, { lineWidth: 0 });
+  return stringify({ lockfileVersion: 1, components: sorted, ...(lock.themes === undefined ? {} : { themes: Object.fromEntries(Object.entries(lock.themes).sort(([a], [b]) => a.localeCompare(b))) }) }, { lineWidth: 0 });
 }
 
 export async function parseComponentManifest(file: string): Promise<ParsedYaml<ComponentManifest>> {

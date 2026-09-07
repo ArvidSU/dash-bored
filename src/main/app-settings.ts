@@ -17,6 +17,8 @@ export const DEFAULT_ACTION_SHORTCUTS = { "app:reload": "Mod+Shift+R" } as const
 
 function defaults(dashBoredAgent: string): AppSettings {
   return {
+    theme: "builtin:default",
+    themeMode: "dark",
     dashBoredAgent,
     favoriteActionIds: [],
     commandPaletteShortcut: DEFAULT_COMMAND_PALETTE_SHORTCUT,
@@ -56,6 +58,8 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
     else seen.add(shortcut);
   }
   return {
+    theme: typeof value.theme === "string" && /^(builtin:default|global:[A-Za-z][A-Za-z0-9_-]*)$/.test(value.theme) ? value.theme : "builtin:default",
+    themeMode: value.themeMode === "light" || value.themeMode === "system" ? value.themeMode : "dark",
     dashBoredAgent: value.dashBoredAgent === null
       ? null
       : normalizeDashBoredAgent(value.dashBoredAgent ?? defaultAgent),

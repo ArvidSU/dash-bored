@@ -13,7 +13,7 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #090b0f;
+  background: var(--bg);
 }
 
 .webview-shell__url {
@@ -21,7 +21,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--muted);
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -38,5 +38,5 @@
 
 .webview-shell__view {
   min-width: 0;
-  background: #fff;
+  background: var(--accent-ink);
 }

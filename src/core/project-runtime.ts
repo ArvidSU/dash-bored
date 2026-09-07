@@ -44,7 +44,7 @@ const DEFAULT_WATCH_DEBOUNCE_MS = 120;
  * dashboard, so the watcher skips them but keeps watching working-tree files.
  */
 function isGitInternalPath(filename: string): boolean {
-  return filename.split(/[\\/]/).some((segment) => segment === ".git");
+  return filename.split(/[\\/]/).some((segment) => segment === ".git" || segment.startsWith(".theme-"));
 }
 
 export interface ProjectRuntimeOptions {
@@ -207,6 +207,7 @@ export class ProjectRuntime {
         config: definition.config ?? this.snapshot.config,
         configRevision: definition.configRevision,
         componentCatalog: definition.componentCatalog,
+        themeCatalog: definition.themeCatalog,
         diagnostics: definition.diagnostics,
         revision: this.snapshot.revision + 1,
       };
@@ -241,6 +242,7 @@ export class ProjectRuntime {
             config: definition.config,
             configRevision: definition.configRevision,
             componentCatalog: definition.componentCatalog,
+        themeCatalog: definition.themeCatalog,
             diagnostics: definition.diagnostics,
             revision: this.snapshot.revision + 1,
           };
@@ -283,6 +285,7 @@ export class ProjectRuntime {
       config: definition.config,
       configRevision: definition.configRevision,
       componentCatalog: definition.componentCatalog,
+        themeCatalog: definition.themeCatalog,
       trusted,
       requestedPermissions: definition.permissions,
       tree: definition.tree,

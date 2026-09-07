@@ -63,6 +63,7 @@ export function parseComponentCatalogDragPayload(value: string): ComponentCatalo
 }
 
 export interface CompositionFlyoutProps {
+  dashboardAppearance?: ReactNode;
   open: boolean;
   dragging?: CompositionDragPayload | null;
   catalog: readonly ComponentCatalogItem[];
@@ -116,9 +117,9 @@ const cardStyle: CSSProperties = {
   display: "grid",
   gap: "0.55rem",
   padding: "0.85rem",
-  border: "1px solid var(--border, #3a3a3a)",
+  border: "1px solid var(--border)",
   borderRadius: "0.7rem",
-  background: "var(--surface, #222)",
+  background: "var(--surface)",
 };
 
 /** Removal mode keeps its own trash-drop chrome outside the shared drawer. */
@@ -134,14 +135,15 @@ const removalStyle: CSSProperties = {
   gap: 0,
   padding: "calc(var(--window-chrome-height, 32px) + 0.5rem) 1rem 1rem",
   overflow: "hidden",
-  color: "var(--text, #f4f4f4)",
-  background: "rgb(217 255 104 / 6%)",
-  borderInlineStart: "2px dotted var(--accent, #d9ff68)",
-  boxShadow: "-1rem 0 2.5rem rgb(217 255 104 / 7%)",
+  color: "var(--text)",
+  background: "color-mix(in srgb, var(--accent) 6%, transparent)",
+  borderInlineStart: "2px dotted var(--accent)",
+  boxShadow: "-1rem 0 2.5rem color-mix(in srgb, var(--accent) 7%, transparent)",
 };
 
 export function CompositionFlyout({
   open,
+  dashboardAppearance,
   dragging: compositionDragging = null,
   catalog,
   onClose,
@@ -451,7 +453,7 @@ export function CompositionFlyout({
         </div>
         <p style={{ margin: 0 }}>{manifest?.description ?? "Manifest metadata is unavailable."}</p>
         {manifest ? (
-          <div style={{ display: "grid", gap: "0.25rem", color: "var(--text-muted, #bbb)" }}>
+          <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
             <span>
               Sizing: {manifest.renderMode === "layout" ? "organizational layout" : "resizable surface"}
             </span>
@@ -464,7 +466,7 @@ export function CompositionFlyout({
           </div>
         ) : null}
         {externalInfo ? (
-          <div style={{ display: "grid", gap: "0.25rem", color: "var(--text-muted, #bbb)" }}>
+          <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
             {externalInfo.url ? (
               <span>Source: <code style={{ overflowWrap: "anywhere" }}>{externalInfo.url}</code></span>
             ) : null}
@@ -485,7 +487,7 @@ export function CompositionFlyout({
           </p>
         ) : null}
         {!available ? (
-          <div role="alert" style={{ padding: "0.6rem", borderRadius: "0.45rem", background: "rgb(160 45 45 / 0.2)" }}>
+          <div role="alert" style={{ padding: "0.6rem", borderRadius: "0.45rem", background: "color-mix(in srgb, var(--negative) 20%, transparent)" }}>
             <strong>Unavailable</strong>
             {entry.diagnostics.length > 0 ? (
               <ul style={{ margin: "0.35rem 0 0", paddingInlineStart: "1.2rem" }}>
@@ -611,6 +613,7 @@ export function CompositionFlyout({
         </label>
       )}
     >
+      {dashboardAppearance}
       <ul aria-label="Component catalog" style={{ display: "grid", gap: "0.75rem", margin: 0, padding: 0, listStyle: "none" }}>
         {filteredInternalCatalog.map(renderCatalogCard)}
       </ul>
@@ -633,7 +636,7 @@ export function CompositionFlyout({
             </button>
           </div>
         </div>
-        <p style={{ margin: 0, color: "var(--text-muted, #bbb)" }}>
+        <p style={{ margin: 0, color: "var(--muted)" }}>
           External components are git submodules pinned by commit. The flyout never runs git;
           add, update, remove, and sync run as terminal commands.
         </p>
@@ -785,7 +788,7 @@ export function CompositionFlyout({
             {managedExternal.manifest?.description ?? "Manifest metadata is unavailable."}
           </p>
           {managedExternal.manifest ? (
-            <div style={{ display: "grid", gap: "0.25rem", color: "var(--text-muted, #bbb)" }}>
+            <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
               <span>
                 Sizing: {managedExternal.manifest.renderMode === "layout" ? "organizational layout" : "resizable surface"}
               </span>
@@ -797,7 +800,7 @@ export function CompositionFlyout({
               </span>
             </div>
           ) : null}
-          <div style={{ display: "grid", gap: "0.25rem", color: "var(--text-muted, #bbb)" }}>
+          <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
             {managedExternalInfo.url ? (
               <span>Source: <code style={{ overflowWrap: "anywhere" }}>{managedExternalInfo.url}</code></span>
             ) : null}
@@ -815,7 +818,7 @@ export function CompositionFlyout({
             </p>
           ) : null}
           {managedExternal.manifest === null || !managedExternal.available ? (
-            <div role="alert" style={{ padding: "0.6rem", borderRadius: "0.45rem", background: "rgb(160 45 45 / 0.2)" }}>
+            <div role="alert" style={{ padding: "0.6rem", borderRadius: "0.45rem", background: "color-mix(in srgb, var(--negative) 20%, transparent)" }}>
               <strong>Unavailable</strong>
               {managedExternal.diagnostics.length > 0 ? (
                 <ul style={{ margin: "0.35rem 0 0", paddingInlineStart: "1.2rem" }}>

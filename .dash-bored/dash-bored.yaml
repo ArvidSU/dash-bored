@@ -8,6 +8,11 @@ root:
     type: managed
     items:
       - metadata:
+          label: Themes
+        node:
+          id: theme-reference
+          component: ./components/theme-reference
+      - metadata:
           label: Overview
         node:
           id: overview
@@ -203,7 +208,7 @@ root:
                                           tags:
                                             - feature
                                         - description: Theme and styling as component?
-                                          done: false
+                                          done: true
                                           tags:
                                             - feature
                                         - description: Individually collapsable components in sidebar tree view

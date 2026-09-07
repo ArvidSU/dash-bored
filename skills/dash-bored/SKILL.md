@@ -225,3 +225,20 @@ when placement cannot be verified from the owning YAML.
 
 Summarize the useful workflows exposed, any permissions added, and which
 runtime or native interactions were not exercised.
+
+
+## Theme authoring
+
+Use `dash-bored theme init <name> [project]` to scaffold a theme, edit its
+`theme.yaml`, and run `dash-bored theme validate <directory>`. Use
+`theme add <git-url> [project]` for a pinned project installation or `--global`
+for a personal installation. `theme list`, `status`, `update`, `sync`, and
+`remove` expose the installation lifecycle; nothing auto-updates or selects a
+theme. The optional top-level dashboard `theme` references `builtin:default`,
+`global:<name>`, `./themes/<name>`, or `./themes/external/<name>` and themes the
+whole window. Settings owns Light/Dark/System mode. Theme selection belongs
+outside the component tree. Both light/dark maps inherit defaults; use the
+[complete token reference](references/theme-tokens.md) or
+`dash-bored theme validate --schema`. No custom CSS or executable theme code.
+Components consume CSS variables or reactive `useTheme()` from the component
+module; never hard-code dark-only colors or overwrite global tokens.

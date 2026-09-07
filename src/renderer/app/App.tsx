@@ -1,6 +1,8 @@
+import { applyTheme, ThemeNotice, ThemeSelect } from "../lib/theme";
+import { BUILTIN_THEME, type ThemeCatalogItem } from "../../shared/themes";
 import {
   useCallback,
-  useEffect,
+  useEffect, useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -126,6 +128,26 @@ export function App(): ReactNode {
   } = compositionInteraction;
   const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
   const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
+  const [personalThemes, setPersonalThemes] = useState<ThemeCatalogItem[]>([BUILTIN_THEME]);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const changed = () => setSystemDark(media.matches);
+    media.addEventListener('change', changed);
+    return () => media.removeEventListener('change', changed);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { void host.getThemes().then((items) => { if (active) setPersonalThemes(items); }).catch(() => undefined); };
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.removeEventListener('focus', refresh); };
+  }, [snapshot?.revision, activeView]);
+  useLayoutEffect(() => {
+    const catalog = [...personalThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith('./'))];
+    const requested = editSession?.configPath === snapshot?.configPath ? editSession?.draft.theme : snapshot?.config?.theme;
+    applyTheme(catalog, requested, appSettings.theme, appSettings.themeMode, systemDark);
+  }, [personalThemes, snapshot?.themeCatalog, snapshot?.configPath, snapshot?.config?.theme, editSession?.configPath, editSession?.draft.theme, appSettings.theme, appSettings.themeMode, systemDark]);
   const snapshotRef = useRef<ProjectSnapshot | null>(null);
   const editSessionRef = useRef<DashboardEditSession | null>(null);
   snapshotRef.current = snapshot;
@@ -195,7 +217,9 @@ export function App(): ReactNode {
     };
     const unsubscribe = host.subscribe((event) => {
       if (!active) return;
-      if (event.type === "snapshot") {
+      if (event.type === "themes") {
+        setPersonalThemes(event.catalog);
+      } else if (event.type === "snapshot") {
         setSnapshot(event.snapshot);
         const starter = event.snapshot.processes
           .map((process) => starterDashboardAgentTask(event.snapshot.configPath, process))
@@ -573,9 +597,9 @@ export function App(): ReactNode {
     compositionInteraction.closeLibrary();
   }
 
-  async function ensureCurrentDashboardEdit(): Promise<DashboardEditSession | null> {
+  async function ensureCurrentDashboardEdit(requestedConfigPath?: string): Promise<DashboardEditSession | null> {
     if (!snapshot?.projectRoot || !snapshot.configPath) return null;
-    if (editSession?.projectRoot === snapshot.projectRoot) {
+    if (editSession?.projectRoot === snapshot.projectRoot && (!requestedConfigPath || requestedConfigPath === editSession.configPath)) {
       return editSession;
     }
     if (editSession) {
@@ -585,7 +609,7 @@ export function App(): ReactNode {
 
     let loaded: DashboardEditSession | null = null;
     await perform(`edit:${snapshot.configPath}`, async () => {
-      const focusedSource = virtualRoot?.node.sourceConfigPath;
+      const focusedSource = requestedConfigPath ?? virtualRoot?.node.sourceConfigPath;
       const source = await host.getDashboardConfigSource(focusedSource);
       const validation = await host.validateDashboardDraft(source.config, source.configPath);
       loaded = {
@@ -1575,6 +1599,7 @@ export function App(): ReactNode {
         onToggleAgentActivity={toggleAgentActivity}
         onDismissError={() => setActionError(null)}
       >
+        <ThemeNotice />
         {workspace}
       </AppShell>
       <AgentActivity
@@ -1598,6 +1623,19 @@ export function App(): ReactNode {
         onToggleFavorite={toggleFavoriteAction}
       />
       <CompositionFlyout
+        dashboardAppearance={snapshot?.configPath ? <details className="dashboard-appearance">
+          <summary>Dashboard appearance</summary>
+          <label className="props-field"><span>Window theme</span><ThemeSelect inherit
+            value={editSession?.configPath === snapshot.configPath ? editSession?.draft.theme : snapshot.config?.theme}
+            onChange={(theme) => { void (async () => {
+              const session = await ensureCurrentDashboardEdit(snapshot.configPath!);
+              if (!session || snapshotRef.current?.configPath !== session.configPath) return;
+              const draft = { ...session.draft };
+              if (theme) draft.theme = theme; else delete draft.theme;
+              setEditSession({ ...session, draft });
+            })(); }} /></label>
+          <p>Applies to the whole window. Save dashboard to keep the selection.</p>
+        </details> : undefined}
         open={componentLibraryOpen}
         dragging={compositionDrag}
         catalog={compositionCatalog}

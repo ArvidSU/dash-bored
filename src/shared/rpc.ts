@@ -30,6 +30,7 @@ export type DashboardRPC = {
   bun: RPCSchema<{
     requests: {
       getSnapshot: { params: {}; response: ProjectSnapshot };
+      getThemes: { params: {}; response: import("./themes").ThemeCatalogItem[] };
       getAppSettings: { params: {}; response: AppSettings };
       updateAppSettings: { params: AppSettings; response: AppSettings };
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
@@ -71,6 +72,7 @@ export type DashboardRPC = {
   webview: RPCSchema<{
     requests: {};
     messages: {
+      themes: import("./themes").ThemeCatalogItem[];
       snapshot: ProjectSnapshot;
       process: ProcessSnapshot;
       agentTask: DashboardAgentTask;

@@ -3,7 +3,7 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #0c0f14;
+  background: var(--surface);
 }
 
 .chart__header {
@@ -26,7 +26,7 @@
 }
 
 .chart__heading strong {
-  color: #dce4ee;
+  color: var(--text);
   font-size: 11px;
 }
 
@@ -44,7 +44,7 @@
 }
 
 .chart__grid {
-  stroke: rgb(142 153 169 / 18%);
+  stroke: color-mix(in srgb, var(--muted) 18%, transparent);
   stroke-dasharray: 3 6;
   stroke-width: 1;
 }
@@ -57,7 +57,7 @@
 .chart__axis-label,
 .chart__x-label {
   fill: var(--faint);
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 
@@ -75,7 +75,7 @@
 }
 
 .chart__point {
-  stroke: #0c0f14;
+  stroke: var(--surface);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
@@ -121,10 +121,10 @@
 .chart__error {
   margin: 10px 11px 0;
   padding: 8px 9px;
-  border: 1px solid rgb(255 123 123 / 24%);
+  border: 1px solid color-mix(in srgb, var(--negative) 24%, transparent);
   border-radius: var(--radius-sm);
-  color: #ffc5c5;
-  background: rgb(112 25 30 / 18%);
+  color: var(--negative);
+  background: color-mix(in srgb, var(--negative) 18%, transparent);
   font-size: 11px;
 }
 

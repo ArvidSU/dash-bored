@@ -422,7 +422,7 @@ export function updateTiledSplitRatio(
   return next;
 }
 
-export type DashboardMetadataField = "name" | "icon";
+export type DashboardMetadataField = "name" | "icon" | "theme";
 
 export function updateDashboardMetadata(
   config: DashboardConfig,
@@ -431,8 +431,8 @@ export function updateDashboardMetadata(
 ): DashboardConfig {
   const next = structuredClone(config);
   if (field === "name") next.name = value;
-  else if (value.trim().length === 0) delete next.icon;
-  else next.icon = value.trim();
+  else if (value.trim().length === 0) delete next[field];
+  else next[field] = value.trim();
   return next;
 }
 

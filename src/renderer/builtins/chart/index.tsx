@@ -31,7 +31,7 @@ export function chartTitle(props: Record<string, unknown>, fallback: string): st
 }
 
 function chartColor(series: ChartSeries, index: number): string {
-  return series.color ?? CHART_COLORS[index % CHART_COLORS.length] ?? CHART_COLORS[0];
+  return series.color ?? CHART_COLORS[index % CHART_COLORS.length] ?? "var(--chart-1)";
 }
 
 function formatChartValue(value: number): string {

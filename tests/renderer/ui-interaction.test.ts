@@ -1074,3 +1074,109 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
 });
+
+test('themes select personal and dashboard variants, preview/cancel, and preserve mounted terminals', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Settings', exact: true }).click();
+    await proof.getByRole('tab', { name: 'Themes', exact: true }).click();
+    await proof.getByRole('combobox', { name: 'Default theme', exact: true }).selectOption('global:ocean');
+    await proof.waitForFunction(() => document.documentElement.dataset.theme === 'global:ocean');
+    await proof.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption('light');
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'light');
+    expect(await proof.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#285fbb');
+    await proof.screenshot({ path: '/tmp/dash-bored-theme-light.png', fullPage: true });
+    await proof.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption('system');
+    await proof.emulateMedia({ colorScheme: 'dark' });
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'dark');
+    await proof.emulateMedia({ colorScheme: 'light' });
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'light');
+    await proof.emulateMedia({ colorScheme: 'dark' });
+    await proof.getByRole('button', { name: 'Visual verification fixture', exact: true }).click();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 2, name: 'UI harness project', root: { id: 'theme-proof', component: '@dash-bored/group', children: { type: 'tiled', layout: { type: 'split', axis: 'vertical', ratio: 0.5,
+        first: { type: 'child', child: { node: { id: 'theme-terminal', component: '@dash-bored/command', props: { label: 'Theme terminal', command: 'echo theme' } } } },
+        second: { type: 'split', axis: 'horizontal', ratio: 0.5,
+          first: { type: 'child', child: { node: { id: 'theme-chart', component: '@dash-bored/chart', props: { title: 'Theme chart', labels: ['One', 'Two'], series: [{ label: 'Series', values: [1, 2] }] } } } },
+          second: { type: 'child', child: { node: { id: 'theme-markdown', component: '@dash-bored/markdown', props: { content: '# Theme preview\n\nReadable text and `code` in both variants.' } } } },
+        },
+      } } } }, snapshot.configRevision!);
+      await host.startProcess('theme-terminal');
+    });
+    await proof.getByRole('button', { name: 'Open terminal', exact: true }).click();
+    await proof.locator('.xterm').waitFor();
+    await proof.locator('.xterm').evaluate((element) => { element.setAttribute('data-theme-proof', 'same-terminal'); });
+    await proof.emulateMedia({ colorScheme: 'light' });
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'light');
+    expect(await proof.locator('.xterm').getAttribute('data-theme-proof')).toBe('same-terminal');
+    await proof.getByRole('heading', { name: 'Theme preview', exact: true }).waitFor();
+    await proof.screenshot({ path: '/tmp/dash-bored-theme-light-dashboard.png', fullPage: true });
+    await proof.emulateMedia({ colorScheme: 'dark' });
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'dark');
+    await proof.getByRole('button', { name: 'Open component library' }).click();
+    await proof.getByText('Dashboard appearance', { exact: true }).click();
+    await proof.getByRole('combobox', { name: 'Dashboard theme', exact: true }).selectOption('./themes/plum');
+    await proof.waitForFunction(() => document.documentElement.dataset.theme === './themes/plum');
+    expect(await proof.locator('.xterm').getAttribute('data-theme-proof')).toBe('same-terminal');
+    expect(await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).config?.theme)).toBeUndefined();
+    await proof.getByRole('button', { name: 'Close Component library', exact: true }).click();
+    await proof.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await proof.getByRole('button', { name: 'Discard changes', exact: true }).click();
+    await proof.waitForFunction(() => document.documentElement.dataset.theme === 'global:ocean');
+    expect(await proof.locator('.xterm').getAttribute('data-theme-proof')).toBe('same-terminal');
+    await proof.getByRole('button', { name: 'Open component library' }).click();
+    const details = proof.locator('.dashboard-appearance');
+    if (!await details.getAttribute('open').then((v) => v !== null)) await details.locator('summary').click();
+    await proof.getByRole('combobox', { name: 'Dashboard theme', exact: true }).selectOption('./themes/plum');
+    await proof.getByRole('button', { name: 'Close Component library', exact: true }).click();
+    await proof.getByRole('button', { name: 'Save dashboard', exact: true }).click();
+    await proof.waitForFunction(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).config?.theme === './themes/plum');
+    await proof.screenshot({ path: '/tmp/dash-bored-theme-dark.png', fullPage: true });
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ ...snapshot.config!, theme: './themes/missing' }, snapshot.configRevision!);
+    });
+    await proof.waitForFunction(() => document.documentElement.dataset.theme === 'global:ocean');
+    await proof.getByText(/Theme unavailable; using a fallback/).waitFor();
+    expect(await proof.locator('.xterm').getAttribute('data-theme-proof')).toBe('same-terminal');
+    await proof.setViewportSize({ width: 430, height: 850 });
+    await proof.screenshot({ path: '/tmp/dash-bored-theme-narrow.png', fullPage: true });
+  } finally { await proof.close(); }
+}, 30_000);
+
+
+test('theme package manager generates scoped commands without changing selection', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Settings', exact: true }).click();
+    await proof.getByRole('tab', { name: 'Themes', exact: true }).click();
+    await proof.getByRole('region', { name: 'Manage theme packages', exact: true }).waitFor();
+    const selection = await proof.getByRole('combobox', { name: 'Default theme', exact: true }).inputValue();
+    expect(await proof.getByRole('button', { name: 'Copy theme command', exact: true }).isDisabled()).toBe(true);
+    await proof.getByRole('textbox', { name: 'Theme repository URL', exact: true }).fill('https://example.com/ocean.git');
+    await proof.getByRole('textbox', { name: 'Theme package name', exact: true }).fill('ocean');
+    await proof.getByRole('textbox', { name: 'Theme revision', exact: true }).fill("feature/ocean's-colors");
+    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toContain(`'feature/ocean'"'"'s-colors'`);
+    await proof.getByRole('textbox', { name: 'Theme revision', exact: true }).fill('v2');
+    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toBe("dash-bored theme add 'https://example.com/ocean.git' --name 'ocean' --ref 'v2' --global");
+    await proof.getByRole('combobox', { name: 'Theme installation scope' }).selectOption('project');
+    const configPath = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).configPath);
+    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toContain(configPath!);
+    await proof.getByRole('combobox', { name: 'Theme operation', exact: true }).selectOption('sync');
+    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toBe(`dash-bored theme sync '${configPath}'`);
+    await proof.getByRole('combobox', { name: 'Theme operation', exact: true }).selectOption('remove');
+    expect(await proof.getByRole('button', { name: 'Copy theme command', exact: true }).isDisabled()).toBe(true);
+    await proof.getByRole('textbox', { name: 'Theme package name', exact: true }).fill('ocean');
+    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toBe(`dash-bored theme remove 'ocean' '${configPath}'`);
+    expect(await proof.getByRole('combobox', { name: 'Default theme', exact: true }).inputValue()).toBe(selection);
+    await proof.setViewportSize({ width: 430, height: 900 });
+    await proof.screenshot({ path: '/tmp/dash-bored-theme-manager.png', fullPage: true });
+    expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally { await proof.close(); }
+});

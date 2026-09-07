@@ -1,3 +1,4 @@
+import { BUILTIN_THEME, type ThemeCatalogItem } from "../../shared/themes";
 import Ajv, { type ErrorObject } from "ajv";
 import { listBuiltinManifests } from "../../core/builtins";
 import type {
@@ -241,7 +242,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
 }));
 
 catalog.push(...listBuiltinManifests()
-  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env")
+  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart")
   .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
 
 catalog.push({
@@ -297,6 +298,10 @@ function fixtureChildEdges(children: ComponentNode["children"]): ComponentChildE
  * local-component validation; this fixture covers the config/catalog contract
  * which is meaningful in a browser-only test host.
  */
+const FIXTURE_THEMES: ThemeCatalogItem[] = [BUILTIN_THEME,
+  { reference: 'global:ocean', name: 'Ocean', manifest: { schemaVersion: 1, id: 'ocean', name: 'Ocean', light: { accent: '#285fbb' }, dark: { accent: '#8fb8ff' } } },
+  { reference: './themes/plum', name: 'Plum', manifest: { schemaVersion: 1, id: 'plum', name: 'Plum', light: { accent: '#843ea3' }, dark: { accent: '#d19aff' } } },
+];
 function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation {
   const diagnostics: Diagnostic[] = [];
   if (config.schemaVersion !== 2) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 2.", "schemaVersion"));
@@ -440,6 +445,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   };
   visitEnvironment(tree);
   return {
+    themeCatalog: structuredClone(FIXTURE_THEMES),
     environmentByNode,
     projectRoot: PROJECT_ROOT,
     configPath: CONFIG_PATH,
@@ -495,6 +501,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     },
     getPersistedConfig() { return structuredClone(persistedConfig); },
     async getSnapshot() { return snapshot(); },
+    async getThemes() { return structuredClone(FIXTURE_THEMES.filter((item) => !item.reference.startsWith("./"))); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },

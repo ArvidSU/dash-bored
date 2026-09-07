@@ -347,7 +347,7 @@ export async function addComponent(
     );
   }
   const next: DashboardLock = {
-    lockfileVersion: 1,
+    ...lock,
     components: { ...lock.components, [name]: { url, commit, path: lockPathFor(name) } },
   };
   await writeLock(location, next);
@@ -454,7 +454,7 @@ export async function updateComponent(
     );
   }
   const next: DashboardLock = {
-    lockfileVersion: 1,
+    ...lock,
     components: { ...lock.components, [name]: { ...entry, commit } },
   };
   await writeLock(location, next);
@@ -501,7 +501,7 @@ export async function removeComponent(
     // only costs disk space and never affects resolution.
   }
   const { [name]: _removed, ...remaining } = lock.components;
-  await writeLock(location, { lockfileVersion: 1, components: remaining });
+  await writeLock(location, { ...lock, components: remaining });
   return { name };
 }
 

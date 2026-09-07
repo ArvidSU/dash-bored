@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: ocean
+name: Ocean
+description: Cool blue accents for the dash-bored development cockpit.
+light:
+  accent: '#285fbb'
+  accent-strong: '#17458f'
+  accent-ink: '#ffffff'
+  chart-1: '#285fbb'
+dark:
+  accent: '#8fb8ff'
+  accent-strong: '#6fa2f5'
+  accent-ink: '#0a1830'
+  chart-1: '#8fb8ff'

@@ -132,10 +132,10 @@
 
 .todo__tags span {
   padding: 0.15rem 0.4rem;
-  border: 1px solid rgb(217 255 104 / 18%);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: 99px;
   color: var(--muted);
-  background: rgb(217 255 104 / 8%);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-size: 0.72rem;
 }
 
@@ -195,7 +195,7 @@
   gap: 0.2rem;
   padding: 0.55rem 0.7rem;
   border-left: 3px solid var(--negative);
-  background: rgb(255 123 123 / 8%);
+  background: color-mix(in srgb, var(--negative) 8%, transparent);
 }
 
 .todo__error p:first-child,

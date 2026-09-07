@@ -1,3 +1,4 @@
+import { useTheme, terminalTheme } from "../../lib/theme";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Terminal as XtermTerminal } from "@xterm/xterm";
@@ -10,6 +11,7 @@ export default function Command({
   props,
   host: componentHost,
 }: ComponentRendererProps): ReactNode {
+  const { tokens } = useTheme();
   const processApi = componentHost.processes;
   const process = processApi?.get();
   const running = process?.phase === "running" || process?.phase === "stopping";
@@ -46,16 +48,11 @@ export default function Command({
       convertEol: true,
       cursorBlink: true,
       cursorStyle: "block",
-      fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+      fontFamily: tokens["font-mono"],
       fontSize: 11,
       lineHeight: 1.35,
       scrollback: 2_000,
-      theme: {
-        background: "#080a0d",
-        foreground: "#c2c9d2",
-        cursor: "#d9ff68",
-        selectionBackground: "#31401b",
-      },
+      theme: terminalTheme(tokens),
     });
     terminal.open(output);
     terminalRef.current = terminal;
@@ -90,6 +87,13 @@ export default function Command({
       lastSequenceRef.current = 0;
     };
   }, [terminalVisible]);
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = terminalTheme(tokens);
+      terminalRef.current.options.fontFamily = tokens['font-mono'];
+    }
+  }, [tokens]);
 
   useEffect(() => {
     const terminal = terminalRef.current;

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { runThemeCommand } from "./theme";
 
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
@@ -12,7 +13,7 @@ import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 import { installDashBoredCli } from "./install-cli";
 
-const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent", "component"]);
+const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent", "component", "theme"]);
 
 interface ParsedCommandArguments {
   project: string;
@@ -35,6 +36,7 @@ Usage:
   dash-bored validate [project] [--json]
   dash-bored inspect [project] [--summary | --component <reference>]
   dash-bored agent [agent-command]
+  dash-bored theme <init|validate|list|status|add|update|remove|sync> [--global]
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
   dash-bored component status [<name>] [project]
@@ -335,6 +337,7 @@ async function main(): Promise<number> {
     }
   }
   const parsed = parseCommandArguments(command, commandArgs);
+  if (command === "theme") return runThemeCommand(args.slice(1));
   if (command === "component") return runComponentCommand(args.slice(1));
   if (parsed.help) {
     console.log(usage());

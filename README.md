@@ -560,7 +560,7 @@ Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
 every node in the currently selected dashboard for virtual-root focus,
 all declared process resources, and actions contributed by active components.
-Settings is split into **General** and **Actions**. General lets you change the
+Settings is split into **General**, **Themes**, and **Actions**. Themes contains appearance settings and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
 palette actions: search them, assign an app-local keyboard shortcut, or mark an
 action as a favorite. You can also toggle its star directly in the palette.
@@ -759,3 +759,64 @@ the new bundle before retiring the original.
 For bounded agent discovery, use `dash-bored inspect . --summary` followed by
 `dash-bored inspect . --component @dash-bored/command` (or another exact catalog
 reference). Full `inspect` output remains available when the entire tree is needed.
+
+## UI themes
+
+Settings → Themes selects a default theme and **Dark**, **Light**, or **System**
+appearance. **Component library → Dashboard appearance** can override the theme for the whole
+window; Save publishes the choice and Cancel restores it. Linked dashboards
+and component focus do not change the window theme.
+
+Create a local theme:
+
+```sh
+dash-bored theme init ocean .
+dash-bored theme validate .dash-bored/themes/ocean
+```
+
+Edit `.dash-bored/themes/ocean/theme.yaml`:
+
+```yaml
+schemaVersion: 1
+id: ocean
+name: Ocean
+light:
+  accent: '#285fbb'
+dark:
+  accent: '#8fb8ff'
+```
+
+Select `./themes/ocean` under Component library → Dashboard appearance or set the top-level
+`theme: ./themes/ocean` in its YAML. Each variant inherits all unspecified
+built-in tokens. See the [token reference](skills/dash-bored/references/theme-tokens.md)
+and [JSON Schema](schemas/theme.schema.json). `dash-bored theme validate --schema`
+also prints the schema from the installed CLI. Theme packages contain data;
+custom CSS, scripts, downloaded fonts, and layout changes are unsupported.
+
+**Settings → Themes → Manage theme packages** lists personal or current-dashboard
+packages with repository URLs, exact pins, and missing-checkout diagnostics. Choose
+Add, Update, Remove, Sync, or Status to copy a command targeting that exact dashboard
+bundle (or the personal store). Run it in a terminal and reload, matching the
+component library's command workflow. Local authored themes remain editable files.
+
+Install a repository with `theme.yaml` at its root:
+
+```sh
+dash-bored theme add https://example.com/ocean.git --name ocean .
+dash-bored theme add https://example.com/ocean.git --name ocean --global
+dash-bored theme list .
+dash-bored theme status .
+dash-bored theme update ocean --to v2 .
+dash-bored theme sync .
+dash-bored theme remove ocean .
+```
+
+The project installation becomes `./themes/external/ocean`; commit its gitlink,
+`.gitmodules`, and `dash-bored-lock.yaml`. A fresh clone uses `theme sync` to
+restore the exact pinned revision. Personal installation becomes `global:ocean`
+and lives under `~/.config/dash-bored/themes`; use `--global` instead of the
+project target with list/status/update/sync/remove/init. Git is required for
+installations, and project installs require a Git checkout. Updates are always
+explicit and refuse local changes. Installation does not select a theme.
+Missing themes show a diagnostic and fall back to your app default, then the
+built-in theme. Existing settings keep Dark until you choose another mode.

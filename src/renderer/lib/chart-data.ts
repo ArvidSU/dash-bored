@@ -11,14 +11,7 @@ export interface ChartData {
   series: ChartSeries[];
 }
 
-export const CHART_COLORS = [
-  "#d9ff68",
-  "#8fb8ff",
-  "#f4c66b",
-  "#d19aff",
-  "#70e2a0",
-  "#ff9b9b",
-] as const;
+export const CHART_COLORS = [1, 2, 3, 4, 5, 6].map((index) => `var(--chart-${index})`);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

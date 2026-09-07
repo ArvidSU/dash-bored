@@ -4,7 +4,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 2%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .card__header {

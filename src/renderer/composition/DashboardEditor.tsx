@@ -1,3 +1,4 @@
+import { ThemeSelect } from "../lib/theme";
 import { useState } from "react";
 import type { DragEvent, ReactNode } from "react";
 import type {
@@ -538,6 +539,7 @@ export function DashboardEditor({
       <section className="dashboard-metadata-editor" aria-label="Dashboard details">
         <div className="dashboard-metadata-editor__fields">
           <label className="props-field"><span>Name<em>Required</em></span><input value={config.name} onChange={(event) => onChange(updateDashboardMetadata(config, "name", event.target.value))} /></label>
+          <label className="props-field"><span>Window theme</span><ThemeSelect inherit value={config.theme} onChange={(theme) => onChange(updateDashboardMetadata(config, "theme", theme))} /></label>
           <label className="props-field"><span>Sidebar icon</span><input value={config.icon ?? ""} onChange={(event) => onChange(updateDashboardMetadata(config, "icon", event.target.value))} /></label>
         </div>
       </section>

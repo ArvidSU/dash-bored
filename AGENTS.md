@@ -7,6 +7,7 @@ plan, prompt, code, or documentation.
 pages under docs/architecture/ up to date with the actual implementation.
 
 Dog food this project and its features by adding components with sane configurations in the project dashboard.
+If a work package has had features or amendments defered, add them to this projects todo list: `dash-bored/.dash-bored/dash-bored.yaml#root.children.items[1].node.children.layout.second.second.second.second.first.child.node.children.layout.child.node`
 
 ## Documentation ownership
 

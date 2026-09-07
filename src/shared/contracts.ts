@@ -54,6 +54,7 @@ export interface DashboardConfig {
   name: string;
   /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
   icon?: string;
+  theme?: string;
   root: ComponentNode;
 }
 
@@ -69,6 +70,7 @@ export interface ExternalComponentLockEntry {
 export interface DashboardLock {
   lockfileVersion: 1;
   components: Record<string, ExternalComponentLockEntry>;
+  themes?: Record<string, ExternalComponentLockEntry>;
 }
 
 export type ComponentChildPresentation =
@@ -161,6 +163,8 @@ export interface ResolvedComponentNode {
 }
 
 export interface AppSettings {
+  theme?: string;
+  themeMode?: import("./themes").ThemeMode;
   /** App-wide CLI command used for natural-language dashboard changes, or null to use the owning bundle. */
   dashBoredAgent: string | null;
   /** Action ids promoted ahead of other matching command-palette results. */
@@ -265,6 +269,7 @@ export interface ProcessSnapshot {
 }
 
 export interface ProjectSnapshot {
+  themeCatalog?: import("./themes").ThemeCatalogItem[];
   /** Public configuration only; never the inherited process environment or bundle secrets. */
   environmentByNode?: Record<string, ComponentEnvironmentSnapshot>;
   projectRoot: string | null;
@@ -348,6 +353,7 @@ export interface DeleteProjectRequest {
 }
 
 export interface InspectResult {
+  themeCatalog?: import("./themes").ThemeCatalogItem[];
   ok: boolean;
   projectRoot: string;
   config: DashboardConfig | null;

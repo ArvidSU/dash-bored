@@ -138,6 +138,21 @@ the shared renderer after a project trust decision, and changing its pin
 re-runs the permission-union trust check. The library flyout surfaces that
 trust delta and never bypasses it.
 
+## Themes
+
+Themes are first-class, declarative packages outside the component tree. Users
+and agents author versioned `theme.yaml` files with light and dark design-token
+variants. The app selects a default theme and Light/Dark/System appearance; an
+actively opened dashboard may select a theme for the whole window. Linked
+content and focused components never take ownership of the window theme.
+
+Theme packages customize colors, typography, corners, and shadows while core
+retains layout, native chrome geometry, focus, and interaction ownership. They
+contain no executable code, custom CSS, or downloaded resources. Personal
+installations are shared by the CLI and desktop app; project installations
+travel with the dashboard bundle. Git themes use exact commit pins, explicit
+installation/update commands, and no marketplace or automatic network updates.
+
 ## Design Principles
 
 ### 1. Configuration over application logic

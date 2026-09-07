@@ -1,3 +1,4 @@
+import { useTheme } from "../lib/theme";
 import React, {
   Fragment,
   createElement,
@@ -51,6 +52,7 @@ interface ComponentRuntimeBridge {
   useMemo: typeof useMemo;
   useReducer: typeof useReducer;
   useRef: typeof useRef;
+  useTheme: typeof useTheme;
   useState: typeof useState;
   useSyncExternalStore: typeof useSyncExternalStore;
   useTransition: typeof useTransition;
@@ -80,6 +82,7 @@ export function installComponentRuntime(): void {
     useMemo,
     useReducer,
     useRef,
+    useTheme,
     useState,
     useSyncExternalStore,
     useTransition,

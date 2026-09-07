@@ -29,13 +29,13 @@
 
 .tabs__tab:hover {
   color: var(--text);
-  background: rgb(255 255 255 / 3%);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 .tabs__tab[aria-selected="true"] {
-  color: #eef4fc;
+  color: var(--text);
   background: var(--surface-hover);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 5%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .tabs__panel[hidden] {

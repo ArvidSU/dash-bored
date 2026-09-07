@@ -1,3 +1,5 @@
+import { ThemeManager } from "./ThemeManager";
+import { ThemeSelect } from "../lib/theme";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { AppSettings, ProjectSnapshot } from "../../shared/contracts";
@@ -85,7 +87,7 @@ export function SettingsPanel({
   onRevoke: () => void;
 }): ReactNode {
   const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent ?? "");
-  const [activeTab, setActiveTab] = useState<"general" | "actions">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions">("general");
   const [actionQuery, setActionQuery] = useState("");
   useEffect(() => setAgentDraft(appSettings.dashBoredAgent ?? ""), [appSettings.dashBoredAgent]);
   const normalizedAgentDraft = agentDraft.trim();
@@ -150,8 +152,20 @@ export function SettingsPanel({
       </div>
       <div className="settings-tabs" role="tablist" aria-label="Settings sections">
         <button type="button" role="tab" aria-selected={activeTab === "general"} onClick={() => setActiveTab("general")}>General</button>
+        <button type="button" role="tab" aria-selected={activeTab === "themes"} onClick={() => setActiveTab("themes")}>Themes</button>
         <button type="button" role="tab" aria-selected={activeTab === "actions"} onClick={() => setActiveTab("actions")}>Actions</button>
       </div>
+      {activeTab === "themes" && <div className="settings-tab-panel" role="tabpanel" aria-label="Themes">
+      <section className="settings-card settings-card--themes" aria-labelledby="theme-settings-title">
+        <h2 id="theme-settings-title">Appearance</h2>
+        <label className="props-field"><span>Default theme</span><ThemeSelect personal value={appSettings.theme} onChange={(theme) => onUpdateSettings({ ...appSettings, theme }, "Default theme updated.")} /></label>
+        <label className="props-field"><span>Appearance</span><select aria-label="Appearance" value={appSettings.themeMode ?? 'dark'} onChange={(event) => onUpdateSettings({ ...appSettings, themeMode: event.target.value as 'light' | 'dark' | 'system' }, "Appearance updated.")}>
+          <option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
+        </select></label>
+        <p>A dashboard theme applies to the whole window.</p>
+      </section>
+      <ThemeManager configPath={snapshot?.configPath} />
+      </div>}
       {activeTab === "general" ? <div className="settings-tab-panel" role="tabpanel">
       <section className="settings-card" aria-labelledby="palette-settings-title">
         <div>
@@ -237,7 +251,7 @@ export function SettingsPanel({
           </div>
         ) : null}
       </section>
-      </div> : (
+      </div> : activeTab === "actions" ? (
         <div className="settings-tab-panel settings-actions" role="tabpanel">
           <div className="settings-actions__heading">
             <div>
@@ -284,7 +298,7 @@ export function SettingsPanel({
             {visibleActions.length === 0 ? <p className="settings-actions__empty">No matching actions.</p> : null}
           </div>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }

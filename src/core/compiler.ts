@@ -55,6 +55,7 @@ const componentSdkSource = `
 const runtime = globalThis.${RUNTIME_GLOBAL};
 if (!runtime) throw new Error("dash-bored component runtime is not installed");
 const React = runtime.React;
+export const useTheme = runtime.useTheme;
 export const defineComponent = runtime.defineComponent ?? ((component) => component);
 export const createElement = runtime.createElement ?? React.createElement;
 export const Fragment = runtime.Fragment ?? React.Fragment;

@@ -351,3 +351,5 @@ uninitialized checkout (`COMPONENT_EXTERNAL_UNINITIALIZED`) with a pointer at
 `./components/external/<name>/<path…>`), and a checkout with no manifest
 anywhere reports `COMPONENT_EXTERNAL_NO_MANIFEST`. Neither silently resolves
 to something else.
+
+Theme selection is optional top-level `theme` metadata. Bundle-local packages and the optional `themes` lock section follow the [theme contract](themes.md).

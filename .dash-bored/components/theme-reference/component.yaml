@@ -1,0 +1,15 @@
+schemaVersion: 2
+id: theme-reference
+name: Theme reference
+description: Inspect the active window theme and semantic colors while developing themes.
+entry: ./index.tsx
+propsSchema:
+  type: object
+  additionalProperties: false
+children:
+  min: 0
+  max: 0
+  presentation:
+    type: tiled
+    axes: both
+permissions: []

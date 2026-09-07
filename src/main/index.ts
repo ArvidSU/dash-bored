@@ -1,3 +1,6 @@
+import { watch as watchThemes } from "node:fs";
+import { mkdir as mkdirThemes } from "node:fs/promises";
+import { loadThemeCatalog, personalThemesDirectory } from "../core/themes";
 import Electrobun, {
   ApplicationMenu,
   BrowserView,
@@ -256,6 +259,21 @@ installedToolDiagnostics.push(...await refreshInstalledTools({
 for (const root of registeredRoots) checkedSkillRoots.add(root);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
+try {
+  await mkdirThemes(personalThemesDirectory(), { recursive: true });
+  let themeWatchTimer: ReturnType<typeof setTimeout> | undefined;
+  const themeWatcher = watchThemes(personalThemesDirectory(), { recursive: true }, (_event, filename) => {
+    if (filename && String(filename).split(/[\\/]/).some((part) => part === '.git' || part.startsWith('.theme-'))) return;
+    clearTimeout(themeWatchTimer);
+    themeWatchTimer = setTimeout(() => {
+      void loadThemeCatalog().then((catalog) => {
+        (mainWindow?.webview.rpc as { send?: { themes(value: typeof catalog): void } } | undefined)?.send?.themes(catalog);
+      }).catch((error) => console.error('Could not reload personal themes.', error));
+    }, 150);
+  });
+  themeWatcher.on('error', (error) => console.error('Personal theme watcher unavailable; reload to refresh themes.', error));
+} catch (error) { console.error('Personal theme watcher unavailable; reload to refresh themes.', error); }
+
 let publishedEnvironment: Record<string, string> = initialAppSettings.dashBoredAgent === null
   ? {}
   : { DASH_BORED_AGENT: initialAppSettings.dashBoredAgent };
@@ -446,6 +464,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
   handlers: {
     requests: {
       getSnapshot: () => withInstalledToolDiagnostics(runtime.getSnapshot()),
+      getThemes: () => loadThemeCatalog(),
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
