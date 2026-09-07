@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { PaletteAction } from "../lib/actions";
-import { rankActions } from "../lib/actions";
+import { rankActions, resolveActionChoiceOptions } from "../lib/actions";
+import type { ComponentActionOption, ComponentActionSelections } from "../../shared/contracts";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 
 interface CommandPaletteProps {
@@ -11,8 +12,9 @@ interface CommandPaletteProps {
   favoriteActionIds: ReadonlySet<string>;
   actionShortcuts: Readonly<Record<string, string>>;
   favoritesDisabled: boolean;
+  initialActionId?: string | null;
   onDismiss(): void;
-  onExecute(id: string): void;
+  onExecute(id: string, selections?: ComponentActionSelections): void;
   onToggleFavorite(id: string): void;
 }
 
@@ -33,6 +35,7 @@ export function CommandPalette({
   favoriteActionIds,
   actionShortcuts,
   favoritesDisabled,
+  initialActionId,
   onDismiss,
   onExecute,
   onToggleFavorite,
@@ -40,6 +43,9 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
+  const [choiceActionId, setChoiceActionId] = useState<string | null>(null);
+  const [choiceIndex, setChoiceIndex] = useState(0);
+  const [choices, setChoices] = useState<ComponentActionSelections>({});
   const [status, setStatus] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +72,14 @@ export function CommandPalette({
   const confirmationAction = confirmationId
     ? effectiveActions.find((action) => action.id === confirmationId)
     : undefined;
+  const choiceAction = choiceActionId ? effectiveActions.find((action) => action.id === choiceActionId) : undefined;
+  const currentChoice = choiceAction?.choices?.[choiceIndex];
+  let choiceOptions: readonly ComponentActionOption[] = [];
+  let choiceError = "";
+  if (currentChoice) {
+    try { choiceOptions = resolveActionChoiceOptions(currentChoice, choices); }
+    catch (error) { choiceError = error instanceof Error ? error.message : "This action has no usable options."; }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -74,6 +88,9 @@ export function CommandPalette({
     setQuery("");
     setSelectedIndex(0);
     setConfirmationId(null);
+    setChoiceActionId(null);
+    setChoiceIndex(0);
+    setChoices({});
     setStatus("");
     requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
@@ -83,6 +100,15 @@ export function CommandPalette({
       });
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !initialActionId) return;
+    const action = effectiveActions.find((candidate) => candidate.id === initialActionId);
+    if (!action?.enabled || !action.choices?.length) return;
+    setChoiceActionId(action.id);
+    setChoiceIndex(0);
+    setChoices({});
+  }, [effectiveActions, initialActionId, open]);
 
   const rankedIds = ranked.map((action) => action.id).join("\u0000");
   useEffect(() => {
@@ -105,12 +131,21 @@ export function CommandPalette({
 
   function dismiss(): void {
     setConfirmationId(null);
+    setChoiceActionId(null);
+    setChoices({});
     onDismiss();
   }
 
   function choose(action: PaletteAction): void {
     if (!action.enabled) {
       setStatus(action.disabledReason ?? "This action is unavailable.");
+      return;
+    }
+    if (action.choices?.length) {
+      setChoiceActionId(action.id);
+      setChoiceIndex(0);
+      setChoices({});
+      setStatus("");
       return;
     }
     if (action.confirmation) {
@@ -156,7 +191,19 @@ export function CommandPalette({
       event.preventDefault();
       if (confirmationId) {
         setConfirmationId(null);
-        requestAnimationFrame(() => inputRef.current?.focus());
+        if (choiceAction?.choices?.length) {
+          setChoiceIndex(choiceAction.choices.length - 1);
+        } else {
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }
+      } else if (choiceActionId) {
+        if (choiceIndex > 0) {
+          setChoiceIndex((index) => index - 1);
+        } else {
+          setChoiceActionId(null);
+          setChoices({});
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }
       } else {
         dismiss();
       }
@@ -204,7 +251,43 @@ export function CommandPalette({
           Command palette
         </h2>
 
-        {confirmationAction?.confirmation ? (
+        {choiceAction && currentChoice ? (
+          <div className="command-palette__confirmation">
+            <span className="eyebrow">Choose an option</span>
+            <h3>{currentChoice.label}</h3>
+            {currentChoice.description ? <p>{currentChoice.description}</p> : null}
+            {choiceError ? <p role="alert">{choiceError}</p> : (
+              <div role="listbox" aria-label={currentChoice.label}>
+                {choiceOptions.map((option) => (
+                  <button className="button button--quiet" type="button" key={option.value} onClick={() => {
+                    const next = { ...choices, [currentChoice.id]: option.value };
+                    const nextIndex = choiceIndex + 1;
+                    if (choiceAction.choices && nextIndex < choiceAction.choices.length) {
+                      setChoices(next);
+                      setChoiceIndex(nextIndex);
+                    } else if (choiceAction.confirmation) {
+                      setChoices(next);
+                      setChoiceIndex(nextIndex);
+                      setConfirmationId(choiceAction.id);
+                    } else {
+                      dismiss();
+                      onExecute(choiceAction.id, next);
+                    }
+                  }}>
+                    <strong>{option.label}</strong>{option.description ? <span>{option.description}</span> : null}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="command-palette__confirmation-actions">
+              <button className="button button--quiet" type="button" onClick={() => {
+                if (choiceIndex > 0) setChoiceIndex((index) => index - 1);
+                else { setChoiceActionId(null); setChoices({}); requestAnimationFrame(() => inputRef.current?.focus()); }
+              }}>Back</button>
+              <button className="button button--quiet" type="button" onClick={dismiss}>Cancel</button>
+            </div>
+          </div>
+        ) : confirmationAction?.confirmation ? (
           <div className="command-palette__confirmation">
             <span className="command-palette__confirmation-mark" aria-hidden="true">
               ?
@@ -226,7 +309,11 @@ export function CommandPalette({
                 type="button"
                 onClick={() => {
                   setConfirmationId(null);
-                  requestAnimationFrame(() => inputRef.current?.focus());
+                  if (choiceAction?.choices?.length) {
+                    setChoiceIndex(choiceAction.choices.length - 1);
+                  } else {
+                    requestAnimationFrame(() => inputRef.current?.focus());
+                  }
                 }}
               >
                 Cancel
@@ -237,8 +324,9 @@ export function CommandPalette({
                 ref={confirmRef}
                 onClick={() => {
                   const id = confirmationAction.id;
+                  const selections = choices;
                   dismiss();
-                  onExecute(id);
+                  onExecute(id, selections);
                 }}
               >
                 {confirmationAction.confirmation.confirmLabel ?? "Confirm"}

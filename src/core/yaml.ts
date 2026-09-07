@@ -97,6 +97,7 @@ const configSchema = {
     schemaVersion: { const: 2 },
     name: { type: "string", minLength: 1, maxLength: 200 },
     theme: { type: "string", minLength: 1, maxLength: 2048 },
+    themeMode: { enum: ["light", "dark", "system"] },
     icon: { type: "string", minLength: 1, maxLength: 2048 },
     root: { $ref: "#/$defs/componentNode" },
   },

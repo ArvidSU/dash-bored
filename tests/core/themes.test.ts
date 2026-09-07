@@ -2,8 +2,8 @@ import { afterEach, expect, test } from 'bun:test';
 import { mkdir, readFile, rm, writeFile, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stringify } from 'yaml';
-import { parseTheme, loadThemeCatalog, readTheme } from '../../src/core/themes';
-import { DARK_TOKENS, LIGHT_TOKENS, resolveTheme, themeTokens } from '../../src/shared/themes';
+import { parseTheme, loadApplicationThemeCatalog, loadThemeCatalog, readTheme } from '../../src/core/themes';
+import { DARK_TOKENS, LIGHT_TOKENS, projectThemeReference, resolveTheme, themeTokens } from '../../src/shared/themes';
 import { addTheme, updateTheme, removeTheme, syncThemes, statusThemes, themeGit } from '../../src/core/theme-install';
 import { parseDashboardLock, serializeDashboardLock } from '../../src/core/yaml';
 import { temporaryDirectory, removeTemporaryDirectory } from './helpers';
@@ -42,6 +42,24 @@ test('catalog reads local themes without executing anything and rejects escaping
   await rm(join(root, 'themes', 'ocean', 'theme.yaml'));
   await symlink(join(outside, 'theme.yaml'), join(root, 'themes', 'ocean', 'theme.yaml'));
   await expect(readTheme(join(root, 'themes', 'ocean'))).rejects.toThrow('contained');
+});
+test('application theme catalog aggregates project packages with stable references', async () => {
+  const first = await temp(); const second = await temp(); const global = await temp();
+  for (const [root, id, name] of [[first, 'retro', 'Retro'], [second, 'retro', 'Retro Other']] as const) {
+    await mkdir(join(root, 'themes', id), { recursive: true });
+    await writeFile(join(root, 'themes', id, 'theme.yaml'), stringify({ ...manifest, id, name }));
+  }
+  const firstConfig = join(first, 'dash-bored.yaml');
+  const secondConfig = join(second, 'dash-bored.yaml');
+  const catalog = await loadApplicationThemeCatalog([
+    { configPath: firstConfig, configDirectory: first, label: 'First dashboard' },
+    { configPath: secondConfig, configDirectory: second, label: 'Second dashboard' },
+  ], global);
+  const firstReference = projectThemeReference(firstConfig, './themes/retro');
+  const secondReference = projectThemeReference(secondConfig, './themes/retro');
+  expect(catalog.find((item) => item.reference === firstReference)).toMatchObject({ name: 'Retro', displayReference: 'First dashboard · ./themes/retro' });
+  expect(catalog.find((item) => item.reference === secondReference)).toMatchObject({ name: 'Retro Other', displayReference: 'Second dashboard · ./themes/retro' });
+  expect(catalog.filter((item) => item.reference.startsWith('project:'))).toHaveLength(2);
 });
 test('generated public schema, CSS defaults and token reference are current', async () => {
   for (const [path, expected] of Object.entries(themeArtifacts)) expect(await readFile(path, 'utf8')).toBe(expected);

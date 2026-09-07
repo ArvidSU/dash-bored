@@ -142,8 +142,10 @@ trust delta and never bypasses it.
 
 Themes are first-class, declarative packages outside the component tree. Users
 and agents author versioned `theme.yaml` files with light and dark design-token
-variants. The app selects a default theme and Light/Dark/System appearance; an
-actively opened dashboard may select a theme for the whole window. Linked
+variants. The app selects a default theme and Light/Dark/System appearance;
+Application Settings lists every registered dashboard so each can select a
+theme and appearance mode for the whole window. Each dashboard field is
+optional and independently inherits the app selection when omitted. Linked
 content and focused components never take ownership of the window theme.
 
 Theme packages customize colors, typography, corners, and shadows while core
@@ -269,7 +271,8 @@ The application shell should expose its own navigation and lifecycle actions,
 configured project commands, and actions contributed by active components
 through one searchable command palette.
 
-Application settings separate general behavior from the action catalog. Users
+Application settings separate general behavior, appearance defaults and
+per-dashboard appearance selections from the action catalog. Users
 can assign app-local keyboard shortcuts to the command palette and individual
 actions, and can favorite actions from either Settings or the palette. Favorites
 sort ahead of other matching results without bypassing search, availability,

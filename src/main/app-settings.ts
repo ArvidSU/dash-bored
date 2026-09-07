@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { CoreError } from "../core/diagnostics";
 import type { AppSettings } from "../shared/contracts";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
+import { isAppThemeReference } from "../shared/themes";
 
 export const DEFAULT_DASH_BORED_AGENT = "codex exec";
 const MAX_AGENT_COMMAND_LENGTH = 1_024;
@@ -58,7 +59,9 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
     else seen.add(shortcut);
   }
   return {
-    theme: typeof value.theme === "string" && /^(builtin:default|global:[A-Za-z][A-Za-z0-9_-]*)$/.test(value.theme) ? value.theme : "builtin:default",
+    // Legacy ./themes references remain readable and are upgraded by the
+    // renderer once their owning dashboard is known.
+    theme: typeof value.theme === "string" && isAppThemeReference(value.theme) ? value.theme : "builtin:default",
     themeMode: value.themeMode === "light" || value.themeMode === "system" ? value.themeMode : "dark",
     dashBoredAgent: value.dashBoredAgent === null
       ? null

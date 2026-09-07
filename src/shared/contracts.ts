@@ -55,6 +55,8 @@ export interface DashboardConfig {
   /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
   icon?: string;
   theme?: string;
+  /** Optional appearance mode for this dashboard; omitted means inherit app settings. */
+  themeMode?: import("./themes").ThemeMode;
   root: ComponentNode;
 }
 
@@ -325,6 +327,13 @@ export interface ProjectListItem extends ProjectTarget {
   iconDataUrl?: string | null;
 }
 
+/** Persisted appearance choices shown by Application Settings for each registered dashboard. */
+export interface DashboardSettingsItem extends ProjectListItem {
+  theme?: string;
+  themeMode?: import("./themes").ThemeMode;
+  error?: string;
+}
+
 export interface ProjectOutline extends ProjectTarget {
   dashboardName: string | null;
   tree: ResolvedComponentNode | null;
@@ -446,6 +455,23 @@ export interface ComponentActionConfirmation {
   confirmLabel?: string;
 }
 
+export type ComponentActionSelections = Readonly<Record<string, string>>;
+
+export interface ComponentActionOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+export interface ComponentActionChoice {
+  id: string;
+  label: string;
+  description?: string;
+  options:
+    | readonly ComponentActionOption[]
+    | ((selections: ComponentActionSelections) => readonly ComponentActionOption[]);
+}
+
 export interface ComponentAction {
   id: string;
   label: string;
@@ -454,7 +480,8 @@ export interface ComponentAction {
   enabled?: boolean;
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
-  run(): void | Promise<void>;
+  choices?: readonly ComponentActionChoice[];
+  run(selections?: ComponentActionSelections): void | Promise<void>;
 }
 
 export interface ComponentEnvironmentSnapshot {

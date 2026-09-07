@@ -133,7 +133,7 @@
 .todo__tags span {
   padding: 0.15rem 0.4rem;
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
-  border-radius: 99px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-size: 0.72rem;

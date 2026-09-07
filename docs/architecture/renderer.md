@@ -228,7 +228,7 @@ sidebar. When diagnostics are present, their details header offers Fix with
 agent; the main process re-reads the current diagnostics and launches the
 configured dashboard agent against the owning config, including when the
 dashboard tree is unavailable. The header exposes the command palette and active-dashboard edit
-controls; trust and reload actions remain available from Settings. The main
+controls; trust and reload actions remain available through the command palette. The main
 process persists successfully opened dashboard targets in a user-data
 registry. Each entry retains its canonical project root, exact config path,
 and configured dashboard name, so the canonical and named bundles can appear
@@ -237,8 +237,11 @@ config icon when available. The sidebar can switch the single active runtime
 between those dashboards, add another target through the native chooser, open
 application settings, or remove a remembered dashboard.
 
-Application Settings has General and Actions tabs. General owns app behavior,
-including the command-palette shortcut and `DASH_BORED_AGENT`; Actions presents
+Application Settings has General, Themes, and Actions tabs. General owns app
+behavior, including the command-palette shortcut and `DASH_BORED_AGENT`.
+Themes owns app appearance defaults plus a per-dashboard list of theme and
+appearance selections; changing a row reads and writes that registered bundle
+directly without opening it or depending on active editor state. Actions presents
 the same currently known action catalog as the palette, with search, favorite
 toggles, and per-action shortcut recording. The separate versioned, owner-only
 user-data file persists those preferences. The inherited agent environment
@@ -377,6 +380,11 @@ running IDs to reject duplicate execution, and drops stale registrations.
 Trust, revoke, and component-selected sensitive actions use the palette's
 confirmation state. Trust confirmation names the complete requested capability
 set before calling the existing trust RPC.
+
+Actions may declare ordered choices. The palette collects each selection before
+running the action, supports Back and Escape without running it, and passes the
+completed selection map to the action. Choice options may depend on earlier
+selections; shortcuts open the same choice flow rather than bypassing it.
 
 The palette is application-scoped. A visible header control and the native
 application-menu accelerator `CommandOrControl+K` open it; the menu sends a

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppSettingsStore, resolveDashBoredAgent } from "../../src/main/app-settings";
+import { projectThemeReference } from "../../src/shared/themes";
 import {
   removeTemporaryDirectory,
   temporaryDirectory,
@@ -117,7 +118,7 @@ describe("AppSettingsStore", () => {
 });
 
 
-test("theme settings preserve old dark defaults and persist Light/System with a personal selection", async () => {
+test("theme settings preserve old dark defaults and persist Light/System with any installed theme reference", async () => {
   const directory = await temporaryDirectory(); cleanup.push(directory);
   const path = join(directory, "settings.json");
   await writeFile(path, JSON.stringify({ version: 2, dashBoredAgent: null }));
@@ -129,5 +130,8 @@ test("theme settings preserve old dark defaults and persist Light/System with a 
     expect((await new AppSettingsStore(path).get()).theme).toBe("global:ocean");
   }
   await store.update({ ...await store.get(), theme: "./themes/local" });
-  expect((await store.get()).theme).toBe("builtin:default");
+  expect((await store.get()).theme).toBe("./themes/local");
+  const qualified = projectThemeReference("/workspace/example/.dash-bored/dash-bored.yaml", "./themes/external/remote");
+  await store.update({ ...await store.get(), theme: qualified });
+  expect((await new AppSettingsStore(path).get()).theme).toBe(qualified);
 });

@@ -79,6 +79,26 @@
           "type": "string",
           "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
         },
+        "accent-soft": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "panel-dark": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "panel-dark-muted": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "border-dark": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "highlight": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
         "shadow-color": {
           "type": "string",
           "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
@@ -282,6 +302,26 @@
           "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
         },
         "accent-ink": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "accent-soft": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "panel-dark": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "panel-dark-muted": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "border-dark": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "highlight": {
           "type": "string",
           "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
         },

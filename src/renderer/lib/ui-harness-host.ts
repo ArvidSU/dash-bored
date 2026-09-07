@@ -1,4 +1,4 @@
-import { BUILTIN_THEME, type ThemeCatalogItem } from "../../shared/themes";
+import { BUILTIN_THEME, projectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
 import Ajv, { type ErrorObject } from "ajv";
 import { listBuiltinManifests } from "../../core/builtins";
 import type {
@@ -302,6 +302,15 @@ const FIXTURE_THEMES: ThemeCatalogItem[] = [BUILTIN_THEME,
   { reference: 'global:ocean', name: 'Ocean', manifest: { schemaVersion: 1, id: 'ocean', name: 'Ocean', light: { accent: '#285fbb' }, dark: { accent: '#8fb8ff' } } },
   { reference: './themes/plum', name: 'Plum', manifest: { schemaVersion: 1, id: 'plum', name: 'Plum', light: { accent: '#843ea3' }, dark: { accent: '#d19aff' } } },
 ];
+const FIXTURE_APPLICATION_THEMES: ThemeCatalogItem[] = [
+  FIXTURE_THEMES[0]!,
+  FIXTURE_THEMES[1]!,
+  {
+    ...FIXTURE_THEMES[2]!,
+    reference: projectThemeReference(CONFIG_PATH, './themes/plum'),
+    displayReference: 'UI harness · ./themes/plum',
+  },
+];
 function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation {
   const diagnostics: Diagnostic[] = [];
   if (config.schemaVersion !== 2) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 2.", "schemaVersion"));
@@ -501,7 +510,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     },
     getPersistedConfig() { return structuredClone(persistedConfig); },
     async getSnapshot() { return snapshot(); },
-    async getThemes() { return structuredClone(FIXTURE_THEMES.filter((item) => !item.reference.startsWith("./"))); },
+    async getThemes() { return structuredClone(FIXTURE_APPLICATION_THEMES); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },

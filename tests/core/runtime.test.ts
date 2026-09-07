@@ -492,4 +492,37 @@ describe("ProjectRuntime", () => {
     expect(await readFile(join(named, "dash-bored.yaml"), "utf8")).toContain("After");
     expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toBe(baseSource);
   });
+
+  test("edits a registered dashboard appearance without opening that dashboard", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, { schemaVersion: 2, name: "Base", root: { component: "@dash-bored/markdown", props: { content: "Base" } } });
+    const named = join(root, ".dash-bored", "arvid");
+    await mkdir(join(named, "components"), { recursive: true });
+    await Promise.all([
+      writeFile(join(named, "dash-bored.yaml"), stringify({
+        schemaVersion: 2,
+        name: "Arvid",
+        root: { component: "@dash-bored/markdown", props: { content: "Arvid" } },
+      })),
+      writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
+    ]);
+    const namedConfigPath = await realpath(join(named, "dash-bored.yaml"));
+    const runtime = new ProjectRuntime({
+      trustStore: new TrustStore(join(root, ".state", "trust.json")),
+      isConfigRegistered: (configPath) => configPath === namedConfigPath,
+    });
+    runtimes.push(runtime);
+    await runtime.load(root);
+
+    const source = await runtime.getDashboardConfigSource(namedConfigPath);
+    await runtime.saveDashboardConfig(
+      { ...source.config, themeMode: "light" },
+      source.configRevision,
+      namedConfigPath,
+    );
+
+    expect((await runtime.getSnapshot()).dashboardName).toBe("Base");
+    expect((await readFile(join(named, "dash-bored.yaml"), "utf8"))).toContain("themeMode: light");
+  });
 });

@@ -1,6 +1,6 @@
 import { watch as watchThemes } from "node:fs";
 import { mkdir as mkdirThemes } from "node:fs/promises";
-import { loadThemeCatalog, personalThemesDirectory } from "../core/themes";
+import { loadApplicationThemeCatalog, personalThemesDirectory } from "../core/themes";
 import Electrobun, {
   ApplicationMenu,
   BrowserView,
@@ -266,7 +266,7 @@ try {
     if (filename && String(filename).split(/[\\/]/).some((part) => part === '.git' || part.startsWith('.theme-'))) return;
     clearTimeout(themeWatchTimer);
     themeWatchTimer = setTimeout(() => {
-      void loadThemeCatalog().then((catalog) => {
+      void loadApplicationThemes().then((catalog) => {
         (mainWindow?.webview.rpc as { send?: { themes(value: typeof catalog): void } } | undefined)?.send?.themes(catalog);
       }).catch((error) => console.error('Could not reload personal themes.', error));
     }, 150);
@@ -280,6 +280,7 @@ let publishedEnvironment: Record<string, string> = initialAppSettings.dashBoredA
 const dashboardAgentHarness = new DashboardAgentHarness({ onTask: sendAgentTask });
 const runtime = new ProjectRuntime({
   trustStore,
+  isConfigRegistered: async (configPath) => (await projectRegistry.list()).some((project) => project.configPath === configPath),
   getPublishedEnvironment: () => publishedEnvironment,
   onSnapshot(snapshot) {
     sendSnapshot(snapshot);
@@ -300,6 +301,25 @@ const runtime = new ProjectRuntime({
       ?.send?.process(process);
   },
 });
+
+async function loadApplicationThemes() {
+  const current = runtime.getSnapshot();
+  const registered = await projectRegistry.list();
+  const candidates = new Map<string, { configPath: string; label?: string | null }>();
+  for (const project of registered) candidates.set(project.configPath, { configPath: project.configPath, label: project.dashboardName });
+  if (current.configPath) {
+    candidates.set(current.configPath, { configPath: current.configPath, label: current.dashboardName });
+  }
+  const sources = (await Promise.all([...candidates.values()].map(async (candidate) => {
+    try {
+      const location = await resolveProjectLocation(candidate.configPath);
+      return { ...candidate, configDirectory: location.configDirectory };
+    } catch {
+      return null;
+    }
+  }))).filter((source): source is NonNullable<typeof source> => source !== null);
+  return loadApplicationThemeCatalog(sources);
+}
 
 async function resolveAgentCommand(configPath: string, settings: Awaited<ReturnType<AppSettingsStore["get"]>>): Promise<string> {
   if (settings.dashBoredAgent !== null) return settings.dashBoredAgent;
@@ -464,7 +484,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
   handlers: {
     requests: {
       getSnapshot: () => withInstalledToolDiagnostics(runtime.getSnapshot()),
-      getThemes: () => loadThemeCatalog(),
+      getThemes: () => loadApplicationThemes(),
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);

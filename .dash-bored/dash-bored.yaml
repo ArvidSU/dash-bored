@@ -1,6 +1,8 @@
 schemaVersion: 2
 name: Dash Bored
 icon: ../assets/icon.svg
+theme: ./themes/retro-industrial
+themeMode: light
 root:
   id: project-cockpit
   component: "@dash-bored/tabs"

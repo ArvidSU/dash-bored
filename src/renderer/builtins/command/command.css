@@ -35,7 +35,7 @@
   align-items: center;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: 8px;
   font-weight: 700;

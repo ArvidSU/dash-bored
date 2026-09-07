@@ -49,6 +49,8 @@ function isGitInternalPath(filename: string): boolean {
 
 export interface ProjectRuntimeOptions {
   trustStore: TrustStore;
+  /** Allows app-level settings to inspect and edit another registered dashboard without opening it. */
+  isConfigRegistered?: (configPath: string) => Promise<boolean> | boolean;
   onSnapshot?: (snapshot: ProjectSnapshot) => void;
   onProcess?: (snapshot: ProcessSnapshot) => void;
   watchDebounceMs?: number;
@@ -135,6 +137,7 @@ function cloneSnapshot(snapshot: ProjectSnapshot): ProjectSnapshot {
 
 export class ProjectRuntime {
   private readonly trustStore: TrustStore;
+  private readonly isConfigRegistered?: (configPath: string) => Promise<boolean> | boolean;
   private readonly onSnapshot?: (snapshot: ProjectSnapshot) => void;
   private readonly onProcess?: (snapshot: ProcessSnapshot) => void;
   private readonly watchDebounceMs: number;
@@ -157,6 +160,7 @@ export class ProjectRuntime {
 
   constructor(options: ProjectRuntimeOptions) {
     this.trustStore = options.trustStore;
+    this.isConfigRegistered = options.isConfigRegistered;
     this.onSnapshot = options.onSnapshot;
     this.onProcess = options.onProcess;
     this.watchDebounceMs = options.watchDebounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS;
@@ -419,9 +423,14 @@ export class ProjectRuntime {
   }
 
   private async sourceLocation(configPath?: string): Promise<ProjectLocation> {
-    if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    if (configPath === undefined || configPath === this.location.configPath) return this.location;
+    if (configPath === undefined) {
+      if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
+      return this.location;
+    }
+    if (this.location !== null && configPath === this.location.configPath) return this.location;
     const requested = await realpath(configPath);
+    if (await this.isConfigRegistered?.(requested)) return resolveProjectLocation(requested);
+    if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
     const reachable = new Set<string>();
     const visit = (node: ResolvedComponentNode): void => {
       if (node.sourceConfigPath) reachable.add(node.sourceConfigPath);
@@ -505,7 +514,7 @@ export class ProjectRuntime {
   ): Promise<ProjectSnapshot> {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
-      if (this.location === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
+      const activeLocation = this.location;
       const location = await this.sourceLocation(configPath);
       const currentRevision = await readConfigRevision(location.configPath);
       if (currentRevision !== expectedConfigRevision) {
@@ -526,8 +535,9 @@ export class ProjectRuntime {
 
       let precompiled: CompiledLocalComponent[] | undefined;
       const trusted =
-        !this.sessionRevokedRoots.has(this.location.projectRoot) &&
-        (await this.trustStore.isTrusted(this.location.projectRoot, definition.permissions));
+        activeLocation !== null &&
+        !this.sessionRevokedRoots.has(activeLocation.projectRoot) &&
+        (await this.trustStore.isTrusted(activeLocation.projectRoot, definition.permissions));
       if (trusted) {
         const compiled = await compileLocalComponents(definition.localComponents);
         if (hasErrors(compiled.diagnostics)) {
@@ -540,11 +550,12 @@ export class ProjectRuntime {
       }
 
       await replaceDashboardConfigAtomic(location, definition.config);
-      if (location.configPath === this.location.configPath) {
+      if (activeLocation === null) return this.getSnapshot();
+      if (location.configPath === activeLocation.configPath) {
         definition.configRevision = await readConfigRevision(location.configPath);
         return this.applyDefinition(definition, precompiled);
       }
-      return this.applyDefinition(await loadProjectDefinition(this.location));
+      return this.applyDefinition(await loadProjectDefinition(activeLocation));
     });
   }
 

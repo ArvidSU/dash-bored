@@ -2,11 +2,10 @@ import { ThemeManager } from "./ThemeManager";
 import { ThemeSelect } from "../lib/theme";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { AppSettings, ProjectSnapshot } from "../../shared/contracts";
+import type { AppSettings, DashboardConfig, DashboardSettingsItem } from "../../shared/contracts";
 import { keyboardShortcutFromEvent, keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 import { rankActions } from "../lib/actions";
 import type { PaletteAction } from "../lib/actions";
-import { basename } from "../app/app-utils";
 
 function ShortcutRecorder({
   shortcut,
@@ -66,29 +65,26 @@ function ShortcutRecorder({
 }
 
 export function SettingsPanel({
-  snapshot,
   appSettings,
+  dashboardSettings,
   actions,
   pendingAction,
   onSaveAgent,
   onUpdateSettings,
-  onReload,
-  onTrust,
-  onRevoke,
+  onUpdateDashboardAppearance,
 }: {
-  snapshot: ProjectSnapshot | null;
   appSettings: AppSettings;
+  dashboardSettings: readonly DashboardSettingsItem[];
   actions: readonly PaletteAction[];
   pendingAction: string | null;
   onSaveAgent: (command: string | null) => void;
   onUpdateSettings: (settings: AppSettings, notice: string) => void;
-  onReload: () => void;
-  onTrust: () => void;
-  onRevoke: () => void;
+  onUpdateDashboardAppearance: (dashboard: DashboardSettingsItem, change: Pick<DashboardConfig, "theme" | "themeMode">) => Promise<void>;
 }): ReactNode {
   const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent ?? "");
   const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions">("general");
   const [actionQuery, setActionQuery] = useState("");
+  const [updatingDashboard, setUpdatingDashboard] = useState<string | null>(null);
   useEffect(() => setAgentDraft(appSettings.dashBoredAgent ?? ""), [appSettings.dashBoredAgent]);
   const normalizedAgentDraft = agentDraft.trim();
   const savingSettings = pendingAction === "save-settings";
@@ -143,12 +139,24 @@ export function SettingsPanel({
     );
   }
 
+  async function updateDashboardAppearance(
+    dashboard: DashboardSettingsItem,
+    change: Pick<DashboardConfig, "theme" | "themeMode">,
+  ): Promise<void> {
+    setUpdatingDashboard(dashboard.configPath);
+    try {
+      await onUpdateDashboardAppearance(dashboard, change);
+    } finally {
+      setUpdatingDashboard((current) => current === dashboard.configPath ? null : current);
+    }
+  }
+
   return (
     <main className="settings-page" aria-labelledby="settings-title">
       <div className="settings-page__heading">
         <span className="eyebrow">Application</span>
         <h1 id="settings-title">Settings</h1>
-        <p>Configure app behavior, action favorites, and keyboard shortcuts.</p>
+        <p>Configure app behavior, appearance, action favorites, and keyboard shortcuts.</p>
       </div>
       <div className="settings-tabs" role="tablist" aria-label="Settings sections">
         <button type="button" role="tab" aria-selected={activeTab === "general"} onClick={() => setActiveTab("general")}>General</button>
@@ -157,14 +165,50 @@ export function SettingsPanel({
       </div>
       {activeTab === "themes" && <div className="settings-tab-panel" role="tabpanel" aria-label="Themes">
       <section className="settings-card settings-card--themes" aria-labelledby="theme-settings-title">
-        <h2 id="theme-settings-title">Appearance</h2>
-        <label className="props-field"><span>Default theme</span><ThemeSelect personal value={appSettings.theme} onChange={(theme) => onUpdateSettings({ ...appSettings, theme }, "Default theme updated.")} /></label>
+        <h2 id="theme-settings-title">App defaults</h2>
+        <label className="props-field"><span>Default theme</span><ThemeSelect appDefault value={appSettings.theme} onChange={(theme) => onUpdateSettings({ ...appSettings, theme }, "Default theme updated.")} /></label>
         <label className="props-field"><span>Appearance</span><select aria-label="Appearance" value={appSettings.themeMode ?? 'dark'} onChange={(event) => onUpdateSettings({ ...appSettings, themeMode: event.target.value as 'light' | 'dark' | 'system' }, "Appearance updated.")}>
           <option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
         </select></label>
-        <p>A dashboard theme applies to the whole window.</p>
+        <p>Dashboards inherit these settings until you choose a different appearance below.</p>
       </section>
-      <ThemeManager configPath={snapshot?.configPath} />
+      <section className="settings-card settings-card--themes settings-card--dashboard-list" aria-labelledby="dashboard-theme-settings-title">
+        <h2 id="dashboard-theme-settings-title">Dashboard appearances</h2>
+        <p>Choose each dashboard’s theme and appearance independently. Blank selections inherit the app defaults.</p>
+        <div className="dashboard-settings-list">
+          {dashboardSettings.map((dashboard) => {
+            const label = dashboard.dashboardName?.trim() || dashboard.configPath;
+            const updating = updatingDashboard === dashboard.configPath;
+            return <article className="dashboard-settings" key={dashboard.configPath} aria-label={`Appearance settings for ${label}`}>
+              <div className="dashboard-settings__identity">
+                <strong>{dashboard.dashboardName?.trim() || "Unnamed dashboard"}</strong>
+                <code title={dashboard.configPath}>{dashboard.configPath}</code>
+                {dashboard.error ? <span className="dashboard-settings__error" role="alert">{dashboard.error}</span> : null}
+              </div>
+              {!dashboard.error ? <div className="dashboard-settings__controls">
+                <label className="props-field"><span>Theme</span><ThemeSelect
+                  ariaLabel={`Theme for ${label}`}
+                  dashboardConfigPath={dashboard.configPath}
+                  inherit
+                  value={dashboard.theme}
+                  onChange={(theme) => void updateDashboardAppearance(dashboard, { theme: theme || undefined })}
+                /></label>
+                <label className="props-field"><span>Appearance</span><select
+                  aria-label={`Appearance for ${label}`}
+                  disabled={updating}
+                  value={dashboard.themeMode ?? ""}
+                  onChange={(event) => void updateDashboardAppearance(dashboard, { themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}
+                >
+                  <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
+                </select></label>
+              </div> : null}
+              {updating ? <span className="dashboard-settings__status">Saving…</span> : null}
+            </article>;
+          })}
+          {dashboardSettings.length === 0 ? <p>No registered dashboards yet.</p> : null}
+        </div>
+      </section>
+      <ThemeManager dashboards={dashboardSettings} />
       </div>}
       {activeTab === "general" ? <div className="settings-tab-panel" role="tabpanel">
       <section className="settings-card" aria-labelledby="palette-settings-title">
@@ -189,7 +233,7 @@ export function SettingsPanel({
       <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
         <div>
           <h2 id="agent-settings-title">Dashboard agent</h2>
-          <p>Set the app-wide <code>DASH_BORED_AGENT</code> command used by every component’s Change with agent action, or clear it to use the active dashboard’s <code>.env</code>.</p>
+          <p>Set the app-wide <code>DASH_BORED_AGENT</code> command used by every component’s Change with agent action, or clear it to use the owning dashboard’s <code>.env</code>.</p>
         </div>
         <form className="settings-agent" onSubmit={(event) => {
           event.preventDefault();
@@ -217,39 +261,10 @@ export function SettingsPanel({
           </div>
           <span className="settings-agent__hint">
             {appSettings.dashBoredAgent === null
-              ? "Unset — the active dashboard's .env value is used when available."
+              ? "Unset — the owning dashboard's .env value is used when available."
               : <>Example: <code>{normalizedAgentDraft || "codex exec"} &quot;Change this thing&quot;</code></>}
           </span>
         </form>
-      </section>
-      <section className="settings-card" aria-labelledby="project-settings-title">
-        <div className="settings-card__project">
-          <h2 id="project-settings-title">Active dashboard</h2>
-          {snapshot?.projectRoot ? (
-            <>
-              <strong>{snapshot.dashboardName?.trim() || basename(snapshot.projectRoot)}</strong>
-              <code title={snapshot.projectRoot}>{snapshot.projectRoot}</code>
-            </>
-          ) : (
-            <p>No dashboard is currently open.</p>
-          )}
-        </div>
-        {snapshot?.projectRoot ? (
-          <div className="settings-card__actions">
-            <button className="button button--quiet" type="button" disabled={pendingAction !== null} onClick={onReload}>
-              {pendingAction === "reload" ? "Reloading…" : "Reload dashboard"}
-            </button>
-            {snapshot.trusted ? (
-              <button className="button button--danger" type="button" disabled={pendingAction !== null} onClick={onRevoke}>
-                {pendingAction === "revoke" ? "Revoking…" : "Revoke trust"}
-              </button>
-            ) : (
-              <button className="button button--primary" type="button" disabled={pendingAction !== null || snapshot.tree === null} onClick={onTrust}>
-                {pendingAction === "trust" ? "Enabling…" : "Trust dashboard"}
-              </button>
-            )}
-          </div>
-        ) : null}
       </section>
       </div> : activeTab === "actions" ? (
         <div className="settings-tab-panel settings-actions" role="tabpanel">

@@ -540,6 +540,9 @@ export function DashboardEditor({
         <div className="dashboard-metadata-editor__fields">
           <label className="props-field"><span>Name<em>Required</em></span><input value={config.name} onChange={(event) => onChange(updateDashboardMetadata(config, "name", event.target.value))} /></label>
           <label className="props-field"><span>Window theme</span><ThemeSelect inherit value={config.theme} onChange={(theme) => onChange(updateDashboardMetadata(config, "theme", theme))} /></label>
+          <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={config.themeMode ?? ""} onChange={(event) => onChange(updateDashboardMetadata(config, "themeMode", event.target.value as DashboardConfig["themeMode"] | ""))}>
+            <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
+          </select></label>
           <label className="props-field"><span>Sidebar icon</span><input value={config.icon ?? ""} onChange={(event) => onChange(updateDashboardMetadata(config, "icon", event.target.value))} /></label>
         </div>
       </section>

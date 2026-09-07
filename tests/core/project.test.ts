@@ -143,6 +143,24 @@ describe("project paths and YAML", () => {
     expect(invalid.diagnostics.some((item) => item.code === "CONFIG_SCHEMA_INVALID")).toBeTrue();
   });
 
+  test("accepts dashboard theme and appearance overrides and rejects invalid modes", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, { ...defaultConfig, theme: "./themes/ocean", themeMode: "light" });
+
+    const valid = await inspectProject(root);
+    expect(valid.ok).toBeTrue();
+    expect(valid.config).toMatchObject({ theme: "./themes/ocean", themeMode: "light" });
+
+    await writeFile(
+      join(root, ".dash-bored", "dash-bored.yaml"),
+      stringify({ ...defaultConfig, themeMode: "sepia" }),
+    );
+    const invalid = await inspectProject(root);
+    expect(invalid.ok).toBeFalse();
+    expect(invalid.diagnostics.some((item) => item.code === "CONFIG_SCHEMA_INVALID" && item.path === "/themeMode")).toBeTrue();
+  });
+
   test("parses a non-empty v1 lock file with valid external entries", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

@@ -199,7 +199,10 @@ describe("dashboard editor tree operations", () => {
 
     const renamed = updateDashboardMetadata(config(), "name", "New dashboard");
     const icon = updateDashboardMetadata(renamed, "icon", " ./icon.svg ");
-    expect(icon).toMatchObject({ name: "New dashboard", icon: "./icon.svg" });
+    const themed = updateDashboardMetadata(icon, "themeMode", "light");
+    expect(themed).toMatchObject({ name: "New dashboard", icon: "./icon.svg", themeMode: "light" });
+    const inherited = updateDashboardMetadata(themed, "themeMode", "");
+    expect(inherited.themeMode).toBeUndefined();
     expect(config().name).toBe("Editor");
   });
 

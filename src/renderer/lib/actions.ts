@@ -1,6 +1,9 @@
 import type {
   ComponentAction,
   ComponentActionConfirmation,
+  ComponentActionChoice,
+  ComponentActionOption,
+  ComponentActionSelections,
 } from "../../shared/contracts";
 
 const ACTION_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -15,7 +18,8 @@ export interface PaletteAction {
   enabled: boolean;
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
-  run(): void | Promise<void>;
+  choices?: readonly ComponentActionChoice[];
+  run(selections?: ComponentActionSelections): void | Promise<void>;
 }
 
 export interface ComponentActionOwner {
@@ -53,6 +57,59 @@ function optionalText(value: unknown, field: string): string | undefined {
   return value.trim();
 }
 
+function validateChoiceOption(option: ComponentActionOption, choiceId: string): void {
+  if (!option || typeof option !== "object") {
+    throw new Error(`Options for component action choice ${choiceId} must be objects.`);
+  }
+  if (typeof option.value !== "string" || option.value.trim() === "") {
+    throw new Error(`Options for component action choice ${choiceId} need non-empty values.`);
+  }
+  if (typeof option.label !== "string" || option.label.trim() === "") {
+    throw new Error(`Options for component action choice ${choiceId} need non-empty labels.`);
+  }
+  optionalText(option.description, `Descriptions for component action choice ${choiceId}`);
+}
+
+function validateChoices(choices: ComponentAction["choices"]): void {
+  if (choices === undefined) return;
+  if (!Array.isArray(choices) || choices.length === 0) {
+    throw new Error("Component action choices must be a non-empty array.");
+  }
+  const ids = new Set<string>();
+  for (const choice of choices) {
+    if (!choice || typeof choice !== "object") {
+      throw new Error("Component action choices must be objects.");
+    }
+    if (typeof choice.id !== "string" || !ACTION_ID_PATTERN.test(choice.id)) {
+      throw new Error("Component action choice ids must start with an ASCII letter and contain only letters, digits, underscores, or hyphens.");
+    }
+    if (ids.has(choice.id)) throw new Error(`Component action choices contain duplicate id ${choice.id}.`);
+    ids.add(choice.id);
+    if (typeof choice.label !== "string" || choice.label.trim() === "") {
+      throw new Error(`Component action choice ${choice.id} labels must be non-empty.`);
+    }
+    if (typeof choice.options !== "function" && !Array.isArray(choice.options)) {
+      throw new Error(`Component action choice ${choice.id} options must be an array or resolver.`);
+    }
+    if (Array.isArray(choice.options)) {
+      if (choice.options.length === 0) throw new Error(`Component action choice ${choice.id} options must be non-empty.`);
+      (choice.options as readonly ComponentActionOption[]).forEach((option) => validateChoiceOption(option, choice.id));
+    }
+  }
+}
+
+export function resolveActionChoiceOptions(
+  choice: ComponentActionChoice,
+  selections: ComponentActionSelections,
+): readonly ComponentActionOption[] {
+  const options = typeof choice.options === "function" ? choice.options(selections) : choice.options;
+  if (!Array.isArray(options) || options.length === 0) {
+    throw new Error(`Component action choice ${choice.id} resolved no options.`);
+  }
+  options.forEach((option) => validateChoiceOption(option, choice.id));
+  return options;
+}
+
 function validateComponentAction(action: ComponentAction): ComponentAction {
   if (!action || typeof action !== "object") {
     throw new Error("Component actions must be objects.");
@@ -68,6 +125,7 @@ function validateComponentAction(action: ComponentAction): ComponentAction {
   if (typeof action.run !== "function") {
     throw new Error("Component actions must provide a run function.");
   }
+  validateChoices(action.choices);
   if (action.enabled !== undefined && typeof action.enabled !== "boolean") {
     throw new Error("Component action enabled values must be booleans.");
   }
@@ -154,8 +212,9 @@ export class ActionRegistry {
                 ...(action.confirmation.confirmLabel === undefined
                   ? {}
                   : { confirmLabel: action.confirmation.confirmLabel.trim() }),
-              },
-            }),
+            },
+          }),
+        ...(action.choices === undefined ? {} : { choices: action.choices }),
         run: action.run,
       },
     });
@@ -308,7 +367,7 @@ export class ActionExecutor {
 
   readonly getSnapshot = (): ReadonlySet<string> => this.snapshot;
 
-  async run(id: string): Promise<ActionRunResult> {
+  async run(id: string, selections: ComponentActionSelections = {}): Promise<ActionRunResult> {
     const action = this.resolve(id);
     if (!action) {
       return {
@@ -327,7 +386,7 @@ export class ActionExecutor {
     this.running.add(id);
     this.emit();
     try {
-      await action.run();
+      await action.run(selections);
       return { status: "completed" };
     } catch (error) {
       return { status: "failed", error };

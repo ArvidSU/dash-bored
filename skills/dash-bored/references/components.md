@@ -269,6 +269,10 @@ permissions.
 
 `host.actions.register` returns an effect cleanup function. Action IDs start
 with a letter and contain only letters, digits, underscores, or hyphens.
+An action may also declare ordered `choices`; each has an ID, label, and static
+options or an options resolver that receives earlier selections. Its `run`
+callback receives the completed selection map only after the user finishes the
+palette flow.
 
 Local components may import contained relative `.ts`, `.tsx`, and `.css`
 files, `@dash-bored/component`, `react`, `react/jsx-runtime`, and

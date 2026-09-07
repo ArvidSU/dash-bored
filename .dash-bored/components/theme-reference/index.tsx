@@ -10,7 +10,7 @@ export default defineComponent(() => {
         <small>{name}</small>
       </div>)}
     </div>
-    <p>Try Ocean in the dashboard theme selector. Settings → Themes controls Light, Dark, or System. Use the Manage theme packages section in that tab to add, update, remove, or sync Git themes for this dashboard or your personal collection.</p>
-    <p><code>bun run dash-bored -- theme validate .dash-bored/themes/ocean</code></p>
+    <p>Use Settings → Themes to set app defaults or preview this dashboard’s own theme and appearance before saving. The command palette also offers Set default theme and Set dashboard theme, each guiding you through the package and Light, Dark, or System choice. Use the Manage theme packages section to add, update, remove, or sync Git themes for this dashboard or your personal collection.</p>
+    <p><code>bun run dash-bored -- theme validate .dash-bored/themes/retro-industrial</code></p>
   </section>;
 });

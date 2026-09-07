@@ -1,24 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from '../lib/theme';
+import { parseProjectThemeReference } from '../../shared/themes';
+import type { DashboardSettingsItem } from '../../shared/contracts';
 
 // Quote every argument: repository URLs and bundle paths can contain shell syntax.
 const quote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
-export function ThemeManager({ configPath }: { configPath?: string | null }) {
+export function ThemeManager({ dashboards = [] }: { dashboards?: readonly DashboardSettingsItem[] }) {
   const { catalog } = useTheme();
   const [scope, setScope] = useState<'global' | 'project'>('global');
+  const [projectConfigPath, setProjectConfigPath] = useState(dashboards[0]?.configPath ?? '');
   const [operation, setOperation] = useState('add');
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [ref, setRef] = useState('');
   const [notice, setNotice] = useState('');
   const project = scope === 'project';
-  const items = catalog.filter((item) => project ? item.reference.startsWith('./') : item.reference.startsWith('global:'));
+  const targetConfigPath = projectConfigPath || dashboards[0]?.configPath || '';
+  const items = catalog.filter((item) => {
+    if (!project) return item.reference.startsWith('global:');
+    if (item.reference.startsWith('./')) return true;
+    return parseProjectThemeReference(item.reference)?.configPath === targetConfigPath;
+  });
+  useEffect(() => {
+    if (dashboards.some((dashboard) => dashboard.configPath === projectConfigPath)) return;
+    setProjectConfigPath(dashboards[0]?.configPath ?? '');
+  }, [dashboards, projectConfigPath]);
   const needsName = operation === 'update' || operation === 'remove';
   const usesName = operation === 'add' || needsName;
   const usesRef = operation === 'add' || operation === 'update';
   const validName = !usesName || !name.trim() || /^[A-Za-z][A-Za-z0-9_-]*$/.test(name.trim());
-  const valid = (!project || Boolean(configPath)) && validName
+  const valid = (!project || Boolean(targetConfigPath)) && validName
     && (!needsName || Boolean(name.trim()))
     && (operation !== 'add' || Boolean(url.trim()) && !url.trim().startsWith('-'))
     && (!usesRef || !ref.trim().startsWith('-'));
@@ -31,16 +43,21 @@ export function ThemeManager({ configPath }: { configPath?: string | null }) {
     args.push(quote(name.trim()));
     if (operation === 'update' && ref.trim()) args.push('--to', quote(ref.trim()));
   }
-  args.push(...(project ? [quote(configPath ?? '')] : ['--global']));
+  args.push(...(project ? [quote(targetConfigPath)] : ['--global']));
   const command = args.join(' ');
   return <section className="settings-card theme-manager" aria-labelledby="theme-management-title" style={{ display: 'block', minWidth: 0 }}>
     <h2 id="theme-management-title">Manage theme packages</h2>
     <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.75rem', minWidth: 0 }}>
       <p>Copy a command, run it in a terminal, then reload the dashboard. Project packages use Git submodules; personal packages use managed Git clones. Installing does not select a theme.</p>
       <label className="props-field"><span>Installation scope</span><select aria-label="Theme installation scope" value={scope} onChange={(event) => { setScope(event.target.value as typeof scope); setName(''); setNotice(''); }}>
-        <option value="global">Personal — all dashboards</option><option value="project" disabled={!configPath}>Current dashboard</option>
+        <option value="global">Personal — all dashboards</option><option value="project" disabled={dashboards.length === 0}>Dashboard package</option>
       </select></label>
-      {project && <code style={{ overflowWrap: 'anywhere' }}>{configPath}</code>}
+      {project && <>
+        <label className="props-field"><span>Dashboard</span><select aria-label="Dashboard package target" value={targetConfigPath} onChange={(event) => { setProjectConfigPath(event.target.value); setName(''); setNotice(''); }}>
+          {dashboards.map((dashboard) => <option key={dashboard.configPath} value={dashboard.configPath}>{dashboard.dashboardName?.trim() || dashboard.configPath}</option>)}
+        </select></label>
+        <code style={{ overflowWrap: 'anywhere' }}>{targetConfigPath}</code>
+      </>}
       {items.map((item) => <div key={item.reference} style={{ overflowWrap: 'anywhere' }}>
         <strong>{item.name}</strong> <code>{item.reference}</code>
         {item.manifest?.description && <p>{item.manifest.description}</p>}

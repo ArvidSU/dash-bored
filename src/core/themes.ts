@@ -5,10 +5,15 @@ import { homedir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import Ajv from 'ajv';
 import { parseDocument } from 'yaml';
-import { BUILTIN_THEME, THEME_SCHEMA, type ThemeCatalogItem, type ThemeManifest } from '../shared/themes';
+import { BUILTIN_THEME, projectThemeReference, THEME_SCHEMA, type ThemeCatalogItem, type ThemeManifest } from '../shared/themes';
 
 /** Shared by the bundled CLI and every desktop channel; independent of Electrobun's instance ID. */
 export function personalThemesDirectory(): string { return join(homedir(), '.config', 'dash-bored', 'themes'); }
+export interface ApplicationThemeSource {
+  configPath: string;
+  configDirectory: string;
+  label?: string | null;
+}
 const validate = new Ajv({ allErrors: true, strict: false }).compile(THEME_SCHEMA);
 export function parseTheme(source: string): ThemeManifest {
   if (Buffer.byteLength(source) > 64 * 1024) throw new Error('theme.yaml exceeds 64 KiB.');
@@ -68,5 +73,32 @@ export async function loadThemeCatalog(configDirectory?: string, globalDirectory
   }
   await attachPins(globalDirectory, 'pins.yaml', 'global:');
   if (configDirectory) await attachPins(configDirectory, 'dash-bored-lock.yaml', './themes/external/');
+  return catalog;
+}
+
+/**
+ * Build the app-level catalog without borrowing the currently selected
+ * dashboard. Project-local packages receive a stable, qualified reference so
+ * their manifests remain usable after dashboard navigation.
+ */
+export async function loadApplicationThemeCatalog(
+  sources: readonly ApplicationThemeSource[],
+  globalDirectory = personalThemesDirectory(),
+): Promise<ThemeCatalogItem[]> {
+  const catalog = await loadThemeCatalog(undefined, globalDirectory);
+  const seen = new Set(catalog.map((item) => item.reference));
+  for (const source of sources) {
+    const localCatalog = await loadThemeCatalog(source.configDirectory, globalDirectory);
+    for (const item of localCatalog.filter((candidate) => /^\.\/themes(?:\/external)?\/[A-Za-z][A-Za-z0-9_-]*$/.test(candidate.reference))) {
+      const reference = projectThemeReference(source.configPath, item.reference);
+      if (seen.has(reference)) continue;
+      seen.add(reference);
+      catalog.push({
+        ...item,
+        reference,
+        displayReference: `${source.label?.trim() || source.configPath} · ${item.reference}`,
+      });
+    }
+  }
   return catalog;
 }

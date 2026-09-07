@@ -1082,6 +1082,15 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
     await proof.goto(fixtureUrl);
     await proof.getByRole('button', { name: 'Settings', exact: true }).click();
     await proof.getByRole('tab', { name: 'Themes', exact: true }).click();
+    expect(await proof.getByText('Current dashboard', { exact: true }).count()).toBe(0);
+    const dashboardAppearance = proof.getByRole('article', { name: 'Appearance settings for Visual verification fixture', exact: true });
+    await dashboardAppearance.getByRole('combobox', { name: 'Appearance for Visual verification fixture', exact: true }).selectOption('light');
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'light');
+    expect(await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).config?.themeMode)).toBe('light');
+    await dashboardAppearance.getByRole('combobox', { name: 'Appearance for Visual verification fixture', exact: true }).selectOption('');
+    await proof.waitForFunction(() => document.documentElement.dataset.appearance === 'dark');
+    await proof.getByRole('combobox', { name: 'Default theme', exact: true }).selectOption({ label: 'Plum — UI harness · ./themes/plum' });
+    await proof.waitForFunction(() => (document.documentElement.dataset.theme ?? '').startsWith('project:'));
     await proof.getByRole('combobox', { name: 'Default theme', exact: true }).selectOption('global:ocean');
     await proof.waitForFunction(() => document.documentElement.dataset.theme === 'global:ocean');
     await proof.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption('light');

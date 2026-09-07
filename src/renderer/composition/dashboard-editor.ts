@@ -422,17 +422,33 @@ export function updateTiledSplitRatio(
   return next;
 }
 
-export type DashboardMetadataField = "name" | "icon" | "theme";
+export type DashboardMetadataField = "name" | "icon" | "theme" | "themeMode";
 
 export function updateDashboardMetadata(
   config: DashboardConfig,
-  field: DashboardMetadataField,
+  field: "name" | "icon" | "theme",
   value: string,
+): DashboardConfig;
+export function updateDashboardMetadata(
+  config: DashboardConfig,
+  field: "themeMode",
+  value: DashboardConfig["themeMode"] | "",
+): DashboardConfig;
+export function updateDashboardMetadata(
+  config: DashboardConfig,
+  field: DashboardMetadataField,
+  value: string | DashboardConfig["themeMode"] | undefined,
 ): DashboardConfig {
   const next = structuredClone(config);
-  if (field === "name") next.name = value;
-  else if (value.trim().length === 0) delete next[field];
-  else next[field] = value.trim();
+  if (field === "name") {
+    next.name = value as string;
+  } else if (value === undefined || value.trim().length === 0) {
+    delete next[field];
+  } else if (field === "themeMode") {
+    next.themeMode = value as DashboardConfig["themeMode"];
+  } else {
+    next[field] = value.trim();
+  }
   return next;
 }
 

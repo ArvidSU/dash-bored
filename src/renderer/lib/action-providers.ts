@@ -1,10 +1,12 @@
 import type {
+  AppSettings,
   Permission,
   ProcessSnapshot,
   ProjectListItem,
   ProjectSnapshot,
   ResolvedComponentNode,
 } from "../../shared/contracts";
+import type { ThemeCatalogItem, ThemeMode } from "../../shared/themes";
 import type { PaletteAction } from "./actions";
 import { childNodes } from "./component-children";
 
@@ -34,6 +36,8 @@ export interface ApplicationActionCallbacks {
   revokeTrust(): void | Promise<void>;
   runProcessQuickAction(nodeId: string): void | Promise<void>;
   stopProcess(nodeId: string): void | Promise<void>;
+  setDashboardAppearance?(theme: string | undefined, themeMode: ThemeMode | undefined): void | Promise<void>;
+  setDefaultAppearance?(theme: string, themeMode: ThemeMode): void | Promise<void>;
 }
 
 export interface ApplicationActionContext {
@@ -46,6 +50,8 @@ export interface ApplicationActionContext {
   draftDirty: boolean;
   draftValid: boolean;
   savingDraft: boolean;
+  appSettings?: Pick<AppSettings, "theme" | "themeMode">;
+  themeCatalog?: readonly ThemeCatalogItem[];
   callbacks: ApplicationActionCallbacks;
 }
 
@@ -167,6 +173,8 @@ export function buildApplicationActions(
     draftDirty,
     draftValid,
     savingDraft,
+    appSettings = {},
+    themeCatalog = [],
     callbacks,
   } =
     context;
@@ -220,6 +228,57 @@ export function buildApplicationActions(
       run: callbacks.addDashboard,
     }),
   ];
+
+  const themeOptions = themeCatalog
+    .filter((item) => item.manifest)
+    .map((item) => ({ value: item.reference, label: item.name, description: item.displayReference ?? item.reference }));
+  const appThemeOptions = themeOptions.filter((item) => !item.value.startsWith("./"));
+  const dashboardThemeOptions = themeOptions.filter((item) => !item.value.startsWith("project:"));
+  const appearanceOptions = [
+    { value: "dark", label: "Dark" },
+    { value: "light", label: "Light" },
+    { value: "system", label: "System" },
+  ] as const;
+  const setDefaultAppearance = callbacks.setDefaultAppearance;
+  if (setDefaultAppearance) actions.push(
+    appAction({
+      id: "theme:set-default",
+      label: "Set default theme",
+      description: "Choose the theme and appearance for new and inheriting dashboards.",
+      keywords: ["theme", "appearance", "light", "dark", "system", "default"],
+      group: "Themes",
+      enabled: pendingAction === null && appThemeOptions.length > 0,
+      ...(pendingReason ? { disabledReason: pendingReason } : {}),
+      choices: [
+        { id: "theme", label: "Select default theme", options: appThemeOptions },
+        { id: "appearance", label: "Select default appearance", options: appearanceOptions },
+      ],
+      run: (selections) => setDefaultAppearance(
+        selections?.theme ?? appSettings.theme ?? "builtin:default",
+        (selections?.appearance ?? appSettings.themeMode ?? "dark") as ThemeMode,
+      ),
+    }));
+
+  const setDashboardAppearance = callbacks.setDashboardAppearance;
+  if (projectOpen && snapshot?.configPath && setDashboardAppearance) {
+    actions.push(appAction({
+      id: "theme:set-dashboard",
+      label: "Set dashboard theme",
+      description: "Choose this dashboard's whole-window theme and appearance.",
+      keywords: ["theme", "appearance", "light", "dark", "system", "dashboard"],
+      group: "Themes",
+      enabled: pendingAction === null && themeOptions.length > 0,
+      ...(pendingReason ? { disabledReason: pendingReason } : {}),
+      choices: [
+        { id: "theme", label: "Select dashboard theme", options: [{ value: "inherit", label: "Use app default" }, ...dashboardThemeOptions] },
+        { id: "appearance", label: "Select dashboard appearance", options: [{ value: "inherit", label: "Use app default" }, ...appearanceOptions] },
+      ],
+      run: (selections) => setDashboardAppearance(
+        selections?.theme === "inherit" ? undefined : selections?.theme,
+        selections?.appearance === "inherit" ? undefined : selections?.appearance as ThemeMode | undefined,
+      ),
+    }));
+  }
 
   for (const project of projects) {
     const label = projectLabel(project);

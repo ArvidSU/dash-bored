@@ -17,6 +17,7 @@ import type {
   ProjectSnapshot,
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
+import { projectThemeReference } from "../../src/shared/themes";
 
 const owner: ComponentActionOwner = {
   scope: "/project\u00001\u0000trusted",
@@ -160,6 +161,37 @@ describe("ActionRegistry", () => {
       }),
     ).toThrow("keywords must be non-empty");
   });
+
+  test("validates choice steps and resolves options from prior selections", () => {
+    const registry = new ActionRegistry();
+    const run = () => undefined;
+    registry.register(owner, {
+      id: "scoped",
+      label: "Scoped action",
+      choices: [
+        { id: "kind", label: "Kind", options: [{ value: "a", label: "A" }] },
+        {
+          id: "detail",
+          label: "Detail",
+          options: (selections) => selections.kind === "a"
+            ? [{ value: "one", label: "One" }]
+            : [{ value: "two", label: "Two" }],
+        },
+      ],
+      run,
+    });
+    const action = registry.getSnapshot()[0];
+    expect(action?.choices?.[1]?.options).toBeFunction();
+    expect(action?.choices?.[1] && typeof action.choices[1].options === "function"
+      ? action.choices[1].options({ kind: "a" })
+      : []).toEqual([{ value: "one", label: "One" }]);
+    expect(() => registry.register(owner, {
+      id: "invalid-choice",
+      label: "Invalid",
+      choices: [{ id: "bad", label: "Bad", options: [] }],
+      run,
+    })).toThrow("options must be non-empty");
+  });
 });
 
 describe("action search and execution", () => {
@@ -252,6 +284,19 @@ describe("action search and execution", () => {
     expect(failed.status).toBe("failed");
     if (failed.status === "failed") expect(String(failed.error)).toContain("Boom");
   });
+
+  test("passes completed choice selections to the action", async () => {
+    let received: unknown;
+    const actions = new Map<string, PaletteAction>([
+      ["choose", action("choose", {
+        choices: [{ id: "mode", label: "Mode", options: [{ value: "safe", label: "Safe" }] }],
+        run: (selections) => { received = selections; },
+      })],
+    ]);
+    const result = await new ActionExecutor((id) => actions.get(id)).run("choose", { mode: "safe" });
+    expect(result).toEqual({ status: "completed" });
+    expect(received).toEqual({ mode: "safe" });
+  });
 });
 
 describe("application action providers", () => {
@@ -296,6 +341,34 @@ describe("application action providers", () => {
     });
     reload?.run();
     expect(reloaded).toBeTrue();
+  });
+
+  test("offers app and dashboard theme actions as two-choice flows", async () => {
+    const changes: Array<[string | undefined, string | undefined]> = [];
+    const actions = buildApplicationActions({
+      snapshot: snapshot({ configPath: "/workspace/example/.dash-bored/dash-bored.yaml" }),
+      projects: [], activeView: "dashboard", sidebarExpanded: false, pendingAction: null,
+      editing: false, draftDirty: false, draftValid: false, savingDraft: false,
+      appSettings: { theme: "global:ocean", themeMode: "dark" },
+      themeCatalog: [
+        { reference: "builtin:default", name: "Default", manifest: { schemaVersion: 1, id: "default", name: "Default", light: {}, dark: {} } },
+        { reference: "global:ocean", name: "Ocean", manifest: { schemaVersion: 1, id: "ocean", name: "Ocean", light: {}, dark: {} } },
+        { reference: "./themes/plum", name: "Plum", manifest: { schemaVersion: 1, id: "plum", name: "Plum", light: {}, dark: {} } },
+        { reference: projectThemeReference("/workspace/example/.dash-bored/dash-bored.yaml", "./themes/plum"), name: "Plum", manifest: { schemaVersion: 1, id: "plum", name: "Plum", light: {}, dark: {} } },
+      ],
+      callbacks: {
+        ...callbacks,
+        setDefaultAppearance: (theme, appearance) => { changes.push([theme, appearance]); },
+        setDashboardAppearance: (theme, appearance) => { changes.push([theme, appearance]); },
+      },
+    });
+    const dashboard = actions.find((action) => action.id === "theme:set-dashboard");
+    const defaultTheme = actions.find((action) => action.id === "theme:set-default");
+    expect(dashboard?.choices?.map((choice) => choice.id)).toEqual(["theme", "appearance"]);
+    expect(defaultTheme?.choices?.[0]?.options).toHaveLength(3);
+    await dashboard?.run({ theme: "./themes/plum", appearance: "system" });
+    await defaultTheme?.run({ theme: "global:ocean", appearance: "light" });
+    expect(changes).toEqual([["./themes/plum", "system"], ["global:ocean", "light"]]);
   });
 
   test("derives shell, dashboard, trust, and disabled process actions", () => {

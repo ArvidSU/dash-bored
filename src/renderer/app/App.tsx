@@ -1,5 +1,5 @@
 import { applyTheme, ThemeNotice, ThemeSelect } from "../lib/theme";
-import { BUILTIN_THEME, type ThemeCatalogItem } from "../../shared/themes";
+import { BUILTIN_THEME, parseProjectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
 import {
   useCallback,
   useEffect, useLayoutEffect,
@@ -14,6 +14,7 @@ import type {
   ComponentCatalogItem,
   DashboardAgentTask,
   DashboardConfig,
+  DashboardSettingsItem,
   ProcessSnapshot,
   ProjectDeletionPreview,
   ProjectListItem,
@@ -97,12 +98,15 @@ import { AppDialogs } from "./AppDialogs";
 export function App(): ReactNode {
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettingsItem[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     dashBoredAgent: "codex exec",
     favoriteActionIds: [],
     commandPaletteShortcut: "Mod+K",
     actionShortcuts: { "app:reload": "Mod+Shift+R" },
   });
+  const appSettingsRevision = useRef(0);
+  const appSettingsWrite = useRef<Promise<void>>(Promise.resolve());
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -117,6 +121,7 @@ export function App(): ReactNode {
   const [projectOutlines, setProjectOutlines] = useState<Record<string, ProjectOutlineState>>({});
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteInitialActionId, setPaletteInitialActionId] = useState<string | null>(null);
   const compositionInteraction = useCompositionInteractionController();
   const {
     libraryOpen: componentLibraryOpen,
@@ -128,7 +133,7 @@ export function App(): ReactNode {
   } = compositionInteraction;
   const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
   const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
-  const [personalThemes, setPersonalThemes] = useState<ThemeCatalogItem[]>([BUILTIN_THEME]);
+  const [applicationThemes, setApplicationThemes] = useState<ThemeCatalogItem[]>([BUILTIN_THEME]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -138,16 +143,29 @@ export function App(): ReactNode {
   }, []);
   useEffect(() => {
     let active = true;
-    const refresh = () => { void host.getThemes().then((items) => { if (active) setPersonalThemes(items); }).catch(() => undefined); };
+    const refresh = () => { void host.getThemes().then((items) => { if (active) setApplicationThemes(items); }).catch(() => undefined); };
     refresh();
     window.addEventListener('focus', refresh);
     return () => { active = false; window.removeEventListener('focus', refresh); };
   }, [snapshot?.revision, activeView]);
   useLayoutEffect(() => {
-    const catalog = [...personalThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith('./'))];
-    const requested = editSession?.configPath === snapshot?.configPath ? editSession?.draft.theme : snapshot?.config?.theme;
-    applyTheme(catalog, requested, appSettings.theme, appSettings.themeMode, systemDark);
-  }, [personalThemes, snapshot?.themeCatalog, snapshot?.configPath, snapshot?.config?.theme, editSession?.configPath, editSession?.draft.theme, appSettings.theme, appSettings.themeMode, systemDark]);
+    const catalog = [...applicationThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith('./'))];
+    const source = editSession?.configPath === snapshot?.configPath ? editSession?.draft : snapshot?.config;
+    applyTheme(catalog, source?.theme, appSettings.theme, source?.themeMode ?? appSettings.themeMode, systemDark);
+  }, [applicationThemes, snapshot?.themeCatalog, snapshot?.configPath, snapshot?.config?.theme, snapshot?.config?.themeMode, editSession?.configPath, editSession?.draft.theme, editSession?.draft.themeMode, appSettings.theme, appSettings.themeMode, systemDark]);
+  useEffect(() => {
+    const legacyReference = appSettings.theme;
+    if (!legacyReference?.startsWith('./') || !snapshot?.configPath) return;
+    const replacement = applicationThemes.find((item) => {
+      const source = parseProjectThemeReference(item.reference);
+      return source?.configPath === snapshot.configPath && source?.localReference === legacyReference;
+    });
+    if (!replacement) return;
+    updateAppSettings(
+      { ...appSettings, theme: replacement.reference },
+      "Default theme reference updated.",
+    );
+  }, [applicationThemes, appSettings, snapshot?.configPath]);
   const snapshotRef = useRef<ProjectSnapshot | null>(null);
   const editSessionRef = useRef<DashboardEditSession | null>(null);
   snapshotRef.current = snapshot;
@@ -218,7 +236,7 @@ export function App(): ReactNode {
     const unsubscribe = host.subscribe((event) => {
       if (!active) return;
       if (event.type === "themes") {
-        setPersonalThemes(event.catalog);
+        setApplicationThemes(event.catalog);
       } else if (event.type === "snapshot") {
         setSnapshot(event.snapshot);
         const starter = event.snapshot.processes
@@ -331,6 +349,7 @@ export function App(): ReactNode {
       ) return;
       if (keyboardEventMatchesShortcut(event, appSettings.commandPaletteShortcut)) {
         event.preventDefault();
+        setPaletteInitialActionId(null);
         setPaletteOpen(true);
         return;
       }
@@ -338,7 +357,13 @@ export function App(): ReactNode {
         .find(([, shortcut]) => keyboardEventMatchesShortcut(event, shortcut))?.[0];
       if (actionId) {
         event.preventDefault();
-        void executePaletteAction(actionId);
+        const action = actionsByIdRef.current.get(actionId);
+        if (action?.choices?.length) {
+          setPaletteInitialActionId(actionId);
+          setPaletteOpen(true);
+        } else {
+          void executePaletteAction(actionId);
+        }
       }
     }
     window.addEventListener("keydown", openFromKeyboard);
@@ -597,7 +622,7 @@ export function App(): ReactNode {
     compositionInteraction.closeLibrary();
   }
 
-  async function ensureCurrentDashboardEdit(requestedConfigPath?: string): Promise<DashboardEditSession | null> {
+  async function ensureCurrentDashboardEdit(requestedConfigPath?: string, preserveView = false): Promise<DashboardEditSession | null> {
     if (!snapshot?.projectRoot || !snapshot.configPath) return null;
     if (editSession?.projectRoot === snapshot.projectRoot && (!requestedConfigPath || requestedConfigPath === editSession.configPath)) {
       return editSession;
@@ -621,10 +646,31 @@ export function App(): ReactNode {
         expectedConfigRevision: source.configRevision,
         validation,
       };
-      setActiveView("dashboard");
+      if (!preserveView) setActiveView("dashboard");
       setEditSession(loaded);
     });
     return loaded;
+  }
+
+  function updateDashboardAppearance(change: Pick<DashboardConfig, "theme" | "themeMode">): void {
+    void (async () => {
+      const configPath = snapshotRef.current?.configPath;
+      if (!configPath) return;
+      const session = await ensureCurrentDashboardEdit(configPath, true);
+      if (!session || snapshotRef.current?.configPath !== session.configPath) return;
+      const draft = { ...session.draft };
+      if ("theme" in change) {
+        if (change.theme) draft.theme = change.theme;
+        else delete draft.theme;
+      }
+      if ("themeMode" in change) {
+        if (change.themeMode) draft.themeMode = change.themeMode;
+        else delete draft.themeMode;
+      }
+      const updated = { ...session, draft };
+      editSessionRef.current = updated;
+      setEditSession((current) => current?.configPath === session.configPath ? updated : current);
+    })();
   }
 
   const updateComponentProps = useCallback(async (
@@ -675,19 +721,74 @@ export function App(): ReactNode {
   }
 
   function showSettings(): void {
-    if (editSession && !requireDiscard(
-      "Discard the unsaved dashboard changes and open settings?",
-      () => setActiveView("settings"),
-    )) return;
     setActiveView("settings");
   }
 
   function updateAppSettings(settings: AppSettings, notice: string): void {
-    void perform("save-settings", async () => {
-      const updated = await host.updateAppSettings(settings);
-      setAppSettings(updated);
-      showActionNotice(notice);
-    });
+    const revision = ++appSettingsRevision.current;
+    setAppSettings(settings);
+    appSettingsWrite.current = appSettingsWrite.current
+      .catch(() => undefined)
+      .then(async () => {
+        const updated = await host.updateAppSettings(settings);
+        if (revision === appSettingsRevision.current) {
+          setAppSettings(updated);
+          showActionNotice(notice);
+        }
+      })
+      .catch((error: unknown) => {
+        if (revision === appSettingsRevision.current) setActionError(errorMessage(error));
+      });
+  }
+
+  const dashboardSettingsRevision = useRef(0);
+
+  async function refreshDashboardSettings(items = projects): Promise<void> {
+    const revision = ++dashboardSettingsRevision.current;
+    const next = await Promise.all(items.map(async (project): Promise<DashboardSettingsItem> => {
+      try {
+        const source = await host.getDashboardConfigSource(project.configPath);
+        return {
+          ...project,
+          theme: source.config.theme,
+          themeMode: source.config.themeMode,
+        };
+      } catch (error) {
+        return { ...project, error: errorMessage(error) };
+      }
+    }));
+    if (revision === dashboardSettingsRevision.current) setDashboardSettings(next);
+  }
+
+  useEffect(() => {
+    if (activeView !== "settings") return;
+    void refreshDashboardSettings();
+  }, [activeView, projects, snapshot?.revision]);
+
+  async function updateRegisteredDashboardAppearance(
+    dashboard: DashboardSettingsItem,
+    change: Pick<DashboardConfig, "theme" | "themeMode">,
+  ): Promise<void> {
+    try {
+      const source = await host.getDashboardConfigSource(dashboard.configPath);
+      const draft = { ...source.config };
+      if ("theme" in change) {
+        if (change.theme) draft.theme = change.theme;
+        else delete draft.theme;
+      }
+      if ("themeMode" in change) {
+        if (change.themeMode) draft.themeMode = change.themeMode;
+        else delete draft.themeMode;
+      }
+      const nextSnapshot = await host.saveDashboardConfig(draft, source.configRevision, source.configPath);
+      if (nextSnapshot.configPath === snapshotRef.current?.configPath) setSnapshot(nextSnapshot);
+      setDashboardSettings((current) => current.map((item) => item.configPath === dashboard.configPath
+        ? { ...item, theme: draft.theme, themeMode: draft.themeMode, error: undefined }
+        : item));
+      showActionNotice(`${dashboard.dashboardName?.trim() || "Dashboard"} appearance updated.`);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
   }
 
   function saveAgentSetting(command: string | null): void {
@@ -806,6 +907,7 @@ export function App(): ReactNode {
   const draftValid = Boolean(editSession &&
     editSession?.validation.diagnostics.every((item) => item.severity !== "error"),
   );
+  const availableThemeCatalog = [...applicationThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith("./"))];
   const applicationActions = buildApplicationActions({
     snapshot,
     projects,
@@ -816,6 +918,8 @@ export function App(): ReactNode {
     draftDirty,
     draftValid,
     savingDraft,
+    appSettings,
+    themeCatalog: availableThemeCatalog,
     callbacks: {
       reloadApp: () => window.location.reload(),
       showDashboard: () => setActiveView("dashboard"),
@@ -835,6 +939,11 @@ export function App(): ReactNode {
       stopProcess: async (nodeId) => {
         await host.stopProcess(nodeId);
       },
+      setDashboardAppearance: (theme, themeMode) => updateDashboardAppearance({ theme, themeMode }),
+      setDefaultAppearance: (theme, themeMode) => updateAppSettings(
+        { ...appSettings, theme, themeMode },
+        "Default theme and appearance updated.",
+      ),
     },
   });
   const dashboardPath = snapshot?.configPath ?? null;
@@ -1353,9 +1462,14 @@ export function App(): ReactNode {
   );
   actionsByIdRef.current = new Map(allActions.map((action) => [action.id, action]));
 
-  async function executePaletteAction(id: string): Promise<void> {
+  async function executePaletteAction(id: string, selections?: Readonly<Record<string, string>>): Promise<void> {
     setActionError(null);
-    const result = await actionExecutor.run(id);
+    const action = actionsByIdRef.current.get(id);
+    if (!action) {
+      setActionError("This action is no longer available.");
+      return;
+    }
+    const result = await actionExecutor.run(id, selections);
     if (result.status === "failed") setActionError(errorMessage(result.error));
     else if (result.status === "unavailable") setActionError(result.reason);
     else if (result.status === "running") {
@@ -1414,15 +1528,13 @@ export function App(): ReactNode {
     <>
       {activeView === "settings" ? (
         <SettingsPanel
-            snapshot={snapshot}
             appSettings={appSettings}
+            dashboardSettings={dashboardSettings}
             actions={allActions}
             pendingAction={pendingAction}
             onSaveAgent={saveAgentSetting}
             onUpdateSettings={updateAppSettings}
-            onReload={() => void perform("reload", host.reloadProject)}
-            onTrust={() => void perform("trust", host.trustProject)}
-            onRevoke={() => void perform("revoke", host.revokeTrust)}
+            onUpdateDashboardAppearance={updateRegisteredDashboardAppearance}
           />
       ) : !snapshot?.projectRoot ? (
         <EmptyProject
@@ -1618,8 +1730,9 @@ export function App(): ReactNode {
         favoriteActionIds={favoriteActionIds}
         actionShortcuts={appSettings.actionShortcuts}
         favoritesDisabled={pendingAction !== null}
-        onDismiss={() => setPaletteOpen(false)}
-        onExecute={(id) => void executePaletteAction(id)}
+        initialActionId={paletteInitialActionId}
+        onDismiss={() => { setPaletteInitialActionId(null); setPaletteOpen(false); }}
+        onExecute={(id, selections) => void executePaletteAction(id, selections)}
         onToggleFavorite={toggleFavoriteAction}
       />
       <CompositionFlyout
@@ -1634,6 +1747,9 @@ export function App(): ReactNode {
               if (theme) draft.theme = theme; else delete draft.theme;
               setEditSession({ ...session, draft });
             })(); }} /></label>
+          <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={editSession?.configPath === snapshot.configPath ? editSession?.draft.themeMode ?? "" : snapshot.config?.themeMode ?? ""} onChange={(event) => updateDashboardAppearance({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>
+            <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
+          </select></label>
           <p>Applies to the whole window. Save dashboard to keep the selection.</p>
         </details> : undefined}
         open={componentLibraryOpen}

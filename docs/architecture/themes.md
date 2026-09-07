@@ -5,6 +5,10 @@ focus, and visibility. `src/shared/themes.ts` owns the typed v1 manifest,
 semantic token names, light/dark defaults, schema, and fallback resolver.
 `bun run generate:themes` generates the public JSON Schema, initial renderer
 CSS defaults, and the shipped token reference; a drift test checks all three.
+The checked-in dashboard theme `./themes/retro-industrial` is the reference
+implementation for the app's warm equipment-panel visual language. Shared
+spacing, control-state, and border tokens remain renderer-owned so themes do
+not become layout overrides.
 
 ## Package and selection contract
 
@@ -17,11 +21,17 @@ literal format. No CSS, scripts, assets, downloads, or layout tokens are loaded.
 
 References are `builtin:default`, `global:<name>`, or `./themes/<name>` /
 `./themes/external/<name>`. AppSettings stores `theme` and `themeMode`
-(`dark|light|system`); old settings retain the built-in dark appearance. The
-optional top-level dashboard `theme` overrides the app selection for the entire
-window. Only the opened config participates: linked configs and focus do not.
-A draft for that config previews its selection and Cancel restores the saved
-selection. Appearance mode always remains the user's app setting.
+(`dark|light|system`); old settings retain the built-in dark appearance. App
+defaults use an app-level catalog containing global packages and packages found
+in registered dashboard bundles. Project-local app defaults use a stable
+`project:<encoded-config-path>:./themes/...` reference, so changing dashboards
+does not narrow or invalidate the app-level selection. The optional top-level
+dashboard `theme` and `themeMode` override the corresponding app selections for
+the entire window. Either field may be omitted independently; an omitted field
+inherits the app setting. Application Settings loads every registered dashboard
+as a separate row and writes only that dashboard's two appearance fields, so
+choosing a dashboard's appearance never opens it or depends on active
+dashboard/editor state. Linked configs and focus do not change the window theme.
 
 Missing/invalid selections fall through the app default to the built-in theme,
 with visible diagnostics. Theme failures do not invalidate the component tree.
@@ -69,9 +79,11 @@ Git fetch/update. Interrupted operation lock directories require explicit
 removal after verifying no theme CLI is running. Git-managed package removal
 protects local changes; authored local directories are not removed by this CLI.
 
-The Settings Themes tab presents appearance selection and package management in separate, always-visible sections for both personal and current-dashboard scopes,
-using the same explicit command-copy workflow as external components. Commands quote
-all user arguments and target the canonical config path, including named bundles.
+The Settings Themes tab presents app defaults, a per-dashboard appearance list,
+and package management in separate, always-visible sections. Package management
+can target the personal store or any registered dashboard bundle using the same
+explicit command-copy workflow as external components. Commands quote all user
+arguments and target the canonical config path, including named bundles.
 Catalog entries carry validated lock metadata and retain missing pinned packages so
 users can discover their source/pin and generate a sync command. Catalog discovery
 performs no Git or network operations. Management does not change theme selection.

@@ -16,6 +16,11 @@ Generated from the v1 contract. Both variant maps inherit these defaults. Colors
 | `accent` | #d9ff68 | #486500 |
 | `accent-strong` | #bfe839 | #354d00 |
 | `accent-ink` | #151b03 | #ffffff |
+| `accent-soft` | #31401b | #cbdcb0 |
+| `panel-dark` | #0a0c10 | #18212e |
+| `panel-dark-muted` | #161a22 | #2c3644 |
+| `border-dark` | #343c49 | #657389 |
+| `highlight` | #ffffff14 | #ffffff |
 | `shadow-color` | #000000 | #000000 |
 | `positive` | #70e2a0 | #167345 |
 | `warning` | #f4c66b | #886000 |

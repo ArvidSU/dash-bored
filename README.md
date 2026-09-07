@@ -560,7 +560,7 @@ Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
 every node in the currently selected dashboard for virtual-root focus,
 all declared process resources, and actions contributed by active components.
-Settings is split into **General**, **Themes**, and **Actions**. Themes contains appearance settings and theme package management. General lets you change the
+Settings is split into **General**, **Themes**, and **Actions**. Themes contains app appearance defaults, a per-dashboard list of theme and appearance selections, and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
 palette actions: search them, assign an app-local keyboard shortcut, or mark an
 action as a favorite. You can also toggle its star directly in the palette.
@@ -762,10 +762,19 @@ reference). Full `inspect` output remains available when the entire tree is need
 
 ## UI themes
 
-Settings → Themes selects a default theme and **Dark**, **Light**, or **System**
-appearance. **Component library → Dashboard appearance** can override the theme for the whole
-window; Save publishes the choice and Cancel restores it. Linked dashboards
-and component focus do not change the window theme.
+Settings → Themes selects any available default theme and **Dark**, **Light**, or
+**System** appearance. The app-level list includes global themes and packages
+from registered dashboard bundles. The dashboard list independently selects a
+theme and appearance for every remembered bundle; blank fields inherit the app
+defaults. These changes write the selected bundle directly and do not open it,
+change the active dashboard, or enter the dashboard editor. **Set default theme**
+and **Set dashboard theme** in the command palette guide the same selections.
+Linked dashboards and component focus do not change the window theme.
+
+The development dashboard dogfoods the checked-in `Retro Industrial` theme:
+warm instrument-panel neutrals, charcoal functional surfaces, compact controls,
+and orange signal accents. It is a regular data-only theme package, so it can
+be copied or used as a starting point for another project.
 
 Create a local theme:
 
@@ -793,7 +802,7 @@ and [JSON Schema](schemas/theme.schema.json). `dash-bored theme validate --schem
 also prints the schema from the installed CLI. Theme packages contain data;
 custom CSS, scripts, downloaded fonts, and layout changes are unsupported.
 
-**Settings → Themes → Manage theme packages** lists personal or current-dashboard
+**Settings → Themes → Manage theme packages** lists personal or selected-dashboard
 packages with repository URLs, exact pins, and missing-checkout diagnostics. Choose
 Add, Update, Remove, Sync, or Status to copy a command targeting that exact dashboard
 bundle (or the personal store). Run it in a terminal and reload, matching the

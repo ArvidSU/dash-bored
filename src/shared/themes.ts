@@ -3,6 +3,8 @@ export const DARK_TOKENS = {
   bg: '#0a0c10', surface: '#101319', 'surface-raised': '#161a22', 'surface-hover': '#1b202a',
   border: '#252b36', 'border-bright': '#343c49', text: '#e8edf5', muted: '#8e99a9', faint: '#5d6674',
   accent: '#d9ff68', 'accent-strong': '#bfe839', 'accent-ink': '#151b03',
+  'accent-soft': '#31401b', 'panel-dark': '#0a0c10', 'panel-dark-muted': '#161a22',
+  'border-dark': '#343c49', highlight: '#ffffff14',
   'shadow-color': '#000000', positive: '#70e2a0', warning: '#f4c66b', negative: '#ff7b7b', info: '#8fb8ff',
   'font-ui': 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   'font-mono': '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
@@ -22,6 +24,31 @@ export type ThemeTokens = typeof DARK_TOKENS;
 export type ThemeToken = keyof ThemeTokens;
 export type ThemeAppearance = 'light' | 'dark';
 export type ThemeMode = ThemeAppearance | 'system';
+const THEME_PACKAGE_PATH = String.raw`\.\/themes(?:\/external)?\/[A-Za-z][A-Za-z0-9_-]*`;
+const THEME_PACKAGE_PATH_PATTERN = new RegExp(`^${THEME_PACKAGE_PATH}$`);
+const APP_THEME_REFERENCE_PATTERN = new RegExp(`^(?:builtin:default|global:[A-Za-z][A-Za-z0-9_-]*|project:[^:]+:${THEME_PACKAGE_PATH})$`);
+const LEGACY_APP_THEME_REFERENCE_PATTERN = new RegExp(`^${THEME_PACKAGE_PATH}$`);
+
+/** Stable app-level reference for a theme installed below a registered dashboard bundle. */
+export function projectThemeReference(configPath: string, localReference: string): string {
+  if (!THEME_PACKAGE_PATH_PATTERN.test(localReference)) throw new Error(`Invalid local theme reference: ${localReference}`);
+  return `project:${encodeURIComponent(configPath)}:${localReference}`;
+}
+
+export function parseProjectThemeReference(reference: string): { configPath: string; localReference: string } | null {
+  const match = /^project:([^:]+):(\.\/themes(?:\/external)?\/[A-Za-z][A-Za-z0-9_-]*)$/.exec(reference);
+  if (!match?.[1] || !match[2]) return null;
+  try {
+    return { configPath: decodeURIComponent(match[1]), localReference: match[2] };
+  } catch {
+    return null;
+  }
+}
+
+export function isAppThemeReference(reference: string): boolean {
+  return APP_THEME_REFERENCE_PATTERN.test(reference) || LEGACY_APP_THEME_REFERENCE_PATTERN.test(reference);
+}
+
 export interface ThemeManifest {
   schemaVersion: 1;
   id: string;
@@ -32,6 +59,8 @@ export interface ThemeManifest {
 }
 export interface ThemeCatalogItem {
   git?: { name: string; url: string; commit: string };
+  /** Human-readable source shown when an app-level reference is qualified. */
+  displayReference?: string;
   reference: string;
   name: string;
   manifest?: ThemeManifest;
@@ -42,6 +71,8 @@ export const LIGHT_TOKENS: ThemeTokens = {
   bg: '#f4f6fa', surface: '#ffffff', 'surface-raised': '#edf0f5', 'surface-hover': '#e3e8ef',
   border: '#d3dbe5', 'border-bright': '#aab6c5', text: '#18212e', muted: '#526176', faint: '#657389',
   accent: '#486500', 'accent-strong': '#354d00', 'accent-ink': '#ffffff',
+  'accent-soft': '#cbdcb0', 'panel-dark': '#18212e', 'panel-dark-muted': '#2c3644',
+  'border-dark': '#657389', highlight: '#ffffff',
   positive: '#167345', warning: '#886000', negative: '#be303b', info: '#285fbb',
   shadow: '0px 18px 60px 0px #18212e24',
   'terminal-background': '#f8fafc', 'terminal-foreground': '#18212e', 'terminal-cursor': '#486500',

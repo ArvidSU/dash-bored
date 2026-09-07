@@ -6,7 +6,27 @@
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --border-width: 1px;
+  --control-height-sm: 30px;
+  --control-height: 36px;
+  --control-height-lg: 42px;
+  --panel-padding: 14px;
+  --panel-gap: 10px;
+  --control-bg: var(--surface);
+  --control-hover: var(--surface-hover);
+  --control-selected: var(--accent);
+  --control-strong: var(--panel-dark);
+  --shadow-panel: 0 2px 8px color-mix(in srgb, var(--shadow-color) 16%, transparent), inset 0 1px 0 var(--highlight);
+  --shadow-raised: 0 3px 0 color-mix(in srgb, var(--shadow-color) 18%, transparent), inset 0 1px 0 var(--highlight);
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
   --window-chrome-height: 32px;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 
 * {
@@ -24,9 +44,8 @@ body,
 body {
   min-height: 100vh;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 15% -10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 32rem),
-    var(--bg);
+  background: var(--bg);
+  transition: color 140ms ease, background 140ms ease;
 }
 
 button,
@@ -85,9 +104,7 @@ code {
 .app-window {
   position: relative;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 80% -20%, color-mix(in srgb, var(--text) 11%, transparent), transparent 25rem),
-    var(--bg);
+  background: var(--bg);
 }
 
 .window-chrome {
@@ -1117,7 +1134,7 @@ img.sidebar__project-icon {
   padding: 16px;
   border: 1px solid var(--border-bright);
   border-radius: var(--radius);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-raised) 46%, transparent), color-mix(in srgb, var(--surface) 94%, transparent) 58%);
+  background: var(--surface-raised);
 }
 
 .dashboard-metadata-editor__fields {
@@ -1139,9 +1156,8 @@ img.sidebar__project-icon {
   padding: 10px 12px;
   border: 1px solid var(--border-bright);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 28%, transparent);
-  backdrop-filter: blur(14px);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
 }
 
 .editor-workbench__selection {
@@ -1455,7 +1471,6 @@ img.sidebar__project-icon {
   place-items: center;
   padding: 24px;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(4px);
 }
 
 .editor-modal__panel {
@@ -1498,8 +1513,7 @@ img.sidebar__project-icon {
   margin: 0 -16px -16px;
   padding: 14px 16px 16px;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 97%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--surface);
 }
 
 .component-picker,
@@ -2226,9 +2240,7 @@ img.sidebar__project-icon {
   padding: 18px;
   border: 1px solid color-mix(in srgb, var(--accent) 23%, transparent);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(110deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 54%),
-    var(--surface);
+  background: var(--surface);
 }
 
 .trust-panel__icon {
@@ -2652,10 +2664,8 @@ img.sidebar__project-icon {
   border-radius: var(--radius-lg);
   animation: component-update-polish 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--component-update-delay, 0ms);
-  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 72%);
-  box-shadow:
-    inset 0 0 22px color-mix(in srgb, var(--accent) 8%, transparent),
-    0 0 22px color-mix(in srgb, var(--accent) 7%, transparent);
+  background: transparent;
+  box-shadow: var(--focus-ring);
   opacity: 0;
   pointer-events: none;
 }
@@ -2665,19 +2675,10 @@ img.sidebar__project-icon {
   top: -35%;
   bottom: -35%;
   left: -42%;
-  width: 34%;
-  animation: component-update-shine 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: var(--component-update-delay, 0ms);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 4%, transparent) 18%,
-    color-mix(in srgb, var(--accent) 28%, transparent) 50%,
-    color-mix(in srgb, var(--accent) 5%, transparent) 82%,
-    transparent
-  );
+  width: 0;
+  animation: none;
   content: "";
-  filter: blur(1px);
+  display: none;
   transform: skewX(-16deg);
 }
 
@@ -3369,7 +3370,6 @@ img.sidebar__project-icon {
   justify-content: center;
   padding: max(11vh, 72px) 24px 32px;
   background: color-mix(in srgb, var(--bg) 66%, transparent);
-  backdrop-filter: blur(7px) saturate(80%);
 }
 
 .command-palette {
@@ -3716,6 +3716,19 @@ img.sidebar__project-icon {
     max-width: none;
   }
 
+  .dashboard-settings {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard-settings__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-settings__status {
+    justify-self: start;
+  }
+
   .settings-actions__heading {
     align-items: stretch;
     flex-direction: column;
@@ -3867,4 +3880,417 @@ img.sidebar__project-icon {
 .settings-card--themes .props-field, .dashboard-appearance .props-field { min-width: 0; }
 .settings-card--themes select, .dashboard-appearance select { width: 100%; min-width: 0; }
 
+.settings-card--dashboard-list {
+  display: block;
+}
+
+.dashboard-settings-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.dashboard-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.15fr) auto;
+  align-items: end;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.dashboard-settings__identity {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.dashboard-settings__identity strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-settings__identity code {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-settings__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.dashboard-settings__controls .props-field {
+  display: grid;
+  gap: 5px;
+}
+
+.dashboard-settings__status {
+  align-self: center;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.dashboard-settings__error {
+  color: var(--negative);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .dashboard-settings {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard-settings__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-settings__status {
+    justify-self: start;
+  }
+}
+
 .theme-notice { padding: 0.75rem 1.25rem; color: var(--warning); background: color-mix(in srgb, var(--warning) 8%, var(--bg)); border-bottom: 1px solid var(--border); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+/* Shared industrial surface language. Layout remains owned by the shell and
+ * dashboard compositor; these rules only establish reusable visual grammar. */
+body,
+.app-window,
+.sidebar,
+.app-header {
+  background: var(--bg);
+}
+
+.sidebar {
+  border-right: var(--border-width) solid var(--border);
+  box-shadow: inset -1px 0 0 var(--highlight);
+}
+
+.sidebar::before {
+  position: absolute;
+  top: 45px;
+  right: 18px;
+  width: 30px;
+  height: 30px;
+  background-image: radial-gradient(circle, var(--border-dark) 1px, transparent 1.4px);
+  background-size: 7px 7px;
+  content: "";
+  opacity: 0.52;
+  pointer-events: none;
+}
+
+.sidebar__toggle,
+.sidebar__item,
+.sidebar__project-row,
+.sidebar__project,
+.sidebar__item-icon,
+.sidebar__project-action,
+.sidebar-tree__collapse,
+.sidebar-tree__node {
+  border-radius: var(--radius-sm);
+}
+
+.sidebar__toggle {
+  border: var(--border-width) solid transparent;
+}
+
+.sidebar__toggle:hover {
+  border-color: var(--border);
+  background: var(--surface-hover);
+}
+
+.sidebar__item {
+  border: var(--border-width) solid transparent;
+  letter-spacing: 0.025em;
+}
+
+.sidebar__item--active {
+  border-color: var(--accent-strong);
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow: var(--shadow-raised);
+}
+
+.sidebar__item--active .sidebar__item-icon {
+  border-color: color-mix(in srgb, var(--accent-ink) 35%, transparent);
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent-ink) 10%, transparent);
+}
+
+.app-header {
+  border-bottom: var(--border-width) solid var(--border);
+  box-shadow: inset 0 -1px 0 var(--highlight);
+}
+
+.app-header__title,
+.settings-page__heading h1,
+.welcome h1 {
+  letter-spacing: 0.01em;
+}
+
+.app-header__path,
+.eyebrow,
+.settings-agent label,
+.props-field > span,
+.editor-slot__label,
+.command-palette__group,
+.workspace__footer {
+  font-family: var(--font-mono);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.command-palette-trigger,
+.button,
+.shortcut-recorder,
+.settings-tabs button,
+.tabs__tab,
+.agent-task-modal__tab {
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.025em;
+}
+
+.command-palette-trigger,
+.shortcut-recorder,
+.props-field input:not([type="checkbox"]),
+.props-field select,
+.component-picker__search,
+.props-editor__json,
+.settings-agent input,
+.settings-actions__heading input,
+.theme-manager input,
+.theme-manager select,
+.dashboard-appearance select {
+  min-height: var(--control-height);
+  border-color: var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  box-shadow: inset 0 1px 0 var(--highlight);
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  accent-color: var(--accent);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus,
+.shortcut-recorder:focus-visible {
+  border-color: var(--accent-strong);
+  box-shadow: var(--focus-ring);
+}
+
+.button {
+  min-height: var(--control-height);
+  border-width: var(--border-width);
+  box-shadow: inset 0 1px 0 var(--highlight);
+}
+
+.button:hover:not(:disabled) {
+  transform: none;
+}
+
+.button:active:not(:disabled) {
+  box-shadow: inset 0 2px 2px color-mix(in srgb, var(--shadow-color) 20%, transparent);
+}
+
+.button--primary {
+  border-color: var(--accent-strong);
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow: var(--shadow-raised);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.button--secondary {
+  border-color: var(--panel-dark);
+  color: var(--surface-raised);
+  background: var(--panel-dark);
+}
+
+.button--secondary:hover:not(:disabled) {
+  border-color: var(--border-dark);
+  color: var(--text);
+  background: var(--panel-dark-muted);
+}
+
+.button--quiet {
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.button--quiet:hover:not(:disabled) {
+  border-color: var(--border-dark);
+  background: var(--control-hover);
+}
+
+.settings-card,
+.settings-actions,
+.dashboard-metadata-editor,
+.editor-workbench,
+.editor-modal__panel,
+.command-palette,
+.component-node--collapsed,
+.dashboard-delete-dependencies,
+.dashboard-delete-issues,
+.dashboard-delete-warning,
+.dashboard-delete-files-option,
+.empty-dashboard {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+}
+
+.settings-card,
+.settings-actions,
+.dashboard-metadata-editor,
+.editor-workbench {
+  background: var(--surface);
+}
+
+.dashboard-metadata-editor {
+  background: var(--surface-raised);
+}
+
+.editor-workbench {
+  box-shadow: var(--shadow-raised);
+  backdrop-filter: none;
+}
+
+.editor-modal,
+.command-palette-backdrop {
+  backdrop-filter: none;
+}
+
+.editor-modal__header,
+.editor-modal__actions,
+.editor-workbench,
+.command-palette {
+  background: var(--surface);
+}
+
+.settings-tabs,
+.tabs__list,
+.agent-task-modal__tabs {
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.settings-tabs button[aria-selected="true"],
+.tabs__tab[aria-selected="true"],
+.agent-task-modal__tab[aria-selected="true"] {
+  border-radius: var(--radius-sm);
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow: var(--shadow-raised);
+}
+
+.settings-value,
+.phase,
+.agent-task-modal__tabs,
+.command-palette__option-meta > span {
+  border-radius: var(--radius-sm);
+}
+
+.settings-value {
+  border-color: var(--border-dark);
+  background: var(--surface-raised);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.component-state,
+.status,
+.command,
+.card {
+  box-shadow: var(--shadow-panel);
+}
+
+.command__terminal,
+.agent-task-modal__diff,
+.agent-task-modal__command {
+  border-color: var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--panel-dark);
+}
+
+.component-node__drag-handle,
+.component-node__menu-trigger,
+.component-node__menu-popover,
+.component-node__menu-popover button,
+.editor-node,
+.editor-node__toolbar,
+.editor-node__preview {
+  border-radius: var(--radius-sm);
+}
+
+.component-node__drag-handle,
+.component-node__menu-trigger {
+  background: var(--surface);
+}
+
+.component-node__menu-popover {
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  backdrop-filter: none;
+}
+
+.component-node__update-polish {
+  border-radius: var(--radius);
+  background: transparent;
+  box-shadow: var(--focus-ring);
+}
+
+.component-node__stale-warning,
+.theme-notice,
+.global-notice,
+.global-error,
+.editor-diagnostics {
+  border-radius: var(--radius-sm);
+}
+
+.component-node__stale-warning {
+  background: var(--surface-raised);
+}
+
+table {
+  border-collapse: collapse;
+  border: var(--border-width) solid var(--border);
+  background: var(--surface);
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border);
+  text-align: left;
+}
+
+th {
+  color: var(--muted);
+  font: 700 10px/1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}

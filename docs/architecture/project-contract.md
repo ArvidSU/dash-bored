@@ -352,4 +352,8 @@ uninitialized checkout (`COMPONENT_EXTERNAL_UNINITIALIZED`) with a pointer at
 anywhere reports `COMPONENT_EXTERNAL_NO_MANIFEST`. Neither silently resolves
 to something else.
 
-Theme selection is optional top-level `theme` metadata. Bundle-local packages and the optional `themes` lock section follow the [theme contract](themes.md).
+Theme selection and appearance are optional top-level `theme` and `themeMode`
+metadata. Each field inherits the app default independently when omitted.
+Application Settings can edit these fields for any registered dashboard without
+opening that dashboard or changing the active runtime.
+Bundle-local packages and the optional `themes` lock section follow the [theme contract](themes.md).
