@@ -4332,14 +4332,6 @@ tr:last-child td {
   border-bottom: 0;
 }
 
-/* Application-owned updates remain usable independently of dashboard loading. */
-.update-notice {
-  display: flex;
-  justify-content: flex-end;
-  min-width: 0;
-  padding: 8px 20px;
-}
-.update-notice .button { white-space: normal; }
 .settings-tabs { flex-wrap: wrap; }
 .settings-card.updates-panel {
   display: flex;

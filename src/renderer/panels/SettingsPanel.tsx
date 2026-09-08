@@ -66,7 +66,6 @@ function ShortcutRecorder({
 }
 
 export function SettingsPanel({
-  initialTab = "general",
   draftsOpen = false,
   appSettings,
   dashboardSettings,
@@ -76,7 +75,6 @@ export function SettingsPanel({
   onUpdateSettings,
   onUpdateDashboardAppearance,
 }: {
-  initialTab?: "general" | "updates";
   draftsOpen?: boolean;
   appSettings: AppSettings;
   dashboardSettings: readonly DashboardSettingsItem[];
@@ -87,7 +85,7 @@ export function SettingsPanel({
   onUpdateDashboardAppearance: (dashboard: DashboardSettingsItem, change: Pick<DashboardConfig, "theme" | "themeMode">) => Promise<void>;
 }): ReactNode {
   const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent ?? "");
-  const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions" | "updates">(initialTab);
+  const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions" | "updates">("general");
   const [actionQuery, setActionQuery] = useState("");
   const [updatingDashboard, setUpdatingDashboard] = useState<string | null>(null);
   useEffect(() => setAgentDraft(appSettings.dashBoredAgent ?? ""), [appSettings.dashBoredAgent]);

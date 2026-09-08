@@ -1253,12 +1253,13 @@ test('theme package manager generates scoped commands without changing selection
   } finally { await proof.close(); }
 });
 
-test('updates stay reachable from the shell and expose available channels at desktop and narrow widths', async () => {
+test('updates stay reachable from Settings and expose available channels at desktop and narrow widths', async () => {
   const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
   try {
     await proof.goto(fixtureUrl);
-    await proof.getByRole('button', { name: 'Updates and migrations', exact: true }).click();
-    await proof.getByRole('tab', { name: 'Updates', exact: true }).waitFor();
+    await proof.getByRole('button', { name: 'Settings', exact: true }).click();
+    await proof.getByRole('tab', { name: 'Updates', exact: true }).click();
+    expect(await proof.getByRole('button', { name: 'Updates and migrations', exact: true }).count()).toBe(0);
     await proof.getByRole('combobox', { name: 'Release channel' }).waitFor();
     expect(await proof.getByRole('combobox', { name: 'Release channel' }).inputValue()).toBe('canary');
     expect(await proof.locator('option[value="beta"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);

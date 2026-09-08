@@ -69,17 +69,3 @@ export function UpdatesPanel({ draftsOpen = false }: { draftsOpen?: boolean }): 
     </>}
   </section>;
 }
-
-/** App-owned surface remains available with no dashboard or a failed load. */
-export function UpdateNotice({ onOpen }: { onOpen: () => void }): ReactNode {
-  const [state, setState] = useState<UpdateState | null>(null);
-  useEffect(() => {
-    let active = true;
-    const refresh = () => host.getUpdateState().then(s => { if (active) setState(s); }).catch(() => undefined);
-    void refresh(); const timer = setInterval(() => { void refresh(); }, 10_000);
-    return () => { active = false; clearInterval(timer); };
-  }, []);
-  return <div className="update-notice">
-    <button className="button" type="button" onClick={onOpen}>{state?.release && state.release.metadata.version !== state.currentVersion ? `Update available · ${state.release.metadata.version}` : 'Updates and migrations'}</button>
-  </div>;
-}
