@@ -1252,3 +1252,22 @@ test('theme package manager generates scoped commands without changing selection
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally { await proof.close(); }
 });
+
+test('updates stay reachable from the shell and expose available channels at desktop and narrow widths', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Updates and migrations', exact: true }).click();
+    await proof.getByRole('tab', { name: 'Updates', exact: true }).waitFor();
+    await proof.getByRole('combobox', { name: 'Release channel' }).waitFor();
+    expect(await proof.getByRole('combobox', { name: 'Release channel' }).inputValue()).toBe('canary');
+    expect(await proof.locator('option[value="beta"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);
+    expect(await proof.locator('option[value="stable"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);
+    await proof.getByRole('button', { name: 'Check for updates', exact: true }).click();
+    await proof.getByText('UI fixture: update action received; no installation performed.').waitFor();
+    await proof.screenshot({ path: '/tmp/dash-bored-updates-desktop.png', fullPage: true });
+    await proof.setViewportSize({ width: 390, height: 844 });
+    await proof.screenshot({ path: '/tmp/dash-bored-updates-narrow.png', fullPage: true });
+    expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally { await proof.close(); }
+}, 30_000);

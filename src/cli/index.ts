@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { runUpdateCommand } from "./update";
 import { runThemeCommand } from "./theme";
 
 import { spawn } from "node:child_process";
@@ -13,7 +14,7 @@ import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 import { installDashBoredCli } from "./install-cli";
 
-const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent", "component", "theme"]);
+const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent", "component", "theme", "update", "migrate"]);
 
 interface ParsedCommandArguments {
   project: string;
@@ -43,6 +44,8 @@ Usage:
   dash-bored component update <name> [--to <ref>] [project]
   dash-bored component remove <name> [project]
   dash-bored component sync [project]
+  dash-bored update --help
+  dash-bored migrate inspect <dashboard>
   dash-bored --help
   dash-bored --version`;
 }
@@ -311,6 +314,8 @@ async function main(): Promise<number> {
     console.error(usage());
     return 2;
   }
+
+  if (command === "update" || command === "migrate") return runUpdateCommand(command, args.slice(1));
 
   const commandArgs = args.slice(1);
   const checkIndex = (command === "install-skill" || command === "install-cli") ? commandArgs.indexOf("--check") : -1;

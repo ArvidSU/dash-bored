@@ -31,6 +31,8 @@ export type DashboardRPC = {
     requests: {
       getSnapshot: { params: {}; response: ProjectSnapshot };
       getThemes: { params: {}; response: import("./themes").ThemeCatalogItem[] };
+      getUpdateState: { params: {}; response: import("./updates").UpdateState };
+      updateAction: { params: import("./updates").UpdateAction; response: import("./updates").UpdateState };
       getAppSettings: { params: {}; response: AppSettings };
       updateAppSettings: { params: AppSettings; response: AppSettings };
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };

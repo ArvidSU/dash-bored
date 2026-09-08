@@ -1,3 +1,4 @@
+import { UpdateNotice } from "../panels/UpdatesPanel";
 import { applyTheme, ThemeNotice, ThemeSelect } from "../lib/theme";
 import { BUILTIN_THEME, parseProjectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
 import {
@@ -96,6 +97,7 @@ import { SettingsPanel } from "../panels/SettingsPanel";
 import { AppDialogs } from "./AppDialogs";
 
 export function App(): ReactNode {
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "updates">("general");
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettingsItem[]>([]);
@@ -1531,8 +1533,12 @@ export function App(): ReactNode {
   const visibleVirtualRoot = editingComposition ? compositionVirtualRoot : virtualRoot;
   const workspace = (
     <>
+      <UpdateNotice onOpen={() => { setSettingsInitialTab("updates"); setActiveView("settings"); }} />
       {activeView === "settings" ? (
         <SettingsPanel
+            key={settingsInitialTab}
+            initialTab={settingsInitialTab}
+            draftsOpen={Boolean(editSession)}
             appSettings={appSettings}
             dashboardSettings={dashboardSettings}
             actions={allActions}

@@ -1,3 +1,8 @@
+import { DIRECT_UNSIGNED_UPDATES_VERIFIED, applyVerifiedNativeUpdate } from "../updates/native-updater";
+import { UpdateCoordinator } from "../updates/coordinator";
+import { bundledInstallation, openVerifiedDmg } from "../updates/installation";
+import { runMigrationAgent } from "../updates/migration-agent";
+import { atomicJson, updateDirectory, getUpdateSettings } from "../updates/storage";
 import { watch as watchThemes } from "node:fs";
 import { mkdir as mkdirThemes } from "node:fs/promises";
 import { loadApplicationThemeCatalog, personalThemesDirectory } from "../core/themes";
@@ -302,6 +307,51 @@ const runtime = new ProjectRuntime({
   },
 });
 
+let nativeUpdateApplying = false;
+const updateCoordinator: UpdateCoordinator = new UpdateCoordinator({
+  listDashboards: async () => [...new Set([...(await projectRegistry.list()).map(p => p.configPath), ...runtime.getSnapshot().configPath ? [runtime.getSnapshot().configPath!] : []])],
+  install: async (receipt, method) => {
+    if (runtime.getSnapshot().processes.some(p => p.phase === "running" || p.phase === "stopping")
+      || dashboardAgentHarness.list().some(t => t.process.phase === "running" || t.process.phase === "stopping")) throw new Error("Finish running terminals and agent work before installation. No work has been stopped.");
+    await bundledInstallation(bundledTools ? join(bundledTools.toolsDirectory, 'dash-bored') : process.execPath);
+    if (DIRECT_UNSIGNED_UPDATES_VERIFIED && method !== "dmg") {
+      try { await applyVerifiedNativeUpdate(Updater, receipt, updateDirectory(), fetch, async () => {
+        if (await updateCoordinator.cancelled(receipt)) throw new Error("Update continuation cancelled before restart.");
+        if (runtime.getSnapshot().processes.some(p => p.phase === 'running' || p.phase === 'stopping')
+          || dashboardAgentHarness.list().some(t => t.process.phase === 'running' || t.process.phase === 'stopping')) throw new Error('New work started while staging. Finish it before restarting.');
+        nativeUpdateApplying = true;
+      }); }
+      finally { nativeUpdateApplying = false; }
+    } else await openVerifiedDmg(receipt);
+  },
+  migrate: async (configPath, receipt, report, snapshotReady) => {
+    if (runtime.getSnapshot().configPath === configPath && runtime.getSnapshot().processes.some(p => p.phase === 'running' || p.phase === 'stopping')
+      || dashboardAgentHarness.list().some(t => t.configPath === configPath && (t.process.phase === 'running' || t.process.phase === 'stopping'))) throw new Error('Finish running dashboard work before migration.');
+    const installation = await bundledInstallation(bundledTools ? join(bundledTools.toolsDirectory, 'dash-bored') : process.execPath);
+    return runMigrationAgent({ directory: updateDirectory(), configPath, receipt, report, snapshotReady,
+      cliPath: installation.cliPath, command: await resolveAgentCommand(configPath, await appSettingsStore.get()),
+      trustStore, harness: dashboardAgentHarness, stop: id => dashboardAgentHarness.stop(id),
+      cancelled: () => updateCoordinator.cancelled(receipt),
+    });
+  },
+});
+Updater.onStatusChange(entry => {
+  if (entry.status === 'error') {
+    updateCoordinator.problem(entry.message);
+    void updateCoordinator.recordInstallationProblem(entry.message).catch(() => undefined);
+  }
+});
+let updateOperation: Promise<unknown> | null = null;
+async function handleUpdateAction(action: import("../shared/updates").UpdateAction) {
+  if (action.type === 'prepare' || action.type === 'migrate' || action.type === 'install') {
+    if (action.type === 'prepare') await bundledInstallation(bundledTools ? join(bundledTools.toolsDirectory, 'dash-bored') : process.execPath);
+    if (updateOperation) throw new Error('An update operation is already running.');
+    updateOperation = updateCoordinator.action(action).catch(error => console.error('Update operation needs recovery:', error)).finally(() => { updateOperation = null; });
+    return updateCoordinator.state();
+  }
+  return updateCoordinator.action(action);
+}
+
 async function loadApplicationThemes() {
   const current = runtime.getSnapshot();
   const registered = await projectRegistry.list();
@@ -350,10 +400,10 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
     componentId: node.id,
     componentReference: node.component,
   }, userPrompt);
-  return dashboardAgentHarness.launch({
-    command,
+  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
+    location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
     prompt,
-    projectRoot: sourceLocation.projectRoot,
+    purpose: "edit",
     componentPath: locator,
     configPath: source.configPath,
     request: userPrompt,
@@ -389,10 +439,10 @@ async function runComponentCreationAgent(
     configPath: source.configPath,
     insertionPath,
   }, userPrompt);
-  return dashboardAgentHarness.launch({
-    command,
+  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
+    location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
     prompt,
-    projectRoot: sourceLocation.projectRoot,
+    purpose: "edit",
     componentPath: locator,
     configPath: source.configPath,
     request: userPrompt,
@@ -416,10 +466,10 @@ async function runDiagnosticsAgent() {
     configPath: snapshot.configPath,
     diagnostics: snapshot.diagnostics,
   });
-  return dashboardAgentHarness.launch({
-    command,
+  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
+    location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
     prompt,
-    projectRoot: sourceLocation.projectRoot,
+    purpose: "edit",
     componentPath: locator,
     configPath: snapshot.configPath,
     request: "Fix dashboard configuration diagnostics.",
@@ -485,6 +535,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
     requests: {
       getSnapshot: () => withInstalledToolDiagnostics(runtime.getSnapshot()),
       getThemes: () => loadApplicationThemes(),
+      getUpdateState: async () => ({ ...await updateCoordinator.state(), directInstallAvailable: DIRECT_UNSIGNED_UPDATES_VERIFIED && (await Updater.localInfo.channel()) === "canary" }),
+      updateAction: action => handleUpdateAction(action),
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
@@ -627,6 +679,9 @@ mainWindow.webview.on("dom-ready", () => sendSnapshot(runtime.getSnapshot()));
 
 let cleanupStarted = false;
 Electrobun.events.on("before-quit", (event) => {
+  // Native apply already rejected running work. Its helper must receive quit
+  // approval before any shutdown; the ordinary async cleanup veto would abort it.
+  if (nativeUpdateApplying) { event.response = { allow: true }; return; }
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
@@ -634,3 +689,15 @@ Electrobun.events.on("before-quit", (event) => {
     Utils.quit(0);
   });
 });
+
+// Release-only continuation: a development checkout must never consume a user's
+// persisted release authorization or impersonate the installed release host.
+if ((await Updater.localInfo.channel()) === 'canary') {
+  await atomicJson(join(updateDirectory(), 'app-host.json'), { pid: process.pid });
+  updateOperation = updateCoordinator.reconcile().catch(error => updateCoordinator.problem(error)).finally(() => { updateOperation = null; });
+  const scheduledCheck = async () => {
+    if ((await getUpdateSettings(updateDirectory())).automaticChecks && !updateOperation) await updateCoordinator.check();
+  };
+  void updateOperation.then(scheduledCheck).catch(error => console.error('Update check failed:', error));
+  setInterval(() => { void scheduledCheck().catch(error => console.error('Update check failed:', error)); }, 24 * 60 * 60_000);
+}

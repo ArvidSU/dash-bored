@@ -39,6 +39,8 @@ export interface DashboardHost {
   subscribe(listener: HostEventListener): () => void;
   getSnapshot(): Promise<ProjectSnapshot>;
   getThemes(): Promise<import("../../shared/themes").ThemeCatalogItem[]>;
+  getUpdateState(): Promise<import("../../shared/updates").UpdateState>;
+  updateAction(action: import("../../shared/updates").UpdateAction): Promise<import("../../shared/updates").UpdateState>;
   getAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
@@ -133,6 +135,8 @@ const liveHost: DashboardHost = {
     return snapshotRequest(() => rpc.request.getSnapshot({}));
   },
 
+  async getUpdateState() { ensureTransport(); return rpc.request.getUpdateState({}); },
+  async updateAction(action) { ensureTransport(); return rpc.request.updateAction(action); },
   async getThemes() { ensureTransport(); return rpc.request.getThemes({}); },
   async getAppSettings(): Promise<AppSettings> {
     ensureTransport();

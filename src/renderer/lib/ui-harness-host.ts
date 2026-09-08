@@ -512,6 +512,8 @@ export function createUiHarnessHost(): UiHarnessHost {
     getPersistedConfig() { return structuredClone(persistedConfig); },
     async getSnapshot() { return snapshot(); },
     async getThemes() { return structuredClone(FIXTURE_APPLICATION_THEMES); },
+    async getUpdateState() { return { currentVersion: "0.2.6", settings: { channel: "canary" as const, automaticChecks: true }, release: null, receipt: null, dashboards: [], phase: "idle" as const, message: "UI fixture: no network check performed." }; },
+    async updateAction(action) { const state = await this.getUpdateState(); return { ...state, ...(action.type === "settings" ? { settings: action.settings } : {}), message: "UI fixture: update action received; no installation performed." }; },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },

@@ -1,3 +1,4 @@
+import { UpdatesPanel } from "./UpdatesPanel";
 import { ThemeManager } from "./ThemeManager";
 import { ThemeSelect } from "../lib/theme";
 import { useEffect, useMemo, useState } from "react";
@@ -65,6 +66,8 @@ function ShortcutRecorder({
 }
 
 export function SettingsPanel({
+  initialTab = "general",
+  draftsOpen = false,
   appSettings,
   dashboardSettings,
   actions,
@@ -73,6 +76,8 @@ export function SettingsPanel({
   onUpdateSettings,
   onUpdateDashboardAppearance,
 }: {
+  initialTab?: "general" | "updates";
+  draftsOpen?: boolean;
   appSettings: AppSettings;
   dashboardSettings: readonly DashboardSettingsItem[];
   actions: readonly PaletteAction[];
@@ -82,7 +87,7 @@ export function SettingsPanel({
   onUpdateDashboardAppearance: (dashboard: DashboardSettingsItem, change: Pick<DashboardConfig, "theme" | "themeMode">) => Promise<void>;
 }): ReactNode {
   const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent ?? "");
-  const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions" | "updates">(initialTab);
   const [actionQuery, setActionQuery] = useState("");
   const [updatingDashboard, setUpdatingDashboard] = useState<string | null>(null);
   useEffect(() => setAgentDraft(appSettings.dashBoredAgent ?? ""), [appSettings.dashBoredAgent]);
@@ -162,7 +167,9 @@ export function SettingsPanel({
         <button type="button" role="tab" aria-selected={activeTab === "general"} onClick={() => setActiveTab("general")}>General</button>
         <button type="button" role="tab" aria-selected={activeTab === "themes"} onClick={() => setActiveTab("themes")}>Themes</button>
         <button type="button" role="tab" aria-selected={activeTab === "actions"} onClick={() => setActiveTab("actions")}>Actions</button>
+        <button type="button" role="tab" aria-selected={activeTab === "updates"} onClick={() => setActiveTab("updates")}>Updates</button>
       </div>
+      {activeTab === "updates" && <div className="settings-tab-panel" role="tabpanel" aria-label="Updates"><UpdatesPanel draftsOpen={draftsOpen} /></div>}
       {activeTab === "themes" && <div className="settings-tab-panel" role="tabpanel" aria-label="Themes">
       <section className="settings-card settings-card--themes" aria-labelledby="theme-settings-title">
         <h2 id="theme-settings-title">App defaults</h2>
