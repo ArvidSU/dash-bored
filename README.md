@@ -215,6 +215,10 @@ overrides the bundle's `.env` default. Other command variables load from each
 component's owning bundle, with explicit command overrides taking precedence.
 Saving `.env` affects new launches and leaves existing terminals running.
 
+In **Settings → General → Dashboard sidebar**, enable **Start expanded** when
+you want configured dashboard names visible as soon as dash-bored opens. The
+sidebar can still be expanded or collapsed independently from its toggle.
+
 **Set up this dashboard** starts a tracked agent task with a prompt generated
 for that bundle. No prompt needs to be copied into YAML or `.env`. Agent work
 keeps its terminal output available even when the agent replaces the starter.

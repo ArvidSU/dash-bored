@@ -423,6 +423,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   const listeners = new Set<(event: HostEvent) => void>();
   let settings: AppSettings = {
     dashBoredAgent: "codex exec",
+    sidebarExpandedByDefault: false,
     favoriteActionIds: [],
     commandPaletteShortcut: "Mod+K",
     actionShortcuts: { "app:reload": "Mod+Shift+R" },

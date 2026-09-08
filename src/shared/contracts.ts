@@ -169,6 +169,8 @@ export interface AppSettings {
   themeMode?: import("./themes").ThemeMode;
   /** App-wide CLI command used for natural-language dashboard changes, or null to use the owning bundle. */
   dashBoredAgent: string | null;
+  /** Whether the project sidebar should open expanded in a new app session. */
+  sidebarExpandedByDefault: boolean;
   /** Action ids promoted ahead of other matching command-palette results. */
   favoriteActionIds: string[];
   /** App-local keyboard shortcut that opens the command palette. */

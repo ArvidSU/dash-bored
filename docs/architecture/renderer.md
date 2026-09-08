@@ -223,8 +223,9 @@ tracked agent invocations replace their shell so CLI exit ends the task.
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
 horizontal splits may be recursively nested for tiled layouts and stack based
 on their own container width. The application shell also
-shows project identity, diagnostics, and a collapsed-by-default project
-sidebar. When diagnostics are present, their details header offers Fix with
+shows project identity, diagnostics, and a project sidebar whose startup
+expanded state is controlled by Application Settings (collapsed by default).
+When diagnostics are present, their details header offers Fix with
 agent; the main process re-reads the current diagnostics and launches the
 configured dashboard agent against the owning config, including when the
 dashboard tree is unavailable. The header exposes the command palette and active-dashboard edit
@@ -238,7 +239,8 @@ between those dashboards, add another target through the native chooser, open
 application settings, or remove a remembered dashboard.
 
 Application Settings has General, Themes, and Actions tabs. General owns app
-behavior, including the command-palette shortcut and `DASH_BORED_AGENT`.
+behavior, including the command-palette shortcut, the sidebar startup
+expanded preference, and `DASH_BORED_AGENT`.
 Themes owns app appearance defaults plus a per-dashboard list of theme and
 appearance selections; changing a row reads and writes that registered bundle
 directly without opening it or depending on active editor state. Actions presents

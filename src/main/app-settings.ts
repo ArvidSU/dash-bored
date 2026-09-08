@@ -21,6 +21,7 @@ function defaults(dashBoredAgent: string): AppSettings {
     theme: "builtin:default",
     themeMode: "dark",
     dashBoredAgent,
+    sidebarExpandedByDefault: false,
     favoriteActionIds: [],
     commandPaletteShortcut: DEFAULT_COMMAND_PALETTE_SHORTCUT,
     actionShortcuts: { ...DEFAULT_ACTION_SHORTCUTS },
@@ -66,6 +67,7 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
     dashBoredAgent: value.dashBoredAgent === null
       ? null
       : normalizeDashBoredAgent(value.dashBoredAgent ?? defaultAgent),
+    sidebarExpandedByDefault: value.sidebarExpandedByDefault === true,
     favoriteActionIds: normalizeActionIds(value.favoriteActionIds),
     commandPaletteShortcut: paletteShortcut,
     actionShortcuts,

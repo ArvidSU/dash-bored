@@ -226,9 +226,20 @@ export function SettingsPanel({
       <section className="settings-card" aria-labelledby="sidebar-settings-title">
         <div>
           <h2 id="sidebar-settings-title">Dashboard sidebar</h2>
-          <p>The sidebar starts collapsed each time dash-bored opens. Expand it to see configured dashboard names.</p>
+          <p>Choose whether configured dashboard names are visible when dash-bored opens.</p>
         </div>
-        <span className="settings-value">Collapsed by default</span>
+        <label className="settings-toggle">
+          <input
+            type="checkbox"
+            checked={appSettings.sidebarExpandedByDefault}
+            disabled={savingSettings}
+            onChange={(event) => onUpdateSettings(
+              { ...appSettings, sidebarExpandedByDefault: event.target.checked },
+              event.target.checked ? "Sidebar will start expanded." : "Sidebar will start collapsed.",
+            )}
+          />
+          <span>Start expanded</span>
+        </label>
       </section>
       <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
         <div>

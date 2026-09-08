@@ -101,6 +101,7 @@ export function App(): ReactNode {
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettingsItem[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     dashBoredAgent: "codex exec",
+    sidebarExpandedByDefault: false,
     favoriteActionIds: [],
     commandPaletteShortcut: "Mod+K",
     actionShortcuts: { "app:reload": "Mod+Shift+R" },
@@ -280,6 +281,7 @@ export function App(): ReactNode {
           .find((task): task is DashboardAgentTask => task !== null);
         setProjects(rememberProject(initialProjects, initialSnapshot));
         setAppSettings(initialSettings);
+        setSidebarExpanded(initialSettings.sidebarExpandedByDefault);
         setDashboardAgentTasks((current) => {
           const withStarter = starter ? replaceDashboardAgentTask(initialAgentTasks, starter) : initialAgentTasks;
           return current.reduce(replaceDashboardAgentTask, withStarter);
@@ -726,6 +728,9 @@ export function App(): ReactNode {
 
   function updateAppSettings(settings: AppSettings, notice: string): void {
     const revision = ++appSettingsRevision.current;
+    if (settings.sidebarExpandedByDefault !== appSettings.sidebarExpandedByDefault) {
+      setSidebarExpanded(settings.sidebarExpandedByDefault);
+    }
     setAppSettings(settings);
     appSettingsWrite.current = appSettingsWrite.current
       .catch(() => undefined)

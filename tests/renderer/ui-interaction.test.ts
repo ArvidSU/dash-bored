@@ -192,6 +192,17 @@ describe("renderer fixture interactions", () => {
     await settings.getByRole("tab", { name: "General" }).waitFor();
     expect(await settings.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
 
+    const sidebarPreference = settings.getByRole("checkbox", { name: "Start expanded" });
+    expect(await sidebarPreference.isChecked()).toBeFalse();
+    await sidebarPreference.check();
+    await active.getByRole("status").getByText("Sidebar will start expanded.", { exact: true }).waitFor();
+    expect(await sidebarPreference.isChecked()).toBeTrue();
+    expect(await active.locator(".app-shell").getAttribute("class")).toContain("app-shell--sidebar-expanded");
+    await sidebarPreference.uncheck();
+    await active.getByRole("status").getByText("Sidebar will start collapsed.", { exact: true }).waitFor();
+    expect(await sidebarPreference.isChecked()).toBeFalse();
+    expect(await active.locator(".app-shell").getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
+
     const agentInput = settings.getByRole("textbox", { name: "DASH_BORED_AGENT" });
     expect(await settings.getByRole("button", { name: "Clear app-wide DASH_BORED_AGENT setting", exact: true }).count()).toBe(0);
     await agentInput.fill("");

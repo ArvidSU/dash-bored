@@ -25,12 +25,14 @@ describe("AppSettingsStore", () => {
       theme: "builtin:default",
       themeMode: "dark",
       dashBoredAgent: "codex exec",
+      sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
       actionShortcuts: { "app:reload": "Mod+Shift+R" },
     });
     const updated = await store.update({
       dashBoredAgent: "  claude -p  ",
+      sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "app:reload", " component:refresh "],
       commandPaletteShortcut: "Mod+P",
       actionShortcuts: {
@@ -43,6 +45,7 @@ describe("AppSettingsStore", () => {
       theme: "builtin:default",
       themeMode: "dark",
       dashBoredAgent: "claude -p",
+      sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
       commandPaletteShortcut: "Mod+P",
       actionShortcuts: {
@@ -55,6 +58,7 @@ describe("AppSettingsStore", () => {
       theme: "builtin:default",
       themeMode: "dark",
       dashBoredAgent: "claude -p",
+      sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
       commandPaletteShortcut: "Mod+P",
       actionShortcuts: {
@@ -68,6 +72,7 @@ describe("AppSettingsStore", () => {
       themeMode: "dark",
       version: 2,
       dashBoredAgent: "claude -p",
+      sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
       commandPaletteShortcut: "Mod+P",
       actionShortcuts: {
@@ -95,12 +100,14 @@ describe("AppSettingsStore", () => {
       theme: "builtin:default",
       themeMode: "dark",
       dashBoredAgent: "gemini -p",
+      sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
       actionShortcuts: { "app:reload": "Mod+Shift+R" },
     });
     await expect(store.update({
       dashBoredAgent: "",
+      sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
       actionShortcuts: {},
