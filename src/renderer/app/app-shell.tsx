@@ -42,7 +42,7 @@ function ShellIcon({ name }: { name: ShellIconName }): ReactNode {
   if (name === "settings") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12.22 2h-.44a2 2 0 0 0-1.99 1.67l-.06.36a2 2 0 0 1-2.99 1.4l-.31-.18a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.31.18a2 2 0 0 1 0 3.46l-.31.18a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.31-.18a2 2 0 0 1 2.99 1.4l.06.36A2 2 0 0 0 10 20h.44a2 2 0 0 0 1.99-1.67l.06-.36a2 2 0 0 1 2.99-1.4l.31.18a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.31-.18a2 2 0 0 1 0-3.46l.31-.18a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.31.18a2 2 0 0 1-2.99-1.4l-.06-.36A2 2 0 0 0 12.22 2Z" />
+        <path d="m9.5 3-.5 2.5-1.5.9-2.4-.8-2.5 4.3L4 11.6v1.8l-1.9 1.7 2.5 4.3 2.4-.8 1.5.9.5 2.5h5l.5-2.5 1.5-.9 2.4.8 2.5-4.3-1.9-1.7v-1.8l1.9-1.7-2.5-4.3-2.4.8-1.5-.9L14.5 3Z" transform="translate(0 -.5)" />
         <circle cx="12" cy="12" r="3" />
       </svg>
     );
@@ -244,6 +244,7 @@ export function AppShell({
             <button
               className={`sidebar__item${activeView === "settings" ? " sidebar__item--active" : ""}`}
               type="button"
+              aria-current={activeView === "settings" ? "page" : undefined}
               aria-label="Settings"
               title="Settings"
               onClick={onShowSettings}

@@ -408,3 +408,8 @@ no dashboard is open. The native application menu binds the same lifecycle
 operation to `CommandOrControl+Shift+R`. This is distinct from `Reload
 dashboard`, which asks the main process to reread the active project while
 preserving the last known-good renderer when project validation fails.
+
+Sidebar chrome centers collapsed icons in the bordered button content box;
+expanded navigation retains its fixed icon column. The app mark has no
+superimposed decoration, and selected navigation/tab controls use theme tokens
+without an offset raised shadow so their visual bounds stay centered.
