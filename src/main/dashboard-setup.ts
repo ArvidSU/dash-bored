@@ -23,6 +23,7 @@ export interface DashboardSetupSupervisorOptions {
   harness: DashboardSetupHarness;
   command: string;
   location: ProjectLocation;
+  onValidation?: (validation: NonNullable<DashboardAgentTask["validation"]>) => void;
   /** Read-only executable preflight, supplied by the desktop host. */
   preflight?: (command: string, env: Record<string, string>, cwd: string) => void;
 }
@@ -54,18 +55,22 @@ export class DashboardSetupSupervisor {
   }
 
   async launch(node: ResolvedComponentNode): Promise<ComponentAgentLaunch> {
-    const { runtime, harness, command, location, preflight } = this.options;
+    const { location } = this.options;
     if (this.approvedPermissions.size === 0) {
       for (const permission of node.manifest?.permissions ?? []) this.approvedPermissions.add(permission);
     }
     const configPath = node.sourceConfigPath ?? location.configPath;
     const prompt = starterAgentPrompt(basename(location.projectRoot) || "Project", configPath);
-    const env = await runtime.getLaunchEnvironment(configPath);
+    return this.launchRequest({ prompt, configPath, componentPath: componentPath(node), request: "Set up this dashboard", purpose: "setup" });
+  }
+
+  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: DashboardAgentTask["purpose"] }): Promise<ComponentAgentLaunch> {
+    const { runtime, harness, command, location, preflight } = this.options;
+    const env = await runtime.getLaunchEnvironment(request.configPath);
     preflight?.(command, env, location.projectRoot);
-    if (!this.stillHere() || !runtime.getSnapshot().trusted) throw new Error("The active dashboard or its trust changed before setup started.");
-    return harness.launch({ command, prompt, purpose: "setup", projectRoot: location.projectRoot,
-      componentPath: componentPath(node), configPath, request: "Set up this dashboard", env,
-      onFinished: (task) => this.finish(task, prompt, configPath, false),
+    if (!this.stillHere() || !runtime.getSnapshot().trusted) throw new Error("The active dashboard or its trust changed before agent work started.");
+    return harness.launch({ ...request, command, projectRoot: location.projectRoot, env,
+      onFinished: (task) => this.finish(task, request.prompt, request.configPath, false),
     });
   }
 
@@ -79,6 +84,7 @@ export class DashboardSetupSupervisor {
       const validation = { status, diagnostics, ...(message ? { message } : {}) };
       harness.setValidation(task.id, validation);
       if (originalTaskId) harness.setValidation(originalTaskId, validation);
+      this.options.onValidation?.(validation);
     };
     report("checking", [], "Checking saved configuration and local components…");
     try {
@@ -126,7 +132,7 @@ export class DashboardSetupSupervisor {
         return;
       }
       report("repairing", diagnostics, "Starting the single automatic repair attempt.");
-      await harness.launch({ command, prompt: repairPrompt, purpose: "setup-repair", projectRoot: location.projectRoot,
+      await harness.launch({ command, prompt: repairPrompt, purpose: task.purpose === "setup" ? "setup-repair" : "repair", projectRoot: location.projectRoot,
         componentPath: `${configPath}#diagnostics`, configPath, request: "Repair setup diagnostics.", env,
         onFinished: async (repairTask) => {
           await this.finish(repairTask, prompt, configPath, true, task.id);

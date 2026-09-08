@@ -155,3 +155,16 @@ describe("DashboardSetupSupervisor", () => {
   });
 
 });
+
+test.each(['edit', 'migration'] as const)('%s uses the shared verification boundary with one repair', async purpose => {
+  const { location, node, permissions } = await fixture();
+  const rt = runtime(location, node, permissions); const h = harness();
+  const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
+  await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
+  await writeFile(location.configPath, 'schemaVersion: 2\nroot: invalid\n');
+  await h.launches[0].options.onFinished(h.launches[0].task);
+  expect(h.launches).toHaveLength(2);
+  await h.launches[1].options.onFinished(h.launches[1].task);
+  expect(h.launches).toHaveLength(2);
+  expect(h.launches[0].validations.at(-1).status).toBe('failed');
+});

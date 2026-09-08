@@ -228,7 +228,7 @@ export interface ComponentAgentLaunch {
 /** A dashboard-only invocation of the user's configured CLI agent. */
 export interface DashboardAgentTask {
   id: string;
-  purpose?: "setup" | "setup-repair";
+  purpose?: "setup" | "setup-repair" | "edit" | "migration" | "repair";
   command: string;
   /** Fully contextualized prompt passed as the configured command's argument. */
   prompt: string;
