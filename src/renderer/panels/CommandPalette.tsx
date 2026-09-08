@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { PaletteAction } from "../lib/actions";
 import { rankActions, resolveActionChoiceOptions } from "../lib/actions";
@@ -81,7 +81,7 @@ export function CommandPalette({
     catch (error) { choiceError = error instanceof Error ? error.message : "This action has no usable options."; }
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     restoreFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -128,6 +128,17 @@ export function CommandPalette({
     if (!confirmationAction) return;
     requestAnimationFrame(() => confirmRef.current?.focus());
   }, [confirmationAction]);
+
+  useLayoutEffect(() => {
+    if (!open || confirmationId) return;
+    // Replacing the search input or an option button removes the focused node.
+    // Keep keyboard events (especially Escape) inside the current dialog step.
+    if (choiceActionId && dialogRef.current) {
+      (focusableElements(dialogRef.current)[0] ?? dialogRef.current).focus();
+    } else {
+      inputRef.current?.focus();
+    }
+  }, [open, choiceActionId, choiceIndex, confirmationId]);
 
   function dismiss(): void {
     setConfirmationId(null);
@@ -189,6 +200,7 @@ export function CommandPalette({
   function handleDialogKeys(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       if (confirmationId) {
         setConfirmationId(null);
         if (choiceAction?.choices?.length) {
@@ -207,6 +219,22 @@ export function CommandPalette({
       } else {
         dismiss();
       }
+      return;
+    }
+    if (currentChoice && !confirmationId &&
+      (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+      const options = [...(dialogRef.current?.querySelectorAll<HTMLButtonElement>(
+        ".command-palette__choice:not([disabled])",
+      ) ?? [])];
+      if (options.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const current = options.findIndex((option) => option === document.activeElement);
+      const next = current === -1
+        ? (event.key === "ArrowDown" ? 0 : options.length - 1)
+        : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+      options[next]?.focus({ preventScroll: true });
+      options[next]?.scrollIntoView({ block: "nearest" });
       return;
     }
     if (event.key !== "Tab" || !dialogRef.current) return;
@@ -252,14 +280,14 @@ export function CommandPalette({
         </h2>
 
         {choiceAction && currentChoice ? (
-          <div className="command-palette__confirmation">
+          <div className="command-palette__confirmation command-palette__choices">
             <span className="eyebrow">Choose an option</span>
             <h3>{currentChoice.label}</h3>
             {currentChoice.description ? <p>{currentChoice.description}</p> : null}
             {choiceError ? <p role="alert">{choiceError}</p> : (
-              <div role="listbox" aria-label={currentChoice.label}>
+              <div className="command-palette__choice-list" role="group" aria-label={currentChoice.label}>
                 {choiceOptions.map((option) => (
-                  <button className="button button--quiet" type="button" key={option.value} onClick={() => {
+                  <button className="button button--quiet command-palette__choice" type="button" key={option.value} onClick={() => {
                     const next = { ...choices, [currentChoice.id]: option.value };
                     const nextIndex = choiceIndex + 1;
                     if (choiceAction.choices && nextIndex < choiceAction.choices.length) {

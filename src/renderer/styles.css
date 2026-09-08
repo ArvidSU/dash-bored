@@ -3571,6 +3571,42 @@ img.sidebar__project-icon {
   padding: 24px;
 }
 
+.command-palette__confirmation.command-palette__choices {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.command-palette__choices h3 {
+  margin: 0;
+}
+
+.command-palette__choice-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.command-palette__choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: left;
+  white-space: normal;
+}
+
+.command-palette__choice > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .command-palette__confirmation-mark {
   display: grid;
   width: 38px;

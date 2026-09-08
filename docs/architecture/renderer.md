@@ -384,7 +384,12 @@ confirmation state. Trust confirmation names the complete requested capability
 set before calling the existing trust RPC.
 
 Actions may declare ordered choices. The palette collects each selection before
-running the action, supports Back and Escape without running it, and passes the
+running the action, presents options as full-width stacked buttons in a bounded,
+scrollable single-column dialog, and focuses the first option on each step.
+Up/Down moves focus between options, wrapping at either end and scrolling the
+focused option into view; Enter selects it. Tab still reaches Back and Cancel.
+Escape returns one step, restores search focus from the first step, and closes
+the palette only from search. Back follows the same step navigation. It passes the
 completed selection map to the action. Choice options may depend on earlier
 selections; shortcuts open the same choice flow rather than bypassing it.
 
@@ -392,7 +397,12 @@ The palette is application-scoped. A visible header control and the native
 application-menu accelerator `CommandOrControl+K` open it; the menu sends a
 typed main-to-renderer message. This is not an operating-system-global hotkey.
 Search and keyboard interaction are implemented in the renderer without an
-external palette dependency.
+external palette dependency. Non-empty searches rank match quality across
+provider groups, weighting visible action labels above keywords and incidental
+description, group, or source matches. Exact and prefix matches beat loose fuzzy
+matches; multiword queries also match partial words in any order and across
+fields, requiring every word. Empty queries retain provider group order, and
+groups plus registration order break relevance ties.
 
 Favorites are stored by stable action ID, so a temporarily unmounted component
 action can regain its favorite state when it registers again. Search first

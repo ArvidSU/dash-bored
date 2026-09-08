@@ -285,7 +285,7 @@ function subsequenceScore(haystack: string, needle: string): number | null {
 }
 
 function fieldScore(field: string, query: string): number | null {
-  const value = normalize(field);
+  const value = field;
   if (!value) return null;
   if (value === query) return 0;
   if (value.startsWith(query)) return 5;
@@ -300,17 +300,33 @@ function fieldScore(field: string, query: string): number | null {
 
 function actionScore(action: PaletteAction, query: string): number | null {
   if (!query) return 0;
+  // Visible names should beat incidental description, group, or path matches.
   const fields = [
-    action.label,
-    action.description ?? "",
-    ...action.keywords,
-    action.group,
-    action.source ?? "",
-  ];
-  let best: number | null = null;
-  for (const field of fields) {
-    const score = fieldScore(field, query);
-    if (score !== null && (best === null || score < best)) best = score;
+    { value: action.label, penalty: 0 },
+    ...action.keywords.map((value) => ({ value, penalty: 15 })),
+    { value: action.description ?? "", penalty: 30 },
+    { value: action.group, penalty: 40 },
+    { value: action.source ?? "", penalty: 40 },
+  ].map(({ value, penalty }) => ({ value: normalize(value), penalty }));
+  const bestFieldScore = (term: string): number | null => {
+    let best: number | null = null;
+    for (const { value, penalty } of fields) {
+      const score = fieldScore(value, term);
+      if (score !== null && (best === null || score + penalty < best)) {
+        best = score + penalty;
+      }
+    }
+    return best;
+  };
+  let best = bestFieldScore(query);
+  const terms = query.split(" ");
+  if (terms.length > 1) {
+    // Require every term, but allow reordered words and matches across fields.
+    const scores = terms.map(bestFieldScore);
+    if (scores.every((score): score is number => score !== null)) {
+      const tokenScore = 15 + scores.reduce((sum, score) => sum + score, 0) / terms.length;
+      best = best === null ? tokenScore : Math.min(best, tokenScore);
+    }
   }
   return best;
 }
@@ -336,9 +352,9 @@ export function rankActions(
       (left, right) =>
         Number(favoriteActionIds.has(right.action.id)) -
           Number(favoriteActionIds.has(left.action.id)) ||
+        left.score - right.score ||
         (groupOrder.get(left.action.group) ?? 0) -
           (groupOrder.get(right.action.group) ?? 0) ||
-        left.score - right.score ||
         left.index - right.index,
     )
     .map(({ action }) => action);

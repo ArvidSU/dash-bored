@@ -177,6 +177,9 @@ describe("renderer fixture interactions", () => {
     expect(await palette.getByRole("combobox").count()).toBe(1);
     await palette.getByRole("combobox").fill("reload app");
     await palette.getByRole("option", { name: /Reload app/ }).waitFor();
+    await palette.getByRole("combobox").fill("app reload");
+    expect(await palette.getByRole("option").first().innerText()).toContain("Reload app");
+
     await active.keyboard.press("Escape");
     expect(await palette.count()).toBe(0);
 
@@ -184,6 +187,55 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Expand sidebar" }).waitFor();
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
+
+  test("palette choice steps keep headings and full-width options inside the dialog", async () => {
+    const active = currentPage();
+    const originalViewport = active.viewportSize();
+    for (const width of [1280, 390]) {
+      await active.setViewportSize({ width, height: 844 });
+      await active.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = active.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("Set default theme");
+      await palette.getByRole("option", { name: /Set default theme/ }).click();
+      const heading = palette.getByRole("heading", { name: "Select default theme" });
+      await heading.waitFor();
+      const group = palette.getByRole("group", { name: "Select default theme" });
+      const bounds = await palette.boundingBox();
+      const title = await heading.boundingBox();
+      const list = await group.boundingBox();
+      const option = await group.getByRole("button").first().boundingBox();
+      expect(bounds && title && list && option).toBeTruthy();
+      expect(title!.x + title!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+      expect(list!.y).toBeGreaterThanOrEqual(title!.y + title!.height);
+      expect(Math.abs(option!.width - list!.width)).toBeLessThan(1);
+      expect(await palette.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+      // Use real keyboard events without focusing a locator: entering a step
+      // must establish focus itself, including when the previous button unmounts.
+      const options = group.getByRole("button");
+      const isFocused = (index: number) => options.nth(index).evaluate(
+        (element) => element === document.activeElement,
+      );
+      expect(await isFocused(0)).toBe(true);
+      await active.keyboard.press("ArrowDown");
+      expect(await isFocused(1)).toBe(true);
+      await active.keyboard.press("ArrowUp");
+      expect(await isFocused(0)).toBe(true);
+      await active.keyboard.press("ArrowUp");
+      expect(await isFocused(await options.count() - 1)).toBe(true);
+      await active.keyboard.press("ArrowDown");
+      expect(await isFocused(0)).toBe(true);
+      await active.keyboard.press("ArrowDown");
+      await active.keyboard.press("Enter");
+      await palette.getByRole("heading", { name: "Select default appearance" }).waitFor();
+      await active.keyboard.press("Escape");
+      await heading.waitFor();
+      await active.keyboard.press("Escape");
+      await palette.getByRole("combobox").waitFor();
+      await active.keyboard.press("Escape");
+      await palette.waitFor({ state: "hidden" });
+    }
+    if (originalViewport) await active.setViewportSize(originalViewport);
+  });
 
   test("settings tabs manage action favorites and shortcuts reflected in the palette", async () => {
     const active = currentPage();

@@ -233,6 +233,38 @@ describe("action search and execution", () => {
     );
   });
 
+  test("ranks relevance across groups and prefers visible labels over metadata", () => {
+    const actions = [
+      action("incidental", { label: "Open settings", description: "Reload" }),
+      action("fuzzy", { label: "Read local dashboard" }),
+      action("prefix", { label: "Reload server", group: "Project commands" }),
+      action("exact", { label: "Reload", group: "Component" }),
+    ];
+    expect(rankActions(actions, "reload").map(({ id }) => id)).toEqual([
+      "exact", "prefix", "incidental", "fuzzy",
+    ]);
+  });
+
+  test("matches reordered partial words and terms across fields, requiring every term", () => {
+    const actions = [
+      action("server", { label: "Start development server", source: "backend-api" }),
+      action("stop", { label: "Stop development server", source: "backend-api" }),
+      action("other", { label: "Start worker" }),
+    ];
+    for (const query of ["server sta", "backend start", " START--dev "]) {
+      expect(rankActions(actions, query).map(({ id }) => id)).toEqual(["server"]);
+    }
+    expect(rankActions(actions, "start nonexistent")).toEqual([]);
+  });
+
+  test("retains fuzzy abbreviations below direct matches", () => {
+    const actions = [
+      action("fuzzy", { label: "Reload dashboard" }),
+      action("direct", { label: "Rld status", group: "Component" }),
+    ];
+    expect(rankActions(actions, "rld").map(({ id }) => id)).toEqual(["direct", "fuzzy"]);
+  });
+
   test("promotes favorites only after search has selected matching actions", () => {
     const actions = [
       action("reload", { label: "Reload app" }),
