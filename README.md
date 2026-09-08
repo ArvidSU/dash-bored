@@ -82,14 +82,14 @@ bun run dev:desktop     # built renderer + watched Electrobun main process
 bun run build:cli       # standalone CLI embedded in desktop builds
 bun run styles:dead     # report app CSS class/ID hooks without source references
 bun run typecheck
-bun test
+bun run test            # repository tests only; excludes saved release artifacts
 bun run build:renderer
 bun run build           # local canary application build
 bun run icon:generate   # regenerate the committed macOS iconset from its SVG
 bun run build:release   # clean unsigned Apple Silicon release build
 bun run release:prepare # verify artifacts and stage release files
-bun run qa              # typecheck, tests, and renderer production build
-bun run qa:fast         # non-locking typecheck, tests, and renderer build
+bun run qa              # prepare, typecheck, tests, renderer and CLI builds
+bun run qa:fast         # same checks/builds, reusing prepared Hutch files
 bun run ui:fixture      # isolated renderer fixture at http://127.0.0.1:5488/ui-harness.html
 bun run test:renderer-ui # browser-driven pointer and keyboard verification for that fixture
 bun run native:probe    # isolated manual Electrobun webview visibility/dimensions probe
@@ -100,6 +100,36 @@ bun run native:probe    # isolated manual Electrobun webview visibility/dimensio
 hooks with no static reference, while listing state/value-prefixed hooks
 assembled dynamically for manual review. Add `--check` when a non-zero exit
 code is wanted for definitely dead hooks.
+
+### Choosing verification
+
+For an already prepared checkout, default to `bun run qa:fast`. `qa`,
+`typecheck`, and `build:renderer` invoke `electrobun prepare`, which can wait
+indefinitely behind a running desktop watcher's lock. Do not stop a user-owned
+watcher to run checks. The fast commands never prepare; they fail immediately
+with setup guidance if the required Hutch files are missing. After changing
+the Electrobun dependency, regenerate Hutch with `bun run setup` when the
+watcher is stopped before relying on fast checks.
+
+| Change or question | Smallest useful check |
+| --- | --- |
+| Focused logic regression | `bun test tests/<area>/<file>.test.ts` |
+| TypeScript across the repo | `bun run typecheck:fast` |
+| Renderer bundling or CSS | `bun run build:renderer:fast` |
+| Completed code change | `bun run qa:fast` (includes the browser interaction suite and CLI build) |
+| Dashboard YAML | `bun run dash-bored -- validate .` |
+| Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
+| Documentation only | Check links and `git diff --check`; no full build needed |
+
+Run focused checks while iterating and the relevant full check once the change
+is ready. Do not rerun `test:renderer-ui` or `build:cli` after a successful
+`qa:fast` unless new edits or a specific investigation require it. Dashboard
+validation and the Python release-harness tests are separate from `qa:fast`.
+Use `bun run test` for the complete repository suite: it scopes discovery to
+`./tests`. Bare `bun test` also discovers copied tests in saved release-QA
+artifacts and the standalone release fixture, making its totals depend on
+local evidence directories.
+Check `git diff --check` before handing off changes.
 
 ### Visual UI verification
 
@@ -115,6 +145,10 @@ against the fixture. It verifies renderer interactions and the in-memory host
 contract (draft, Save, Cancel, rejected drop, and revision conflict), but it is
 still **renderer-only** evidence. It uses `/Applications/Google Chrome.app` by
 default; set `DASH_BORED_BROWSER_EXECUTABLE` when Chrome lives elsewhere.
+It is also included in `bun run test` and therefore both QA commands. No manually
+started fixture server is needed for this test. For manual browser inspection,
+open `/ui-harness.html`; the normal `/` page requires the native host bridge.
+If the manual fixture port is busy, use `DASH_BORED_UI_PORT=5489 bun run ui:fixture`.
 
 `native:probe` first checks the source-level visibility/dimension contract, then
 opens a separate Electrobun app and Vite server on port `5499` (or

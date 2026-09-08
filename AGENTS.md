@@ -7,7 +7,19 @@ plan, prompt, code, or documentation.
 pages under docs/architecture/ up to date with the actual implementation.
 
 Dog food this project and its features by adding components with sane configurations in the project dashboard.
-If a work package has had features or amendments defered, add them to this projects todo list: `dash-bored/.dash-bored/dash-bored.yaml#root.children.items[1].node.children.layout.second.second.second.second.first.child.node.children.layout.child.node`
+If a work package defers features or amendments, add them to the `props.todos`
+of node `id: yaml-todo` in [the project dashboard](./.dash-bored/dash-bored.yaml).
+Find it by ID; positional tree paths change when the dashboard is rearranged.
+
+Start with [the verification workflow](./README.md#choosing-verification) and
+only the relevant page in the architecture index. For dashboard edits, use
+`bun run dash-bored -- inspect . --summary`, then `--component <reference>`
+for the relevant schema; full catalog dumps are rarely needed.
+
+Before committing structural moves, inspect `git status --short` and
+`git diff --cached --name-status`: replacement directories can still be
+untracked even when working-tree tests pass. Stage the intended replacements
+and review `git diff --cached --check` without including unrelated work.
 
 ## Documentation ownership
 
@@ -21,9 +33,10 @@ verified agent-execution quirk that cannot reasonably live there.
 ## Agent-only UI verification
 
 When Computer Use is available, native app interaction is the second UI-proof
-layer. Call `get_app_state` for `dash-bored-dev`, verify that the accessible
+layer. Read the current app state for `dash-bored-dev` (or the worktree's dev
+instance) using the available Computer Use API, and verify that the accessible
 header config path identifies this checkout, and operate only a harmless,
-visible control through its current `element_index`. Re-read `get_app_state`
+visible control through its current element locator. Re-read app state
 after each click, drag, tab switch, or window interaction because native
 accessibility indices can become stale. Capture a native screenshot when visual
 placement matters; accessibility state proves control wiring, not pixel layout.

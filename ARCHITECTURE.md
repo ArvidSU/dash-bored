@@ -4,7 +4,8 @@ The architecture is split into focused documents so each contract can be found
 and edited without navigating one monolithic file. These documents are the
 source of truth for implementation decisions, contracts, and invariants.
 
-Read the pages in this order for a full system view:
+For a scoped change, start with the page matching the responsibility below;
+read the pages in this order only when a full system view is needed:
 
 1. [Runtime and boundaries](./docs/architecture/runtime.md) — process layout,
    renderer boundaries, snapshots, and proof surfaces.

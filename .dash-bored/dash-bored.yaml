@@ -201,6 +201,10 @@ root:
                                     component: "@dash-bored/todo-list"
                                     props:
                                       todos:
+                                        - description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
+                                          done: false
+                                          tags:
+                                            - tooling
                                         - description: Add a better agent interface with user feedback and control
                                           done: true
                                           tags:
@@ -345,8 +349,8 @@ root:
                                             id: run-qa
                                             component: "@dash-bored/command"
                                             props:
-                                              label: Run full QA
-                                              command: bun run qa
+                                              label: Run QA (reuse prepared Hutch)
+                                              command: bun run qa:fast
                                               cwd: .
                                       second:
                                         type: child
