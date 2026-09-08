@@ -28,6 +28,7 @@
     "typecheck": "sh ./scripts/with-worktree-env.sh sh -c 'electrobun prepare && tsc --noEmit'",
     "typecheck:fast": "sh ./scripts/with-worktree-env.sh sh ./scripts/with-prepared-hutch.sh tsc --noEmit",
     "qa:release": "python3 scripts/release-qa/runner.py run",
+    "qa:update:native": "bun ./scripts/native-update-acceptance.ts",
     "qa:release:test": "python3 -m unittest discover -s tests/release-qa",
     "qa:fast": "sh ./scripts/with-worktree-env.sh sh ./scripts/with-prepared-hutch.sh sh -c 'tsc --noEmit && bun run test && vite build && bun run build:cli'",
     "test": "bun test ./tests",

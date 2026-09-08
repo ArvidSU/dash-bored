@@ -867,3 +867,62 @@ installations, and project installs require a Git checkout. Updates are always
 explicit and refuse local changes. Installation does not select a theme.
 Missing themes show a diagnostic and fall back to your app default, then the
 built-in theme. Existing settings keep Dark until you choose another mode.
+
+### App updates and dashboard migrations
+
+Open **Updates and migrations** in the app, or **Application Settings → Updates**.
+The surface remains available when a dashboard cannot load. Canary is the only
+available channel; Beta and Stable are marked coming later. Startup and 24-hour
+checks can be switched off. Downloads and installation remain explicit actions.
+
+**Update and migrate** records the target release and the dashboards you select.
+After installing and restarting the exact target app, pending migrations continue
+automatically. **Update only** leaves affected dashboards for later; select them
+and use **Migrate dashboard** afterward. **Later** defers the choice, and
+**Cancel continuation** revokes pending automatic migration authorization.
+
+The app offers **Restart and install** using verified native update artifacts,
+plus **Open verified installer** as the DMG fallback. Save or cancel drafts and
+finish running terminals/agents first. The CLI opens the verified DMG; quit the
+app, replace it, then restart. The
+first updater-capable release requires manual installation. Unsigned macOS
+builds retain the normal Privacy & Security → Open Anyway flow. Native replacement and relaunch passed an isolated two-version macOS test;
+downloaded-DMG Gatekeeper approval remains a separate manual check.
+
+The CLI offers the same workflow without an app window:
+
+```sh
+dash-bored update check
+dash-bored update --update-and-migrate --dashboard /path/to/project/.dash-bored/dash-bored.yaml
+dash-bored update install
+# After manually replacing the app, using the new bundled or managed CLI:
+dash-bored update resume
+dash-bored update status
+dash-bored migrate --dashboard /path/to/project/.dash-bored/dash-bored.yaml
+```
+
+Use `--update-only` to defer dashboard changes. Non-interactive updates require
+an explicit mode; `--yes` alone does not authorize migration. An interactive
+invocation offers Update and migrate, Update only, and Later. Source checkouts
+and independently copied CLI binaries require manual installation of the DMG.
+The CLI refuses installation while an app instance is running; use its Updates
+surface or finish work and quit first.
+
+`dash-bored migrate inspect <dashboard>` reads applicable bundled guidance.
+Historical schema v1-to-v2 conversion and unknown schemas are unsupported.
+Agents receive the target CLI, diagnostics, cumulative recipes, and a read-only
+skill handoff. Existing customized skills are preserved. Migration requires the
+existing project trust decision; new permissions require review in the app.
+
+`dash-bored update cancel` cancels continuation. If an operation was interrupted,
+`dash-bored update recover` releases its lock only after the owner exits. Review
+reported snapshots and edits before explicitly retrying migrations; interrupted
+work never runs again just because the app restarted. Snapshot and receipt paths
+are under `~/.config/dash-bored/updates/`. To restore, first preserve current
+edits, then copy the desired files from the reported snapshot. Failed dashboard
+migrations are reported separately from a successful app installation.
+
+```sh
+dash-bored update settings --automatic-checks off
+dash-bored update settings --channel canary
+```

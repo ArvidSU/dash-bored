@@ -65,6 +65,10 @@ jobs:
           fi
           gh release create "${GITHUB_REF_NAME}" \
             release/*.dmg \
+            release/*.app.tar.zst \
+            release/*update.json \
+            release/dash-bored-release.json \
+            release/MIGRATIONS.md \
             release/SHA256SUMS.txt \
             --draft \
             --prerelease \

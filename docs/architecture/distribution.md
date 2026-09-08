@@ -39,9 +39,11 @@ following hold:
 - the DMG mounts successfully and contains the app plus its Applications link.
 
 The preparation step stages a versioned `*-macos-arm64-unsigned.dmg`, a SHA-256
-checksum file, and release notes. Only the DMG and checksum become GitHub
-Release assets. Electrobun's update archive and metadata are validation inputs,
-not a public update channel; application auto-update remains disabled.
+checksum file, and release notes. The DMG, full update archive, metadata, guidance, and checksums become GitHub
+Release assets. Electrobun's update archive and metadata are
+published with version-matched migration guidance by the unified update pipeline.
+Downloads and installation remain user initiated. Direct unsigned replacement
+uses the verified native updater with a DMG fallback.
 
 Because the DMG is neither Developer ID signed nor notarized, first launch may
 require the user's explicit **Open Anyway** decision in macOS Privacy & Security.
@@ -61,7 +63,7 @@ The following are not part of this architecture yet:
 - marketplace component search, publishing, or shared templates; direct
   in-process component generation without the configured external agent
 - Linux, Windows, and Intel Mac distribution; Windows shell-link installation
-- Developer ID signing, notarization, or application auto-update
+- Developer ID signing, notarization, and independent update signing
 - general project-file editing and a general process viewer
 - simultaneously active multi-project views or windows
 - embedded model-provider infrastructure or agent-specific SDK integration
@@ -79,3 +81,70 @@ optional external agent using the shipped starter prompt. It records correctness
 and timing separately from qualitative review. It does not add Linux distribution
 or replace macOS packaging and native checks. See the
 [release QA workflow](../release-qa.md) for commands, evidence and the macOS checklist.
+
+## Unified update release contract
+
+`src/shared/app-metadata.ts` owns product identity and version. Executable names,
+bundle identifiers and existing paths remain compatible; dashboards keep their
+user-defined names. `src/shared/updates.ts` defines the public release and receipt
+formats. `src/updates/releases.ts` discovers GitHub HTTPS releases, excludes
+drafts and older versions, validates canary/macOS/arm64 identity and cumulative
+recipes, and rejects incomplete metadata. Publication adds the native full
+archive, native manifest, `dash-bored-release.json`, `MIGRATIONS.md`, and SHA-256
+checksums alongside the verified DMG. No independent signing is claimed.
+
+App and CLI share `~/.config/dash-bored/updates/`. Settings contain the selected
+channel and startup/24-hour check preference. Canary is available; Beta and
+Stable are rejected. Downloads never happen on scheduled checks. A future
+channel-enablement package will publish beta/stable, default new installs to
+stable, and explicitly define transitions for existing canary users without
+silently switching them.
+
+The coordinator serializes mutations with an atomic directory lock. An explicit
+recovery action removes a stale lock only after its recorded owner has exited.
+Receipts store the selected target, explicit dashboard paths, migration choice,
+separate installation and migration outcomes, and recovery paths. Atomic
+cancellation markers bypass the operation lock, so cancellation can interrupt a
+download or stop an agent. A durable running claim precedes any migration edits;
+restart marks it interrupted and never replays it automatically. Only pending,
+non-cancelled combined authorization continues in the exact target version.
+
+Installation stages and verifies the DMG fallback. The app offers Restart and
+install through the native updater after the user resolves drafts and finishes
+running work. The CLI opens the verified DMG without requiring an app window.
+Both preserve normal macOS approval. Source
+checkouts and independently copied CLI binaries receive manual-install guidance.
+A running app blocks CLI installation; app installation rejects active terminals
+and agent tasks. A managed shell link follows the bundled CLI when the app is
+replaced. App startup refreshes existing owned skills and CLI links.
+
+`native-updater.ts` adapts the existing Electrobun updater to a version-pinned
+loopback mirror of SHA-256-verified artifacts. It retains native quit approval,
+staging, replacement and recovery. `DIRECT_UNSIGNED_UPDATES_VERIFIED` is enabled after the 2026-09-08 isolated
+unsigned 99.0.1-to-99.0.2 replacement, relaunch and bundled-CLI acceptance test.
+The repair pipeline emits USTAR without macOS PAX attributes, which the native
+extractor rejected in the first real test. Downloaded-DMG Gatekeeper approval
+remains a separate manual verification boundary; no security bypass is added.
+The gate cannot be changed by remote release metadata. The verified DMG remains
+available if native preparation or replacement fails.
+
+## Migration and agent verification
+
+The first updater-capable release has contract 2 and no historical recipes.
+Subsequent contract changes must update the embedded cumulative recipes and
+minimum supported contract together with the actual schema implementation.
+Unknown/older unsupported schemas stay diagnosable even when the dashboard
+cannot load. Migration dispatch requires the target executable and its exact
+embedded recipes, existing project trust, a matching CLI, a recoverable copy of
+the dashboard bundle and a read-only skill/reference handoff. Skill ownership
+receipts refresh existing installs while preserving customizations. Conflicts
+are passed to the agent; the target handoff remains usable without an install.
+
+Setup, component edits, component creation, diagnostics repair and migrations
+use `DashboardSetupSupervisor.launchRequest`. The shared supervisor validates
+with local compilation after agent work, permits at most one corrective attempt
+following clean execution and repairable errors, and stops for cancellation,
+failed execution, missing tools, session changes or new permissions. Migrations
+preserve snapshot paths even if execution fails. Restoration is an explicit
+review-and-copy workflow; the application never overwrites a user's current
+bundle automatically.

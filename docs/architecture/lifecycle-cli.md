@@ -165,3 +165,11 @@ diagnostics, moves the conflicting managed skill directory and Claude alias or
 CLI link and receipt to the OS Trash, then installs the current bundled payload.
 It never accepts paths from the renderer or silently replaces conflicts during
 startup; a failed repair remains a warning so the action can be tried again.
+
+`update` and `migrate` share the coordinator and receipt formats documented in
+[Distribution](./distribution.md#unified-update-release-contract). They can
+inspect release/migration status without a loaded dashboard or an app window.
+Non-interactive updates reject an omitted migration choice, including `--yes`
+alone. `update resume` reconciles an explicitly authorized update after the
+new bundled CLI is installed; cancelled and interrupted agent work is not
+implicitly reauthorized. `migrate --dashboard <path>` is the explicit retry.

@@ -133,3 +133,27 @@ and the agent benchmark so that old-format incompatibility cannot mask those
 results. Preserve the legacy bundle and use the README recovery workflow to
 rebuild a separate schema-v2 dashboard. Do not change the old config's version
 number alone: its component and composition contracts also differ.
+
+## Native two-version update acceptance
+
+Run `bun scripts/native-update-acceptance.ts` on Apple Silicon macOS. The opt-in
+harness copies the current source and a separate Hutch cache into a temporary
+directory, builds unsigned `99.0.1` and `99.0.2` applications with a unique test
+bundle identifier, and invokes the production native updater adapter. The old
+app must be replaced and the new app must report its matching bundled CLI.
+It does not update the installed dash-bored app, stop development watchers, or
+bypass macOS security approval. Evidence, command logs, app bundles and native
+result receipts remain available for inspection. A failed relaunch never retries
+indefinitely. Downloaded-DMG Gatekeeper approval is a separate manual check.
+
+The signed archive repair step emits portable USTAR entries without macOS
+extended attributes. The native extractor rejected the previous BSD tar PAX
+provenance records as `InvalidUpdateArchive` in a genuine two-version test;
+listing or extracting that archive with macOS tar alone did not catch it.
+
+2026-09-08 result: isolated unsigned `99.0.1` → `99.0.2` replacement passed
+after the USTAR fix. The new process reported app version and standalone CLI
+version `99.0.2`. The earlier PAX archive failed during extraction with
+`InvalidUpdateArchive` and relaunched the old version. This proves the production
+updater adapter and native helper, not a full published GitHub release or a
+downloaded application's Gatekeeper approval.

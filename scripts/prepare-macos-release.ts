@@ -1,3 +1,4 @@
+import { BUNDLED_MIGRATIONS, parseReleaseMetadata } from "../src/updates/releases";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
@@ -160,7 +161,9 @@ Unsigned macOS prerelease for **Apple Silicon** on **macOS 14 or newer**.
 
 The desktop app already contains its matching \`dash-bored\` CLI; Bun is not required. You can expose the CLI to external shells later from the starter dashboard.
 
-Signing, notarization, automatic updates, Linux, Windows, and Intel Mac builds are intentionally deferred.
+The first updater-capable release requires manual installation. Later releases expose Update and migrate, Update only, and Later in the app and CLI. Save drafts and finish running work before replacing the app. Combined authorization continues in the exact target release. Restart and install uses the verified native updater; an isolated two-version unsigned macOS replacement and relaunch passed acceptance. The verified DMG fallback preserves normal security approval.
+
+Signing, notarization, independent update signing, Linux, Windows, and Intel Mac builds are deferred.
 `;
 }
 
@@ -230,15 +233,28 @@ async function prepare(): Promise<void> {
   const releaseDmgName = `${APP_NAME}-${tag}-macos-arm64-unsigned.dmg`;
   const releaseDmg = join(outputDirectory, releaseDmgName);
   await copyFile(sourceDmg, releaseDmg);
-  await writeFile(
-    join(outputDirectory, "SHA256SUMS.txt"),
-    `${await sha256(releaseDmg)}  ${releaseDmgName}\n`,
-    "utf8",
-  );
+  await copyFile(updateArchive, join(outputDirectory, updateArchiveName));
+  await copyFile(updateManifestPath, join(outputDirectory, updateManifestName));
+  const metadata = parseReleaseMetadata({
+    format: 1, product: APP_NAME, version: APP_VERSION, channel: "canary", platform: "macos", arch: "arm64",
+    ...BUNDLED_MIGRATIONS,
+    notes: releaseNotes(tag, releaseDmgName),
+    archive: { file: updateArchiveName, sha256: await sha256(updateArchive) },
+    dmg: { file: releaseDmgName, sha256: await sha256(releaseDmg) },
+    updater: { file: updateManifestName, sha256: await sha256(updateManifestPath) },
+  });
+  await writeFile(join(outputDirectory, "dash-bored-release.json"), `${JSON.stringify(metadata, null, 2)}\n`);
+  await copyFile(join(root, "skills/dash-bored/references/migrations.md"), join(outputDirectory, "MIGRATIONS.md"));
+  const assets = [releaseDmgName, updateArchiveName, updateManifestName, "dash-bored-release.json", "MIGRATIONS.md"];
+  await writeFile(join(outputDirectory, "SHA256SUMS.txt"), (await Promise.all(assets.map(async file => `${await sha256(join(outputDirectory, file))}  ${file}`))).join("\n") + "\n");
   await writeFile(join(outputDirectory, "RELEASE_NOTES.md"), releaseNotes(tag, releaseDmgName), "utf8");
 
   console.log(`Prepared verified macOS release assets in ${outputDirectory}:`);
   console.log(`- ${basename(releaseDmg)}`);
+  console.log(`- ${updateArchiveName}`);
+  console.log(`- ${updateManifestName}`);
+  console.log("- dash-bored-release.json");
+  console.log("- MIGRATIONS.md");
   console.log("- SHA256SUMS.txt");
   console.log("- RELEASE_NOTES.md");
 }

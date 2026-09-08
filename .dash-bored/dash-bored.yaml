@@ -238,6 +238,21 @@ root:
                                           done: true
                                           tags:
                                             - improvement
+                                        - description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
+                                          done: false
+                                          tags:
+                                            - distribution
+                                            - updates
+                                        - description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
+                                          done: true
+                                          tags:
+                                            - verification
+                                            - updates
+                                        - description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
+                                          done: false
+                                          tags:
+                                            - verification
+                                            - release
                       second:
                         type: child
                         child:
@@ -660,3 +675,49 @@ root:
         node:
           id: dogfood-dashboard
           component: ./dogfood
+      - metadata:
+          label: Updates
+        node:
+          id: update-workflow
+          component: "@dash-bored/group"
+          children:
+            type: tiled
+            layout:
+              type: split
+              axis: vertical
+              ratio: 0.5
+              first:
+                type: child
+                child:
+                  node:
+                    id: update-guidance
+                    component: "@dash-bored/markdown"
+                    props:
+                      content: |-
+                        ## Updates and migrations
+
+                        Use Application Settings → Updates for release notes, selected dashboard migration, and the verified installer. Canary is available; Beta and Stable are coming later. Downloads are explicit. Save drafts and finish running work before installation.
+
+                        The commands below inspect published releases and this dashboard without installing anything.
+              second:
+                type: split
+                axis: horizontal
+                ratio: 0.5
+                first:
+                  type: child
+                  child:
+                    node:
+                      id: update-check
+                      component: "@dash-bored/command"
+                      props:
+                        label: Check published canary releases
+                        command: bun run dash-bored -- update check
+                second:
+                  type: child
+                  child:
+                    node:
+                      id: migration-inspect
+                      component: "@dash-bored/command"
+                      props:
+                        label: Inspect dashboard migration requirements
+                        command: bun run dash-bored -- migrate inspect .

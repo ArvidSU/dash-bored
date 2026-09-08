@@ -104,7 +104,9 @@ async function repair(): Promise<void> {
     ]);
     await verifyAdHocBundleSignature(expandedAppPath);
 
-    await run(["tar", "-cf", temporaryArchive, "-C", updateExtractionDirectory, appBundleName]);
+    // Native updater accepts portable tar entries, not macOS provenance/PAX
+    // extensions. Keep ad-hoc signatures as files while excluding host xattrs.
+    await run(["tar", "--format", "ustar", "--no-xattrs", "--no-acls", "-cf", temporaryArchive, "-C", updateExtractionDirectory, appBundleName]);
     await run(["zstd", "-q", "-f", temporaryArchive, "-o", updateArchivePath]);
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
