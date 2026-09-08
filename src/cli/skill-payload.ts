@@ -1,3 +1,4 @@
+import migrationReference from "../../skills/dash-bored/references/migrations.md" with { type: "text" };
 import themeReference from "../../skills/dash-bored/references/theme-tokens.md" with { type: "text" };
 import { createHash } from "node:crypto";
 import { APP_VERSION } from "../shared/app-metadata";
@@ -9,6 +10,7 @@ import builtinsReference from "../../skills/dash-bored/references/builtins.md" w
 
 /** Files embedded into the standalone CLI at build time. */
 const SKILL_CONTENTS = {
+  "references/migrations.md": migrationReference,
   "references/theme-tokens.md": themeReference,
   "SKILL.md": skillMarkdown,
   "agents/openai.yaml": openAiMetadata,

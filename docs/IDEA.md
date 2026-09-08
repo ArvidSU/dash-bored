@@ -304,3 +304,15 @@ The product succeeds if a developer can:
 4. Perform common workflows without remembering commands.
 5. Extend the dashboard as new friction appears.
 6. Find app, project, and component actions from one keyboard-driven palette.
+
+## Application updates and migrations
+
+The app and its matching CLI discover published canary releases at startup and
+every 24 hours, with an off switch. Installation is always user initiated.
+Update and migrate authorizes continuation for explicitly selected dashboards
+after restart; Update only leaves migration available for later. Persist this
+choice outside the app bundle, preserve drafts and running work, and distinguish
+installation success from migration success. Interrupted agent work requires
+explicit recovery. Refresh owned guidance, preserve customizations, and supply
+a read-only version-matched handoff. All dashboard agent edits validate with at
+most one repair after a successful execution, without bypassing project trust.

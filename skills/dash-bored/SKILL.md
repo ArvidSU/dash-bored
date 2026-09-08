@@ -242,3 +242,8 @@ outside the component tree. Both light/dark maps inherit defaults; use the
 `dash-bored theme validate --schema`. No custom CSS or executable theme code.
 Components consume CSS variables or reactive `useTheme()` from the component
 module; never hard-code dark-only colors or overwrite global tokens.
+
+## Updates and migrations
+
+Read [references/migrations.md](references/migrations.md) for update discovery,
+version-matched recipes, snapshots, preservation, and bounded verification.
