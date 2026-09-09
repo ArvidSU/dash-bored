@@ -26,6 +26,7 @@
   --shadow-raised: 0 3px 0 color-mix(in srgb, var(--shadow-color) 18%, transparent), inset 0 1px 0 var(--highlight);
   --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
   --window-chrome-height: 32px;
+  --sidebar-expanded-width: 244px;
   transition: color 140ms ease, background-color 140ms ease;
 }
 
@@ -120,7 +121,7 @@ code {
 }
 
 .app-shell--sidebar-expanded {
-  grid-template-columns: 244px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-expanded-width) minmax(0, 1fr);
 }
 
 .app-frame {
@@ -147,7 +148,7 @@ code {
 }
 
 .app-shell--sidebar-expanded .sidebar {
-  width: 244px;
+  width: var(--sidebar-expanded-width);
 }
 
 .sidebar__toggle,
@@ -179,6 +180,7 @@ code {
 }
 
 .sidebar__toggle .brand-mark {
+  position: relative;
   width: 36px;
   height: 36px;
   justify-self: center;
@@ -898,16 +900,16 @@ img.sidebar__project-icon {
   background: var(--accent);
 }
 
-.brand-mark span:nth-child(1) {
+.brand-mark span:nth-of-type(1) {
   height: 45%;
   opacity: 0.65;
 }
 
-.brand-mark span:nth-child(2) {
+.brand-mark span:nth-of-type(2) {
   height: 100%;
 }
 
-.brand-mark span:nth-child(3) {
+.brand-mark span:nth-of-type(3) {
   height: 70%;
   opacity: 0.82;
 }
@@ -3669,7 +3671,7 @@ img.sidebar__project-icon {
   .app-shell--sidebar-expanded .sidebar {
     position: fixed;
     top: 0;
-    width: 244px;
+    width: var(--sidebar-expanded-width);
     height: 100vh;
     box-shadow: 16px 0 44px color-mix(in srgb, var(--shadow-color) 44%, transparent);
   }
@@ -4016,17 +4018,18 @@ body,
   box-shadow: inset -1px 0 0 var(--highlight);
 }
 
-.sidebar::before {
+.brand-mark__dots {
   position: absolute;
-  top: 45px;
-  right: 18px;
-  width: 30px;
-  height: 30px;
+  /* Share the mark's transform throughout sidebar expansion/collapse. */
+  inset: 3px;
   background-image: radial-gradient(circle, var(--border-dark) 1px, transparent 1.4px);
   background-size: 7px 7px;
-  content: "";
   opacity: 0.52;
   pointer-events: none;
+}
+
+.sidebar__toggle .brand-mark > span {
+  position: relative;
 }
 
 .sidebar__toggle,

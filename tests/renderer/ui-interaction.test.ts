@@ -188,6 +188,59 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("brand decoration stays centered inside the icon throughout sidebar transitions", async () => {
+    const active = currentPage();
+    const originalViewport = active.viewportSize();
+    const sampleTransition = () => active.evaluate(async () => {
+      const mark = document.querySelector(".sidebar__toggle .brand-mark")!;
+      const dots = document.querySelector(".brand-mark__dots")!;
+      const toggle = document.querySelector(".sidebar__toggle")!;
+      const samples: Array<{ x: number; y: number; visible: boolean; contained: boolean; centeredX: number; centeredY: number }> = [];
+      const started = performance.now();
+      do {
+        const icon = mark.getBoundingClientRect();
+        const decoration = dots.getBoundingClientRect();
+        const clip = toggle.getBoundingClientRect();
+        const border = getComputedStyle(toggle);
+        samples.push({
+          x: decoration.x - icon.x,
+          y: decoration.y - icon.y,
+          contained: decoration.left > icon.left && decoration.right < icon.right
+            && decoration.top > icon.top && decoration.bottom < icon.bottom,
+          centeredX: decoration.left + decoration.width / 2 - (icon.left + icon.width / 2),
+          centeredY: decoration.top + decoration.height / 2 - (icon.top + icon.height / 2),
+          visible: decoration.left >= clip.left + parseFloat(border.borderLeftWidth)
+            && decoration.right <= clip.right - parseFloat(border.borderRightWidth)
+            && decoration.top >= clip.top + parseFloat(border.borderTopWidth)
+            && decoration.bottom <= clip.bottom - parseFloat(border.borderBottomWidth),
+        });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      } while (performance.now() - started < 300);
+      return samples;
+    });
+    try {
+      for (const width of [1280, 390]) {
+        await active.setViewportSize({ width, height: 844 });
+        const [baseline] = await sampleTransition();
+        expect(baseline).toMatchObject({ visible: true, contained: true });
+        for (const label of ["Expand sidebar", "Collapse sidebar"]) {
+          await active.getByRole("button", { name: label, exact: true }).click();
+          for (const sample of await sampleTransition()) {
+            expect(sample.x).toBeCloseTo(baseline!.x, 4);
+            expect(sample.y).toBeCloseTo(baseline!.y, 4);
+            expect(sample).toMatchObject({ visible: true, contained: true });
+            expect(sample.centeredX).toBeCloseTo(0, 4);
+            expect(sample.centeredY).toBeCloseTo(0, 4);
+          }
+        }
+        await active.getByRole("button", { name: "Expand sidebar", exact: true }).hover();
+        expect((await sampleTransition()).every((sample) => sample.visible)).toBe(true);
+      }
+    } finally {
+      if (originalViewport) await active.setViewportSize(originalViewport);
+    }
+  }, 20_000);
+
   test("palette choice steps keep headings and full-width options inside the dialog", async () => {
     const active = currentPage();
     const originalViewport = active.viewportSize();

@@ -170,6 +170,7 @@ export function AppShell({
             onClick={onToggleSidebar}
           >
             <div className="brand-mark" aria-hidden="true">
+              <div className="brand-mark__dots" />
               <span />
               <span />
               <span />

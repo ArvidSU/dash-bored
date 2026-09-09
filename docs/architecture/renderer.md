@@ -422,6 +422,9 @@ dashboard`, which asks the main process to reread the active project while
 preserving the last known-good renderer when project validation fails.
 
 Sidebar chrome centers collapsed icons in the bordered button content box;
-expanded navigation retains its fixed icon column. The app mark has no
-superimposed decoration, and selected navigation/tab controls use theme tokens
-without an offset raised shadow so their visual bounds stay centered.
+expanded navigation retains its fixed icon column. The industrial dot-grid
+decoration is a child of the app mark, sharing its transform and fixed local
+offset throughout sidebar expansion and collapse. The pattern is centered
+inside the icon border, behind the bars. Selected navigation/tab
+controls use theme tokens without an offset raised shadow so their visual
+bounds stay centered.
