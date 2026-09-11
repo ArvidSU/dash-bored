@@ -127,13 +127,13 @@ describe('migration detection and durable journey', () => {
     await entered.promise; await expect(withUpdateLock(dir, async () => {})).rejects.toThrow('lock'); releaseLock(); await operation;
   });
   test('installation failures leave verified staging recoverable', async () => {
-    const { dir, config } = await fixture(); const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [config], fetcher: fetcher(metadata('0.3.2')), install: async () => { throw new Error('installer unavailable'); } });
+    const { dir, config } = await fixture(); const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [config], fetcher: fetcher(metadata('0.3.3')), install: async () => { throw new Error('installer unavailable'); } });
     await c.action({ type: 'prepare', choice: 'update-only', selected: [] }); await expect(c.action({ type: 'install' })).rejects.toThrow('installer unavailable');
     expect((await c.receipt())?.installation).toBe('ready');
   });
   test('invalid receipt and unselected dashboard never authorize edits', async () => {
     const { dir, config } = await fixture(); expect(() => parseReceipt({ ...receipt(config), choice: 'yes' })).toThrow();
-    const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [], fetcher: fetcher(metadata('0.3.2')) });
+    const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [], fetcher: fetcher(metadata('0.3.3')) });
     await expect(c.action({ type: 'prepare', choice: 'update-and-migrate', selected: [config] })).rejects.toThrow('not available');
   });
 });

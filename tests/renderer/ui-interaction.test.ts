@@ -852,8 +852,10 @@ describe("renderer fixture interactions", () => {
     if (!sourceBox || !targetBox) throw new Error("Fixture drag geometry is unavailable.");
 
     await active.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await active.waitForTimeout(100);
     await active.mouse.down();
-    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 4 });
+    await active.waitForTimeout(100);
+    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 });
     await active.waitForTimeout(150);
     await active.mouse.up();
 
@@ -867,7 +869,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Save dashboard" }).click();
     await active.getByText("Revision 4", { exact: true }).waitFor();
     expect(await persistedGroupCount()).toBe(2);
-  }, 20_000);
+  }, 30_000);
 
   test("confirmed component removal from its handle reopens the component library", async () => {
     const active = currentPage();

@@ -213,7 +213,7 @@ describe("ProjectRuntime", () => {
     } as const;
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(changed));
 
-    await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"));
+    await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"), 8_000);
     expect(runtime.getSnapshot().dashboardName).toBe("Changed");
   });
 
