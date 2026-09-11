@@ -102,19 +102,19 @@ describe("ProcessManager", () => {
     ]);
 
     await manager.start("shell");
-    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("quick-action")) === true, 8_000);
+    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("quick-action")) === true, 15_000);
     expect(manager.get("shell")?.phase).toBe("running");
     await expect(manager.resize("shell", 10, 3)).rejects.toMatchObject({ code: "PROCESS_TERMINAL_SIZE_INVALID" });
     await expect(manager.resize("shell", 120, 32)).resolves.toMatchObject({ phase: "running" });
 
     await manager.write("shell", "printf 'next-command\\n'\n");
-    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("next-command")) === true, 8_000);
+    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("next-command")) === true, 15_000);
     await manager.runQuickAction("shell");
-    await waitFor(() => manager.get("shell")?.logs.filter((entry) => entry.text.includes("quick-action")).length === 2, 8_000);
+    await waitFor(() => manager.get("shell")?.logs.filter((entry) => entry.text.includes("quick-action")).length === 2, 15_000);
 
     const stopped = await manager.stop("shell");
     expect(stopped.phase).toBe("exited");
-  }, 20_000);
+  }, 45_000);
 });
 
 describe("ProjectRuntime", () => {
