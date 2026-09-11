@@ -32,17 +32,14 @@ function leaf(id: string): ComponentNode {
 
 function tiledLayout(): ComponentChildLayout {
   return {
-    type: "split",
-    axis: "horizontal",
-    ratio: 0.4,
-    first: { type: "child", child: { node: leaf("first") } },
-    second: {
-      type: "split",
-      axis: "vertical",
-      ratio: 0.6,
-      first: { type: "child", child: { node: leaf("top") } },
-      second: { type: "child", child: { node: leaf("bottom") } },
-    },
+      axis: "horizontal",
+      ratio: 0.4,
+      first: { node: leaf("first") },
+      second: {
+          axis: "vertical",
+          first: { node: leaf("top") },
+          second: { node: leaf("bottom") }
+      }
   };
 }
 
@@ -62,7 +59,7 @@ describe("generic composition placement", () => {
 
     const full: ComponentNode = {
       ...target,
-      children: { type: "tiled", layout: { type: "child", child: { node: leaf("only") } } },
+      children: { node: leaf("only") },
     };
     expect(deriveInsertionTargets({
       target: full,
@@ -75,7 +72,7 @@ describe("generic composition placement", () => {
     const target: ComponentNode = {
       id: "tiles",
       component: "container",
-      children: { type: "tiled", layout: tiledLayout() },
+      children: tiledLayout(),
     };
     const targets = deriveInsertionTargets({
       target,
@@ -95,7 +92,7 @@ describe("generic composition placement", () => {
     const target: ComponentNode = {
       id: "tiles",
       component: "container",
-      children: { type: "tiled", layout: tiledLayout() },
+      children: tiledLayout(),
     };
     const horizontal = deriveInsertionTargets({
       target,
@@ -111,10 +108,7 @@ describe("generic composition placement", () => {
     const target: ComponentNode = {
       id: "managed",
       component: "container",
-      children: {
-        type: "managed",
-        items: [{ node: leaf("one") }, { node: leaf("two"), metadata: { label: "Two" } }],
-      },
+      children: [{ node: leaf("one") }, { node: leaf("two"), metadata: { label: "Two" } }],
     };
     const managed = manifest({ min: 1, max: 4, presentation: { type: "managed" } });
     expect(deriveInsertionTargets({ target, manifest: managed, currentChildCount: 2 })
@@ -155,7 +149,7 @@ describe("generic composition placement", () => {
     const target: ComponentNode = {
       id: "tiles",
       component: "container",
-      children: { type: "tiled", layout: tiledLayout() },
+      children: tiledLayout(),
     };
     expect(resolvePointerInsertionTarget({
       target,
@@ -172,7 +166,7 @@ describe("generic composition placement", () => {
     const target: ComponentNode = {
       id: "managed",
       component: "container",
-      children: { type: "managed", items: [{ node: leaf("one") }, { node: leaf("two") }] },
+      children: [{ node: leaf("one") }, { node: leaf("two") }],
     };
     const children = manifest({ min: 0, presentation: { type: "managed" } });
     expect(resolvePointerInsertionTarget({
@@ -205,7 +199,7 @@ describe("generic composition placement", () => {
     const tiled: ComponentNode = {
       id: "tiles",
       component: "container",
-      children: { type: "tiled", layout: tiledLayout() },
+      children: tiledLayout(),
     };
     const both = manifest({ min: 0, presentation: { type: "tiled", axes: "both" } });
     expect(deriveInsertionTargets({ target: tiled, manifest: both, currentChildCount: 2 })).toEqual([]);

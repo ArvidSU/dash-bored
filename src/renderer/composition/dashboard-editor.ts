@@ -19,7 +19,7 @@ import {
   layoutEdges,
   type LayoutBranch,
 } from "../lib/component-children";
-import { normalizeSplitRatio } from "../render/split-layout";
+import { DEFAULT_SPLIT_RATIO, normalizeSplitRatio } from "../render/split-layout";
 
 export type NodePath = ComponentChildLocator[];
 export type InsertionTarget = DashboardInsertionTarget;
@@ -62,15 +62,15 @@ export function nodePathFromSourcePath(sourcePath: string): NodePath | null {
   const path: NodePath = [];
   let offset = "root".length;
   while (offset < sourcePath.length) {
-    const managed = sourcePath.slice(offset).match(/^\.children\.items\[(\d+)\]\.node/);
+    const managed = sourcePath.slice(offset).match(/^\.children\[(\d+)\]\.node/);
     if (managed) {
       path.push({ type: "managed", index: Number(managed[1]) });
       offset += managed[0].length;
       continue;
     }
 
-    if (!sourcePath.startsWith(".children.layout", offset)) return null;
-    offset += ".children.layout".length;
+    if (!sourcePath.startsWith(".children", offset)) return null;
+    offset += ".children".length;
     const branches: LayoutBranch[] = [];
     while (true) {
       const branch = sourcePath.slice(offset).match(/^\.(first|second)/);
@@ -78,8 +78,8 @@ export function nodePathFromSourcePath(sourcePath: string): NodePath | null {
       branches.push(branch[1] as LayoutBranch);
       offset += branch[0].length;
     }
-    if (!sourcePath.startsWith(".child.node", offset)) return null;
-    offset += ".child.node".length;
+    if (!sourcePath.startsWith(".node", offset)) return null;
+    offset += ".node".length;
     path.push({ type: "tiled", path: branches });
   }
   return path;
@@ -145,10 +145,10 @@ function removeLayoutEdge(
   path: readonly LayoutBranch[],
 ): { layout?: ComponentChildLayout; removed: ComponentChildEdge } {
   if (path.length === 0) {
-    if (layout.type !== "child") throw new Error("The selected tile is no longer a component.");
-    return { removed: layout.child };
+    if (!("node" in layout)) throw new Error("The selected tile is no longer a component.");
+    return { removed: layout };
   }
-  if (layout.type !== "split") throw new Error("The selected tile no longer exists.");
+  if (!("axis" in layout)) throw new Error("The selected tile no longer exists.");
   const [branch, ...rest] = path;
   const result = removeLayoutEdge(layout[branch!], rest);
   if (!result.layout) {
@@ -165,19 +165,19 @@ function removeLayoutEdge(
 
 function removeFromConfig(config: DashboardConfig, path: NodePath): ComponentChildEdge {
   const { parent, locator } = parentOf(config.root, path);
-  if (!parent.children || parent.children.type !== locator.type) {
+  if (!parent.children || (Array.isArray(parent.children) ? "managed" : "tiled") !== locator.type) {
     throw new Error("The component's child presentation changed while editing.");
   }
   if (locator.type === "managed") {
-    if (parent.children.type !== "managed") throw new Error("The child presentation changed.");
-    const [removed] = parent.children.items.splice(locator.index, 1);
+    if (!Array.isArray(parent.children)) throw new Error("The child presentation changed.");
+    const [removed] = parent.children.splice(locator.index, 1);
     if (!removed) throw new Error("The component no longer exists.");
-    if (parent.children.items.length === 0) delete parent.children;
+    if (parent.children.length === 0) delete parent.children;
     return removed;
   }
-  if (parent.children.type !== "tiled") throw new Error("The child presentation changed.");
-  const result = removeLayoutEdge(parent.children.layout, locator.path);
-  if (result.layout) parent.children.layout = result.layout;
+  if (Array.isArray(parent.children)) throw new Error("The child presentation changed.");
+  const result = removeLayoutEdge(parent.children, locator.path);
+  if (result.layout) parent.children = result.layout;
   else delete parent.children;
   return result.removed;
 }
@@ -207,10 +207,10 @@ function replaceLayoutLeaf(
   replacement: ComponentChildLayout,
 ): ComponentChildLayout {
   if (path.length === 0) {
-    if (layout.type !== "child") throw new Error("Select a component tile as the drop target.");
+    if (!("node" in layout)) throw new Error("Select a component tile as the drop target.");
     return replacement;
   }
-  if (layout.type !== "split") throw new Error("The selected tile no longer exists.");
+  if (!("axis" in layout)) throw new Error("The selected tile no longer exists.");
   const [branch, ...rest] = path;
   return { ...layout, [branch!]: replaceLayoutLeaf(layout[branch!], rest, replacement) };
 }
@@ -219,7 +219,7 @@ function tiledLayoutUsesAllowedAxes(
   layout: ComponentChildLayout,
   axes: "horizontal" | "vertical" | "both",
 ): boolean {
-  if (layout.type === "child") return true;
+  if ("node" in layout) return true;
   return (axes === "both" || layout.axis === axes)
     && tiledLayoutUsesAllowedAxes(layout.first, axes)
     && tiledLayoutUsesAllowedAxes(layout.second, axes);
@@ -229,11 +229,11 @@ function canPreserveRootChildren(
   children: ComponentNode["children"],
   definition: ComponentManifest["children"] | undefined,
 ): boolean {
-  if (!children || !definition || children.type !== definition.presentation.type) return false;
+  if (!children || !definition || (Array.isArray(children) ? "managed" : "tiled") !== definition.presentation.type) return false;
   if (definition.max !== undefined && childEdges(children).length > definition.max) return false;
-  return children.type !== "tiled"
+  return Array.isArray(children)
     || definition.presentation.type !== "tiled"
-    || tiledLayoutUsesAllowedAxes(children.layout, definition.presentation.axes);
+    || tiledLayoutUsesAllowedAxes(children, definition.presentation.axes);
 }
 
 function insertEdge(
@@ -256,32 +256,31 @@ function insertEdge(
     if (definition.presentation.type !== "managed") {
       throw new Error("This component uses tiled child presentation.");
     }
-    if (!parent.children) parent.children = { type: "managed", items: [] };
-    if (parent.children.type !== "managed") throw new Error("The child presentation is invalid.");
-    const index = Math.max(0, Math.min(placement.index, parent.children.items.length));
-    parent.children.items.splice(index, 0, inserted);
+    if (!parent.children) parent.children = [];
+    if (!Array.isArray(parent.children)) throw new Error("The child presentation is invalid.");
+    const index = Math.max(0, Math.min(placement.index, parent.children.length));
+    parent.children.splice(index, 0, inserted);
     return;
   }
 
   if (!axisAllowed(definition, placement.axis)) {
     throw new Error(`This component does not allow ${placement.axis} tiling.`);
   }
-  const newLeaf: ComponentChildLayout = { type: "child", child: inserted };
   if (!parent.children) {
-    parent.children = { type: "tiled", layout: newLeaf };
+    parent.children = inserted;
     return;
   }
-  if (parent.children.type !== "tiled") throw new Error("The child presentation is invalid.");
-  const target = edgeAtLayoutPath(parent.children.layout, placement.path);
-  const oldLeaf: ComponentChildLayout = { type: "child", child: target };
+  if (Array.isArray(parent.children)) throw new Error("The child presentation is invalid.");
+  const target = edgeAtLayoutPath(parent.children, placement.path);
+  const ratio = normalizeSplitRatio(placement.ratio);
   const split: ComponentChildLayout = {
-    type: "split",
-    axis: placement.axis,
-    ratio: normalizeSplitRatio(placement.ratio),
-    first: placement.position === "first" ? newLeaf : oldLeaf,
-    second: placement.position === "second" ? newLeaf : oldLeaf,
+    ...(placement.axis === "horizontal"
+      ? { axis: "horizontal" as const, ...(ratio === DEFAULT_SPLIT_RATIO ? {} : { ratio }) }
+      : { axis: "vertical" as const }),
+    first: placement.position === "first" ? inserted : target,
+    second: placement.position === "second" ? inserted : target,
   };
-  parent.children.layout = replaceLayoutLeaf(parent.children.layout, placement.path, split);
+  parent.children = replaceLayoutLeaf(parent.children, placement.path, split);
 }
 
 export function removeNode(
@@ -350,8 +349,8 @@ export function moveNode(
 
   const originalParent = nodeAtPath(config.root, target.parentPath);
   const targetParentId = originalParent.id;
-  const targetTileId = target.placement.type === "tiled" && originalParent.children?.type === "tiled"
-    ? edgeAtLayoutPath(originalParent.children.layout, target.placement.path).node.id
+  const targetTileId = target.placement.type === "tiled" && (originalParent.children !== undefined && !Array.isArray(originalParent.children))
+    ? edgeAtLayoutPath(originalParent.children, target.placement.path).node.id
     : undefined;
   const sourceParentPath = source.slice(0, -1);
   const sourceLocator = source.at(-1)!;
@@ -411,14 +410,17 @@ export function updateTiledSplitRatio(
 ): DashboardConfig {
   const next = structuredClone(config);
   const parent = nodeAtPath(next.root, parentPath);
-  if (parent.children?.type !== "tiled") throw new Error("The tiled layout no longer exists.");
-  let layout = parent.children.layout;
+  if (parent.children === undefined || Array.isArray(parent.children)) throw new Error("The tiled layout no longer exists.");
+  let layout = parent.children;
   for (const branch of splitPath) {
-    if (layout.type !== "split") throw new Error("The split no longer exists.");
+    if (!("axis" in layout)) throw new Error("The split no longer exists.");
     layout = layout[branch];
   }
-  if (layout.type !== "split") throw new Error("The split no longer exists.");
-  layout.ratio = normalizeSplitRatio(ratio);
+  if (!("axis" in layout)) throw new Error("The split no longer exists.");
+  if (layout.axis !== "horizontal") throw new Error("Only horizontal splits can be resized.");
+  const normalizedRatio = normalizeSplitRatio(ratio);
+  if (normalizedRatio === DEFAULT_SPLIT_RATIO) delete layout.ratio;
+  else layout.ratio = normalizedRatio;
   return next;
 }
 
@@ -507,9 +509,9 @@ export function defaultChildMetadata(
 }
 
 export function managedChildEdges(node: ComponentNode): ComponentChildEdge[] {
-  return node.children?.type === "managed" ? node.children.items : [];
+  return Array.isArray(node.children) ? node.children : [];
 }
 
 export function tiledChildEdges(node: ComponentNode): ComponentChildEdge[] {
-  return node.children?.type === "tiled" ? layoutEdges(node.children.layout) : [];
+  return (node.children !== undefined && !Array.isArray(node.children)) ? layoutEdges(node.children) : [];
 }

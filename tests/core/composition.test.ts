@@ -17,37 +17,28 @@ afterEach(async () => {
   await Promise.all(cleanup.splice(0).map(removeTemporaryDirectory));
 });
 
-const edge = (node: ComponentNode, metadata?: Record<string, unknown>) => ({
-  type: "child" as const,
-  child: { node, ...(metadata === undefined ? {} : { metadata }) },
-});
+const edge = (node: ComponentNode, metadata?: Record<string, unknown>) => ({ node, ...(metadata === undefined ? {} : { metadata }) });
 
 describe("component child composition", () => {
   test("resolves recursive tiled topology and attaches built-in manifests", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const config: DashboardConfig = {
-      schemaVersion: 2,
-      name: "Tiles",
-      root: {
-        component: "@dash-bored/group",
-        children: {
-          type: "tiled",
-          layout: {
-            type: "split",
-            axis: "horizontal",
-            ratio: 0.42,
-            first: edge({ component: "@dash-bored/markdown", props: { content: "First" } }),
-            second: {
-              type: "split",
-              axis: "vertical",
-              ratio: 0.6,
-              first: edge({ component: "@dash-bored/markdown", props: { content: "Second" } }),
-              second: edge({ component: "@dash-bored/markdown", props: { content: "Third" } }),
-            },
-          },
-        },
-      },
+        schemaVersion: 3,
+        name: "Tiles",
+        root: {
+            component: "@dash-bored/group",
+            children: {
+                axis: "horizontal",
+                ratio: 0.42,
+                first: edge({ component: "@dash-bored/markdown", props: { content: "First" } }),
+                second: {
+                    axis: "vertical",
+                    first: edge({ component: "@dash-bored/markdown", props: { content: "Second" } }),
+                    second: edge({ component: "@dash-bored/markdown", props: { content: "Third" } })
+                }
+            }
+        }
     };
     await createProject(root, config);
 
@@ -55,23 +46,19 @@ describe("component child composition", () => {
 
     expect(result.ok).toBeTrue();
     expect(result.tree?.manifest?.id).toBe("@dash-bored/group");
-    expect(result.tree?.children?.type).toBe("tiled");
-    if (result.tree?.children?.type !== "tiled") throw new Error("Expected tiled children");
-    expect(result.tree.children.layout).toMatchObject({
-      type: "split",
-      axis: "horizontal",
-      ratio: 0.42,
+    expect(Array.isArray(result.tree?.children)).toBeFalse();
+    if (result.tree?.children === undefined || Array.isArray(result.tree.children)) throw new Error("Expected tiled children");
+    expect(result.tree.children).toMatchObject({
+        axis: "horizontal",
+        ratio: 0.42
     });
-    if (result.tree.children.layout.type !== "split") throw new Error("Expected split layout");
-    expect(result.tree.children.layout.first).toMatchObject({
-      type: "child",
-      child: {
+    if (!("axis" in result.tree.children)) throw new Error("Expected split layout");
+    expect(result.tree.children.first).toMatchObject({
         node: {
-          id: "root.children.0",
-          sourcePath: "root.children.layout.first.child.node",
-          manifest: { id: "@dash-bored/markdown" },
-        },
-      },
+            id: "root.children.0",
+            sourcePath: "root.children.first.node",
+            manifest: { id: "@dash-bored/markdown" }
+        }
     });
   });
 
@@ -79,12 +66,12 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Empty tabs",
-      root: {
-        component: "@dash-bored/tabs",
-        children: { type: "managed", items: [] },
-      },
+        schemaVersion: 3,
+        name: "Empty tabs",
+        root: {
+            component: "@dash-bored/tabs",
+            children: []
+        }
     });
     const empty = await inspectProject(root);
     expect(empty.diagnostics.map((item) => item.code)).toContain(
@@ -92,18 +79,12 @@ describe("component child composition", () => {
     );
 
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Tiled tabs",
-      root: {
-        component: "@dash-bored/tabs",
-        children: {
-          type: "tiled",
-          layout: edge(
-            { component: "@dash-bored/markdown", props: { content: "One" } },
-            { label: "One" },
-          ),
-        },
-      },
+        schemaVersion: 3,
+        name: "Tiled tabs",
+        root: {
+            component: "@dash-bored/tabs",
+            children: edge({ component: "@dash-bored/markdown", props: { content: "One" } }, { label: "One" })
+        }
     });
     const wrongPresentation = await inspectProject(root);
     expect(wrongPresentation.diagnostics.map((item) => item.code)).toContain(
@@ -111,16 +92,13 @@ describe("component child composition", () => {
     );
 
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Tabs",
-      root: {
-        component: "@dash-bored/tabs",
-        props: { defaultTab: 99 },
-        children: {
-          type: "managed",
-          items: [{ node: { component: "@dash-bored/markdown", props: { content: "One" } } }],
-        },
-      },
+        schemaVersion: 3,
+        name: "Tabs",
+        root: {
+            component: "@dash-bored/tabs",
+            props: { defaultTab: 99 },
+            children: [{ node: { component: "@dash-bored/markdown", props: { content: "One" } } }]
+        }
     });
 
     const invalid = await inspectProject(root);
@@ -130,19 +108,16 @@ describe("component child composition", () => {
     expect(invalid.diagnostics.map((item) => item.code)).not.toContain("TABS_DEFAULT_INVALID");
 
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Tabs",
-      root: {
-        component: "@dash-bored/tabs",
-        props: { defaultTab: 99 },
-        children: {
-          type: "managed",
-          items: [{
-            node: { component: "@dash-bored/markdown", props: { content: "One" } },
-            metadata: { label: "One" },
-          }],
-        },
-      },
+        schemaVersion: 3,
+        name: "Tabs",
+        root: {
+            component: "@dash-bored/tabs",
+            props: { defaultTab: 99 },
+            children: [{
+                    node: { component: "@dash-bored/markdown", props: { content: "One" } },
+                    metadata: { label: "One" }
+                }]
+        }
     });
     const valid = await inspectProject(root);
     expect(valid.ok).toBeTrue();
@@ -153,27 +128,21 @@ describe("component child composition", () => {
     cleanup.push(root);
     const directory = join(root, ".dash-bored", "components", "horizontal-pair");
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Axes",
-      root: {
-        component: "./components/horizontal-pair",
-        children: {
-          type: "tiled",
-          layout: {
-            type: "split",
-            axis: "vertical",
-            ratio: 0.5,
-            first: edge({ component: "@dash-bored/markdown", props: { content: "One" } }),
-            second: {
-              type: "split",
-              axis: "horizontal",
-              ratio: 0.5,
-              first: edge({ component: "@dash-bored/markdown", props: { content: "Two" } }),
-              second: edge({ component: "@dash-bored/markdown", props: { content: "Three" } }),
-            },
-          },
-        },
-      },
+        schemaVersion: 3,
+        name: "Axes",
+        root: {
+            component: "./components/horizontal-pair",
+            children: {
+                axis: "vertical",
+                first: edge({ component: "@dash-bored/markdown", props: { content: "One" } }),
+                second: {
+                    axis: "horizontal",
+                    ratio: 0.5,
+                    first: edge({ component: "@dash-bored/markdown", props: { content: "Two" } }),
+                    second: edge({ component: "@dash-bored/markdown", props: { content: "Three" } })
+                }
+            }
+        }
     });
     await mkdir(directory, { recursive: true });
     await Promise.all([
@@ -204,20 +173,16 @@ describe("component child composition", () => {
     cleanup.push(root);
     await createProject(root);
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
-      schemaVersion: 2,
-      name: "Ratio",
-      root: {
-        component: "@dash-bored/group",
-        children: {
-          type: "tiled",
-          layout: {
-            type: "split",
-            axis: "horizontal",
-            ratio: 0.95,
-            first: edge({ component: "@dash-bored/markdown", props: { content: "One" } }),
-          },
-        },
-      },
+        schemaVersion: 3,
+        name: "Ratio",
+        root: {
+            component: "@dash-bored/group",
+            children: {
+                axis: "horizontal",
+                ratio: 0.95,
+                first: edge({ component: "@dash-bored/markdown", props: { content: "One" } })
+            }
+        }
     }));
 
     const result = await inspectProject(root);

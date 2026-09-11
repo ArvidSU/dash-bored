@@ -19,18 +19,16 @@ import {
 const cleanup: string[] = [];
 
 function child(node: ComponentNode): ComponentChildLayout {
-  return { type: "child", child: { node } };
+  return { node };
 }
 
 function vertical(nodes: readonly ComponentNode[]): ComponentChildLayout {
   if (nodes.length === 1) return child(nodes[0]!);
   const middle = Math.ceil(nodes.length / 2);
   return {
-    type: "split",
-    axis: "vertical",
-    ratio: 0.5,
-    first: vertical(nodes.slice(0, middle)),
-    second: vertical(nodes.slice(middle)),
+      axis: "vertical",
+      first: vertical(nodes.slice(0, middle)),
+      second: vertical(nodes.slice(middle))
   };
 }
 
@@ -44,14 +42,14 @@ function linkConfig(name: string, references: readonly string[]): DashboardConfi
     component,
   }));
   return {
-    schemaVersion: 2,
-    name,
-    root: {
-      component: "@dash-bored/group",
-      ...(nodes.length === 0
-        ? {}
-        : { children: { type: "tiled", layout: vertical(nodes) } }),
-    },
+      schemaVersion: 3,
+      name,
+      root: {
+          component: "@dash-bored/group",
+          ...(nodes.length === 0
+              ? {}
+              : { children: vertical(nodes) })
+      }
   };
 }
 
@@ -201,9 +199,9 @@ describe("project deletion dependency analysis", () => {
     const target = join(source, "new-dashboard");
     cleanup.push(source);
     await createProject(source, {
-      schemaVersion: 2,
-      name: "Local source",
-      root: { component: "./components/reader" },
+        schemaVersion: 3,
+        name: "Local source",
+        root: { component: "./components/reader" }
     });
     await mkdir(target, { recursive: true });
     await createProject(target);
@@ -227,9 +225,9 @@ describe("project deletion dependency analysis", () => {
     await createProject(target);
     await mkdir(source, { recursive: true });
     await createProject(source, {
-      schemaVersion: 2,
-      name: "Local source",
-      root: { component: "./components/reader" },
+        schemaVersion: 3,
+        name: "Local source",
+        root: { component: "./components/reader" }
     });
     await writeLocalComponent(source, "reader", "export default () => null;");
     const [targetRoot, sourceRoot] = await Promise.all([realpath(target), realpath(source)]);

@@ -4,8 +4,24 @@ import type { PublishedRelease, ReleaseMetadata } from "../shared/updates";
 export const RELEASE_REPOSITORY = "ArvidSU/dash-bored";
 export const RELEASE_ASSET_BASE = `https://github.com/${RELEASE_REPOSITORY}/releases/download/`;
 export const RELEASE_METADATA_FILE = "dash-bored-release.json";
-export const DASHBOARD_CONTRACT = 2;
-export const BUNDLED_MIGRATIONS: Pick<ReleaseMetadata, "minimumContract" | "dashboardContract" | "recipes"> = { minimumContract: 2, dashboardContract: DASHBOARD_CONTRACT, recipes: [] };
+export const DASHBOARD_CONTRACT = 3;
+export const BUNDLED_MIGRATIONS: Pick<ReleaseMetadata, "minimumContract" | "dashboardContract" | "recipes"> = {
+  minimumContract: 2,
+  dashboardContract: DASHBOARD_CONTRACT,
+  recipes: [{
+    id: "compact-child-topology",
+    from: 2,
+    to: 3,
+    title: "Simplify dashboard child topology",
+    instructions: `Convert only the selected dashboard from schemaVersion 2 to 3.
+Recursively replace each node's children {type: managed, items: [...]} with its items array, preserving every edge's node and metadata.
+Replace children {type: tiled, layout: ...} with its layout. In each layout, replace {type: child, child: edge} with edge, and remove type: split from split branches.
+Keep each split's axis, first, and second. Keep non-default horizontal ratios; omit horizontal ratio 0.5 (the default). Remove vertical ratios because vertical branches use document flow.
+Preserve node IDs, component references, props, edge metadata, child order, binary grouping, and top-level dashboard settings. Do not rewrite data inside props or metadata as topology.
+Set the dashboard schemaVersion to 3 after conversion. Component manifests remain schemaVersion 2; lock files and themes are unchanged. Linked dashboards are independent migration targets, not authorization to edit other bundles.
+Validate with the version-matched CLI and inspect the diff against the host snapshot.`,
+  }],
+};
 
 export function compareVersions(left: string, right: string): number {
   const parse = (value: string) => {

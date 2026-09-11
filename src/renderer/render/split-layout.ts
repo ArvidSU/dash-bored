@@ -141,7 +141,7 @@ export function collectResizableSplitDefaults(
     layout: ComponentChildLayout<ResolvedComponentNode>,
     path: LayoutBranch[] = [],
   ): void {
-    if (layout.type === "child") return;
+    if ("node" in layout) return;
     if (layout.axis === "horizontal") {
       defaults.set(layoutBranchKey(nodeId, path), normalizeSplitRatio(layout.ratio));
     }
@@ -149,8 +149,8 @@ export function collectResizableSplitDefaults(
     visitLayout(nodeId, layout.second, [...path, "second"]);
   }
   function visit(node: ResolvedComponentNode): void {
-    if (node.children?.type === "tiled") {
-      visitLayout(node.id, node.children.layout);
+    if (node.children !== undefined && !Array.isArray(node.children)) {
+      visitLayout(node.id, node.children);
     }
     for (const child of childNodes(node)) visit(child);
   }

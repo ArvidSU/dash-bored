@@ -77,7 +77,7 @@ for (const global of [true, false]) test(`git theme lifecycle, rollback and dirt
   const source = await temp(); await repo(source); await writeFile(join(source, 'theme.yaml'), stringify(manifest)); const first = await commit(source);
   const root = await temp(); await repo(root);
   await mkdir(join(root, '.dash-bored'));
-  await writeFile(join(root, '.dash-bored', 'dash-bored.yaml'), 'schemaVersion: 2\nname: Test\nroot:\n  component: "@dash-bored/group"\n');
+  await writeFile(join(root, '.dash-bored', 'dash-bored.yaml'), 'schemaVersion: 3\nname: Test\nroot:\n  component: "@dash-bored/group"\n');
   const component = { url: 'https://example.invalid/component.git', commit: 'a'.repeat(40), path: 'components/external/keep' };
   await writeFile(join(root, '.dash-bored', 'dash-bored-lock.yaml'), serializeDashboardLock({ lockfileVersion: 1, components: { keep: component } }));
   await commit(root);
@@ -120,12 +120,12 @@ test('theme reload updates token data without changing component revision, trust
   const { ProjectRuntime, TrustStore } = await import('../../src/core');
   const { createProject, writeLocalComponent } = await import('./helpers');
   const root = await temp();
-  await createProject(root, { schemaVersion: 2, name: 'Themes', theme: './themes/ocean', root: {
-    id: 'root', component: '@dash-bored/group', children: { type: 'tiled', layout: { type: 'split', axis: 'vertical', ratio: 0.5,
-      first: { type: 'child', child: { node: { id: 'terminal', component: '@dash-bored/command', props: { label: 'Terminal', command: 'sleep 30' } } } },
-      second: { type: 'child', child: { node: { id: 'local', component: './components/example' } } },
-    } },
-  } });
+  await createProject(root, { schemaVersion: 3, name: 'Themes', theme: './themes/ocean', root: {
+          id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
+              first: { node: { id: 'terminal', component: '@dash-bored/command', props: { label: 'Terminal', command: 'sleep 30' } } },
+              second: { node: { id: 'local', component: './components/example' } }
+          }
+      } });
   await writeLocalComponent(root, 'example', "import { defineComponent, useTheme } from '@dash-bored/component'; export default defineComponent(() => <p>{useTheme().appearance}</p>);");
   const dir = join(root, '.dash-bored', 'themes', 'ocean'); await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'theme.yaml'), stringify(manifest));

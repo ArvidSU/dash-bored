@@ -24,38 +24,36 @@ import {
 const cleanup: string[] = [];
 
 function child(node: ComponentNode): ComponentChildLayout {
-  return { type: "child", child: { node } };
+  return { node };
 }
 
 function vertical(nodes: readonly ComponentNode[]): ComponentChildLayout {
   if (nodes.length === 1) return child(nodes[0]!);
   const middle = Math.ceil(nodes.length / 2);
   return {
-    type: "split",
-    axis: "vertical",
-    ratio: 0.5,
-    first: vertical(nodes.slice(0, middle)),
-    second: vertical(nodes.slice(middle)),
+      axis: "vertical",
+      first: vertical(nodes.slice(0, middle)),
+      second: vertical(nodes.slice(middle))
   };
 }
 
 function tiled(nodes: readonly ComponentNode[]) {
-  return { type: "tiled" as const, layout: vertical(nodes) };
+  return vertical(nodes);
 }
 
 function resolvedChildren(node: ResolvedComponentNode | null | undefined): ResolvedComponentNode[] {
   const children = node?.children;
   if (children === undefined) return [];
-  if (children.type === "managed") return children.items.map((edge) => edge.node);
+  if (Array.isArray(children)) return children.map((edge) => edge.node);
   const nodes: ResolvedComponentNode[] = [];
-  const visit = (layout: typeof children.layout): void => {
-    if (layout.type === "child") nodes.push(layout.child.node);
+  const visit = (layout: typeof children): void => {
+    if ("node" in layout) nodes.push(layout.node);
     else {
       visit(layout.first);
       visit(layout.second);
     }
   };
-  visit(children.layout);
+  visit(children);
   return nodes;
 }
 
@@ -87,9 +85,9 @@ describe("project paths and YAML", () => {
     await writeFile(
       join(named, "dash-bored.yaml"),
       stringify({
-        schemaVersion: 2,
-        name: "Arvid",
-        root: { component: "@dash-bored/markdown", props: { content: "Personal" } },
+          schemaVersion: 3,
+          name: "Arvid",
+          root: { component: "@dash-bored/markdown", props: { content: "Personal" } }
       }),
     );
     await writeFile(
@@ -110,7 +108,7 @@ describe("project paths and YAML", () => {
     await createProject(root);
     await writeFile(
       join(root, ".dash-bored", "dash-bored.yaml"),
-      "schemaVersion: 2\nname: First\nname: Second\nroot:\n  component: '@dash-bored/markdown'\n  props:\n    content: hi\n",
+      "schemaVersion: 3\nname: First\nname: Second\nroot:\n  component: '@dash-bored/markdown'\n  props:\n    content: hi\n",
     );
     const duplicate = await inspectProject(root);
     expect(duplicate.ok).toBeFalse();
@@ -210,9 +208,9 @@ describe("project paths and YAML", () => {
     const outside = await temporaryDirectory();
     cleanup.push(root, outside);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Unsafe",
-      root: { component: "./components/escape" },
+        schemaVersion: 3,
+        name: "Unsafe",
+        root: { component: "./components/escape" }
     });
     await writeLocalComponent(outside, "escape", "export default () => null;");
     await rm(join(root, ".dash-bored", "components"), { recursive: true });
@@ -231,30 +229,30 @@ describe("tree resolution and local compilation", () => {
     cleanup.push(root, external);
     const namedDirectory = join(root, ".dash-bored", "arvid");
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Base",
-      root: {
-        component: "@dash-bored/group",
-        children: tiled([
-          { id: "relative", component: "./arvid" },
-          { id: "broken", component: "./moved-away" },
-          { id: "absolute", component: join(external, ".dash-bored") },
-        ]),
-      },
+        schemaVersion: 3,
+        name: "Base",
+        root: {
+            component: "@dash-bored/group",
+            children: tiled([
+                { id: "relative", component: "./arvid" },
+                { id: "broken", component: "./moved-away" },
+                { id: "absolute", component: join(external, ".dash-bored") },
+            ])
+        }
     });
     await mkdir(join(namedDirectory, "components"), { recursive: true });
     await Promise.all([
       writeFile(join(namedDirectory, "dash-bored.yaml"), stringify({
-        schemaVersion: 2,
-        name: "Arvid",
-        root: { component: "@dash-bored/markdown", props: { content: "Personal" } },
+          schemaVersion: 3,
+          name: "Arvid",
+          root: { component: "@dash-bored/markdown", props: { content: "Personal" } }
       })),
       writeFile(join(namedDirectory, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
     await createProject(external, {
-      schemaVersion: 2,
-      name: "External",
-      root: { component: "@dash-bored/status", props: { label: "External", state: "healthy" } },
+        schemaVersion: 3,
+        name: "External",
+        root: { component: "@dash-bored/status", props: { label: "External", state: "healthy" } }
     });
 
     const result = await loadProjectDefinition(root);
@@ -272,18 +270,18 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Base",
-      root: { id: "personal", component: "./arvid" },
+        schemaVersion: 3,
+        name: "Base",
+        root: { id: "personal", component: "./arvid" }
     });
     const named = join(root, ".dash-bored", "arvid");
     const component = join(named, "components", "personal-button");
     await mkdir(component, { recursive: true });
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-        schemaVersion: 2,
-        name: "Arvid",
-        root: { component: "./components/personal-button" },
+          schemaVersion: 3,
+          name: "Arvid",
+          root: { component: "./components/personal-button" }
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
       writeFile(join(component, "component.yaml"), stringify({
@@ -328,15 +326,15 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const config: DashboardConfig = {
-      schemaVersion: 2,
-      name: "Ids",
-      root: {
-        component: "@dash-bored/group",
-        children: tiled([
-          { id: "same", component: "@dash-bored/markdown", props: { content: "one" } },
-          { id: "same", component: "@dash-bored/markdown", props: { content: "two" } },
-        ]),
-      },
+        schemaVersion: 3,
+        name: "Ids",
+        root: {
+            component: "@dash-bored/group",
+            children: tiled([
+                { id: "same", component: "@dash-bored/markdown", props: { content: "one" } },
+                { id: "same", component: "@dash-bored/markdown", props: { content: "two" } },
+            ])
+        }
     };
     await createProject(root, config);
     const duplicate = await inspectProject(root);
@@ -356,17 +354,17 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Processes",
-      root: {
-        component: "@dash-bored/group",
-        children: tiled([
-          {
-            component: "@dash-bored/command",
-            props: { label: "Run", command: "echo ok" },
-          },
-        ]),
-      },
+        schemaVersion: 3,
+        name: "Processes",
+        root: {
+            component: "@dash-bored/group",
+            children: tiled([
+                {
+                    component: "@dash-bored/command",
+                    props: { label: "Run", command: "echo ok" }
+                },
+            ])
+        }
     });
     const result = await inspectProject(root);
     expect(result.ok).toBeFalse();
@@ -377,15 +375,15 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Children",
-      root: {
-        component: "@dash-bored/group",
-        children: {
-          ...tiled([{ component: "@dash-bored/markdown", props: { content: "visible" } }]),
-          constructor: { component: "@dash-bored/markdown", props: { content: "hidden" } },
-        } as DashboardConfig["root"]["children"],
-      },
+        schemaVersion: 3,
+        name: "Children",
+        root: {
+            component: "@dash-bored/group",
+            children: {
+                ...tiled([{ component: "@dash-bored/markdown", props: { content: "visible" } }]),
+                constructor: { component: "@dash-bored/markdown", props: { content: "hidden" } }
+            } as unknown as DashboardConfig["root"]["children"]
+        }
     });
 
     const result = await inspectProject(root);
@@ -397,9 +395,9 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Local",
-      root: { component: "./components/example", props: { message: "Hello" } },
+        schemaVersion: 3,
+        name: "Local",
+        root: { component: "./components/example", props: { message: "Hello" } }
     });
     await writeLocalComponent(
       root,
@@ -433,9 +431,9 @@ export default defineComponent(({ props, host }) => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Restricted",
-      root: { component: "./components/restricted" },
+        schemaVersion: 3,
+        name: "Restricted",
+        root: { component: "./components/restricted" }
     });
     await writeLocalComponent(
       root,
@@ -452,9 +450,9 @@ export default defineComponent(({ props, host }) => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 2,
-      name: "Reserved",
-      root: { component: "./components/reserved" },
+        schemaVersion: 3,
+        name: "Reserved",
+        root: { component: "./components/reserved" }
     });
     await writeLocalComponent(root, "reserved", "export default () => null;");
     const manifestPath = join(root, ".dash-bored", "components", "reserved", "component.yaml");

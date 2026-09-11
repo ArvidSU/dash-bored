@@ -45,28 +45,22 @@ function commandTree(): ResolvedComponentNode {
     id: "root",
     component: "@dash-bored/group",
     props: {},
-    children: {
-      type: "tiled",
-      layout: {
-        type: "child",
-        child: { node: {
-          id: "server",
-          component: "@dash-bored/command",
-          props: { label: "Development server", command: "bun run dev" },
-          source: "builtin",
-          manifest: {
-            schemaVersion: 2,
-            id: "@dash-bored/command",
-            name: "Command",
-            description: "Runs a supervised command.",
-            entry: "builtin:command",
-            propsSchema: { type: "object" },
-            resources: { process: { commandProp: "command" } },
-            permissions: ["process:execute"],
-          },
+    children: { node: {
+            id: "server",
+            component: "@dash-bored/command",
+            props: { label: "Development server", command: "bun run dev" },
+            source: "builtin",
+            manifest: {
+                schemaVersion: 2,
+                id: "@dash-bored/command",
+                name: "Command",
+                description: "Runs a supervised command.",
+                entry: "builtin:command",
+                propsSchema: { type: "object" },
+                resources: { process: { commandProp: "command" } },
+                permissions: ["process:execute"]
+            }
         } },
-      },
-    },
     source: "builtin",
   };
 }

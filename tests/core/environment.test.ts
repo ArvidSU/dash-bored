@@ -14,18 +14,18 @@ function findLinkedNode(node: ResolvedComponentNode | null): ResolvedComponentNo
   if (node.sourceConfigPath?.includes("/arvid/dash-bored.yaml")) return node;
   const children = node.children;
   if (!children) return null;
-  if (children.type === "managed") {
-    for (const item of children.items) {
+  if (Array.isArray(children)) {
+    for (const item of children) {
       const found = findLinkedNode(item.node);
       if (found) return found;
     }
     return null;
   }
-  const visit = (layout: typeof children.layout): ResolvedComponentNode | null => {
-    if (layout.type === "child") return findLinkedNode(layout.child.node);
+  const visit = (layout: typeof children): ResolvedComponentNode | null => {
+    if ("node" in layout) return findLinkedNode(layout.node);
     return visit(layout.first) ?? visit(layout.second);
   };
-  return visit(children.layout);
+  return visit(children);
 }
 
 afterEach(async () => {
@@ -82,7 +82,7 @@ describe("environment contracts", () => {
     await writeFile(join(dashboard, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n", "utf8");
     await writeFile(join(named, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n", "utf8");
     await writeFile(join(named, "dash-bored.yaml"), [
-      "schemaVersion: 2",
+      "schemaVersion: 3",
       "name: Named",
       "root:",
       "  id: named-command",
@@ -92,7 +92,7 @@ describe("environment contracts", () => {
       "    command: 'sleep 30'",
     ].join("\n") + "\n", "utf8");
     await writeFile(join(dashboard, "dash-bored.yaml"), [
-      "schemaVersion: 2",
+      "schemaVersion: 3",
       "name: Canonical",
       "root:",
       "  id: linked-bundle",

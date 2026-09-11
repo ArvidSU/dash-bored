@@ -15,16 +15,16 @@ const cleanup: string[] = [];
 function resolvedChildren(node: ResolvedComponentNode | null | undefined): ResolvedComponentNode[] {
   const children = node?.children;
   if (children === undefined) return [];
-  if (children.type === "managed") return children.items.map((edge) => edge.node);
+  if (Array.isArray(children)) return children.map((edge) => edge.node);
   const nodes: ResolvedComponentNode[] = [];
-  const visit = (layout: typeof children.layout): void => {
-    if (layout.type === "child") nodes.push(layout.child.node);
+  const visit = (layout: typeof children): void => {
+    if ("node" in layout) nodes.push(layout.node);
     else {
       visit(layout.first);
       visit(layout.second);
     }
   };
-  visit(children.layout);
+  visit(children);
   return nodes;
 }
 
@@ -56,32 +56,21 @@ describe("getRegisteredProjectOutline", () => {
     cleanup.push(directory);
     const projectRoot = join(directory, "project");
     await createProject(projectRoot, {
-      schemaVersion: 2,
-      name: "Outline dashboard",
-      root: {
-        id: "layout",
-        component: "@dash-bored/group",
-        children: {
-          type: "tiled",
-          layout: {
-            type: "split",
-            axis: "vertical",
-            ratio: 0.5,
-            first: {
-              type: "child",
-              child: {
-                node: { id: "welcome", component: "@dash-bored/markdown", props: { content: "Welcome" } },
-              },
-            },
-            second: {
-              type: "child",
-              child: {
-                node: { id: "status", component: "@dash-bored/status", props: { label: "API", state: "healthy" } },
-              },
-            },
-          },
-        },
-      },
+        schemaVersion: 3,
+        name: "Outline dashboard",
+        root: {
+            id: "layout",
+            component: "@dash-bored/group",
+            children: {
+                axis: "vertical",
+                first: {
+                    node: { id: "welcome", component: "@dash-bored/markdown", props: { content: "Welcome" } }
+                },
+                second: {
+                    node: { id: "status", component: "@dash-bored/status", props: { label: "API", state: "healthy" } }
+                }
+            }
+        }
     });
     const registry = new ProjectRegistry(join(directory, "projects-v1.json"));
     await registry.remember(snapshot(projectRoot));
@@ -91,10 +80,7 @@ describe("getRegisteredProjectOutline", () => {
     expect(outline.projectRoot).toBe(await realpath(projectRoot));
     expect(outline.dashboardName).toBe("Outline dashboard");
     expect(outline.tree?.id).toBe("layout");
-    expect(outline.tree?.children).toMatchObject({
-      type: "tiled",
-      layout: { type: "split", axis: "vertical", ratio: 0.5 },
-    });
+    expect(outline.tree?.children).toMatchObject({ axis: "vertical" });
     expect(resolvedChildren(outline.tree).map((node) => node.id)).toEqual(["welcome", "status"]);
     expect(outline.diagnostics).toEqual([]);
   });

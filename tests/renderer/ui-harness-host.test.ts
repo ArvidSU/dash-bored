@@ -12,8 +12,8 @@ describe("ui harness host", () => {
     expect(snapshot.tree).toMatchObject({
       id: "harness-root",
       component: "@dash-bored/tabs",
-      children: { type: "managed" },
     });
+    expect(Array.isArray(snapshot.tree?.children)).toBeTrue();
     const nodeIds: string[] = [];
     const collectIds = (node: NonNullable<typeof snapshot.tree>): void => {
       nodeIds.push(node.id);
@@ -40,7 +40,7 @@ describe("ui harness host", () => {
     const host = createUiHarnessHost();
     const source = await host.getDashboardConfigSource();
     const invalid = structuredClone(source.config);
-    invalid.root.children = { type: "managed", items: [] };
+    invalid.root.children = [];
 
     const validation = await host.validateDashboardDraft(invalid);
     expect(validation.ok).toBeFalse();

@@ -44,22 +44,18 @@ function leaf(id: string): ComponentNode {
 
 function tiledConfig(rootComponent = "group"): DashboardConfig {
   return {
-    schemaVersion: 2,
-    name: "Planner fixture",
-    root: {
-      id: "root",
-      component: rootComponent,
-      children: {
-        type: "tiled",
-        layout: {
-          type: "split",
-          axis: "horizontal",
-          ratio: 0.5,
-          first: { type: "child", child: { node: leaf("first") } },
-          second: { type: "child", child: { node: leaf("second") } },
-        },
-      },
-    },
+      schemaVersion: 3,
+      name: "Planner fixture",
+      root: {
+          id: "root",
+          component: rootComponent,
+          children: {
+              axis: "horizontal",
+              ratio: 0.5,
+              first: { node: leaf("first") },
+              second: { node: leaf("second") }
+          }
+      }
   };
 }
 
@@ -108,19 +104,16 @@ describe("composition operation planner", () => {
 
   test("moves existing edges without losing IDs, props, or managed metadata", () => {
     const config: DashboardConfig = {
-      schemaVersion: 2,
-      name: "Managed",
-      root: {
-        id: "tabs",
-        component: "tabs",
-        children: {
-          type: "managed",
-          items: [
-            { node: { id: "one", component: "text", props: { value: 1 } }, metadata: { label: "One" } },
-            { node: { id: "two", component: "text", props: { value: 2 } }, metadata: { label: "Two" } },
-          ],
-        },
-      },
+        schemaVersion: 3,
+        name: "Managed",
+        root: {
+            id: "tabs",
+            component: "tabs",
+            children: [
+                { node: { id: "one", component: "text", props: { value: 1 } }, metadata: { label: "One" } },
+                { node: { id: "two", component: "text", props: { value: 2 } }, metadata: { label: "Two" } },
+            ]
+        }
     };
     const planned = planCompositionOperation({
       config,
@@ -162,10 +155,10 @@ describe("composition operation planner", () => {
         root: {
           id: "root",
           component: "group",
-          children: { type: "tiled", layout: { type: "child", child: { node: {
-            id: "parent", component: "group",
-            children: { type: "tiled", layout: { type: "child", child: { node: leaf("child") } } },
-          } } } },
+          children: { node: {
+                  id: "parent", component: "group",
+                  children: { node: leaf("child") }
+              } },
         },
       },
       catalog,

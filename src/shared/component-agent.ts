@@ -34,10 +34,10 @@ export function findResolvedNode(
   nodeId: string,
 ): ResolvedComponentNode | null {
   if (root.id === nodeId) return root;
-  const edges = root.children?.type === "managed"
-    ? root.children.items
-    : root.children?.type === "tiled"
-      ? collectLayoutEdges(root.children.layout)
+  const edges = Array.isArray(root.children)
+    ? root.children
+    : root.children !== undefined
+      ? collectLayoutEdges(root.children)
       : [];
   for (const edge of edges) {
     const found = findResolvedNode(edge.node, nodeId);
@@ -47,9 +47,9 @@ export function findResolvedNode(
 }
 
 function collectLayoutEdges(
-  layout: Extract<NonNullable<ResolvedComponentNode["children"]>, { type: "tiled" }>["layout"],
+  layout: ComponentChildLayout<ResolvedComponentNode>,
 ): Array<{ node: ResolvedComponentNode }> {
-  if (layout.type === "child") return [layout.child];
+  if ("node" in layout) return [layout];
   return [...collectLayoutEdges(layout.first), ...collectLayoutEdges(layout.second)];
 }
 
@@ -63,10 +63,10 @@ function dashboardParentPath(target: DashboardInsertionTarget): string {
   return target.parentPath.reduce(
     (path, segment) => {
       if (segment.type === "managed") {
-        return `${path}.children.items[${segment.index}].node`;
+        return `${path}.children[${segment.index}].node`;
       }
       const layoutPath = segment.path.map((branch) => `.${branch}`).join("");
-      return `${path}.children.layout${layoutPath}.child.node`;
+      return `${path}.children${layoutPath}.node`;
     },
     "root",
   );
@@ -82,14 +82,14 @@ export function dashboardInsertionPath(
 ): string {
   const parentPath = dashboardParentPath(target);
   if (target.placement.type === "managed") {
-    return `${parentPath}.children.items[${target.placement.index}]`;
+    return `${parentPath}.children[${target.placement.index}]`;
   }
   if (tiledMode === undefined) {
     throw new Error("Tiled insertion paths require an empty or split mode.");
   }
-  if (tiledMode === "empty") return `${parentPath}.children.layout.child`;
+  if (tiledMode === "empty") return `${parentPath}.children`;
   const layoutPath = target.placement.path.map((branch) => `.${branch}`).join("");
-  return `${parentPath}.children.layout${layoutPath}.${target.placement.position}.child`;
+  return `${parentPath}.children${layoutPath}.${target.placement.position}`;
 }
 
 function validIndex(value: number): boolean {
@@ -106,18 +106,18 @@ function childAtLayoutPath(
 ): ComponentNode | null {
   let current = layout;
   for (const branch of path) {
-    if (current.type !== "split") return null;
+    if (!("axis" in current)) return null;
     current = current[branch];
   }
-  return current.type === "child" ? current.child.node : null;
+  return "node" in current ? current.node : null;
 }
 
 function childCount(node: ComponentNode): number {
   if (node.children === undefined) return 0;
-  if (node.children.type === "managed") return node.children.items.length;
+  if (Array.isArray(node.children)) return node.children.length;
   const countLayout = (layout: ComponentChildLayout): number =>
-    layout.type === "child" ? 1 : countLayout(layout.first) + countLayout(layout.second);
-  return countLayout(node.children.layout);
+    "node" in layout ? 1 : countLayout(layout.first) + countLayout(layout.second);
+  return countLayout(node.children);
 }
 
 function childrenDefinition(
@@ -132,7 +132,7 @@ function configuredPresentationIsValid(
   node: ComponentNode,
   definition: ComponentChildrenDefinition,
 ): boolean {
-  return node.children === undefined || node.children.type === definition.presentation.type;
+  return node.children === undefined || (Array.isArray(node.children) ? "managed" : "tiled") === definition.presentation.type;
 }
 
 function configuredCardinalityIsValid(
@@ -170,20 +170,20 @@ export function resolveDashboardInsertionPath(
     if (segment.type === "managed") {
       if (
         definition.presentation.type !== "managed" ||
-        parent.children?.type !== "managed" ||
+        !Array.isArray(parent.children) ||
         !validIndex(segment.index) ||
-        segment.index >= parent.children.items.length
+        segment.index >= parent.children.length
       ) return null;
-      parent = parent.children.items[segment.index]!.node;
+      parent = parent.children[segment.index]!.node;
       continue;
     }
     if (
       segment.type !== "tiled" ||
       definition.presentation.type !== "tiled" ||
-      parent.children?.type !== "tiled" ||
+      (parent.children === undefined || Array.isArray(parent.children)) ||
       !validLayoutPath(segment.path)
     ) return null;
-    const child = childAtLayoutPath(parent.children.layout, segment.path);
+    const child = childAtLayoutPath(parent.children, segment.path);
     if (child === null) return null;
     parent = child;
   }
@@ -199,7 +199,7 @@ export function resolveDashboardInsertionPath(
   const placement = target.placement;
   if (placement.type === "managed") {
     if (definition.presentation.type !== "managed" || !validIndex(placement.index)) return null;
-    const length = parent.children?.type === "managed" ? parent.children.items.length : 0;
+    const length = Array.isArray(parent.children) ? parent.children.length : 0;
     if (placement.index > length) return null;
     return dashboardInsertionPath(target, "split");
   }
@@ -218,8 +218,8 @@ export function resolveDashboardInsertionPath(
   if (parent.children === undefined) {
     return placement.path.length === 0 ? dashboardInsertionPath(target, "empty") : null;
   }
-  if (parent.children.type !== "tiled") return null;
-  return childAtLayoutPath(parent.children.layout, placement.path) === null
+  if (Array.isArray(parent.children)) return null;
+  return childAtLayoutPath(parent.children, placement.path) === null
     ? null
     : dashboardInsertionPath(target, "split");
 }

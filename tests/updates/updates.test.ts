@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { UpdateCoordinator, parseReceipt } from '../../src/updates/coordinator';
-import { compareVersions, discoverRelease, parseReleaseMetadata, RELEASE_ASSET_BASE } from '../../src/updates/releases';
+import { BUNDLED_MIGRATIONS, compareVersions, discoverRelease, parseReleaseMetadata, RELEASE_ASSET_BASE } from '../../src/updates/releases';
 import { inspectMigration } from '../../src/updates/migrations';
 import { atomicJson, getUpdateSettings, validateUpdateSettings, withUpdateLock } from '../../src/updates/storage';
 import { downloadArtifact } from '../../src/updates/artifacts';
@@ -68,6 +68,16 @@ describe('release identity and discovery', () => {
   });
 });
 describe('migration detection and durable journey', () => {
+  test('the shipped schema-three release offers migration for v2 and recognizes v3', async () => {
+    const { config } = await fixture();
+    const release = parseReleaseMetadata({ ...metadata(), ...BUNDLED_MIGRATIONS });
+    const old = await inspectMigration(config, release);
+    expect(old.status).toBe('required');
+    expect(old.steps.map(step => [step.from, step.to])).toEqual([[2, 3]]);
+    expect(await readFile(config, 'utf8')).toBe('schemaVersion: 2\n');
+    await writeFile(config, 'schemaVersion: 3\n');
+    expect((await inspectMigration(config, release)).status).toBe('current');
+  });
   test('cumulative recipes and unsupported historical/unknown schema', async () => {
     const { config } = await fixture(); expect((await inspectMigration(config, metadata('0.3.0', true))).steps).toHaveLength(1);
     for (const text of ['schemaVersion: 1', 'schemaVersion: 99', 'schemaVersion: unknown', 'bad: [']) { await writeFile(config, text); expect((await inspectMigration(config, metadata())).status).toBe('unsupported'); }

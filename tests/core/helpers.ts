@@ -5,23 +5,17 @@ import { stringify } from "yaml";
 import type { DashboardConfig, DashboardLock } from "../../src/shared/contracts";
 
 export const defaultConfig: DashboardConfig = {
-  schemaVersion: 2,
-  name: "Test project",
-  root: {
-    component: "@dash-bored/group",
-    children: {
-      type: "tiled",
-      layout: {
-        type: "child",
-        child: {
-          node: {
-            component: "@dash-bored/markdown",
-            props: { content: "# Ready" },
-          },
-        },
-      },
-    },
-  },
+    schemaVersion: 3,
+    name: "Test project",
+    root: {
+        component: "@dash-bored/group",
+        children: {
+            node: {
+                component: "@dash-bored/markdown",
+                props: { content: "# Ready" }
+            }
+        }
+    }
 };
 
 export async function temporaryDirectory(): Promise<string> {

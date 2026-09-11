@@ -67,31 +67,24 @@ function leaf(id: string): ComponentNode {
 
 function config(): DashboardConfig {
   return {
-    schemaVersion: 2,
-    name: "Editor",
-    root: {
-      id: "root",
-      component: "group",
-      children: {
-        type: "tiled",
-        layout: {
-          type: "split",
-          axis: "horizontal",
-          ratio: 0.4,
-          first: {
-            type: "child",
-            child: {
-              node: {
-                id: "nested-group",
-                component: "group",
-                children: { type: "tiled", layout: { type: "child", child: { node: leaf("nested") } } },
+      schemaVersion: 3,
+      name: "Editor",
+      root: {
+          id: "root",
+          component: "group",
+          children: {
+              axis: "horizontal",
+              ratio: 0.4,
+              first: {
+                  node: {
+                      id: "nested-group",
+                      component: "group",
+                      children: { node: leaf("nested") }
+                  }
               },
-            },
-          },
-          second: { type: "child", child: { node: leaf("second") } },
-        },
-      },
-    },
+              second: { node: leaf("second") }
+          }
+      }
   };
 }
 
@@ -107,13 +100,14 @@ describe("dashboard editor tree operations", () => {
         ratio: 0.3,
       },
     }, leaf("above-second"), catalog);
-    expect(added.root.children?.type).toBe("tiled");
-    if (added.root.children?.type !== "tiled") throw new Error("expected tiled");
-    expect(added.root.children.layout).toMatchObject({
-      type: "split",
-      ratio: 0.4,
-      second: { type: "split", axis: "vertical", ratio: 0.3 },
+    expect(Array.isArray(added.root.children)).toBeFalse();
+    if (added.root.children === undefined || Array.isArray(added.root.children)) throw new Error("expected tiled");
+    expect(added.root.children).toMatchObject({
+        ratio: 0.4,
+        second: { axis: "vertical" }
     });
+    if (!("axis" in added.root.children)) throw new Error("expected split");
+    expect(added.root.children.second).not.toHaveProperty("ratio");
     expect(tiledChildEdges(added.root).map((edge) => edge.node.id)).toEqual([
       "nested-group",
       "above-second",
@@ -152,19 +146,16 @@ describe("dashboard editor tree operations", () => {
 
   test("manages edge metadata without component-specific label synchronization", () => {
     const tabs: DashboardConfig = {
-      schemaVersion: 2,
-      name: "Tabs",
-      root: {
-        id: "tabs",
-        component: "tabs",
-        children: {
-          type: "managed",
-          items: [
-            { node: leaf("overview"), metadata: { label: "Overview" } },
-            { node: leaf("logs"), metadata: { label: "Logs" } },
-          ],
-        },
-      },
+        schemaVersion: 3,
+        name: "Tabs",
+        root: {
+            id: "tabs",
+            component: "tabs",
+            children: [
+                { node: leaf("overview"), metadata: { label: "Overview" } },
+                { node: leaf("logs"), metadata: { label: "Logs" } },
+            ]
+        }
     };
     const inserted = insertNode(tabs, {
       parentPath: [],
@@ -188,11 +179,11 @@ describe("dashboard editor tree operations", () => {
 
   test("updates layout ratios, props, metadata, and dashboard identity immutably", () => {
     const resized = updateTiledSplitRatio(config(), [], [], 0.63);
-    if (resized.root.children?.type !== "tiled" || resized.root.children.layout.type !== "split") {
+    if (resized.root.children === undefined || Array.isArray(resized.root.children) || !("axis" in resized.root.children)) {
       throw new Error("expected split");
     }
-    expect(resized.root.children.layout.ratio).toBe(0.63);
-    expect((config().root.children as { layout: { ratio: number } }).layout.ratio).toBe(0.4);
+    expect(resized.root.children.ratio).toBe(0.63);
+    expect((config().root.children as { ratio: number }).ratio).toBe(0.4);
 
     const updated = updateNodeProps(config(), [{ type: "tiled", path: ["second"] }], { content: "Updated" });
     expect(nodePathById(updated.root, "second")).toEqual([{ type: "tiled", path: ["second"] }]);
@@ -204,6 +195,40 @@ describe("dashboard editor tree operations", () => {
     const inherited = updateDashboardMetadata(themed, "themeMode", "");
     expect(inherited.themeMode).toBeUndefined();
     expect(config().name).toBe("Editor");
+  });
+
+  test("rejects resizing vertical document flow without changing the draft", () => {
+    const vertical = insertNode(config(), {
+      parentPath: [],
+      placement: { type: "tiled", path: ["second"], axis: "vertical", position: "second" },
+    }, leaf("below-second"), catalog);
+    const beforeResize = structuredClone(vertical);
+
+    expect(() => updateTiledSplitRatio(vertical, [], ["second"], 0.7))
+      .toThrow("Only horizontal splits can be resized");
+    expect(vertical).toEqual(beforeResize);
+    expect(tiledChildEdges(vertical.root).map((edge) => edge.node.id)).toEqual([
+      "nested-group", "second", "below-second",
+    ]);
+  });
+
+  test("omits the equal-width default from new and reset horizontal splits", () => {
+    const inserted = insertNode(config(), {
+      parentPath: [],
+      placement: { type: "tiled", path: ["second"], axis: "horizontal", position: "first" },
+    }, leaf("beside-second"), catalog);
+    if (!inserted.root.children || Array.isArray(inserted.root.children) || !("axis" in inserted.root.children)) {
+      throw new Error("expected split");
+    }
+    expect(inserted.root.children.second).toEqual({
+      axis: "horizontal",
+      first: { node: leaf("beside-second") },
+      second: { node: leaf("second") },
+    });
+    const reset = updateTiledSplitRatio(inserted, [], [], 0.5);
+    expect(reset.root.children).not.toHaveProperty("ratio");
+    expect(inserted.root.children.ratio).toBe(0.4);
+    expect(tiledChildEdges(reset.root)).toEqual(tiledChildEdges(inserted.root));
   });
 
   test("replaces roots only when child presentation is compatible", () => {
@@ -251,16 +276,16 @@ describe("dashboard editor tree operations", () => {
 
   test("maps resolver source locators back to managed and tiled node paths", () => {
     expect(nodePathFromSourcePath("root")).toEqual([]);
-    expect(nodePathFromSourcePath("root.children.layout.first.child.node")).toEqual([
+    expect(nodePathFromSourcePath("root.children.first.node")).toEqual([
       { type: "tiled", path: ["first"] },
     ]);
     expect(nodePathFromSourcePath(
-      "root.children.layout.second.child.node.children.items[2].node.children.layout.first.second.child.node",
+      "root.children.second.node.children[2].node.children.first.second.node",
     )).toEqual([
       { type: "tiled", path: ["second"] },
       { type: "managed", index: 2 },
       { type: "tiled", path: ["first", "second"] },
     ]);
-    expect(nodePathFromSourcePath("root.children.items[0].node.nope")).toBeNull();
+    expect(nodePathFromSourcePath("root.children[0].node.nope")).toBeNull();
   });
 });

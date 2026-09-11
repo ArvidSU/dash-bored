@@ -58,86 +58,58 @@ function builtin(
   };
 }
 
-const tree = builtin("harness-root", { label: "Visual verification fixture" }, {
-  type: "managed",
-  items: [
-    {
-      metadata: { label: "Wide layout" },
-      node: builtin("group", {}, {
-        type: "tiled",
-        layout: {
-          type: "split",
-          axis: "horizontal",
-          ratio: 0.42,
-          first: {
-            type: "child",
-            child: {
-              node: builtin("renderer-proof-card", {
-                title: "Renderer proof",
-                description: "This is the real dashboard renderer with an inert fixture host.",
-              }, {
-                type: "tiled",
-                layout: {
-                  type: "child",
-                  child: { node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/status") },
-                },
-              }, "@dash-bored/card"),
-            },
-          },
-          second: {
-            type: "split",
-            axis: "vertical",
-            ratio: 0.55,
-            first: {
-              type: "child",
-              child: { node: builtin("status", { label: "Renderer fixture", state: "healthy", detail: "Deterministic local snapshot; no desktop bridge." }) },
-            },
-            second: {
-              type: "child",
-              child: { node: builtin("responsive-card", { title: "Responsive tile", description: "Nested tiled composition must remain legible at narrow widths." }, undefined, "@dash-bored/card") },
-            },
-          },
+const tree = builtin("harness-root", { label: "Visual verification fixture" }, [
+  {
+    metadata: { label: "Wide layout" },
+    node: builtin("group", {}, {
+      axis: "horizontal",
+      ratio: 0.42,
+      first: {
+        node: builtin("renderer-proof-card", {
+          title: "Renderer proof",
+          description: "This is the real dashboard renderer with an inert fixture host.",
+        }, {
+          node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/status"),
+        }, "@dash-bored/card"),
+      },
+      second: {
+        axis: "vertical",
+        first: {
+          node: builtin("status", { label: "Renderer fixture", state: "healthy", detail: "Deterministic local snapshot; no desktop bridge." }),
         },
-      }),
-    },
-    {
-      metadata: { label: "Boundary" },
-      node: builtin("boundary-card", {
-        title: "Native boundary",
-        description: "This fixture proves renderer behavior only. Webview overlays, desktop chrome, and native pointer injection require the exact Electrobun app check.",
-      }, {
-        type: "tiled",
-          layout: {
-            type: "split",
-            axis: "vertical",
-            ratio: 0.5,
-          first: {
-            type: "child",
-            child: { node: builtin("renderer-proof-todos", {
-              todos: [{ description: "Keep this surface mounted", done: false, tags: ["fixture"] }],
-            }, undefined, "@dash-bored/todo-list") },
-          },
-            second: {
-              type: "split",
-              axis: "vertical",
-              ratio: 0.5,
-              first: {
-                type: "child",
-                child: { node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status") },
-              },
-              second: {
-                type: "child",
-                child: { node: builtin("local-host-stability", {}, undefined, "./components/host-stability") },
-              },
-            },
+        second: {
+          node: builtin("responsive-card", { title: "Responsive tile", description: "Nested tiled composition must remain legible at narrow widths." }, undefined, "@dash-bored/card"),
         },
-      }, "@dash-bored/card"),
-    },
-  ],
-});
+      },
+    }),
+  },
+  {
+    metadata: { label: "Boundary" },
+    node: builtin("boundary-card", {
+      title: "Native boundary",
+      description: "This fixture proves renderer behavior only. Webview overlays, desktop chrome, and native pointer injection require the exact Electrobun app check.",
+    }, {
+      axis: "vertical",
+      first: {
+        node: builtin("renderer-proof-todos", {
+          todos: [{ description: "Keep this surface mounted", done: false, tags: ["fixture"] }],
+        }, undefined, "@dash-bored/todo-list"),
+      },
+      second: {
+        axis: "vertical",
+        first: {
+          node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status"),
+        },
+        second: {
+          node: builtin("local-host-stability", {}, undefined, "./components/host-stability"),
+        },
+      },
+    }, "@dash-bored/card"),
+  },
+]);
 
 const initialConfig: DashboardConfig = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   name: "Visual verification fixture",
   root: {
     id: tree.id,
@@ -285,11 +257,11 @@ function fixtureSchemaDiagnostic(error: ErrorObject, path: string, code: string)
 
 function fixtureChildEdges(children: ComponentNode["children"]): ComponentChildEdge[] {
   if (!children) return [];
-  if (children.type === "managed") return children.items;
-  const visit = (layout: ComponentChildLayout): ComponentChildEdge[] => layout.type === "child"
-    ? [layout.child]
+  if (Array.isArray(children)) return children;
+  const visit = (layout: ComponentChildLayout): ComponentChildEdge[] => "node" in layout
+    ? [layout]
     : [...visit(layout.first), ...visit(layout.second)];
-  return visit(children.layout);
+  return visit(children);
 }
 
 /**
@@ -313,7 +285,7 @@ const FIXTURE_APPLICATION_THEMES: ThemeCatalogItem[] = [
 ];
 function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation {
   const diagnostics: Diagnostic[] = [];
-  if (config.schemaVersion !== 2) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 2.", "schemaVersion"));
+  if (config.schemaVersion !== 3) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 3.", "schemaVersion"));
   if (typeof config.name !== "string" || config.name.trim() === "") diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "name is required.", "name"));
   const ids = new Set<string>();
   const permissions = new Set<DashboardDraftValidation["requestedPermissions"][number]>();
@@ -350,8 +322,8 @@ function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation
     const definition = manifest.children;
     const edges = fixtureChildEdges(node.children);
     if (!definition && node.children) diagnostics.push(fixtureDiagnostic("COMPONENT_CHILDREN_UNSUPPORTED", `${manifest.name} does not accept children.`, `${path}.children`));
-    if (definition && node.children && definition.presentation.type !== node.children.type) {
-      diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_PRESENTATION_INVALID", `${manifest.name} requires ${definition.presentation.type} children.`, `${path}.children.type`));
+    if (definition && node.children && definition.presentation.type !== (Array.isArray(node.children) ? "managed" : "tiled")) {
+      diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_PRESENTATION_INVALID", `${manifest.name} requires ${definition.presentation.type} children.`, `${path}.children`));
     }
     if (definition && edges.length < definition.min) diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_CARDINALITY", `${manifest.name} requires at least ${definition.min} children.`, `${path}.children`));
     if (definition?.max !== undefined && edges.length > definition.max) diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_CARDINALITY", `${manifest.name} accepts at most ${definition.max} children.`, `${path}.children`));
@@ -365,16 +337,16 @@ function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation
       visit(edge.node, `${edgePath}.node`, depth + 1);
     };
     const visitLayout = (layout: ComponentChildLayout, layoutPath: string): void => {
-      if (layout.type === "child") return visitEdge(layout.child, `${layoutPath}.child`);
-      if (layout.ratio < 0.1 || layout.ratio > 0.9) diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_RATIO_INVALID", "Tiled split ratios must be between 0.1 and 0.9.", `${layoutPath}.ratio`));
+      if ("node" in layout) return visitEdge(layout, layoutPath);
+      if (layout.ratio !== undefined && (layout.axis !== "horizontal" || !Number.isFinite(layout.ratio) || layout.ratio < 0.1 || layout.ratio > 0.9)) diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_RATIO_INVALID", "Tiled split ratios must be between 0.1 and 0.9.", `${layoutPath}.ratio`));
       if (definition?.presentation.type === "tiled" && definition.presentation.axes !== "both" && layout.axis !== definition.presentation.axes) {
         diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_AXIS_INVALID", `${manifest.name} only allows ${definition.presentation.axes} tiled splits.`, `${layoutPath}.axis`));
       }
       visitLayout(layout.first, `${layoutPath}.first`);
       visitLayout(layout.second, `${layoutPath}.second`);
     };
-    if (node.children?.type === "managed") node.children.items.forEach((edge, index) => visitEdge(edge, `${path}.children.items[${index}]`));
-    if (node.children?.type === "tiled") visitLayout(node.children.layout, `${path}.children.layout`);
+    if (Array.isArray(node.children)) node.children.forEach((edge, index) => visitEdge(edge, `${path}.children[${index}]`));
+    if (node.children !== undefined && !Array.isArray(node.children)) visitLayout(node.children, `${path}.children`);
   };
   visit(config.root, "root", 0);
   return { ok: diagnostics.length === 0, diagnostics, requestedPermissions: [...permissions] };
@@ -393,16 +365,16 @@ function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedCompone
     sourcePath: path,
     ...(item?.manifest ? { manifest: structuredClone(item.manifest) } : {}),
   };
-  if (node.children?.type === "managed") {
-    resolved.children = { type: "managed", items: node.children.items.map((edge, index) => ({
-      node: resolveFixtureNode(edge.node, `${path}.children.items[${index}].node`),
+  if (Array.isArray(node.children)) {
+    resolved.children = node.children.map((edge, index) => ({
+      node: resolveFixtureNode(edge.node, `${path}.children[${index}].node`),
       ...(edge.metadata === undefined ? {} : { metadata: structuredClone(edge.metadata) }),
-    })) };
-  } else if (node.children?.type === "tiled") {
-    const resolveLayout = (layout: ComponentChildLayout, layoutPath: string): ComponentChildLayout<ResolvedComponentNode> => layout.type === "child"
-      ? { type: "child", child: { node: resolveFixtureNode(layout.child.node, `${layoutPath}.child.node`), ...(layout.child.metadata === undefined ? {} : { metadata: structuredClone(layout.child.metadata) }) } }
-      : { type: "split", axis: layout.axis, ratio: layout.ratio, first: resolveLayout(layout.first, `${layoutPath}.first`), second: resolveLayout(layout.second, `${layoutPath}.second`) };
-    resolved.children = { type: "tiled", layout: resolveLayout(node.children.layout, `${path}.children.layout`) };
+    }));
+  } else if (node.children !== undefined) {
+    const resolveLayout = (layout: ComponentChildLayout, layoutPath: string): ComponentChildLayout<ResolvedComponentNode> => "node" in layout
+      ? { node: resolveFixtureNode(layout.node, `${layoutPath}.node`), ...(layout.metadata === undefined ? {} : { metadata: structuredClone(layout.metadata) }) }
+      : { ...layout, first: resolveLayout(layout.first, `${layoutPath}.first`), second: resolveLayout(layout.second, `${layoutPath}.second`) };
+    resolved.children = resolveLayout(node.children, `${path}.children`);
   }
   return resolved;
 }

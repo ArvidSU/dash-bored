@@ -26,31 +26,28 @@ export interface ComponentChildEdge<Node = ComponentNode> {
 }
 
 export type ComponentChildLayout<Node = ComponentNode> =
+  | ComponentChildEdge<Node>
   | {
-      type: "child";
-      child: ComponentChildEdge<Node>;
+      axis: "horizontal";
+      /** Fraction assigned to the first branch; omitted means equal widths. */
+      ratio?: number;
+      first: ComponentChildLayout<Node>;
+      second: ComponentChildLayout<Node>;
     }
   | {
-      type: "split";
-      axis: "horizontal" | "vertical";
-      /** Fraction of available space assigned to the first branch. */
-      ratio: number;
+      axis: "vertical";
+      /** Vertical branches use document flow and have no ratio. */
+      ratio?: never;
       first: ComponentChildLayout<Node>;
       second: ComponentChildLayout<Node>;
     };
 
 export type ComponentChildren<Node = ComponentNode> =
-  | {
-      type: "tiled";
-      layout: ComponentChildLayout<Node>;
-    }
-  | {
-      type: "managed";
-      items: ComponentChildEdge<Node>[];
-    };
+  | ComponentChildLayout<Node>
+  | ComponentChildEdge<Node>[];
 
 export interface DashboardConfig {
-  schemaVersion: 2;
+  schemaVersion: 3;
   name: string;
   /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
   icon?: string;

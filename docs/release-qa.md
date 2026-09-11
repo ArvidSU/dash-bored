@@ -127,11 +127,11 @@ cycle; a green Docker run cannot establish DMG, Gatekeeper or native UI success.
 ### Legacy dashboard compatibility
 
 A v0.2.2 project uses schema v1 in `dash-bored/`; refreshing its CLI and skills
-does not migrate that dashboard to schema v2. The compatibility check remains a
+does not migrate that dashboard to schema v3. The compatibility check remains a
 failed release gate, but the suite continues through new-project initialization
 and the agent benchmark so that old-format incompatibility cannot mask those
 results. Preserve the legacy bundle and use the README recovery workflow to
-rebuild a separate schema-v2 dashboard. Do not change the old config's version
+rebuild a separate schema-v3 dashboard. Do not change the old config's version
 number alone: its component and composition contracts also differ.
 
 ## Native two-version update acceptance

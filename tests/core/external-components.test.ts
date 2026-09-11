@@ -106,9 +106,9 @@ async function commitSourceVersion(
 
 function externalConfig(): DashboardConfig {
   return {
-    schemaVersion: 2,
-    name: "External parent",
-    root: { component: "./components/external/widgets" },
+      schemaVersion: 3,
+      name: "External parent",
+      root: { component: "./components/external/widgets" }
   };
 }
 

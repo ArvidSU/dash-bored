@@ -116,20 +116,20 @@ async function scanNode(
   }
 
   const children = node.children;
-  if (children?.type === "managed") {
-    for (const edge of children.items) {
+  if (Array.isArray(children)) {
+    for (const edge of children) {
       await scanNode(edge.node, location, projectRoot, state);
     }
-  } else if (children?.type === "tiled") {
-    const scanLayout = async (layout: typeof children.layout): Promise<void> => {
-      if (layout.type === "child") {
-        await scanNode(layout.child.node, location, projectRoot, state);
+  } else if (children !== undefined) {
+    const scanLayout = async (layout: typeof children): Promise<void> => {
+      if ("node" in layout) {
+        await scanNode(layout.node, location, projectRoot, state);
       } else {
         await scanLayout(layout.first);
         await scanLayout(layout.second);
       }
     };
-    await scanLayout(children.layout);
+    await scanLayout(children);
   }
 }
 

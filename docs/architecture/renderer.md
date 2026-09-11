@@ -120,7 +120,7 @@ Focusing a node makes it a virtual root
 in the application viewport and provides breadcrumb navigation back to its
 configured ancestors; it never rewrites YAML or changes which bundle owns the
 node. Copy uses an unambiguous locator such as
-`/project/..dash-bored/dash-bored.yaml#root.children.layout.first.child.node`.
+`/project/.dash-bored/dash-bored.yaml#root.children.first.node`.
 Resolved nodes
 retain both the canonical owning YAML and their YAML-style path, including
 nodes reached through standalone config links.

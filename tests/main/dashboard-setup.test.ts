@@ -38,7 +38,7 @@ async function fixture() {
 
 function harness() {
   const launches: any[] = [];
-  return { launches, setValidation(id: string, validation: DashboardAgentTask["validation"]) { launches.find((x) => x.task.id === id)?.validations.push(validation); }, launch(options: any): Promise<ComponentAgentLaunch> { const t = task(); t.configPath = options.configPath; launches.push({ options, task: t, validations: [] }); return Promise.resolve({ taskId: t.id, command: options.command, componentPath: options.componentPath, pid: null }); } };
+  return { launches, setValidation(id: string, validation: DashboardAgentTask["validation"]) { launches.find((x) => x.task.id === id)?.validations.push(validation); }, launch(options: any): Promise<ComponentAgentLaunch> { const t = task(); t.configPath = options.configPath; t.purpose = options.purpose; launches.push({ options, task: t, validations: [] }); return Promise.resolve({ taskId: t.id, command: options.command, componentPath: options.componentPath, pid: null }); } };
 }
 
 describe("DashboardSetupSupervisor", () => {
@@ -107,7 +107,7 @@ describe("DashboardSetupSupervisor", () => {
   test("finishes after the agent replaces the starter and removes its setup node", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    await writeFile(location.configPath, stringify({ schemaVersion: 2, name: "Finished", root: { component: "@dash-bored/status", props: { label: "Ready", state: "healthy" } } }));
+    await writeFile(location.configPath, stringify({ schemaVersion: 3, name: "Finished", root: { component: "@dash-bored/status", props: { label: "Ready", state: "healthy" } } }));
     rt.removeNode();
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches[0].validations.at(-1).status).toBe("valid");
@@ -125,7 +125,7 @@ describe("DashboardSetupSupervisor", () => {
   test("new permissions require trust even when the saved dashboard validates", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    await writeFile(location.configPath, stringify({ schemaVersion: 2, name: "Needs trust", root: { component: "@dash-bored/webview", props: { url: "https://example.com" } } }));
+    await writeFile(location.configPath, stringify({ schemaVersion: 3, name: "Needs trust", root: { component: "@dash-bored/webview", props: { url: "https://example.com" } } }));
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches).toHaveLength(1);
     expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
@@ -138,7 +138,7 @@ describe("DashboardSetupSupervisor", () => {
     await mkdir(directory, { recursive: true });
     await writeFile(`${directory}/component.yaml`, stringify({ schemaVersion: 2, id: "broken", name: "Broken", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } }));
     await writeFile(`${directory}/index.tsx`, "export default (;");
-    await writeFile(location.configPath, stringify({ schemaVersion: 2, name: "Compile check", root: { component: "./components/broken" } }));
+    await writeFile(location.configPath, stringify({ schemaVersion: 3, name: "Compile check", root: { component: "./components/broken" } }));
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches).toHaveLength(2);
     expect(h.launches[1].options.prompt).toContain("COMPONENT_COMPILE_FAILED");
@@ -161,10 +161,26 @@ test.each(['edit', 'migration'] as const)('%s uses the shared verification bound
   const rt = runtime(location, node, permissions); const h = harness();
   const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
   await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
-  await writeFile(location.configPath, 'schemaVersion: 2\nroot: invalid\n');
+  await writeFile(location.configPath, 'schemaVersion: 3\nroot: invalid\n');
   await h.launches[0].options.onFinished(h.launches[0].task);
   expect(h.launches).toHaveLength(2);
   await h.launches[1].options.onFinished(h.launches[1].task);
   expect(h.launches).toHaveLength(2);
+  expect(h.launches[0].validations.at(-1).status).toBe('failed');
+});
+
+
+test.each(['edit', 'migration'] as const)('%s respects migration authorization when an agent leaves schema v2', async purpose => {
+  const { location, node, permissions } = await fixture();
+  const rt = runtime(location, node, permissions); const h = harness();
+  const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
+  await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
+  await writeFile(location.configPath, 'schemaVersion: 2\nname: Old dashboard\nroot:\n  component: "@dash-bored/group"\n');
+  await h.launches[0].options.onFinished(h.launches[0].task);
+  expect(h.launches).toHaveLength(purpose === 'migration' ? 2 : 1);
+  if (purpose === 'migration') {
+    await h.launches[1].options.onFinished(h.launches[1].task);
+    expect(h.launches).toHaveLength(2);
+  }
   expect(h.launches[0].validations.at(-1).status).toBe('failed');
 });

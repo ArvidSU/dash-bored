@@ -63,8 +63,8 @@ export function composeComponentChildren({
   const children = node.children;
   if (!children) return undefined;
 
-  if (children.type === "managed") {
-    const items: ComponentChildHandle[] = children.items.map((edge) => ({
+  if (Array.isArray(children)) {
+    const items: ComponentChildHandle[] = children.map((edge) => ({
       id: edge.node.id,
       reference: edge.node.component,
       displayName: childDisplayName(edge.node),
@@ -85,8 +85,8 @@ export function composeComponentChildren({
     layout: ComponentChildLayout<ResolvedComponentNode>,
     path: LayoutBranch[] = [],
   ): ReactNode => {
-    if (layout.type === "child") {
-      return <VisibleChild node={layout.child.node} visible renderNode={renderNode} />;
+    if ("node" in layout) {
+      return <VisibleChild node={layout.node} visible renderNode={renderNode} />;
     }
     const branchKey = layoutBranchKey(node.id, path);
     const structureKey = layoutStructureKey(layout);
@@ -112,5 +112,5 @@ export function composeComponentChildren({
     );
   };
 
-  return { type: "tiled", surface: renderLayout(children.layout) };
+  return { type: "tiled", surface: renderLayout(children) };
 }

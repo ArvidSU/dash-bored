@@ -29,10 +29,7 @@ function node(
       propsSchema: { type: "object" },
     },
     ...(child ? {
-      children: {
-        type: "tiled" as const,
-        layout: { type: "child" as const, child: { node: child } },
-      },
+      children: { node: child },
     } : {}),
   };
 }

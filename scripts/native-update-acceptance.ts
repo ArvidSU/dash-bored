@@ -5,6 +5,7 @@ import { cp, mkdir, mkdtemp, readFile, realpath, writeFile, symlink } from 'node
 import { homedir, tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { BUNDLED_MIGRATIONS } from '../src/updates/releases';
 
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('This acceptance test requires Apple Silicon macOS.');
 const source = resolve(import.meta.dirname, '..');
@@ -96,7 +97,7 @@ const digest = async (file: string) => createHash('sha256').update(await readFil
 const archive = 'canary-macos-arm64-dash-bored-canary.app.tar.zst';
 const dmg = 'canary-macos-arm64-dash-bored-canary.dmg';
 const updater = 'canary-macos-arm64-update.json';
-await writeFile(targetMetadataPath, JSON.stringify({ format: 1, product: 'dash-bored', version: '99.0.2', channel: 'canary', platform: 'macos', arch: 'arm64', dashboardContract: 2, minimumContract: 2, recipes: [], notes: 'Isolated native acceptance', archive: { file: archive, sha256: await digest(archive) }, dmg: { file: dmg, sha256: await digest(dmg) }, updater: { file: updater, sha256: await digest(updater) } }));
+await writeFile(targetMetadataPath, JSON.stringify({ format: 1, product: 'dash-bored', version: '99.0.2', channel: 'canary', platform: 'macos', arch: 'arm64', ...BUNDLED_MIGRATIONS, notes: 'Isolated native acceptance', archive: { file: archive, sha256: await digest(archive) }, dmg: { file: dmg, sha256: await digest(dmg) }, updater: { file: updater, sha256: await digest(updater) } }));
 console.log('Launching old version and waiting for native replacement and new-version CLI proof…');
 await run(['open', '-n', installed]);
 const deadline = Date.now() + 120_000;

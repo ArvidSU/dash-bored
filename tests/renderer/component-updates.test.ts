@@ -16,7 +16,7 @@ function node(
     component,
     props,
     ...(children.length > 0 ? {
-      children: { type: "managed" as const, items: children.map((child) => ({ node: child })) },
+      children: children.map((child) => ({ node: child })),
     } : {}),
     source: "builtin",
   };
@@ -45,7 +45,7 @@ describe("component update detection", () => {
       ]),
     ]);
     const after = structuredClone(before);
-    if (after.children?.type === "managed") after.children.items[0]!.node.props.title = "After";
+    if (Array.isArray(after.children)) after.children[0]!.node.props.title = "After";
 
     expect(changedComponentIds(before, after)).toEqual(["card"]);
   });

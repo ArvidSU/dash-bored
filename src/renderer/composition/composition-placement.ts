@@ -108,7 +108,7 @@ export function deriveInsertionTargets(
   }
 
   const presentation = manifest.children.presentation;
-  if (target.children && target.children.type !== presentation.type) return [];
+  if (target.children && (Array.isArray(target.children) ? "managed" : "tiled") !== presentation.type) return [];
 
   const parentPath = context.parentPath ?? [];
   const requestedChild = normalizeTargetChildPath(context.targetChildPath);

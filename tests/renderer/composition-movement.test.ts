@@ -15,9 +15,9 @@ function leaf(id: string): ComponentNode {
 
 function config(children: DashboardConfig["root"]["children"]): DashboardConfig {
   return {
-    schemaVersion: 2,
-    name: "Movement",
-    root: { id: "root", component: "container", children },
+      schemaVersion: 3,
+      name: "Movement",
+      root: { id: "root", component: "container", children }
   };
 }
 
@@ -54,10 +54,7 @@ const catalog: ComponentCatalogItem[] = [
 
 describe("generic composition movement", () => {
   test("derives adjacent managed targets without encoding a component identity", () => {
-    const root = config({
-      type: "managed",
-      items: [{ node: leaf("one") }, { node: leaf("two") }, { node: leaf("three") }],
-    }).root;
+    const root = config([{ node: leaf("one") }, { node: leaf("two") }, { node: leaf("three") }]).root;
     expect(siblingMoveTarget(root, [{ type: "managed", index: 1 }], "previous")).toEqual({
       parentPath: [],
       placement: { type: "managed", index: 0 },
@@ -72,20 +69,14 @@ describe("generic composition movement", () => {
 
   test("derives tiled sibling moves on the target leaf axis", () => {
     const root = config({
-      type: "tiled",
-      layout: {
-        type: "split",
         axis: "horizontal",
         ratio: 0.5,
-        first: { type: "child", child: { node: leaf("one") } },
+        first: { node: leaf("one") },
         second: {
-          type: "split",
-          axis: "vertical",
-          ratio: 0.5,
-          first: { type: "child", child: { node: leaf("two") } },
-          second: { type: "child", child: { node: leaf("three") } },
-        },
-      },
+            axis: "vertical",
+            first: { node: leaf("two") },
+            second: { node: leaf("three") }
+        }
     }).root;
     expect(siblingMoveTarget(root, [{ type: "tiled", path: ["second", "first"] }], "next")).toEqual({
       parentPath: [],
@@ -99,13 +90,10 @@ describe("generic composition movement", () => {
   });
 
   test("moves and inserts edges without losing IDs, props, or managed metadata", () => {
-    const original = config({
-      type: "managed",
-      items: [
+    const original = config([
         { node: { id: "one", component: "leaf", props: { value: 1 } }, metadata: { label: "One" } },
         { node: { id: "two", component: "leaf", props: { value: 2 } }, metadata: { label: "Two" } },
-      ],
-    });
+    ]);
     const moved = moveNode(original, [{ type: "managed", index: 1 }], {
       parentPath: [],
       placement: { type: "managed", index: 0, metadata: { label: "Do not replace" } },

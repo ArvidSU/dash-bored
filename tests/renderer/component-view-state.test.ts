@@ -19,16 +19,13 @@ const tree: ResolvedComponentNode = {
   id: "dashboard",
   component: "@dash-bored/group",
   props: {},
-  children: {
-    type: "tiled",
-    layout: { type: "child", child: { node: {
-      id: "operations",
-      component: "@dash-bored/card",
-      props: {},
-      children: { type: "tiled", layout: { type: "child", child: { node: leaf } } },
-      source: "builtin",
-    } } },
-  },
+  children: { node: {
+          id: "operations",
+          component: "@dash-bored/card",
+          props: {},
+          children: { node: leaf },
+          source: "builtin"
+      } },
   source: "builtin",
 };
 

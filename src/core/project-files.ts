@@ -165,22 +165,16 @@ function formatDotenvValue(value: string): string {
 
 function defaultConfig(bundleNameSource: string, environmentPath: string): DashboardConfig {
   const projectName = basename(bundleNameSource) || "Project";
-  const child = (node: ComponentNode): ComponentChildLayout => ({
-    type: "child",
-    child: { node },
-  });
+  const child = (node: ComponentNode): ComponentChildLayout => ({ node });
   const vertical = (nodes: ComponentNode[]): ComponentChildLayout => {
     if (nodes.length === 1) return child(nodes[0]!);
     const middle = Math.ceil(nodes.length / 2);
     return {
-      type: "split",
       axis: "vertical",
-      ratio: middle / nodes.length,
       first: vertical(nodes.slice(0, middle)),
       second: vertical(nodes.slice(middle)),
     };
   };
-  const tiled = (layout: ComponentChildLayout) => ({ type: "tiled" as const, layout });
   const conditional = (id: string, command: string, node: ComponentNode): ComponentNode => ({
     id,
     component: "@dash-bored/conditional",
@@ -189,7 +183,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       invert: true,
       pollIntervalMs: 2_000,
     },
-    children: tiled(child(node)),
+    children: child(node),
   });
   const howItWorks: ComponentNode = {
     id: "how-it-works",
@@ -198,12 +192,12 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       title: "How it works",
       description: "A small YAML tree becomes your project cockpit.",
     },
-    children: tiled(child({
+    children: child({
       component: "@dash-bored/markdown",
       props: {
         content: "1. Compose generic components in `.dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
       },
-    })),
+    }),
   };
   const waysToChange: ComponentNode = {
     id: "ways-to-change",
@@ -212,12 +206,12 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       title: "Ways to change it",
       description: "Four paths into the same YAML.",
     },
-    children: tiled(child({
+    children: child({
       component: "@dash-bored/markdown",
       props: {
         content: "**Components flyout** — arrange components and fill in their props visually  \n**Edit component** — open any panel's menu to edit its declared props  \n**Command-K palette** — focus any node, start or stop processes, run component actions  \n**Change with agent** — describe a change in words and let your CLI agent edit the YAML\n",
       },
-    })),
+    }),
   };
   const demonstration: ComponentNode = {
     id: "demonstration",
@@ -226,7 +220,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       title: "See it work",
       description: "Live components that need no setup and no trust.",
     },
-    children: tiled(vertical([
+    children: vertical([
       {
         component: "@dash-bored/markdown",
         props: {
@@ -236,8 +230,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       {
         id: "demo-live-panels",
         component: "@dash-bored/group",
-        children: tiled({
-          type: "split",
+        children: {
           axis: "horizontal",
           ratio: 0.4,
           first: child({
@@ -259,7 +252,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
               series: [{ label: "Example checks", values: [3, 5, 4, 6, 8] }],
             },
           }),
-        }),
+        },
       },
       {
         id: "demo-todos",
@@ -272,7 +265,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
           ],
         },
       },
-    ])),
+    ]),
   };
   const agentSetupChildren: ComponentNode[] = [
     {
@@ -338,13 +331,11 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     {
       id: "concepts",
       component: "@dash-bored/group",
-      children: tiled({
-        type: "split",
+      children: {
         axis: "horizontal",
-        ratio: 0.5,
         first: child(howItWorks),
         second: child(waysToChange),
-      }),
+      },
     },
     demonstration,
     {
@@ -354,16 +345,16 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
         title: "Make it yours",
         description: "Hand the repetitive setup work to your CLI coding agent.",
       },
-      children: tiled(vertical(agentSetupChildren)),
+      children: vertical(agentSetupChildren),
     },
   ];
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     name: projectName,
     icon: "./assets/icon.svg",
     root: {
       component: "@dash-bored/group",
-      children: tiled(vertical(rootNodes)),
+      children: vertical(rootNodes),
     },
   };
 }

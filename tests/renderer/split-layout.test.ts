@@ -14,10 +14,7 @@ import {
 } from "../../src/renderer/render/split-layout";
 
 function leaf(id: string): ComponentChildLayout<ResolvedComponentNode> {
-  return {
-    type: "child",
-    child: { node: { id, component: "@dash-bored/markdown", props: {}, source: "builtin" } },
-  };
+  return { node: { id, component: "@dash-bored/markdown", props: {}, source: "builtin" } };
 }
 
 function tree(): ResolvedComponentNode {
@@ -27,20 +24,14 @@ function tree(): ResolvedComponentNode {
     props: {},
     source: "builtin",
     children: {
-      type: "tiled",
-      layout: {
-        type: "split",
         axis: "horizontal",
         ratio: 0.4,
         first: leaf("first"),
         second: {
-          type: "split",
-          axis: "vertical",
-          ratio: 0.6,
-          first: leaf("top"),
-          second: leaf("bottom"),
-        },
-      },
+            axis: "vertical",
+            first: leaf("top"),
+            second: leaf("bottom")
+        }
     },
   };
 }
@@ -96,6 +87,28 @@ describe("core tiled split sizing", () => {
     expect(effectiveSplitRatio(0.45, { ratio: 0.7, defaultRatio: 0.4 })).toBe(0.45);
   });
 
+  test("omitted horizontal ratios preserve overrides saved against equal widths", () => {
+    const implicitDefault = tree();
+    if (!implicitDefault.children || Array.isArray(implicitDefault.children) || !("axis" in implicitDefault.children)) {
+      throw new Error("expected split");
+    }
+    delete implicitDefault.children.ratio;
+    const explicitDefault = structuredClone(implicitDefault);
+    if (!explicitDefault.children || Array.isArray(explicitDefault.children) || !("axis" in explicitDefault.children) || explicitDefault.children.axis !== "horizontal") {
+      throw new Error("expected horizontal split");
+    }
+    explicitDefault.children.ratio = 0.5;
+    const overrides = { "root:root": { ratio: 0.7, defaultRatio: 0.5 } };
+
+    for (const dashboard of [implicitDefault, explicitDefault]) {
+      const defaults = collectResizableSplitDefaults(dashboard);
+      expect(defaults).toEqual(new Map([["root:root", 0.5]]));
+      expect(pruneSplitRatioOverrides(overrides, dashboard)).toEqual(overrides);
+      expect(effectiveSplitRatio(defaults.get("root:root")!, overrides["root:root"])).toBe(0.7);
+    }
+    expect(layoutStructureKey(implicitDefault.children)).toBe(layoutStructureKey(explicitDefault.children));
+  });
+
   test("keys every nested layout branch independently and prunes stale defaults", () => {
     expect(collectResizableSplitDefaults(tree())).toEqual(new Map([
       ["root:root", 0.4],
@@ -111,27 +124,22 @@ describe("core tiled split sizing", () => {
 
   test("changes the topology key when insertion changes a split branch", () => {
     const original: ComponentChildLayout<ResolvedComponentNode> = {
-      type: "split",
-      axis: "vertical",
-      ratio: 0.5,
-      first: leaf("top"),
-      second: leaf("bottom"),
+        axis: "vertical",
+        first: leaf("top"),
+        second: leaf("bottom")
     };
     const inserted: ComponentChildLayout<ResolvedComponentNode> = {
-      type: "split",
-      axis: "vertical",
-      ratio: 0.5,
-      first: leaf("top"),
-      second: {
-        type: "split",
-        axis: "horizontal",
-        ratio: 0.5,
-        first: leaf("new"),
-        second: leaf("bottom"),
-      },
+        axis: "vertical",
+        first: leaf("top"),
+        second: {
+            axis: "horizontal",
+            ratio: 0.5,
+            first: leaf("new"),
+            second: leaf("bottom")
+        }
     };
     expect(layoutStructureKey(original)).not.toBe(layoutStructureKey(inserted));
-    expect(layoutStructureKey({ ...original, ratio: 0.7 })).toBe(layoutStructureKey(original));
+    expect(layoutStructureKey({ ...original, axis: "horizontal", ratio: 0.7 })).toBe(layoutStructureKey({ ...original, axis: "horizontal", ratio: 0.5 }));
 
     const nestedPanel: ResolvedComponentNode = {
       id: "panel",
@@ -149,23 +157,18 @@ describe("core tiled split sizing", () => {
       },
     };
     const nestedOriginal: ComponentChildLayout<ResolvedComponentNode> = {
-      type: "split",
-      axis: "vertical",
-      ratio: 0.5,
-      first: leaf("top"),
-      second: { type: "child", child: nestedPanelEdge },
+        axis: "vertical",
+        first: leaf("top"),
+        second: nestedPanelEdge
     };
     const nestedInserted: ComponentChildLayout<ResolvedComponentNode> = {
       ...nestedOriginal,
       second: {
-        type: "child",
-        child: {
           ...nestedPanelEdge,
           node: {
-            ...nestedPanel,
-            children: { type: "managed", items: [nestedChildEdge] },
-          },
-        },
+              ...nestedPanel,
+              children: [nestedChildEdge]
+          }
       },
     };
     expect(layoutStructureKey(nestedOriginal)).not.toBe(layoutStructureKey(nestedInserted));

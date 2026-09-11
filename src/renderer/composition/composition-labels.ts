@@ -66,9 +66,9 @@ export function contextualInsertionLabel(
   const parentLabel = configuredNodeLabel(parent, catalog);
   if (!parent.children) return `Add inside ${parentLabel}`;
   if (placement.type === "managed") {
-    if (parent.children.type !== "managed") return compositionTargetLabel(target);
-    const before = parent.children.items[placement.index - 1];
-    const after = parent.children.items[placement.index];
+    if (!Array.isArray(parent.children)) return compositionTargetLabel(target);
+    const before = parent.children[placement.index - 1];
+    const after = parent.children[placement.index];
     if (!before && after) {
       return `Insert before ${configuredNodeLabel(after.node, catalog, after.metadata)}`;
     }

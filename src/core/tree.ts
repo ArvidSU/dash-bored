@@ -85,16 +85,16 @@ function pathForChild(parent: string, index: number): string {
 
 function childEdges<Node>(children: ComponentChildren<Node> | undefined): ComponentChildEdge<Node>[] {
   if (children === undefined) return [];
-  if (children.type === "managed") return children.items;
+  if (Array.isArray(children)) return children;
   const edges: ComponentChildEdge<Node>[] = [];
   const collect = (layout: ComponentChildLayout<Node>): void => {
-    if (layout.type === "child") edges.push(layout.child);
+    if ("node" in layout) edges.push(layout);
     else {
       collect(layout.first);
       collect(layout.second);
     }
   };
-  collect(children.layout);
+  collect(children);
   return edges;
 }
 
@@ -163,13 +163,10 @@ function mapLayout<Node, Mapped>(
   layout: ComponentChildLayout<Node>,
   mapNode: (node: Node) => Mapped,
 ): ComponentChildLayout<Mapped> {
-  if (layout.type === "child") {
+  if ("node" in layout) {
     return {
-      type: "child",
-      child: {
-        node: mapNode(layout.child.node),
-        ...(layout.child.metadata === undefined ? {} : { metadata: { ...layout.child.metadata } }),
-      },
+      node: mapNode(layout.node),
+      ...(layout.metadata === undefined ? {} : { metadata: { ...layout.metadata } }),
     };
   }
   return {
@@ -183,16 +180,13 @@ function mapChildren<Node, Mapped>(
   children: ComponentChildren<Node>,
   mapNode: (node: Node) => Mapped,
 ): ComponentChildren<Mapped> {
-  if (children.type === "tiled") {
-    return { type: "tiled", layout: mapLayout(children.layout, mapNode) };
+  if (!Array.isArray(children)) {
+    return mapLayout(children, mapNode);
   }
-  return {
-    type: "managed",
-    items: children.items.map((edge) => ({
-      node: mapNode(edge.node),
-      ...(edge.metadata === undefined ? {} : { metadata: { ...edge.metadata } }),
-    })),
-  };
+  return children.map((edge) => ({
+    node: mapNode(edge.node),
+    ...(edge.metadata === undefined ? {} : { metadata: { ...edge.metadata } }),
+  }));
 }
 
 export async function discoverComponentCatalog(
@@ -598,10 +592,7 @@ export async function resolveComponentTree(
         props: node.props ?? {},
         ...(linkedTree
           ? {
-              children: {
-                type: "managed" as const,
-                items: [{ node: linkedTree }],
-              },
+              children: [{ node: linkedTree }],
             }
           : {}),
         source: "config",
@@ -733,12 +724,12 @@ export async function resolveComponentTree(
     if (
       definition !== undefined &&
       configuredChildren !== undefined &&
-      definition.presentation.type !== configuredChildren.type
+      (definition.presentation.type === "managed") !== Array.isArray(configuredChildren)
     ) {
       diagnostics.push(diagnostic({
         code: "COMPONENT_CHILD_PRESENTATION_INVALID",
         message: `${manifest.name} requires ${definition.presentation.type} children.`,
-        path: `${nodePath}.children.type`,
+        path: `${nodePath}.children`,
       }));
     }
     if (definition !== undefined && configuredEdges.length < definition.min) {
@@ -759,13 +750,19 @@ export async function resolveComponentTree(
       }));
     }
 
-    if (configuredChildren?.type === "tiled") {
+    if (configuredChildren !== undefined && !Array.isArray(configuredChildren)) {
       const validateLayout = (layout: ComponentChildLayout, layoutPath: string): void => {
-        if (layout.type === "child") return;
-        if (layout.ratio < 0.1 || layout.ratio > 0.9) {
+        if ("node" in layout) return;
+        if (
+          layout.axis === "vertical" && "ratio" in layout ||
+          layout.axis === "horizontal" && layout.ratio !== undefined &&
+          (!Number.isFinite(layout.ratio) || layout.ratio < 0.1 || layout.ratio > 0.9)
+        ) {
           diagnostics.push(diagnostic({
             code: "COMPONENT_CHILD_RATIO_INVALID",
-            message: "Tiled split ratios must be between 0.1 and 0.9.",
+            message: layout.axis === "vertical"
+              ? "Vertical splits use document flow and cannot declare a ratio."
+              : "Horizontal split ratios must be between 0.1 and 0.9.",
             path: `${layoutPath}.ratio`,
           }));
         }
@@ -783,7 +780,7 @@ export async function resolveComponentTree(
         validateLayout(layout.first, `${layoutPath}.first`);
         validateLayout(layout.second, `${layoutPath}.second`);
       };
-      validateLayout(configuredChildren.layout, `${nodePath}.children.layout`);
+      validateLayout(configuredChildren, `${nodePath}.children`);
     }
 
     for (const [index, edge] of configuredEdges.entries()) {
@@ -828,9 +825,8 @@ export async function resolveComponentTree(
       layout: ComponentChildLayout,
       layoutSourcePath: string,
     ): Promise<ComponentChildLayout<ResolvedComponentNode> | null> => {
-      if (layout.type === "child") {
-        const child = await resolveEdge(layout.child, `${layoutSourcePath}.child`);
-        return child === null ? null : { type: "child", child };
+      if ("node" in layout) {
+        return resolveEdge(layout, layoutSourcePath);
       }
       const [first, second] = await Promise.all([
         resolveLayout(layout.first, `${layoutSourcePath}.first`),
@@ -838,32 +834,27 @@ export async function resolveComponentTree(
       ]);
       if (first === null || second === null) return null;
       return {
-        type: "split",
-        axis: layout.axis,
-        ratio: layout.ratio,
+        ...layout,
         first,
         second,
       };
     };
 
     let resolvedChildren: ComponentChildren<ResolvedComponentNode> | undefined;
-    if (configuredChildren?.type === "managed") {
+    if (Array.isArray(configuredChildren)) {
       const items = await Promise.all(
-        configuredChildren.items.map((edge, index) =>
-          resolveEdge(edge, `${sourcePath}.children.items[${index}]`)),
+        configuredChildren.map((edge, index) =>
+          resolveEdge(edge, `${sourcePath}.children[${index}]`)),
       );
-      resolvedChildren = {
-        type: "managed",
-        items: items.filter(
-          (edge): edge is ComponentChildEdge<ResolvedComponentNode> => edge !== null,
-        ),
-      };
-    } else if (configuredChildren?.type === "tiled") {
+      resolvedChildren = items.filter(
+        (edge): edge is ComponentChildEdge<ResolvedComponentNode> => edge !== null,
+      );
+    } else if (configuredChildren !== undefined) {
       const layout = await resolveLayout(
-        configuredChildren.layout,
-        `${sourcePath}.children.layout`,
+        configuredChildren,
+        `${sourcePath}.children`,
       );
-      if (layout !== null) resolvedChildren = { type: "tiled", layout };
+      if (layout !== null) resolvedChildren = layout;
     }
 
     visiting.delete(node);

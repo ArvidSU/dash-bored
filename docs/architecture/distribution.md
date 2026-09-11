@@ -130,9 +130,12 @@ available if native preparation or replacement fails.
 
 ## Migration and agent verification
 
-The first updater-capable release has contract 2 and no historical recipes.
-Subsequent contract changes must update the embedded cumulative recipes and
-minimum supported contract together with the actual schema implementation.
+The current dashboard contract is 3, with minimum migratable contract 2.
+The embedded v2-to-v3 recipe removes topology wrappers and redundant ratios,
+preserving component nodes, edge metadata, binary grouping, and explicit
+horizontal widths. Component manifests remain at version 2. Subsequent
+contract changes must update the embedded cumulative recipes and minimum
+supported contract together with the actual schema implementation.
 Unknown/older unsupported schemas stay diagnosable even when the dashboard
 cannot load. Migration dispatch requires the target executable and its exact
 embedded recipes, existing project trust, a matching CLI, a recoverable copy of

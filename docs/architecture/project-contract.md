@@ -87,65 +87,52 @@ dashboard nor adds a reference to the new bundle.
 `dash-bored.yaml` has one recursive root node:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
 name: Example project
 icon: ./assets/icon.svg
 root:
   id: project-layout
   component: "@dash-bored/group"
   children:
-    type: tiled
-    layout:
-      type: split
-      axis: horizontal
-      ratio: 0.4
-      first:
-        type: child
-        child:
+    axis: horizontal
+    ratio: 0.4
+    first:
+      node:
+        id: welcome
+        component: "@dash-bored/markdown"
+        props:
+          content: "# Example project"
+    second:
+      node:
+        id: agent-setup
+        component: "@dash-bored/card"
+        props:
+          title: Agent setup
+        children:
           node:
-            id: welcome
-            component: "@dash-bored/markdown"
+            id: show-install-dash-bored-skill
+            component: "@dash-bored/conditional"
             props:
-              content: "# Example project"
-      second:
-        type: child
-        child:
-          node:
-            id: agent-setup
-            component: "@dash-bored/card"
-            props:
-              title: Agent setup
+              command: 'test -f ".agents/skills/dash-bored/SKILL.md"'
+              invert: true
             children:
-              type: tiled
-              layout:
-                type: child
-                child:
-                  node:
-                    id: show-install-dash-bored-skill
-                    component: "@dash-bored/conditional"
-                    props:
-                      command: 'test -f ".agents/skills/dash-bored/SKILL.md"'
-                      invert: true
-                    children:
-                      type: tiled
-                      layout:
-                        type: child
-                        child:
-                          node:
-                            id: install-dash-bored-skill
-                            component: "@dash-bored/command"
-                            props:
-                              label: Install the portable skill
-                              command: 'dash-bored install-skill .'
+              node:
+                id: install-dash-bored-skill
+                component: "@dash-bored/command"
+                props:
+                  label: Install the portable skill
+                  command: 'dash-bored install-skill .'
 ```
 
 The public configuration types are:
 
 ```ts
 interface DashboardConfig {
-  schemaVersion: 2;
+  schemaVersion: 3;
   name: string;
   icon?: string;
+  theme?: string;
+  themeMode?: "light" | "dark" | "system";
   root: ComponentNode;
 }
 
@@ -156,9 +143,7 @@ interface ComponentNode {
   children?: ComponentChildren;
 }
 
-type ComponentChildren =
-  | { type: "managed"; items: ComponentChildEdge[] }
-  | { type: "tiled"; layout: ComponentChildLayout };
+type ComponentChildren = ComponentChildLayout | ComponentChildEdge[];
 
 interface ComponentChildEdge {
   node: ComponentNode;
@@ -166,15 +151,30 @@ interface ComponentChildEdge {
 }
 
 type ComponentChildLayout =
-  | { type: "child"; child: ComponentChildEdge }
+  | ComponentChildEdge
   | {
-      type: "split";
-      axis: "horizontal" | "vertical";
-      ratio: number;
+      axis: "horizontal";
+      ratio?: number;
+      first: ComponentChildLayout;
+      second: ComponentChildLayout;
+    }
+  | {
+      axis: "vertical";
+      ratio?: never;
       first: ComponentChildLayout;
       second: ComponentChildLayout;
     };
 ```
+
+A tiled child boundary contains a child edge directly, or a recursive split
+with `axis`, `first`, and `second`. Horizontal `ratio` is optional and defaults
+to `0.5`; vertical topology uses document flow and rejects `ratio`. A managed
+child boundary contains an array of child edges. The manifest still declares
+which presentation it accepts, and validation checks the configured shape
+against that declaration. Component manifests keep schema version 2.
+
+The same representation is used for YAML, drafts, resolved trees, and saved
+configuration. There is no shorthand expansion or alternate topology model.
 
 The root is a component rendered in a core-owned composition tree; it may be a
 single button or display. Tile branches are topology records, not components.

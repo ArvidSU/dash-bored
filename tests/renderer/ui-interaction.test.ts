@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { access } from "node:fs/promises";
 import { chromium, type Browser, type Page } from "playwright-core";
+import type { ComponentNode, ComponentChildLayout } from "../../src/shared/contracts";
 
 let fixtureProcess: ReturnType<typeof Bun.spawn> | null = null;
 let browser: Browser | null = null;
@@ -47,22 +48,13 @@ async function persistedGroupCount(): Promise<number> {
     const host = window.__DASH_BORED_UI_HARNESS_HOST__;
     if (!host) throw new Error("UI harness host is unavailable.");
     const config = await host.getSnapshot().then((snapshot) => snapshot.config);
-    const visit = (node: { id?: string; component: string; children?: unknown }): number => {
-      const children = node.children as {
-        type?: string;
-        items?: Array<{ node: typeof node }>;
-        layout?: { type?: string; child?: { node: typeof node }; first?: unknown; second?: unknown };
-      } | undefined;
-      if (!children) return node.component === "@dash-bored/group" && node.id !== "group" ? 1 : 0;
-      const nested = children.type === "managed"
-        ? (children.items ?? []).reduce((sum, edge) => sum + visit(edge.node), 0)
-        : children.type === "tiled" && children.layout
-          ? (function visitLayout(layout: typeof children.layout): number {
-              if (layout.type === "child" && layout.child) return visit(layout.child.node);
-              return (layout.first ? visitLayout(layout.first as typeof layout) : 0)
-                + (layout.second ? visitLayout(layout.second as typeof layout) : 0);
-            })(children.layout)
-          : 0;
+    const visit = (node: ComponentNode): number => {
+      const visitLayout = (layout: ComponentChildLayout): number =>
+        "node" in layout ? visit(layout.node) : visitLayout(layout.first) + visitLayout(layout.second);
+      const children = node.children;
+      const nested = children === undefined ? 0 : Array.isArray(children)
+        ? children.reduce((sum, edge) => sum + visit(edge.node), 0)
+        : visitLayout(children);
       return (node.component === "@dash-bored/group" && node.id !== "group" ? 1 : 0) + nested;
     };
     return config ? visit(config.root) : 0;
@@ -74,27 +66,18 @@ async function persistedTodoDone(): Promise<boolean | undefined> {
     const host = window.__DASH_BORED_UI_HARNESS_HOST__;
     if (!host) throw new Error("UI harness host is unavailable.");
     const root = (await host.getSnapshot()).config?.root;
-    const visit = (node: { id?: string; props?: { todos?: Array<{ done?: boolean }> }; children?: unknown }): boolean | undefined => {
-      if (node.id === "renderer-proof-todos") return node.props?.todos?.[0]?.done;
-      const children = node.children as {
-        type?: string;
-        items?: Array<{ node: typeof node }>;
-        layout?: { type?: string; child?: { node: typeof node }; first?: unknown; second?: unknown };
-      } | undefined;
-      if (!children) return undefined;
-      if (children.type === "managed") {
-        for (const edge of children.items ?? []) {
-          const found = visit(edge.node);
-          if (found !== undefined) return found;
-        }
-        return undefined;
+    const visit = (node: ComponentNode): boolean | undefined => {
+      if (node.id === "renderer-proof-todos") return (node.props?.todos as Array<{ done?: boolean }> | undefined)?.[0]?.done;
+      const visitLayout = (layout: ComponentChildLayout): boolean | undefined =>
+        "node" in layout ? visit(layout.node) : visitLayout(layout.first) ?? visitLayout(layout.second);
+      const children = node.children;
+      if (children === undefined) return undefined;
+      if (!Array.isArray(children)) return visitLayout(children);
+      for (const edge of children) {
+        const found = visit(edge.node);
+        if (found !== undefined) return found;
       }
-      const visitLayout = (layout: NonNullable<typeof children.layout>): boolean | undefined => {
-        if (layout.type === "child" && layout.child) return visit(layout.child.node);
-        return (layout.first ? visitLayout(layout.first as typeof layout) : undefined)
-          ?? (layout.second ? visitLayout(layout.second as typeof layout) : undefined);
-      };
-      return children.type === "tiled" && children.layout ? visitLayout(children.layout) : undefined;
+      return undefined;
     };
     return root ? visit(root) : undefined;
   });
@@ -1132,7 +1115,7 @@ describe("renderer fixture interactions", () => {
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();
-        await host.saveDashboardConfig({ schemaVersion: 2, name: "Configured project", root: { id: "ready", component: "@dash-bored/status", props: { label: "Project ready", state: "healthy" } } }, snapshot.configRevision!);
+        await host.saveDashboardConfig({ schemaVersion: 3, name: "Configured project", root: { id: "ready", component: "@dash-bored/status", props: { label: "Project ready", state: "healthy" } } }, snapshot.configRevision!);
       });
       expect(await proof.locator(".setup-agent").count()).toBe(0);
       await row.getByText("Working", { exact: true }).waitFor();
@@ -1162,7 +1145,7 @@ describe("renderer fixture interactions", () => {
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();
-        await host.saveDashboardConfig({ schemaVersion: 2, name: "Environment proof", root: { id: "env-proof", component: "@dash-bored/env", props: { path: ".dash-bored/.env" } } }, snapshot.configRevision!);
+        await host.saveDashboardConfig({ schemaVersion: 3, name: "Environment proof", root: { id: "env-proof", component: "@dash-bored/env", props: { path: ".dash-bored/.env" } } }, snapshot.configRevision!);
       });
       const editor = proof.getByRole("region", { name: "Environment editor for .dash-bored/.env", exact: true });
       await editor.locator(".env-editor__effective").getByText("codex exec", { exact: true }).waitFor();
@@ -1223,13 +1206,13 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 2, name: 'UI harness project', root: { id: 'theme-proof', component: '@dash-bored/group', children: { type: 'tiled', layout: { type: 'split', axis: 'vertical', ratio: 0.5,
-        first: { type: 'child', child: { node: { id: 'theme-terminal', component: '@dash-bored/command', props: { label: 'Theme terminal', command: 'echo theme' } } } },
-        second: { type: 'split', axis: 'horizontal', ratio: 0.5,
-          first: { type: 'child', child: { node: { id: 'theme-chart', component: '@dash-bored/chart', props: { title: 'Theme chart', labels: ['One', 'Two'], series: [{ label: 'Series', values: [1, 2] }] } } } },
-          second: { type: 'child', child: { node: { id: 'theme-markdown', component: '@dash-bored/markdown', props: { content: '# Theme preview\n\nReadable text and `code` in both variants.' } } } },
-        },
-      } } } }, snapshot.configRevision!);
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'UI harness project', root: { id: 'theme-proof', component: '@dash-bored/group', children: { axis: 'vertical',
+                  first: { node: { id: 'theme-terminal', component: '@dash-bored/command', props: { label: 'Theme terminal', command: 'echo theme' } } },
+                  second: { axis: 'horizontal', ratio: 0.5,
+                      first: { node: { id: 'theme-chart', component: '@dash-bored/chart', props: { title: 'Theme chart', labels: ['One', 'Two'], series: [{ label: 'Series', values: [1, 2] }] } } },
+                      second: { node: { id: 'theme-markdown', component: '@dash-bored/markdown', props: { content: '# Theme preview\n\nReadable text and `code` in both variants.' } } }
+                  }
+              } } }, snapshot.configRevision!);
       await host.startProcess('theme-terminal');
     });
     await proof.getByRole('button', { name: 'Open terminal', exact: true }).click();
@@ -1335,10 +1318,10 @@ test('focus timer pauses, resumes, completes and starts breaks explicitly', asyn
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 2, name: 'Focus studio', root: {
-        id: 'focus-proof', component: '@dash-bored/focus-timer',
-        props: { title: 'Make something worth shipping', focusMinutes: 1, breakMinutes: 1 },
-      } }, snapshot.configRevision!);
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Focus studio', root: {
+              id: 'focus-proof', component: '@dash-bored/focus-timer',
+              props: { title: 'Make something worth shipping', focusMinutes: 1, breakMinutes: 1 }
+          } }, snapshot.configRevision!);
     });
     const timer = proof.getByRole('region', { name: 'Focus timer', exact: true });
     await timer.getByRole('button', { name: 'Start focus', exact: true }).waitFor();

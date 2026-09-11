@@ -114,7 +114,13 @@ edge, not a special component prop.
 
 YAML is the only source of truth. It recursively describes both the topology
 and component composition; no hidden grid database or parallel coordinate
-model exists. Packaged and project-local components use exactly the same
+model exists. Its structure should express only component nodes, parent-child
+metadata, child order, and the splits needed to arrange them. Omit redundant
+wrapper records and values that have no effect: equal horizontal widths are
+the default, and vertical document flow has no ratio. The saved tree, editor
+draft, and runtime use the same representation.
+
+Packaged and project-local components use exactly the same
 manifest, render, host, children, and capability contract. They differ only by
 provenance and trust: packaged app code is pretrusted, while project code
 requires project trust.

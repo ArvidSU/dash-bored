@@ -15,20 +15,18 @@ id: service-health
 props:
   title: Service health
 children:
-  type: tiled
-  layout:
-    type: child
-    child:
-      node:
-        component: "./components/service-health"
-        props:
-          endpoint: http://127.0.0.1:3000/health
+  node:
+    component: ./components/service-health
+    props:
+      endpoint: http://127.0.0.1:3000/health
 ```
 
 `component` is required. `id` is optional, but it must be explicit and unique
 for stateful or actionable nodes. `props` is validated against the component's
-JSON Schema. Tiled layouts use child leaves or split branches; managed layouts
-use an `items` list. Child entries may carry `metadata` on the parent-child edge.
+JSON Schema. Tiled layouts use a direct `{ node, metadata? }` edge or a split
+branch; managed layouts use an array of those edges. Dashboard files use schema
+version 3; component manifests use schema version 2. Child entries may carry
+`metadata` on the parent-child edge.
 
 ## Transparent child-surface grouping
 
@@ -48,19 +46,15 @@ the child until the condition succeeds:
 component: "@dash-bored/conditional"
 id: show-install-skill
 props:
-  command: 'test -f ".agents/skills/dash-bored/SKILL.md"'
+  command: test -f ".agents/skills/dash-bored/SKILL.md"
   invert: true
 children:
-  type: tiled
-  layout:
-    type: child
-    child:
-      node:
-        component: "@dash-bored/command"
-        id: install-project-skill
-        props:
-          label: Install the project skill
-          command: dash-bored install-skill .
+  node:
+    component: "@dash-bored/command"
+    id: install-project-skill
+    props:
+      label: Install the project skill
+      command: dash-bored install-skill .
 ```
 
 Optional `cwd`, `env`, `timeoutMs`, and `pollIntervalMs` props use the same
@@ -71,25 +65,25 @@ and fails open before trust or if the check fails to run.
 ## Tiled split layouts
 
 Use a core-owned split branch when two child components should share one
-rectangle. Horizontal and vertical splits can be resized directly:
+rectangle. Horizontal splits can be resized directly:
 
 ```yaml
 children:
-  type: tiled
-  layout:
-    type: split
-    axis: horizontal
-    ratio: 0.4
-    first: { type: child, child: { node: ... } }
-    second: { type: child, child: { node: ... } }
+  axis: horizontal
+  first:
+    node: ...
+  second:
+    node: ...
+  ratio: 0.4
 ```
 
-`ratio` is the project default fraction for the first pane and must be between
-`0.1` and `0.9`. The renderer applies shared minimum pane sizes while dragging.
+`ratio` is the optional project default fraction for the first pane and must be
+between `0.1` and `0.9`; omit it for equal widths (`0.5`). The renderer applies
+shared minimum pane sizes while dragging.
 Normal-view resizing is a resettable personal override; editor resizing changes the draft
 and follows Save/Cancel. A narrow split stacks its children according to its own
 container width. Nest horizontal and vertical splits to create tiled layouts;
-vertical splits use the same core resize contract.
+vertical splits use document flow and reject `ratio`.
 
 Local component roots placed in a split should use fluid sizing: avoid fixed
 widths, set `min-width: 0`, and put overflow on an internal scrolling region
@@ -393,7 +387,7 @@ interface ComponentChildHandle {
 For ordinary tabs, use `@dash-bored/tabs`; labels belong on edges:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
 name: Service dashboard
 root:
   component: "@dash-bored/tabs"
@@ -401,23 +395,21 @@ root:
   props:
     defaultTab: 0
   children:
-    type: managed
-    items:
-      - metadata:
-          label: Overview
-        node:
-          component: "@dash-bored/status"
-          id: service-state
-          props:
-            label: Service
-            state: unknown
-      - metadata:
-          label: Tasks
-        node:
-          component: "@dash-bored/todo-list"
-          id: service-tasks
-          props:
-            todos: []
+    - metadata:
+        label: Overview
+      node:
+        component: "@dash-bored/status"
+        id: service-state
+        props:
+          label: Service
+          state: unknown
+    - metadata:
+        label: Tasks
+      node:
+        component: "@dash-bored/todo-list"
+        id: service-tasks
+        props:
+          todos: []
 ```
 
 A custom managed container declares `children.presentation: { type: managed }`
@@ -626,10 +618,10 @@ existing dashboard insert only its `root` node at the intended child edge;
 preserve the rest of the tree.
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
 name: Git overview
 root:
-  component: "./components/git-summary"
+  component: ./components/git-summary
   id: git-summary
   props:
     pollIntervalMs: 10000

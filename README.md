@@ -267,13 +267,13 @@ configuration, lock, or dashboard environment file already exists.
 Set a dashboard-specific sidebar icon directly in its `dash-bored.yaml`:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
 name: Example project
 icon: ../assets/icon.svg
 root:
   component: "@dash-bored/markdown"
   props:
-    content: "Ready"
+    content: Ready
 ```
 
 The icon may be a relative or absolute image path, or an HTTP(S) URL. It is
@@ -352,34 +352,27 @@ named bundles from the same project can be switched independently.
 `.dash-bored/dash-bored.yaml` contains one recursive component node:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
 name: Example project
 root:
+  component: "@dash-bored/group"
   children:
-    type: tiled
-    layout:
-      type: split
-      axis: horizontal
-      ratio: 0.5
-      first:
-        type: child
-        child:
-          node:
-            id: intro
-            component: "@dash-bored/markdown"
-            props:
-              content: |
-                # Development
-                Project controls and status live here.
-      second:
-        type: child
-        child:
-          node:
-            id: api-status
-            component: "@dash-bored/status"
-            props:
-              label: API
-              state: unknown
+    axis: horizontal
+    first:
+      node:
+        id: intro
+        component: "@dash-bored/markdown"
+        props:
+          content: |
+            # Development
+            Project controls and status live here.
+    second:
+      node:
+        id: api-status
+        component: "@dash-bored/status"
+        props:
+          label: API
+          state: unknown
 ```
 
 Each node supports:
@@ -388,9 +381,10 @@ Each node supports:
 - `id`: a tree-unique stable identity; optional for display-only nodes and
   required for stateful/actionable nodes.
 - `props`: data validated by the component's JSON Schema.
-- `children`: either tiled topology (`layout`) or managed items. Tiled leaves
-  wrap a node as `{ type: child, child: { node, metadata? } }`; managed
-  children use `{ type: managed, items: [...] }`.
+- `children`: a tiled child edge `{ node, metadata? }`, a split with `axis`,
+  `first`, and `second`, or an array of edges for managed children such as tabs.
+  Horizontal splits accept an optional `ratio` from `0.1` to `0.9`, defaulting
+  to `0.5`. Vertical splits use document flow and do not accept a ratio.
 
 The `root` is a normal component node. A dashboard may use a layout tree, but
 it may just as well have one command button, status, or project component as
@@ -429,13 +423,12 @@ retaining a checked-in default:
 
 ```yaml
 children:
-  type: tiled
-  layout:
-    type: split
-    axis: horizontal
-    ratio: 0.4
-    first: { type: child, child: { node: ... } }
-    second: { type: child, child: { node: ... } }
+  axis: horizontal
+  first:
+    node: ...
+  second:
+    node: ...
+  ratio: 0.4
 ```
 
 Normal horizontal split drags are a resettable per-user override. Opening the
@@ -789,7 +782,7 @@ Pristine v0.2.2 and v0.2.3 agent skills are recognized by the complete historica
 set and upgraded automatically. Customized or unrecognized legacy skills still
 require moving the old skill directory aside and reinstalling; preserve those
 files for comparison. This does not migrate schema-v1 dashboards. Keep their
-`dash-bored/` directory intact, initialize a new schema-v2 bundle with
+`dash-bored/` directory intact, initialize a new schema-v3 bundle with
 `dash-bored init .`, and ask your agent to recreate the required workflows in
 `.dash-bored/` using the old dashboard as read-only reference. Review and validate
 the new bundle before retiring the original.
@@ -909,7 +902,10 @@ The CLI refuses installation while an app instance is running; use its Updates
 surface or finish work and quit first.
 
 `dash-bored migrate inspect <dashboard>` reads applicable bundled guidance.
-Historical schema v1-to-v2 conversion and unknown schemas are unsupported.
+The bundled v2-to-v3 recipe removes redundant topology wrappers and vertical
+ratios while preserving component content, edge metadata, and binary grouping.
+Component manifests remain at schema version 2. Schema version 1 and unknown
+schemas are unsupported.
 Agents receive the target CLI, diagnostics, cumulative recipes, and a read-only
 skill handoff. Existing customized skills are preserved. Migration requires the
 existing project trust decision; new permissions require review in the app.

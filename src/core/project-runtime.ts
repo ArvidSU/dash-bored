@@ -116,19 +116,19 @@ function visitResolvedChildren(
   visit: (child: ResolvedComponentNode) => void,
 ): void {
   const children = node.children;
-  if (children?.type === "managed") {
-    for (const edge of children.items) visit(edge.node);
+  if (Array.isArray(children)) {
+    for (const edge of children) visit(edge.node);
     return;
   }
-  if (children?.type !== "tiled") return;
-  const visitLayout = (layout: typeof children.layout): void => {
-    if (layout.type === "child") visit(layout.child.node);
+  if (children === undefined) return;
+  const visitLayout = (layout: typeof children): void => {
+    if ("node" in layout) visit(layout.node);
     else {
       visitLayout(layout.first);
       visitLayout(layout.second);
     }
   };
-  visitLayout(children.layout);
+  visitLayout(children);
 }
 
 function cloneSnapshot(snapshot: ProjectSnapshot): ProjectSnapshot {

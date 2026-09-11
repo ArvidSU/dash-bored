@@ -119,7 +119,10 @@ export class DashboardSetupSupervisor {
         else report("valid", diagnostics, "Saved dashboard configuration and local components validate.");
         return;
       }
-      if (repair || this.repairAttempted || diagnostics.some((item) => item.severity === "error" && !REPAIRABLE.test(item.code))) {
+      const unrepairable = diagnostics.some((item) => item.severity === "error"
+        && !REPAIRABLE.test(item.code)
+        && !(task.purpose === "migration" && item.code === "CONFIG_SCHEMA_MIGRATION_REQUIRED"));
+      if (repair || this.repairAttempted || unrepairable) {
         report("failed", diagnostics, repair ? "Configuration errors remain after the single repair attempt." : "Review these diagnostics before running setup again.");
         return;
       }

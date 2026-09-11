@@ -49,7 +49,7 @@ before using Git status/diff; outside Git, compare the files you actually change
 
 ## Compose the dashboard
 
-`dash-bored.yaml` (`schemaVersion: 2`) is the only source of truth: one
+`dash-bored.yaml` (`schemaVersion: 3`) is the only source of truth: one
 recursive root node plus core-owned tiled/managed topology. There is no hidden
 grid database. Give every stateful, actionable, or resource-producing node an
 explicit `id` unique across the tree (omitted IDs derive from the YAML path,
@@ -58,14 +58,15 @@ but anything with state, actions, or a process resource needs a stable one).
 Structure:
 
 - **Tabs per workflow.** `@dash-bored/tabs` is the usual root. It takes
-  managed children (`type: managed`, `items` list); each edge carries the tab
+  managed children (an array of `{ node, metadata? }` edges); each edge carries the tab
   label as `metadata: { label: ... }`. Labels live on the parent-child edge,
   not in component props.
-- **Splits for layout.** Tiled children are leaves or splits with `axis`
-  (`horizontal` | `vertical`), `ratio` (0.1–0.9, the project default
-  first-pane fraction), `first`, and `second`. Nest them for tiled layouts.
-  Never add grid coordinates or size props to components; horizontal/vertical
-  resizing belongs to the core topology.
+- **Splits for layout.** Tiled children are a direct `{ node, metadata? }`
+  edge or a split with `axis` (`horizontal` | `vertical`), `first`, and `second`.
+  Horizontal splits optionally specify `ratio` (0.1–0.9, default 0.5).
+  Vertical splits use document flow and never specify a ratio. Nest splits
+  for tiled layouts. Never add grid coordinates or size props to components;
+  horizontal resizing and visible-surface compression belong to the core.
 - **Cards for framing.** `@dash-bored/card` takes optional `title` and
   `description` plus tiled children. Use it to group one workflow panel.
 - **`@dash-bored/group`** is only a transparent component boundary that

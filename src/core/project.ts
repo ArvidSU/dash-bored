@@ -112,17 +112,17 @@ async function buildProjectDefinition(
           });
         }
         const children = node.children;
-        if (children?.type === "managed") {
-          for (const edge of children.items) visitConfigLinks(edge.node);
-        } else if (children?.type === "tiled") {
-          const visitLayout = (layout: typeof children.layout): void => {
-            if (layout.type === "child") visitConfigLinks(layout.child.node);
+        if (Array.isArray(children)) {
+          for (const edge of children) visitConfigLinks(edge.node);
+        } else if (children !== undefined) {
+          const visitLayout = (layout: typeof children): void => {
+            if ("node" in layout) visitConfigLinks(layout.node);
             else {
               visitLayout(layout.first);
               visitLayout(layout.second);
             }
           };
-          visitLayout(children.layout);
+          visitLayout(children);
         }
       };
       visitConfigLinks(resolvedTree.tree);

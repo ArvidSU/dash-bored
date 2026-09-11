@@ -23,7 +23,7 @@ function axisAtLeaf(
   layout: ComponentChildLayout,
   path: readonly ("first" | "second")[],
 ): "horizontal" | "vertical" | null {
-  if (layout.type === "child") return null;
+  if ("node" in layout) return null;
   const [branch, ...rest] = path;
   if (!branch) return null;
   if (rest.length === 0) return layout.axis;
@@ -56,10 +56,10 @@ export function siblingMoveTarget(
       },
     };
   }
-  if (sourceLocator.type !== "tiled" || targetLocator.type !== "tiled" || parent.children?.type !== "tiled") {
+  if (sourceLocator.type !== "tiled" || targetLocator.type !== "tiled" || (parent.children === undefined || Array.isArray(parent.children))) {
     return null;
   }
-  const axis = axisAtLeaf(parent.children.layout, targetLocator.path);
+  const axis = axisAtLeaf(parent.children, targetLocator.path);
   if (!axis) return null;
   return {
     parentPath: [...parentPath],

@@ -38,53 +38,32 @@ const componentChildEdgeSchema = {
 
 const componentChildLayoutSchema = {
   oneOf: [
+    { $ref: "#/$defs/componentChildEdge" },
     {
       type: "object",
       additionalProperties: false,
-      required: ["type", "child"],
+      required: ["axis", "first", "second"],
       properties: {
-        type: { const: "child" },
-        child: { $ref: "#/$defs/componentChildEdge" },
-      },
-    },
-    {
-      type: "object",
-      additionalProperties: false,
-      required: ["type", "axis", "ratio", "first", "second"],
-      properties: {
-        type: { const: "split" },
         axis: { enum: ["horizontal", "vertical"] },
         ratio: { type: "number", minimum: 0.1, maximum: 0.9 },
         first: { $ref: "#/$defs/componentChildLayout" },
         second: { $ref: "#/$defs/componentChildLayout" },
       },
+      // Share recursive branches: separate axis alternatives with allErrors
+      // would validate each subtree twice at every level.
+      if: { properties: { axis: { const: "vertical" } } },
+      then: { properties: { ratio: false } },
     },
   ],
 } as const;
 
 const componentChildrenSchema = {
   oneOf: [
+    { $ref: "#/$defs/componentChildLayout" },
     {
-      type: "object",
-      additionalProperties: false,
-      required: ["type", "layout"],
-      properties: {
-        type: { const: "tiled" },
-        layout: { $ref: "#/$defs/componentChildLayout" },
-      },
-    },
-    {
-      type: "object",
-      additionalProperties: false,
-      required: ["type", "items"],
-      properties: {
-        type: { const: "managed" },
-        items: {
-          type: "array",
-          maxItems: 256,
-          items: { $ref: "#/$defs/componentChildEdge" },
-        },
-      },
+      type: "array",
+      maxItems: 256,
+      items: { $ref: "#/$defs/componentChildEdge" },
     },
   ],
 } as const;
@@ -94,7 +73,7 @@ const configSchema = {
   additionalProperties: false,
   required: ["schemaVersion", "name", "root"],
   properties: {
-    schemaVersion: { const: 2 },
+    schemaVersion: { const: 3 },
     name: { type: "string", minLength: 1, maxLength: 200 },
     theme: { type: "string", minLength: 1, maxLength: 2048 },
     themeMode: { enum: ["light", "dark", "system"] },
@@ -333,13 +312,27 @@ async function parseTyped<T>(
 }
 
 export async function parseDashboardConfig(file: string): Promise<ParsedYaml<DashboardConfig>> {
-  return parseTyped(file, "CONFIG", validateConfig);
+  const parsed = await readYaml(file);
+  if (parsed.value === null || parsed.diagnostics.length > 0) return { value: null, diagnostics: parsed.diagnostics };
+  const diagnostics = validateDashboardConfigValue(parsed.value, file);
+  return { value: diagnostics.length === 0 ? parsed.value as DashboardConfig : null, diagnostics };
 }
 
 export function validateDashboardConfigValue(
   value: unknown,
   file = "dash-bored.yaml",
 ): Diagnostic[] {
+  if (
+    value !== null && typeof value === "object" &&
+    "schemaVersion" in value && value.schemaVersion === 2
+  ) {
+    return [diagnostic({
+      code: "CONFIG_SCHEMA_MIGRATION_REQUIRED",
+      message: "Dashboard schema version 2 requires migration to version 3. Run `dash-bored migrate inspect <dashboard>` and follow the version-matched migration guidance; component manifests remain at version 2.",
+      file,
+      path: "schemaVersion",
+    })];
+  }
   return validateConfig(value)
     ? []
     : schemaDiagnostics(file, "CONFIG", validateConfig.errors);

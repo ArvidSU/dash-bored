@@ -10,16 +10,16 @@ const temporaryDirectories: string[] = [];
 function configuredNodes(root: any): any[] {
   const nodes = [root];
   const visitLayout = (layout: any): void => {
-    if (layout.type === "child") nodes.push(...configuredNodes(layout.child.node));
+    if ("node" in layout) nodes.push(...configuredNodes(layout.node));
     else {
       visitLayout(layout.first);
       visitLayout(layout.second);
     }
   };
-  if (root.children?.type === "managed") {
-    for (const item of root.children.items) nodes.push(...configuredNodes(item.node));
-  } else if (root.children?.type === "tiled") {
-    visitLayout(root.children.layout);
+  if (Array.isArray(root.children)) {
+    for (const item of root.children) nodes.push(...configuredNodes(item.node));
+  } else if (root.children !== undefined) {
+    visitLayout(root.children);
   }
   return nodes;
 }
@@ -38,18 +38,15 @@ describe("initializeProject", () => {
     const lock = parse(await readFile(result.lockPath, "utf8"));
     const environment = await readFile(result.environmentPath, "utf8");
 
-    expect(config.schemaVersion).toBe(2);
+    expect(config.schemaVersion).toBe(3);
     expect(config.root.component).toBe("@dash-bored/group");
     expect(config.icon).toBe("./assets/icon.svg");
     const nodes = configuredNodes(config.root);
     expect(nodes.find((node) => node.id === "welcome")).toBeDefined();
     const concepts = nodes.find((node) => node.id === "concepts");
     expect(concepts.component).toBe("@dash-bored/group");
-    expect(concepts.children.layout).toMatchObject({
-      type: "split",
-      axis: "horizontal",
-      ratio: 0.5,
-    });
+    expect(concepts.children.axis).toBe("horizontal");
+    expect(concepts.children.ratio).toBeUndefined();
     const demonstration = nodes.find((node) => node.id === "demonstration");
     expect(demonstration.component).toBe("@dash-bored/card");
     const statusDemo = nodes.find((node) => node.id === "status-demo");

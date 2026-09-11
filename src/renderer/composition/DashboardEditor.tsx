@@ -426,11 +426,11 @@ export function DashboardEditor({
     const canAdd = Boolean(definition && (definition.max === undefined || childCount < definition.max));
 
     const renderLayout = (layout: ComponentChildLayout, layoutPath: LayoutBranch[] = []): ReactNode => {
-      if (layout.type === "child") {
+      if ("node" in layout) {
         const childPath = [...path, { type: "tiled" as const, path: layoutPath }];
         return (
-          <div className="editor-tile" key={layout.child.node.id ?? pathKey(childPath)}>
-            {renderNode(layout.child.node, childPath)}
+          <div className="editor-tile" key={layout.node.id ?? pathKey(childPath)}>
+            {renderNode(layout.node, childPath)}
             {canAdd && manifest ? (
               <div className="editor-tile__insertions">
                 {tiledPlacements(manifest, layoutPath).map(({ label, placement }) => (
@@ -461,16 +461,16 @@ export function DashboardEditor({
     };
 
     let childrenPreview: ReactNode = null;
-    if (!isCollapsed && node.children?.type === "tiled") {
-      childrenPreview = renderLayout(node.children.layout);
-    } else if (!isCollapsed && node.children?.type === "managed") {
+    if (!isCollapsed && (node.children !== undefined && !Array.isArray(node.children))) {
+      childrenPreview = renderLayout(node.children);
+    } else if (!isCollapsed && Array.isArray(node.children)) {
       childrenPreview = (
         <div className="editor-managed-children">
           {canAdd ? addButton({
             parentPath: path,
             placement: { type: "managed", index: 0, metadata: manifest ? defaultChildMetadata(manifest, 0) : {} },
           }, "Add child") : null}
-          {node.children.items.map((edge, index) => {
+          {node.children.map((edge, index) => {
             const childPath = [...path, { type: "managed" as const, index }];
             const label = typeof edge.metadata?.label === "string" ? edge.metadata.label : null;
             return (

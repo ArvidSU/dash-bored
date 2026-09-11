@@ -82,28 +82,23 @@ function mapLayout(
   leafIndex: { value: number },
   layoutPath: readonly LayoutBranch[] = [],
 ): ComponentChildLayout<ResolvedComponentNode> {
-  if (layout.type === "child") {
+  if ("node" in layout) {
     const locator: ComponentChildLocator = { type: "tiled", path: [...layoutPath] };
     const index = leafIndex.value++;
     const templateChild = templateForChild(
-      layout.child,
+      layout,
       template,
       locator,
       index,
       resolvedById,
     );
     return {
-      type: "child",
-      child: {
-        node: resolveNode(layout.child.node, templateChild, `${path}.child.node`),
-        ...(layout.child.metadata === undefined ? {} : { metadata: structuredClone(layout.child.metadata) }),
-      },
+      node: resolveNode(layout.node, templateChild, `${path}.node`),
+      ...(layout.metadata === undefined ? {} : { metadata: structuredClone(layout.metadata) }),
     };
   }
   return {
-    type: "split",
-    axis: layout.axis,
-    ratio: layout.ratio,
+    ...layout,
     first: mapLayout(
       layout.first,
       templateChildren,
@@ -138,33 +133,27 @@ function mapChildren(
   ) => ResolvedComponentNode,
   path: string,
 ): ComponentChildren<ResolvedComponentNode> {
-  if (children.type === "managed") {
-    return {
-      type: "managed",
-      items: children.items.map((edge, index) => {
-        const locator: ComponentChildLocator = { type: "managed", index };
-        const templateChild = templateForChild(edge, template, locator, index, resolvedById);
-        return {
-          node: resolveNode(edge.node, templateChild, `${path}.children.items[${index}].node`),
-          ...(edge.metadata === undefined ? {} : { metadata: structuredClone(edge.metadata) }),
-        };
-      }),
-    };
+  if (Array.isArray(children)) {
+    return children.map((edge, index) => {
+      const locator: ComponentChildLocator = { type: "managed", index };
+      const templateChild = templateForChild(edge, template, locator, index, resolvedById);
+      return {
+        node: resolveNode(edge.node, templateChild, `${path}.children[${index}].node`),
+        ...(edge.metadata === undefined ? {} : { metadata: structuredClone(edge.metadata) }),
+      };
+    });
   }
 
   const leafIndex = { value: 0 };
-  return {
-    type: "tiled",
-    layout: mapLayout(
-      children.layout,
-      template?.children,
-      template,
-      resolvedById,
-      resolveNode,
-      `${path}.children.layout`,
-      leafIndex,
-    ),
-  };
+  return mapLayout(
+    children,
+    template?.children,
+    template,
+    resolvedById,
+    resolveNode,
+    `${path}.children`,
+    leafIndex,
+  );
 }
 
 function pathForNode(path: string): string {

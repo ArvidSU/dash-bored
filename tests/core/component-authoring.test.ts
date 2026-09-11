@@ -29,7 +29,7 @@ describe("shipped component authoring examples", () => {
   test("complete dashboard YAML examples resolve and the worked local component compiles", async () => {
     const configs = blocks.filter((block) => block.language === "yaml")
       .map((block) => parse(block.source))
-      .filter((value) => value.schemaVersion === 2 && value.root);
+      .filter((value) => value.schemaVersion === 3 && value.root);
     expect(configs.length).toBeGreaterThan(0);
 
     for (const config of configs) {
@@ -65,7 +65,7 @@ describe("shipped component authoring examples", () => {
         && !JSON.stringify(value).includes("./components/"));
     expect(nodes.length).toBeGreaterThan(0);
     for (const node of nodes) {
-      const root = await exampleProject({ schemaVersion: 2, name: "Authoring example", root: node });
+      const root = await exampleProject({ schemaVersion: 3, name: "Authoring example", root: node });
       const result = await loadProjectDefinition(root, { compile: true });
       expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
       expect(result.ok).toBeTrue();

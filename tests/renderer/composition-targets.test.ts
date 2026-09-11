@@ -72,7 +72,7 @@ function resolved(
 }
 
 function configWithRoot(root: ComponentNode): DashboardConfig {
-  return { schemaVersion: 2, name: "test", root };
+  return { schemaVersion: 3, name: "test", root };
 }
 
 const leafPayload: CompositionDragPayload = { type: "component", reference: LEAF };
@@ -84,27 +84,19 @@ const configA = configWithRoot({
   id: "root",
   component: GROUP,
   children: {
-    type: "tiled",
-    layout: {
-      type: "split",
       axis: "horizontal",
       ratio: 0.5,
-      first: { type: "child", child: { node: { id: "tabs", component: TABS } } },
-      second: { type: "child", child: { node: { id: "leaf", component: LEAF } } },
-    },
+      first: { node: { id: "tabs", component: TABS } },
+      second: { node: { id: "leaf", component: LEAF } }
   },
 });
 const tabsResolved = resolved("tabs", TABS);
 const leafResolved = resolved("leaf", LEAF);
 const rootResolvedA = resolved("root", GROUP, {
-  type: "tiled",
-  layout: {
-    type: "split",
     axis: "horizontal",
     ratio: 0.5,
-    first: { type: "child", child: { node: tabsResolved } },
-    second: { type: "child", child: { node: leafResolved } },
-  },
+    first: { node: tabsResolved },
+    second: { node: leafResolved }
 });
 
 function targetsFor(config: DashboardConfig, previewTree: ResolvedComponentNode) {
@@ -161,12 +153,12 @@ describe("drop-inside container targets", () => {
     const conditionalNode: ComponentNode = {
       id: "conditional",
       component: CONDITIONAL,
-      children: { type: "tiled", layout: { type: "child", child: { node: { id: "only", component: LEAF } } } },
+      children: { node: { id: "only", component: LEAF } },
     };
     const config = configWithRoot({
       id: "root",
       component: GROUP,
-      children: { type: "tiled", layout: { type: "child", child: { node: conditionalNode } } },
+      children: { node: conditionalNode },
     });
     const conditionalResolved = resolved("conditional", CONDITIONAL);
     const targets = targetsFor(config, resolved("root", GROUP));
@@ -181,20 +173,16 @@ describe("drop-inside container targets", () => {
     const tabsWithChild: ComponentNode = {
       id: "tabs",
       component: TABS,
-      children: { type: "managed", items: [{ node: { id: "one", component: LEAF } }] },
+      children: [{ node: { id: "one", component: LEAF } }],
     };
     const config = configWithRoot({
       id: "root",
       component: GROUP,
       children: {
-        type: "tiled",
-        layout: {
-          type: "split",
           axis: "horizontal",
           ratio: 0.5,
-          first: { type: "child", child: { node: tabsWithChild } },
-          second: { type: "child", child: { node: { id: "leaf", component: LEAF } } },
-        },
+          first: { node: tabsWithChild },
+          second: { node: { id: "leaf", component: LEAF } }
       },
     });
     const targets = targetsFor(config, resolved("root", GROUP));
