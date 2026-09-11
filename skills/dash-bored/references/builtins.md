@@ -7,6 +7,23 @@ Generated from `BUILTIN_COMPONENTS` in `src/core/builtins.ts`; this file
 ships inside the dash-bored skill for this version. Types come from each
 component's JSON Schema `propsSchema`.
 
+## @dash-bored/focus-timer
+
+Focus timer — A focused work session and a breathing break, with pause, resume, and explicit session starts. Session state resets on unmount or duration changes.
+
+Props:
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `title` | string | no |  |
+| `focusMinutes` | integer | no | 1–180 |
+| `breakMinutes` | integer | no | 1–60 |
+
+Children: none (leaf component).
+
+Permissions: none.
+
+
 ## @dash-bored/setup-agent
 
 Dashboard setup agent — Runs the configured CLI agent to customize this starter dashboard.

@@ -38,6 +38,18 @@ const chartCommonProperties = {
 const manifests: ComponentManifest[] = [
   {
     schemaVersion: 2,
+    id: "@dash-bored/focus-timer",
+    name: "Focus timer",
+    description: "A focused work session and a breathing break, with pause, resume, and explicit session starts. Session state resets on unmount or duration changes.",
+    entry: "builtin:focus-timer",
+    propsSchema: objectSchema({
+      title: { type: "string" },
+      focusMinutes: { type: "integer", minimum: 1, maximum: 180, default: 25 },
+      breakMinutes: { type: "integer", minimum: 1, maximum: 60, default: 5 },
+    }),
+  },
+  {
+    schemaVersion: 2,
     id: "@dash-bored/setup-agent",
     name: "Dashboard setup agent",
     description: "Runs the configured CLI agent to customize this starter dashboard.",

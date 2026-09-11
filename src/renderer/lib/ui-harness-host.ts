@@ -242,7 +242,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
 }));
 
 catalog.push(...listBuiltinManifests()
-  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart")
+  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer")
   .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
 
 catalog.push({

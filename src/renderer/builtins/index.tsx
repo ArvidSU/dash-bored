@@ -6,6 +6,7 @@ import {
 import type { ReactNode } from "react";
 import type { ComponentRendererProps, PackagedComponent } from "./types";
 
+const LazyFocusTimer = lazy(() => import("./focus-timer"));
 const LazyTabs = lazy(() => import("./tabs"));
 const LazyGroup = lazy(() => import("./group"));
 const LazyConditional = lazy(() => import("./conditional"));
@@ -35,6 +36,7 @@ function lazyBuiltin(
 }
 
 const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.freeze({
+  "@dash-bored/focus-timer": lazyBuiltin(LazyFocusTimer),
   "@dash-bored/group": lazyBuiltin(LazyGroup),
   "@dash-bored/conditional": lazyBuiltin(LazyConditional),
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),

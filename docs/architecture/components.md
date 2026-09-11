@@ -8,6 +8,12 @@ renderer and keep the last valid live result when a refresh fails.
 It also includes `@dash-bored/conditional`, a generic shell-backed visibility
 boundary for keeping setup or recovery actions relevant without special-casing
 their component IDs.
+`@dash-bored/focus-timer` provides permission-free work and break sessions
+(default 25/5 minutes). A wall-clock deadline avoids interval drift, including
+background throttling. Pause retains remaining time; Reset restarts the current
+phase; completion waits for an explicit next-session start. State is local to
+the mounted instance and resets on unmount or duration changes; it does not
+write session state to YAML or issue background notifications.
 Core composition branches are YAML topology and do not appear in the component
 catalog.
 

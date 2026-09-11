@@ -10,6 +10,15 @@ root:
     type: managed
     items:
       - metadata:
+          label: Focus
+        node:
+          id: project-focus-timer
+          component: "@dash-bored/focus-timer"
+          props:
+            title: Make something worth shipping
+            focusMinutes: 25
+            breakMinutes: 5
+      - metadata:
           label: Themes
         node:
           id: theme-reference

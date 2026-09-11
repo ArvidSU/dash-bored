@@ -1325,3 +1325,45 @@ test('updates stay reachable from Settings and expose available channels at desk
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally { await proof.close(); }
 }, 30_000);
+
+test('focus timer pauses, resumes, completes and starts breaks explicitly', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1100, height: 850 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 2, name: 'Focus studio', root: {
+        id: 'focus-proof', component: '@dash-bored/focus-timer',
+        props: { title: 'Make something worth shipping', focusMinutes: 1, breakMinutes: 1 },
+      } }, snapshot.configRevision!);
+    });
+    const timer = proof.getByRole('region', { name: 'Focus timer', exact: true });
+    await timer.getByRole('button', { name: 'Start focus', exact: true }).waitFor();
+    await proof.clock.install();
+    await timer.getByRole('button', { name: 'Start focus', exact: true }).click();
+    await proof.clock.fastForward(10_000);
+    await timer.getByRole('button', { name: 'Pause', exact: true }).click();
+    const paused = await timer.getByRole('timer').innerText();
+    await proof.clock.fastForward(120_000);
+    expect(await timer.getByRole('timer').innerText()).toBe(paused);
+    await timer.getByRole('button', { name: 'Resume', exact: true }).click();
+    await proof.clock.fastForward(60_000);
+    await timer.getByRole('button', { name: 'Start break', exact: true }).waitFor();
+    expect(await timer.getByRole('timer').innerText()).toBe('00:00');
+    expect(await timer.innerText()).toContain('1 focus sessions completed');
+    await proof.clock.fastForward(120_000);
+    expect(await timer.getByRole('timer').innerText()).toBe('00:00');
+    await timer.getByRole('button', { name: 'Start break', exact: true }).click();
+    await proof.clock.fastForward(5_000);
+    await timer.getByRole('button', { name: 'Reset', exact: true }).click();
+    expect(await timer.getByRole('timer').innerText()).toBe('01:00');
+    await timer.getByRole('button', { name: 'Start break', exact: true }).waitFor();
+    await proof.screenshot({ path: '/tmp/dash-bored-focus-desktop.png', fullPage: true });
+    await proof.setViewportSize({ width: 390, height: 844 });
+    expect(await timer.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await proof.screenshot({ path: '/tmp/dash-bored-focus-mobile.png', fullPage: true });
+  } finally { await proof.close(); }
+}, 20_000);
