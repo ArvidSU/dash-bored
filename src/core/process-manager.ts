@@ -11,6 +11,8 @@ export interface ProcessDefinition {
   id: string;
   command: string;
   interactive?: boolean;
+  /** Optional fixed terminal shell for host-owned interactive processes. */
+  interactiveShell?: string[];
   projectRoot?: string;
   /** Owning bundle, independent of the command's working directory. */
   configPath?: string;
@@ -45,6 +47,7 @@ function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
     id: definition.id,
     command: definition.command,
     ...(definition.interactive === true ? { interactive: true } : {}),
+    ...(definition.interactiveShell === undefined ? {} : { interactiveShell: [...definition.interactiveShell] }),
     ...(definition.projectRoot === undefined ? {} : { projectRoot: definition.projectRoot }),
     ...(definition.configPath === undefined ? {} : { configPath: definition.configPath }),
     ...(definition.cwd === undefined ? {} : { cwd: definition.cwd }),
@@ -56,6 +59,7 @@ function definitionKey(definition: ProcessDefinition): string {
   return JSON.stringify({
     command: definition.command,
     interactive: definition.interactive === true,
+    interactiveShell: definition.interactiveShell ?? null,
     projectRoot: definition.projectRoot ?? null,
     configPath: definition.configPath ?? null,
     cwd: definition.cwd ?? null,
@@ -279,9 +283,9 @@ export class ProcessManager {
         processState.definition.env,
       );
       if (processState.definition.interactive) {
-        const shell = process.platform === "win32"
+        const shell = processState.definition.interactiveShell ?? (process.platform === "win32"
           ? ["cmd.exe"]
-          : [process.env.SHELL || "/bin/sh", "-i"];
+          : [process.env.SHELL || "/bin/sh", "-i"]);
         const decoder = new TextDecoder();
         const subprocess = Bun.spawn({
           cmd: shell,

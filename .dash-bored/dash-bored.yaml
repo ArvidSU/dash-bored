@@ -1,8 +1,8 @@
 schemaVersion: 3
 name: Dash Bored
 icon: ../assets/icon.svg
-theme: ./themes/retro-industrial
-themeMode: light
+theme: ./themes/ocean
+themeMode: system
 root:
   id: project-cockpit
   component: "@dash-bored/tabs"
@@ -171,7 +171,7 @@ root:
                                 tags:
                                   - feature
                               - description: Components moveable from tree view
-                                done: false
+                                done: true
                                 tags:
                                   - feature
                               - description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
@@ -198,10 +198,26 @@ root:
                                   - verification
                                   - updates
                               - description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
-                                done: false
+                                done: true
                                 tags:
                                   - verification
                                   - release
+                              - description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
+                                done: false
+                                tags:
+                                  - feature
+                              - description: Agent work modal not showing diff
+                                done: false
+                                tags:
+                                  - bug
+                              - description: Remove Agent work modal redundant "Recent agent output” dropdown
+                                done: false
+                                tags:
+                                  - chore
+                              - description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
+                                done: false
+                                tags:
+                                  - improvement
                   second:
                     node:
                       id: dashboard-lifecycle-card

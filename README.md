@@ -214,6 +214,10 @@ editor shows the effective agent command and its source; a set app setting
 overrides the bundle's `.env` default. Other command variables load from each
 component's owning bundle, with explicit command overrides taking precedence.
 Saving `.env` affects new launches and leaves existing terminals running.
+Desktop launches also recognize conventional user CLI locations, including
+`~/.local/bin`, `~/.bun/bin`, Homebrew, pnpm, and npm locations, so a normal
+Codex CLI installation works without copying a shell PATH. For a custom
+installation directory, configure an absolute dashboard-agent command.
 
 In **Settings → General → Dashboard sidebar**, enable **Start expanded** when
 you want configured dashboard names visible as soon as dash-bored opens. The

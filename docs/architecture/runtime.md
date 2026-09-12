@@ -26,6 +26,14 @@ an embedded agent-skill payload. This is distribution of the first boundary,
 not a fourth runtime authority: CLI validation uses the same core loader, and
 the skill tells agents to discover the live component catalog from that CLI.
 
+Desktop launchers commonly inherit only a system PATH. Before resolving or
+launching dashboard commands, the main process appends conventional user CLI
+locations for the current platform (including user-local, Bun, Cargo, Homebrew,
+pnpm, and npm locations). It does not read or evaluate login-shell files. A
+nonstandard agent installation remains an explicit absolute command in
+application settings. Agent PTYs use a fixed system shell so login-shell hooks
+cannot replace the preflighted environment between validation and execution.
+
 ## Runtime topology
 
 The application pins Electrobun 2.0.1 and uses its Bun main-process mode:

@@ -47,7 +47,7 @@ export function assertAgentAvailable(command: string, env: Record<string, string
   if (!Bun.which(parsed.token, { PATH: env.PATH, cwd })) {
     throw new CoreError(
       "DASHBOARD_AGENT_UNAVAILABLE",
-      `Configured dashboard agent executable “${parsed.token}” was not found. Choose an available command in Settings → General → Dashboard agent.`,
+      `Configured dashboard agent executable “${parsed.token}” was not found on PATH. Install it, or set an absolute command in Settings → General → Dashboard agent.`,
     );
   }
 }

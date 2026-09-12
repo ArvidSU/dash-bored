@@ -186,12 +186,19 @@ export class DashboardAgentHarness {
           ? `${componentAgentInvocation(options.command)}\nexit\n`
           : `exec /bin/sh -c '${componentAgentInvocation(options.command).replaceAll("'", "'\\''")}'`,
         interactive: true,
+        // Do not source an arbitrary login shell: it may replace the PATH that
+        // agent preflight just verified. The agent command itself still runs in
+        // a PTY and retains its literal configured shell syntax.
+        ...(process.platform === "win32" ? {} : { interactiveShell: ["/bin/sh", "-i"] }),
         projectRoot: options.projectRoot,
         env: {
           ...(options.env ?? {}),
           DASH_BORED_AGENT: options.command,
           DASH_BORED_AGENT_PROMPT: prompt,
           DASH_BORED_COMPONENT_PATH: options.componentPath,
+          // POSIX sh may source ENV for an interactive terminal. Keep that
+          // startup hook empty so it cannot replace the preflighted PATH.
+          ...(process.platform === "win32" ? {} : { ENV: "/dev/null", BASH_ENV: "/dev/null" }),
         },
       };
       const task: DashboardAgentTask = {

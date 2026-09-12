@@ -115,7 +115,9 @@ Capability behavior is bounded:
   order: component-declared values, app-published settings when configured,
   inherited process values, then the owning bundle's `.env` defaults. Bundle files are parsed as
   dotenv data; they are never evaluated as shell code or copied into
-  `process.env`. The renderer receives only the allowlisted effective
+  `process.env`. The inherited desktop PATH is normalized with conventional
+  user CLI directories without evaluating shell startup files. The renderer
+  receives only the allowlisted effective
   `DASH_BORED_AGENT` value and its winning source, never arbitrary bundle or
   process secrets.
 - The app-owned Agent work Diff tab runs only a fixed, argument-vector `git diff`

@@ -40,7 +40,7 @@ import { assertAgentAvailable } from "./agent-preflight";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
-import { configureBundledToolEnvironment } from "./tool-environment";
+import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
 import {
   installedCliPath,
   installedSkillPath,
@@ -49,6 +49,7 @@ import {
 } from "./installed-tools";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
 
+configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
 
 const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
