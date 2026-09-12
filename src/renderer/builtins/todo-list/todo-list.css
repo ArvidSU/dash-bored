@@ -1,6 +1,11 @@
 .todo {
   display: grid;
+  min-width: 0;
   gap: 0.8rem;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .todo__header,

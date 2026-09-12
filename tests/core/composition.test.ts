@@ -123,6 +123,40 @@ describe("component child composition", () => {
     expect(valid.ok).toBeTrue();
   });
 
+  test("requires cards to group at least two tiled children", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "One-child card",
+      root: {
+        component: "@dash-bored/card",
+        children: edge({ component: "@dash-bored/markdown", props: { content: "Only child" } }),
+      },
+    });
+
+    const invalid = await inspectProject(root);
+    expect(invalid.diagnostics).toContainEqual(expect.objectContaining({
+      code: "COMPONENT_CHILD_CARDINALITY",
+      message: "Card requires at least 2 children.",
+    }));
+
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Paired card",
+      root: {
+        component: "@dash-bored/card",
+        children: {
+          axis: "vertical",
+          first: edge({ component: "@dash-bored/markdown", props: { content: "First child" } }),
+          second: edge({ component: "@dash-bored/status", props: { label: "Second child", state: "healthy" } }),
+        },
+      },
+    });
+
+    expect((await inspectProject(root)).ok).toBeTrue();
+  });
+
   test("validates manifest cardinality, presentation, and allowed tiled axes", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

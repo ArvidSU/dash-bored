@@ -16,10 +16,7 @@ root:
       first:
         node:
           id: dogfood-runtime-controls-card
-          component: "@dash-bored/card"
-          props:
-            title: Runtime layout controls
-            description: Keep large component trees compact without changing dashboard configuration.
+          component: "@dash-bored/group"
           children:
             node:
               id: dogfood-runtime-controls

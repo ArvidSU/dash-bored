@@ -97,7 +97,7 @@ Props:
 | `title` | string | no |  |
 | `description` | string | no |  |
 
-Children: tiled presentation (axes: `both`), minimum 0.
+Children: tiled presentation (axes: `both`), minimum 2.
 
 Permissions: none.
 

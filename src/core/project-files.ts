@@ -187,31 +187,17 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   });
   const howItWorks: ComponentNode = {
     id: "how-it-works",
-    component: "@dash-bored/card",
+    component: "@dash-bored/markdown",
     props: {
-      title: "How it works",
-      description: "A small YAML tree becomes your project cockpit.",
+      content: "## How it works\n\nA small YAML tree becomes your project cockpit.\n\n1. Compose generic components in `.dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
     },
-    children: child({
-      component: "@dash-bored/markdown",
-      props: {
-        content: "1. Compose generic components in `.dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
-      },
-    }),
   };
   const waysToChange: ComponentNode = {
     id: "ways-to-change",
-    component: "@dash-bored/card",
+    component: "@dash-bored/markdown",
     props: {
-      title: "Ways to change it",
-      description: "Four paths into the same YAML.",
+      content: "## Ways to change it\n\nFour paths into the same YAML.\n\n**Components flyout** — arrange components and fill in their props visually  \n**Edit component** — open any panel's menu to edit its declared props  \n**Command-K palette** — focus any node, start or stop processes, run component actions  \n**Change with agent** — describe a change in words and let your CLI agent edit the YAML\n",
     },
-    children: child({
-      component: "@dash-bored/markdown",
-      props: {
-        content: "**Components flyout** — arrange components and fill in their props visually  \n**Edit component** — open any panel's menu to edit its declared props  \n**Command-K palette** — focus any node, start or stop processes, run component actions  \n**Change with agent** — describe a change in words and let your CLI agent edit the YAML\n",
-      },
-    }),
   };
   const demonstration: ComponentNode = {
     id: "demonstration",

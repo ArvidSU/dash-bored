@@ -105,9 +105,7 @@ root:
     second:
       node:
         id: agent-setup
-        component: "@dash-bored/card"
-        props:
-          title: Agent setup
+        component: "@dash-bored/group"
         children:
           node:
             id: show-install-dash-bored-skill

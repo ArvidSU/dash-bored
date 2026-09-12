@@ -114,7 +114,7 @@ const manifests: ComponentManifest[] = [
     entry: "builtin:card",
     propsSchema: objectSchema({ title: { type: "string" }, description: { type: "string" } }),
     children: {
-      min: 0,
+      min: 2,
       presentation: { type: "tiled", axes: "both" },
     },
   },

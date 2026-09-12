@@ -29,29 +29,110 @@ root:
         children:
           axis: vertical
           first:
-            node:
-              id: overview-intro
-              component: "@dash-bored/markdown"
-              props:
-                content: |
-                  # dash-bored
+            axis: vertical
+            first:
+              node:
+                id: yaml-todo-card
+                component: "@dash-bored/group"
+                children:
+                  node:
+                    id: yaml-todo
+                    component: "@dash-bored/todo-list"
+                    props:
+                      todos:
+                        - description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
+                          done: false
+                          tags:
+                            - tooling
+                        - description: Add a better agent interface with user feedback and control
+                          done: true
+                          tags:
+                            - improvement
+                        - description: Keyboard shortcut editor, in settings, tied in with command pallet actions
+                          done: true
+                          tags:
+                            - feature
+                        - description: Theme and styling as component?
+                          done: true
+                          tags:
+                            - feature
+                        - description: Individually collapsable components in sidebar tree view
+                          done: true
+                          tags:
+                            - feature
+                        - description: Components moveable from tree view
+                          done: true
+                          tags:
+                            - feature
+                        - description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
+                          done: true
+                          tags:
+                            - Improvement
+                        - description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
+                          done: true
+                          tags:
+                            - feature
+                            - component
+                        - description: unify agent work and component library look
+                          done: true
+                          tags:
+                            - improvement
+                        - description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
+                          done: false
+                          tags:
+                            - distribution
+                            - updates
+                        - description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
+                          done: true
+                          tags:
+                            - verification
+                            - updates
+                        - description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
+                          done: true
+                          tags:
+                            - verification
+                            - release
+                        - description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
+                          done: false
+                          tags:
+                            - feature
+                        - description: Agent work modal not showing diff
+                          done: false
+                          tags:
+                            - bug
+                        - description: Remove Agent work modal redundant "Recent agent output” dropdown
+                          done: false
+                          tags:
+                            - chore
+                        - description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
+                          done: false
+                          tags:
+                            - improvement
+                        - description: Drag and dropping component between, or creating new, tabs needs support
+                          done: false
+                          tags:
+                            - chore
+            second:
+              node:
+                id: overview-intro
+                component: "@dash-bored/markdown"
+                props:
+                  content: |
+                    # dash-bored
 
-                  A local-first project cockpit for composing project workflows from
-                  small components. Use this dashboard to run the normal development
-                  loop, inspect the project contract, and exercise the runtime itself.
+                    A local-first project cockpit for composing project workflows from
+                    small components. Use this dashboard to run the normal development
+                    loop, inspect the project contract, and exercise the runtime itself.
 
-                  Press **Command-K** to find app, command, and local-component
-                  actions from one place. You can also search for any dashboard
-                  node and focus it as the temporary dashboard root.
+                    Press **Command-K** to find app, command, and local-component
+                    actions from one place. You can also search for any dashboard
+                    node and focus it as the temporary dashboard root.
           second:
             axis: vertical
             first:
               node:
                 id: command-palette-navigation-card
-                component: "@dash-bored/card"
-                props:
-                  title: Command palette navigation
-                  description: Focus any dashboard node without hunting through nested panels.
+                component: "@dash-bored/group"
                 children:
                   node:
                     id: command-palette-navigation-help
@@ -74,10 +155,7 @@ root:
                     first:
                       node:
                         id: project-pulse-card
-                        component: "@dash-bored/card"
-                        props:
-                          title: Project pulse
-                          description: A project-defined component that reads the local package manifest.
+                        component: "@dash-bored/group"
                         children:
                           node:
                             id: project-pulse
@@ -124,10 +202,7 @@ root:
                 first:
                   node:
                     id: git-branches-card
-                    component: "@dash-bored/card"
-                    props:
-                      title: Git branches
-                      description: Commits unique to each local branch, plus upstream tracking.
+                    component: "@dash-bored/group"
                     children:
                       node:
                         id: git-branches
@@ -136,110 +211,24 @@ root:
                           cwd: .
                           baseBranch: main
                 second:
-                  axis: vertical
-                  first:
-                    node:
-                      id: yaml-todo-card
-                      component: "@dash-bored/card"
-                      props:
-                        title: YAML todo list
-                        description: A small stateful component whose items live with its configuration.
-                      children:
-                        node:
-                          id: yaml-todo
-                          component: "@dash-bored/todo-list"
-                          props:
-                            todos:
-                              - description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
-                                done: false
-                                tags:
-                                  - tooling
-                              - description: Add a better agent interface with user feedback and control
-                                done: true
-                                tags:
-                                  - improvement
-                              - description: Keyboard shortcut editor, in settings, tied in with command pallet actions
-                                done: true
-                                tags:
-                                  - feature
-                              - description: Theme and styling as component?
-                                done: true
-                                tags:
-                                  - feature
-                              - description: Individually collapsable components in sidebar tree view
-                                done: true
-                                tags:
-                                  - feature
-                              - description: Components moveable from tree view
-                                done: true
-                                tags:
-                                  - feature
-                              - description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
-                                done: true
-                                tags:
-                                  - Improvement
-                              - description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
-                                done: true
-                                tags:
-                                  - feature
-                                  - component
-                              - description: unify agent work and component library look
-                                done: true
-                                tags:
-                                  - improvement
-                              - description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
-                                done: false
-                                tags:
-                                  - distribution
-                                  - updates
-                              - description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
-                                done: true
-                                tags:
-                                  - verification
-                                  - updates
-                              - description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
-                                done: true
-                                tags:
-                                  - verification
-                                  - release
-                              - description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
-                                done: false
-                                tags:
-                                  - feature
-                              - description: Agent work modal not showing diff
-                                done: false
-                                tags:
-                                  - bug
-                              - description: Remove Agent work modal redundant "Recent agent output” dropdown
-                                done: false
-                                tags:
-                                  - chore
-                              - description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
-                                done: false
-                                tags:
-                                  - improvement
-                  second:
-                    node:
-                      id: dashboard-lifecycle-card
-                      component: "@dash-bored/card"
-                      props:
-                        title: Dashboard lifecycle
-                        description: Safe registry removal and project-file cleanup.
-                      children:
-                        node:
-                          id: dashboard-lifecycle
-                          component: "@dash-bored/markdown"
-                          props:
-                            content: |
-                              ### Dashboard lifecycle
+                  node:
+                    id: dashboard-lifecycle-card
+                    component: "@dash-bored/group"
+                    children:
+                      node:
+                        id: dashboard-lifecycle
+                        component: "@dash-bored/markdown"
+                        props:
+                          content: |
+                            ### Dashboard lifecycle
 
-                              The expanded sidebar exposes a keyboard-accessible trash action.
-                              Removal only forgets the dashboard by default. Before optional
-                              cleanup, dash-bored previews direct and transitive config links;
-                              incomplete analysis keeps file removal disabled.
+                            The expanded sidebar exposes a keyboard-accessible trash action.
+                            Removal only forgets the dashboard by default. Before optional
+                            cleanup, dash-bored previews direct and transitive config links;
+                            incomplete analysis keeps file removal disabled.
 
-                              If selected, only this project's app-owned `.dash-bored/` directory
-                              moves to the OS Trash. Source project files are never targeted.
+                            If selected, only this project's app-owned `.dash-bored/` directory
+                            moves to the OS Trash. Source project files are never targeted.
     - metadata:
         label: Development
       node:
@@ -317,10 +306,7 @@ root:
               second:
                 node:
                   id: package-scripts-card
-                  component: "@dash-bored/card"
-                  props:
-                    title: Package scripts
-                    description: Every package.json script is available as a button and command-palette action.
+                  component: "@dash-bored/group"
                   children:
                     node:
                       id: package-scripts
@@ -387,10 +373,7 @@ root:
             second:
               node:
                 id: release-workflow-card
-                component: "@dash-bored/card"
-                props:
-                  title: GitHub release workflow
-                  description: The tag-triggered source of truth for draft prerelease publication.
+                component: "@dash-bored/group"
                 children:
                   node:
                     id: release-workflow-markdown

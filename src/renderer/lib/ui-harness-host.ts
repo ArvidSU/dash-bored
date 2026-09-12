@@ -69,7 +69,13 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, [
           title: "Renderer proof",
           description: "This is the real dashboard renderer with an inert fixture host.",
         }, {
-          node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/status"),
+          axis: "vertical",
+          first: {
+            node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/status"),
+          },
+          second: {
+            node: builtin("renderer-proof-detail", { label: "Card composition", state: "healthy", detail: "Cards frame related component groups, not a single component." }, undefined, "@dash-bored/status"),
+          },
         }, "@dash-bored/card"),
       },
       second: {
@@ -78,7 +84,15 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, [
           node: builtin("status", { label: "Renderer fixture", state: "healthy", detail: "Deterministic local snapshot; no desktop bridge." }),
         },
         second: {
-          node: builtin("responsive-card", { title: "Responsive tile", description: "Nested tiled composition must remain legible at narrow widths." }, undefined, "@dash-bored/card"),
+          node: builtin("responsive-card", { title: "Responsive tile", description: "Nested tiled composition must remain legible at narrow widths." }, {
+            axis: "vertical",
+            first: {
+              node: builtin("responsive-card-status", { label: "Responsive surface", state: "healthy", detail: "The tile remains valid with two related children." }, undefined, "@dash-bored/status"),
+            },
+            second: {
+              node: builtin("responsive-card-detail", { label: "Responsive detail", state: "healthy", detail: "Inspect this card at the narrow viewport." }, undefined, "@dash-bored/status"),
+            },
+          }, "@dash-bored/card"),
         },
       },
     }),
@@ -177,7 +191,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
                         },
                       },
                     },
-                  }
+                }
               : name === "conditional"
                 ? {
                     type: "object",
@@ -192,7 +206,8 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
                     },
                     required: ["command"],
                   }
-              : { type: "object", additionalProperties: false },
+                : { type: "object", additionalProperties: false },
+    ...(name === "card" ? { children: { min: 2, presentation: { type: "tiled" as const, axes: "both" as const } } } : {}),
     ...(name === "tabs" ? {
       children: {
         min: 1,

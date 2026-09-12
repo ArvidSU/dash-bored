@@ -10,15 +10,10 @@ defines the local component contract.
 Every dashboard is one recursive node:
 
 ```yaml
-component: "@dash-bored/card"
+component: ./components/service-health
 id: service-health
 props:
-  title: Service health
-children:
-  node:
-    component: ./components/service-health
-    props:
-      endpoint: http://127.0.0.1:3000/health
+  endpoint: http://127.0.0.1:3000/health
 ```
 
 `component` is required. `id` is optional, but it must be explicit and unique

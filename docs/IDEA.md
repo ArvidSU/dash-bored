@@ -105,6 +105,8 @@ grows with any amount of content.
 
 Every ordinary component declares one `children` contract: its minimum and
 maximum child cardinality and the axes on which children may be arranged.
+Cards are reserved for grouping at least two related child components; a
+standalone component renders in its own core-owned frame instead.
 Complex containers may additionally declare managed child presentation and a
 schema for metadata attached to each child. Components receive generic child
 handles, read-only descriptors, and a projected render/visibility interface;

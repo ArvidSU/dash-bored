@@ -68,7 +68,8 @@ Structure:
   for tiled layouts. Never add grid coordinates or size props to components;
   horizontal resizing and visible-surface compression belong to the core.
 - **Cards for framing.** `@dash-bored/card` takes optional `title` and
-  `description` plus tiled children. Use it to group one workflow panel.
+  `description` plus two or more tiled children. Use it to group related
+  workflow panels; let a standalone component render in its own frame.
 - **`@dash-bored/group`** is only a transparent component boundary that
   projects a tiled child surface. It is not a layout engine.
 - **`@dash-bored/conditional`** wraps exactly one tiled child shown while a
