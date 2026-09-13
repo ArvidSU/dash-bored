@@ -144,7 +144,9 @@ against the fixture. It verifies renderer interactions and the in-memory host
 contract (draft, Save, Cancel, rejected drop, and revision conflict), but it is
 still **renderer-only** evidence. It uses `/Applications/Google Chrome.app` by
 default; set `DASH_BORED_BROWSER_EXECUTABLE` when Chrome lives elsewhere.
-It is also included in `bun run test` and therefore both QA commands. No manually
+If Vite exits early or does not answer before the eight-second startup deadline,
+the test reports the child exit status, bounded stdout/stderr, and the last HTTP
+probe instead of only reporting a fixture timeout. It is also included in `bun run test` and therefore both QA commands. No manually
 started fixture server is needed for this test. For manual browser inspection,
 open `/ui-harness.html`; the normal `/` page requires the native host bridge.
 If the manual fixture port is busy, use `DASH_BORED_UI_PORT=5489 bun run ui:fixture`.
