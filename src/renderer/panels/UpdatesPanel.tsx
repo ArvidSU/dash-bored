@@ -27,7 +27,7 @@ export function UpdatesPanel({ draftsOpen = false }: { draftsOpen?: boolean }): 
   return <section className="settings-card updates-panel" aria-label="Updates">
     <h2>Updates</h2>
     <p>dash-bored {state.currentVersion}</p>
-    <label className="props-field"><span>Release channel</span><select aria-label="Release channel" value={state.settings.channel} onChange={e => void act({ type: 'settings', settings: { ...state.settings, channel: e.target.value as 'canary' } })}>
+    <label className="props-field"><span>Release channel</span><select aria-label="Release channel" value={state.settings.channel} onChange={e => void act({ type: 'settings', settings: { ...state.settings, channel: e.target.value as UpdateState['settings']['channel'] } })}>
       {RELEASE_CHANNELS.map(c => <option key={c.id} value={c.id} disabled={!c.available}>{c.label}</option>)}
     </select></label>
     <label className="updates-panel__check"><span><input type="checkbox" checked={state.settings.automaticChecks} onChange={e => void act({ type: 'settings', settings: { ...state.settings, automaticChecks: e.target.checked } })} /> Check at startup and every 24 hours</span></label>

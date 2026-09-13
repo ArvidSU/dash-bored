@@ -94,11 +94,14 @@ archive, native manifest, `dash-bored-release.json`, `MIGRATIONS.md`, and SHA-25
 checksums alongside the verified DMG. No independent signing is claimed.
 
 App and CLI share `~/.config/dash-bored/updates/`. Settings contain the selected
-channel and startup/24-hour check preference. Canary is available; Beta and
-Stable are rejected. Downloads never happen on scheduled checks. A future
-channel-enablement package will publish beta/stable, default new installs to
-stable, and explicitly define transitions for existing canary users without
-silently switching them.
+channel (`stable`, `beta`, or `canary`) and startup/24-hour check preference.
+Stable is the default when the settings file is absent. A packaged installation
+passes its channel while bootstrapping missing settings, so an existing Canary
+installation remains on Canary rather than silently switching. Changing channel
+is an explicit Settings or `update settings --channel ...` action and applies to
+future checks; it never migrates an installation implicitly. Downloads never
+happen on scheduled checks. Release metadata and native manifests must identify
+the same channel, and discovery ignores releases from other channels.
 
 The coordinator serializes mutations with an atomic directory lock. An explicit
 recovery action removes a stale lock only after its recorded owner has exited.

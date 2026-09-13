@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { join, isAbsolute } from "node:path";
 import { APP_VERSION } from "../shared/app-metadata";
-import type { UpdateAction, UpdateReceipt, UpdateState, PublishedRelease } from "../shared/updates";
+import type { ReleaseChannel, UpdateAction, UpdateReceipt, UpdateState, PublishedRelease } from "../shared/updates";
 import { assertReleaseSource, downloadArtifact, hashFile } from "./artifacts";
 import { BUNDLED_MIGRATIONS, compareVersions, discoverRelease, parseReleaseMetadata } from "./releases";
 import { inspectMigration } from "./migrations";
@@ -10,6 +10,7 @@ import { atomicJson, getUpdateSettings, readJson, updateDirectory, validateUpdat
 export interface UpdateCoordinatorOptions {
   directory?: string;
   currentVersion?: string;
+  installedChannel?: ReleaseChannel;
   listDashboards: () => Promise<string[]>;
   fetcher?: typeof fetch;
   /** Host resolves drafts and running work before opening an installer. */
@@ -47,16 +48,17 @@ export class UpdateCoordinator {
     if (receipt && await this.cancelled(receipt)) receipt.cancelled = true;
     const release = this.discovered ?? receipt?.release ?? null;
     const paths = [...new Set([...await this.options.listDashboards(), ...receipt?.selected ?? []])];
-    return { currentVersion: this.current, settings: await getUpdateSettings(this.directory), release, receipt,
+    return { currentVersion: this.current, settings: await getUpdateSettings(this.directory, this.options.installedChannel), release, receipt,
       dashboards: await Promise.all(paths.map(p => inspectMigration(p, release?.metadata ?? BUNDLED_MIGRATIONS))),
       phase: this.phase, message: this.message };
   }
   problem(error: unknown): void { this.report("problem", error instanceof Error ? error.message : String(error)); }
   async check(): Promise<UpdateState> {
-    this.report("checking", "Checking GitHub for published canary releases…");
+    const settings = await getUpdateSettings(this.directory, this.options.installedChannel);
+    this.report("checking", `Checking GitHub for published ${settings.channel} releases…`);
     try {
-      this.discovered = await discoverRelease(this.current, this.options.fetcher);
-      this.report(this.discovered ? "available" : "idle", this.discovered ? `Update available: ${this.discovered.metadata.version}` : "No newer published canary release.");
+      this.discovered = await discoverRelease(this.current, this.options.fetcher, settings.channel);
+      this.report(this.discovered ? "available" : "idle", this.discovered ? `Update available: ${this.discovered.metadata.version}` : `No newer published ${settings.channel} release.`);
     } catch (error) { this.report("problem", String(error)); }
     return this.state();
   }
@@ -79,7 +81,8 @@ export class UpdateCoordinator {
           if (!["update-only", "update-and-migrate"].includes(action.choice)) throw new Error("Choose Update and migrate or Update only explicitly.");
           const previous = await this.receipt();
           if (previous && !['installed', 'failed'].includes(previous.installation) && !await this.cancelled(previous)) throw new Error("An update is already pending. Cancel it before selecting another release.");
-          const release = this.discovered ?? await discoverRelease(this.current, this.options.fetcher);
+          const settings = await getUpdateSettings(this.directory, this.options.installedChannel);
+          const release = this.discovered ?? await discoverRelease(this.current, this.options.fetcher, settings.channel);
           if (!release || compareVersions(release.metadata.version, this.current) <= 0) throw new Error("No newer published update is available.");
           const selected = await this.selected(action.selected);
           if (action.choice === 'update-and-migrate') {

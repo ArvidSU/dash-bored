@@ -897,9 +897,12 @@ built-in theme. Existing settings keep Dark until you choose another mode.
 ### App updates and dashboard migrations
 
 Open **Updates and migrations** in the app, or **Application Settings → Updates**.
-The surface remains available when a dashboard cannot load. Canary is the only
-available channel; Beta and Stable are marked coming later. Startup and 24-hour
-checks can be switched off. Downloads and installation remain explicit actions.
+The surface remains available when a dashboard cannot load. Stable, Beta, and
+Canary are available release channels. New installations use Stable; an existing
+Canary installation keeps Canary when settings are first created. Switching
+channels is explicit in Settings or `dash-bored update settings --channel
+stable|beta|canary`. Startup and 24-hour checks can be switched off. Downloads
+and installation remain explicit actions.
 
 **Update and migrate** records the target release and the dashboards you select.
 After installing and restarting the exact target app, pending migrations continue

@@ -26,14 +26,14 @@ export async function applyVerifiedNativeUpdate(native: NativeUpdater, receipt: 
   const manifestPath = await downloadArtifact(release, 'updater', staging, fetcher);
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   const expected = release.metadata;
-  if (manifest.schemaVersion !== 1 || manifest.identifier !== APP_IDENTIFIER || manifest.channel !== 'canary' || manifest.platform !== 'macos' || manifest.arch !== 'arm64' || manifest.version !== expected.version || manifest.artifact?.file !== expected.archive.file || typeof manifest.hash !== 'string' || !manifest.hash) throw new Error('Native update manifest does not match the selected release. Use the verified DMG.');
+  if (manifest.schemaVersion !== 1 || manifest.identifier !== APP_IDENTIFIER || manifest.channel !== expected.channel || manifest.platform !== 'macos' || manifest.arch !== 'arm64' || manifest.version !== expected.version || manifest.artifact?.file !== expected.archive.file || typeof manifest.hash !== 'string' || !manifest.hash) throw new Error('Native update manifest does not match the selected release. Use the verified DMG.');
   if (await hashFile(archive) !== expected.archive.sha256) throw new Error('Native archive changed after staging.');
   const local = await native.getLocalInfo();
-  if (local.identifier !== APP_IDENTIFIER || local.channel !== 'canary') throw new Error('Native updater is not running in the installed canary app.');
+  if (local.identifier !== APP_IDENTIFIER || local.channel !== expected.channel) throw new Error(`Native updater is not running in the installed ${expected.channel} app.`);
   const previousBase = local.baseUrl;
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch(request) {
     const path = new URL(request.url).pathname;
-    if (path === '/canary-macos-arm64-update.json') return new Response(Bun.file(manifestPath));
+    if (path === `/${expected.channel}-macos-arm64-update.json`) return new Response(Bun.file(manifestPath));
     if (path === `/${expected.archive.file}`) return new Response(Bun.file(archive));
     return new Response('Not found', { status: 404 });
   } });

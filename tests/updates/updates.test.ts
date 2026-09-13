@@ -43,7 +43,7 @@ describe('release identity and discovery', () => {
   test('semver ordering and drafts/older releases', async () => {
     expect(compareVersions('1.0.0-beta.10', '1.0.0-beta.2')).toBeGreaterThan(0);
     expect(compareVersions('1.0.0', '1.0.0-beta.10')).toBeGreaterThan(0);
-    expect((await discoverRelease('0.2.6', fetcher()))?.metadata.version).toBe('0.3.0');
+    expect((await discoverRelease('0.2.6', fetcher(), 'canary'))?.metadata.version).toBe('0.3.0');
     expect(await discoverRelease('0.3.0', fetcher())).toBeNull();
   });
   test('offline check is recoverable and does not destroy pending authorization', async () => {
@@ -52,7 +52,9 @@ describe('release identity and discovery', () => {
     expect((await c.check()).phase).toBe('problem'); expect((await c.receipt())?.choice).toBe('update-and-migrate');
   });
   test('malformed metadata fails closed', () => {
-    expect(() => parseReleaseMetadata({ ...metadata(), channel: 'stable' })).toThrow();
+    expect(parseReleaseMetadata({ ...metadata(), channel: 'stable', updater: { file: 'stable-macos-arm64-update.json', sha256: sha('manifest') } }).channel).toBe('stable');
+    expect(parseReleaseMetadata({ ...metadata(), channel: 'beta', updater: { file: 'beta-macos-arm64-update.json', sha256: sha('manifest') } }).channel).toBe('beta');
+    expect(() => parseReleaseMetadata({ ...metadata(), channel: 'unknown' })).toThrow();
     expect(() => parseReleaseMetadata({ ...metadata(), archive: { file: '../bad', sha256: sha('') } })).toThrow();
     expect(() => parseReleaseMetadata({ ...metadata('0.3.0', true), recipes: [] })).toThrow('Missing');
     expect(() => parseReleaseMetadata({ ...metadata('0.3.0', true), recipes: [metadata('0.3.0', true).recipes[0], metadata('0.3.0', true).recipes[0]] })).toThrow();
@@ -62,9 +64,11 @@ describe('release identity and discovery', () => {
     await expect(readFile(join(dir, 'app.dmg'))).rejects.toThrow();
   });
   test('channels and check preference are shared, persisted, and strict', async () => {
-    const { dir } = await fixture(); expect(await getUpdateSettings(dir)).toEqual({ channel: 'canary', automaticChecks: true });
+    const { dir } = await fixture(); expect(await getUpdateSettings(dir)).toEqual({ channel: 'stable', automaticChecks: true });
     const settings = validateUpdateSettings({ channel: 'canary', automaticChecks: false }); await atomicJson(join(dir, 'settings.json'), settings);
-    expect((await getUpdateSettings(dir)).automaticChecks).toBe(false); expect(() => validateUpdateSettings({ channel: 'beta', automaticChecks: true })).toThrow('Only Canary');
+    expect((await getUpdateSettings(dir)).automaticChecks).toBe(false);
+    expect(validateUpdateSettings({ channel: 'beta', automaticChecks: true }).channel).toBe('beta');
+    expect(await getUpdateSettings(join(dir, 'legacy'), 'canary')).toEqual({ channel: 'canary', automaticChecks: true });
   });
 });
 describe('migration detection and durable journey', () => {

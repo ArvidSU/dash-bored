@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { UpdateSettings } from "../shared/updates";
+import type { ReleaseChannel, UpdateSettings } from "../shared/updates";
 
 /** Shared by all release app/CLI entrypoints; never inside a replaced bundle. */
 export function updateDirectory(): string { return join(homedir(), ".config", "dash-bored", "updates"); }
@@ -18,13 +18,14 @@ export async function atomicJson(path: string, value: unknown): Promise<void> {
 }
 export function validateUpdateSettings(value: unknown): UpdateSettings {
   const s = value as UpdateSettings;
-  if (!s || s.channel !== "canary") throw new Error("Only Canary is available. Beta and Stable are coming later.");
+  if (!s || !["canary", "beta", "stable"].includes(s.channel)) throw new Error("Release channel must be Canary, Beta, or Stable.");
   if (typeof s.automaticChecks !== "boolean") throw new Error("automaticChecks must be true or false.");
-  return { channel: "canary", automaticChecks: s.automaticChecks };
+  return { channel: s.channel, automaticChecks: s.automaticChecks };
 }
-export async function getUpdateSettings(directory: string): Promise<UpdateSettings> {
+/** Existing packaged channels are passed by callers so legacy Canary users do not silently switch. */
+export async function getUpdateSettings(directory: string, installedChannel: ReleaseChannel = "stable"): Promise<UpdateSettings> {
   const saved = await readJson(join(directory, "settings.json"));
-  return saved === null ? { channel: "canary", automaticChecks: true } : validateUpdateSettings(saved);
+  return saved === null ? { channel: installedChannel, automaticChecks: true } : validateUpdateSettings(saved);
 }
 
 /** Atomic cross-process lock; stale locks require explicit recovery, never a guessed timeout. */

@@ -1,10 +1,11 @@
 /** Versioned public release contract. Compatibility identifiers never follow display names. */
 export const RELEASE_CHANNELS = [
+  { id: "stable", label: "Stable", available: true },
+  { id: "beta", label: "Beta", available: true },
   { id: "canary", label: "Canary", available: true },
-  { id: "beta", label: "Beta — coming later", available: false },
-  { id: "stable", label: "Stable — coming later", available: false },
 ] as const;
-export interface UpdateSettings { channel: "canary"; automaticChecks: boolean }
+export type ReleaseChannel = typeof RELEASE_CHANNELS[number]["id"];
+export interface UpdateSettings { channel: ReleaseChannel; automaticChecks: boolean }
 export interface MigrationRecipe {
   id: string;
   from: number;
@@ -16,7 +17,7 @@ export interface ReleaseMetadata {
   format: 1;
   product: "dash-bored";
   version: string;
-  channel: "canary";
+  channel: ReleaseChannel;
   platform: "macos";
   arch: "arm64";
   dashboardContract: number;

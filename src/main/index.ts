@@ -309,7 +309,9 @@ const runtime = new ProjectRuntime({
 });
 
 let nativeUpdateApplying = false;
+const localUpdateChannel = await Updater.localInfo.channel();
 const updateCoordinator: UpdateCoordinator = new UpdateCoordinator({
+  installedChannel: (localUpdateChannel === 'canary' || localUpdateChannel === 'beta' ? localUpdateChannel : 'stable') as 'canary' | 'beta' | 'stable',
   listDashboards: async () => [...new Set([...(await projectRegistry.list()).map(p => p.configPath), ...runtime.getSnapshot().configPath ? [runtime.getSnapshot().configPath!] : []])],
   install: async (receipt, method) => {
     if (runtime.getSnapshot().processes.some(p => p.phase === "running" || p.phase === "stopping")
@@ -536,7 +538,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
     requests: {
       getSnapshot: () => withInstalledToolDiagnostics(runtime.getSnapshot()),
       getThemes: () => loadApplicationThemes(),
-      getUpdateState: async () => ({ ...await updateCoordinator.state(), directInstallAvailable: DIRECT_UNSIGNED_UPDATES_VERIFIED && (await Updater.localInfo.channel()) === "canary" }),
+      getUpdateState: async () => ({ ...await updateCoordinator.state(), directInstallAvailable: DIRECT_UNSIGNED_UPDATES_VERIFIED && (await Updater.localInfo.channel()) !== "dev" }),
       updateAction: action => handleUpdateAction(action),
       getAppSettings: () => appSettingsStore.get(),
       updateAppSettings: async (settings) => {
@@ -693,11 +695,11 @@ Electrobun.events.on("before-quit", (event) => {
 
 // Release-only continuation: a development checkout must never consume a user's
 // persisted release authorization or impersonate the installed release host.
-if ((await Updater.localInfo.channel()) === 'canary') {
+if (localUpdateChannel !== 'dev') {
   await atomicJson(join(updateDirectory(), 'app-host.json'), { pid: process.pid });
   updateOperation = updateCoordinator.reconcile().catch(error => updateCoordinator.problem(error)).finally(() => { updateOperation = null; });
   const scheduledCheck = async () => {
-    if ((await getUpdateSettings(updateDirectory())).automaticChecks && !updateOperation) await updateCoordinator.check();
+    if ((await getUpdateSettings(updateDirectory(), (localUpdateChannel === 'canary' || localUpdateChannel === 'beta' ? localUpdateChannel : 'stable'))).automaticChecks && !updateOperation) await updateCoordinator.check();
   };
   void updateOperation.then(scheduledCheck).catch(error => console.error('Update check failed:', error));
   setInterval(() => { void scheduledCheck().catch(error => console.error('Update check failed:', error)); }, 24 * 60 * 60_000);

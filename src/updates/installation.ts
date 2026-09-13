@@ -2,17 +2,17 @@ import { readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { APP_IDENTIFIER } from "../shared/app-metadata";
-import type { UpdateReceipt } from "../shared/updates";
+import type { ReleaseChannel, UpdateReceipt } from "../shared/updates";
 import { readJson } from "./storage";
 
-export function releaseAppDataDirectory(): string { return join(homedir(), 'Library', 'Application Support', APP_IDENTIFIER, 'canary'); }
+export function releaseAppDataDirectory(channel: ReleaseChannel = "stable"): string { return join(homedir(), 'Library', 'Application Support', APP_IDENTIFIER, channel); }
 export async function bundledInstallation(cliPath = process.execPath): Promise<{ cliPath: string; appPath: string }> {
   const actual = await realpath(cliPath);
   const suffix = '/Contents/Resources/app/tools/dash-bored';
   if (!actual.endsWith(suffix)) throw new Error('This is a source checkout or independently copied CLI. Install the release DMG manually; use its bundled CLI or a managed shell link for unified updates.');
   const appPath = actual.slice(0, -suffix.length);
   const info = JSON.parse(await readFile(join(appPath, 'Contents/Resources/version.json'), 'utf8'));
-  if (info.identifier !== APP_IDENTIFIER || info.channel !== 'canary') throw new Error('Only the installed canary application supports unified updates.');
+  if (info.identifier !== APP_IDENTIFIER || !['canary', 'beta', 'stable'].includes(info.channel)) throw new Error('Only an installed dash-bored release application supports unified updates.');
   return { cliPath: actual, appPath };
 }
 export async function assertNoRunningApp(directory: string): Promise<void> {

@@ -79,7 +79,7 @@ root:
                           tags:
                             - improvement
                         - description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
-                          done: false
+                          done: true
                           tags:
                             - distribution
                             - updates
@@ -538,7 +538,7 @@ root:
                 content: |-
                   ## Updates and migrations
 
-                  Use Application Settings → Updates for release notes, selected dashboard migration, and the verified installer. Canary is available; Beta and Stable are coming later. Downloads are explicit. Save drafts and finish running work before installation.
+                  Use Application Settings → Updates for release notes, selected dashboard migration, and the verified installer. Stable is the default for new installations; Beta, Stable, and Canary are explicit channels. Existing Canary installs stay on Canary until you choose a transition. Downloads are explicit. Save drafts and finish running work before installation.
 
                   The commands below inspect published releases and this dashboard without installing anything.
           second:

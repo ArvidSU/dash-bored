@@ -1286,9 +1286,9 @@ test('updates stay reachable from Settings and expose available channels at desk
     await proof.getByRole('tab', { name: 'Updates', exact: true }).click();
     expect(await proof.getByRole('button', { name: 'Updates and migrations', exact: true }).count()).toBe(0);
     await proof.getByRole('combobox', { name: 'Release channel' }).waitFor();
-    expect(await proof.getByRole('combobox', { name: 'Release channel' }).inputValue()).toBe('canary');
-    expect(await proof.locator('option[value="beta"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);
-    expect(await proof.locator('option[value="stable"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);
+    expect(await proof.getByRole('combobox', { name: 'Release channel' }).inputValue()).toBe('stable');
+    expect(await proof.locator('option[value="beta"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(false);
+    expect(await proof.locator('option[value="stable"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(false);
     await proof.getByRole('button', { name: 'Check for updates', exact: true }).click();
     await proof.getByText('UI fixture: update action received; no installation performed.').waitFor();
     await proof.screenshot({ path: '/tmp/dash-bored-updates-desktop.png', fullPage: true });
