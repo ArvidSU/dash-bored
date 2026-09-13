@@ -10,17 +10,24 @@ These are renderer/app state, never YAML — do not try to configure them:
   starts a draft. Save validates and atomically publishes the owning bundle's
   YAML; Cancel discards it. The per-node Edit dialog edits declared props and
   child metadata through the same boundary.
-- **Presentation state.** Collapse/expand, Focus-as-temporary-root (with
+- **Presentation state.** Collapse/expand, the selected Focus target (with
   breadcrumbs back), runtime split-ratio drags, and surface height caps are
-  per-user, keyed by config path and node ID, persisted locally. They never
-  change YAML. Collapsing unmounts a subtree (stops polling/views) but does
-  not stop a running command process.
+  per-user, keyed by config path and node ID, persisted locally. The target
+  selection never changes YAML. `persistOnFocus: true` is different: it is a
+  portable node composition marker in YAML that retains marked ancestors and
+  direct sibling rails around the focused target. Collapsing unmounts a subtree
+  (stops polling/views) but does not stop a running command process.
 - **Command palette** (`Command/Ctrl+K`) merges app navigation/lifecycle,
   per-node Focus actions, process start/stop derived from declared resources,
   and actions registered by mounted local components. Known actions stay
   searchable while unavailable, with a reason. Users favorite actions and
   assign shortcuts in Settings (General/Actions tabs); favorites sort first
   without bypassing trust or availability.
+- **Action buttons.** `@dash-bored/button` uses `{ name, action }`. Action props
+  may interpolate owning-bundle YAML paths such as
+  `focus:${root.children.first.node}`; validation resolves the path and linked
+  bundle namespace. Buttons, shortcuts, and the palette share execution,
+  confirmation, choices, trust, running locks, and unavailable reasons.
 - **Node menu.** Every rendered node offers Focus, Edit component, Collapse /
   Expand, Copy component path (a YAML locator for agent prompts), and Change
   with agent.

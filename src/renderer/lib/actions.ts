@@ -5,17 +5,21 @@ import type {
   ComponentActionOption,
   ComponentActionSelections,
 } from "../../shared/contracts";
+import { componentActionReference } from "../../shared/action-reference";
 
 const ACTION_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 export interface PaletteAction {
   id: string;
+  /** Stable author-facing alias, when the runtime id is scoped to a mount. */
+  reference?: string;
   label: string;
   description?: string;
   keywords: string[];
   group: string;
   source?: string;
   enabled: boolean;
+  active?: boolean;
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
   choices?: readonly ComponentActionChoice[];
@@ -187,6 +191,7 @@ export class ActionRegistry {
       token,
       action: {
         id,
+        reference: componentActionReference(owner.nodeId, action.id),
         label: action.label.trim(),
         ...(action.description === undefined
           ? {}
@@ -397,9 +402,10 @@ export class ActionExecutor {
         reason: action.disabledReason ?? "This action is unavailable.",
       };
     }
-    if (this.running.has(id)) return { status: "running" };
+    const canonicalId = action.id;
+    if (this.running.has(canonicalId)) return { status: "running" };
 
-    this.running.add(id);
+    this.running.add(canonicalId);
     this.emit();
     try {
       await action.run(selections);
@@ -407,7 +413,7 @@ export class ActionExecutor {
     } catch (error) {
       return { status: "failed", error };
     } finally {
-      this.running.delete(id);
+      this.running.delete(canonicalId);
       this.emit();
     }
   }

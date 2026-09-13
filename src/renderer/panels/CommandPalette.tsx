@@ -104,10 +104,14 @@ export function CommandPalette({
   useEffect(() => {
     if (!open || !initialActionId) return;
     const action = effectiveActions.find((candidate) => candidate.id === initialActionId);
-    if (!action?.enabled || !action.choices?.length) return;
-    setChoiceActionId(action.id);
-    setChoiceIndex(0);
-    setChoices({});
+    if (!action?.enabled) return;
+    if (action.choices?.length) {
+      setChoiceActionId(action.id);
+      setChoiceIndex(0);
+      setChoices({});
+    } else if (action.confirmation) {
+      setConfirmationId(action.id);
+    }
   }, [effectiveActions, initialActionId, open]);
 
   const rankedIds = ranked.map((action) => action.id).join("\u0000");

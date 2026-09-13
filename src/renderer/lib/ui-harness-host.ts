@@ -229,7 +229,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
 }));
 
 catalog.push(...listBuiltinManifests()
-  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer")
+  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer" || manifest.id === "@dash-bored/button")
   .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
 
 catalog.push({
@@ -256,7 +256,16 @@ const hostStabilityComponent: CompiledLocalComponent = {
     export default defineComponent(({ host }) => {
       const [effectRuns, setEffectRuns] = useState(0);
       useEffect(() => { setEffectRuns((runs) => runs + 1); }, [host]);
-      return createElement("p", { "data-testid": "local-host-effect-runs" }, "Host effects " + effectRuns);
+      const [refreshes, setRefreshes] = useState(0);
+      useEffect(() => host.actions.register({
+        id: "refresh",
+        label: "Refresh fixture component",
+        run: () => setRefreshes((count) => count + 1),
+      }), [host]);
+      return createElement("div", {},
+        createElement("p", { "data-testid": "local-host-effect-runs" }, "Host effects " + effectRuns),
+        createElement("p", { "data-testid": "local-host-refreshes" }, "Fixture refreshes " + refreshes),
+      );
     });
   `,
   css: "",
@@ -378,6 +387,7 @@ function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedCompone
     source: (item?.source === "external" ? undefined : item?.source) ?? "builtin",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: path,
+    ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
     ...(item?.manifest ? { manifest: structuredClone(item.manifest) } : {}),
   };
   if (Array.isArray(node.children)) {

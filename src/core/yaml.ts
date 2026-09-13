@@ -23,6 +23,7 @@ const componentNodeSchema: Record<string, unknown> = {
     component: { type: "string", minLength: 1 },
     props: { type: "object" },
     children: { $ref: "#/$defs/componentChildren" },
+    persistOnFocus: { type: "boolean" },
   },
 };
 
@@ -179,7 +180,7 @@ const manifestSchema = {
         type: "object",
         additionalProperties: false,
         required: ["resource"],
-        properties: { resource: { const: "process" } },
+        properties: { resource: { enum: ["process", "action"] } },
       },
     },
     permissions: {

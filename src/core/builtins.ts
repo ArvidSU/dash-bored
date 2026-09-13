@@ -38,6 +38,15 @@ const chartCommonProperties = {
 const manifests: ComponentManifest[] = [
   {
     schemaVersion: 2,
+    id: "@dash-bored/button",
+    name: "Action button",
+    description: "Invokes a command-palette action and reflects its current availability, active state, and progress.",
+    entry: "builtin:button",
+    propsSchema: objectSchema({ name: string, action: string }, ["name", "action"]),
+    references: { action: { resource: "action" } },
+  },
+  {
+    schemaVersion: 2,
     id: "@dash-bored/focus-timer",
     name: "Focus timer",
     description: "A focused work session and a breathing break, with pause, resume, and explicit session starts. Session state resets on unmount or duration changes.",

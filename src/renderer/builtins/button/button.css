@@ -1,0 +1,57 @@
+.action-button {
+  width: 100%;
+  min-width: 0;
+}
+
+.action-button__control {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-weight: 650;
+  gap: 0.65rem;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.68rem 0.9rem;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+  width: 100%;
+}
+
+.action-button__control:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.action-button__control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.action-button__control[data-active] {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-raised));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.action-button__control:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.action-button__spinner {
+  animation: action-button-spin 700ms linear infinite;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  height: 0.8rem;
+  width: 0.8rem;
+}
+
+@keyframes action-button-spin {
+  to { transform: rotate(360deg); }
+}

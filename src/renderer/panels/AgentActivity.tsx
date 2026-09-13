@@ -92,6 +92,20 @@ function agentCommandHost(
       register() {
         return () => undefined;
       },
+      resolve(reference) {
+        return {
+          id: reference,
+          label: "Unavailable action",
+          enabled: false,
+          disabledReason: "Actions are unavailable in agent activity.",
+          running: false,
+          active: false,
+          requiresInteraction: false,
+        };
+      },
+      invoke() {
+        // Agent activity does not expose general application actions.
+      },
     },
     processes,
   };

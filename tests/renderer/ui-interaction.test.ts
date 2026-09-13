@@ -571,8 +571,10 @@ describe("renderer fixture interactions", () => {
     }, { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
 
     await menu.getByRole("menuitem", { name: "Edit component", exact: true }).click();
-    await active.getByRole("heading", { name: "Configure component" }).waitFor();
-    await active.getByRole("dialog", { name: "Configure component" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    const configure = active.getByRole("dialog", { name: "Configure component" });
+    await configure.getByRole("heading", { name: "Configure component" }).waitFor();
+    expect(await configure.getByRole("checkbox", { name: "Keep visible around focused components" }).isChecked()).toBeFalse();
+    await configure.getByRole("button", { name: "Cancel", exact: true }).click();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
@@ -1352,3 +1354,65 @@ test('focus timer pauses, resumes, completes and starts breaks explicitly', asyn
     await proof.screenshot({ path: '/tmp/dash-bored-focus-mobile.png', fullPage: true });
   } finally { await proof.close(); }
 }, 20_000);
+
+test('action buttons compose persistent tab and sidebar navigation at narrow widths', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Action navigation', root: {
+        id: 'shell', component: '@dash-bored/group', persistOnFocus: true, children: {
+          axis: 'vertical',
+          first: { node: {
+            id: 'navigation', component: '@dash-bored/group', persistOnFocus: true, children: {
+              axis: 'horizontal',
+              first: { node: { id: 'focus-todo', component: '@dash-bored/button', props: { name: 'Focus todos', action: 'focus:todo' } } },
+              second: { axis: 'horizontal',
+                first: { node: { id: 'focus-local', component: '@dash-bored/button', props: { name: 'Focus fixture', action: 'focus:local-action' } } },
+                second: { node: { id: 'refresh-local', component: '@dash-bored/button', props: { name: 'Refresh fixture', action: 'component:local-action:refresh' } } },
+              },
+            },
+          } },
+          second: { axis: 'horizontal',
+            first: { node: { id: 'todo', component: '@dash-bored/todo-list', props: { todos: [{ description: 'Persistent navigation proof', done: false, tags: ['focus'] }] } } },
+            second: { node: { id: 'local-action', component: './components/host-stability' } },
+          },
+        },
+      } }, snapshot.configRevision!);
+    });
+
+    const focusTodos = proof.getByRole('button', { name: 'Focus todos', exact: true });
+    const focusFixture = proof.getByRole('button', { name: 'Focus fixture', exact: true });
+    const refresh = proof.getByRole('button', { name: 'Refresh fixture', exact: true });
+    await refresh.waitFor();
+    expect(await refresh.isEnabled()).toBe(true);
+    await focusTodos.click();
+    await proof.waitForFunction(() => document.querySelector<HTMLButtonElement>('.action-button__control[aria-current="page"]')?.textContent?.includes('Focus todos'));
+    expect(await focusTodos.getAttribute('aria-current')).toBe('page');
+    expect(await refresh.isDisabled()).toBe(true);
+    expect(await refresh.getAttribute('title')).toContain('not available');
+
+    await focusFixture.focus();
+    await proof.keyboard.press('Enter');
+    await refresh.waitFor();
+    expect(await refresh.isEnabled()).toBe(true);
+    await refresh.click();
+    await proof.getByText(/refreshes 1/).waitFor();
+
+    const desktopBoxes = await Promise.all([focusTodos, focusFixture, refresh].map((button) => button.boundingBox()));
+    expect(desktopBoxes.every((box) => box !== null)).toBeTrue();
+    expect(Math.max(...desktopBoxes.map((box) => box!.y)) - Math.min(...desktopBoxes.map((box) => box!.y))).toBeLessThan(2);
+    await proof.screenshot({ path: '/tmp/dash-bored-action-buttons-desktop.png', fullPage: true });
+
+    await proof.setViewportSize({ width: 390, height: 844 });
+    await proof.screenshot({ path: '/tmp/dash-bored-action-buttons-narrow.png', fullPage: true });
+    const narrowBoxes = await Promise.all([focusTodos, focusFixture, refresh].map((button) => button.boundingBox()));
+    expect(narrowBoxes[0]!.y).toBeLessThan(narrowBoxes[1]!.y);
+    expect(narrowBoxes[1]!.y).toBeLessThan(narrowBoxes[2]!.y);
+    expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally { await proof.close(); }
+}, 30_000);

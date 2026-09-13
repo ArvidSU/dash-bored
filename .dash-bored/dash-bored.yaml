@@ -26,6 +26,7 @@ root:
       node:
         id: overview
         component: "@dash-bored/group"
+        persistOnFocus: true
         children:
           axis: vertical
           first:
@@ -126,24 +127,39 @@ root:
 
                     Press **Command-K** to find app, command, and local-component
                     actions from one place. You can also search for any dashboard
-                    node and focus it as the temporary dashboard root.
+                    node and focus it while the Overview navigation stays available.
           second:
             axis: vertical
             first:
               node:
                 id: command-palette-navigation-card
                 component: "@dash-bored/group"
+                persistOnFocus: true
                 children:
-                  node:
-                    id: command-palette-navigation-help
-                    component: "@dash-bored/markdown"
-                    props:
-                      content: |
-                        ### Focus any node
-
-                        Open the command palette and search for **Focus** to jump to
-                        a component or return to the full dashboard. The focus is
-                        temporary and does not change the YAML configuration.
+                  axis: horizontal
+                  first:
+                    node:
+                      id: focus-todos-button
+                      component: "@dash-bored/button"
+                      props:
+                        name: Focus todos
+                        action: focus:${root.children[2].node.children.first.first.node.children.node}
+                  second:
+                    axis: horizontal
+                    first:
+                      node:
+                        id: focus-project-pulse-button
+                        component: "@dash-bored/button"
+                        props:
+                          name: Focus project pulse
+                          action: focus:${root.children[2].node.children.second.second.first.node.children.first.node.children.node}
+                    second:
+                      node:
+                        id: refresh-project-pulse-button
+                        component: "@dash-bored/button"
+                        props:
+                          name: Refresh project pulse
+                          action: component:${root.children[2].node.children.second.second.first.node.children.first.node.children.node}:refresh-project-pulse
             second:
               axis: vertical
               first:

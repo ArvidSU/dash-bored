@@ -7,6 +7,22 @@ Generated from `BUILTIN_COMPONENTS` in `src/core/builtins.ts`; this file
 ships inside the dash-bored skill for this version. Types come from each
 component's JSON Schema `propsSchema`.
 
+## @dash-bored/button
+
+Action button — Invokes a command-palette action and reflects its current availability, active state, and progress.
+
+Props:
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | yes | non-empty |
+| `action` | string | yes | non-empty |
+
+Children: none (leaf component).
+
+Permissions: none.
+
+
 ## @dash-bored/focus-timer
 
 Focus timer — A focused work session and a breathing break, with pause, resume, and explicit session starts. Session state resets on unmount or duration changes.

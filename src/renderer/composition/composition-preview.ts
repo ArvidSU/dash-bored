@@ -218,6 +218,7 @@ export function buildCompositionPreviewTree(
       id,
       component: node.component,
       props: structuredClone(node.props ?? {}),
+      ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
       source,
       ...(manifest === undefined ? {} : { manifest: structuredClone(manifest) }),
       sourceConfigPath: sameComponent ? template?.sourceConfigPath ?? configPath : configPath,

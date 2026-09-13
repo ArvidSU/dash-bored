@@ -1,4 +1,4 @@
-import type { ComponentEnvironmentSnapshot, LocalComponentHost, ProcessSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { ComponentEnvironmentSnapshot, LocalComponentHost, ProcessSnapshot, ResolvedComponentAction, ResolvedComponentNode } from "../../shared/contracts";
 import type { ActionRegistry } from "../lib/actions";
 import { ComponentWebviewSurface } from "./ComponentWebviewSurface";
 import { host } from "../lib/rpc-client";
@@ -10,6 +10,10 @@ export function createLocalHost(
   trusted: boolean,
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
   onUpdateProps: (props: Record<string, unknown>) => Promise<void>,
+  actionController: {
+    resolve(reference: string): ResolvedComponentAction;
+    invoke(reference: string): void;
+  },
   environment?: ComponentEnvironmentSnapshot,
 ): LocalComponentHost {
   const permissions = new Set(node.manifest?.permissions ?? []);
@@ -35,6 +39,8 @@ export function createLocalHost(
       register(action) {
         return actionRegistry.register(actionOwner, action);
       },
+      resolve: actionController.resolve,
+      invoke: actionController.invoke,
     },
   };
 

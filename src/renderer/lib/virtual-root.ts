@@ -1,4 +1,8 @@
-import type { ResolvedComponentNode } from "../../shared/contracts";
+import type {
+  ComponentChildLayout,
+  ComponentChildren,
+  ResolvedComponentNode,
+} from "../../shared/contracts";
 import { childNodes } from "./component-children";
 
 export interface VirtualRootCrumb {
@@ -38,12 +42,72 @@ export function findVirtualRootPath(
 export function resolveVirtualRoot(
   root: ResolvedComponentNode,
   requestedNodeId: string | null,
-): { node: ResolvedComponentNode; crumbs: VirtualRootCrumb[] } {
+): {
+  node: ResolvedComponentNode;
+  target: ResolvedComponentNode;
+  crumbs: VirtualRootCrumb[];
+  retainedAncestorIds: readonly string[];
+} {
   const requested = requestedNodeId
     ? findVirtualRootPath(root, requestedNodeId)
     : null;
   const crumbs = requested ?? findVirtualRootPath(root, root.id)!;
-  return { node: crumbs.at(-1)!.node, crumbs };
+  const target = crumbs.at(-1)!.node;
+  if (target.id === root.id) {
+    return { node: root, target, crumbs, retainedAncestorIds: [] };
+  }
+
+  const retainedIndexes = crumbs
+    .slice(0, -1)
+    .map((crumb, index) => crumb.node.persistOnFocus ? index : -1)
+    .filter((index) => index !== -1);
+  let projection = target;
+  for (const index of [...retainedIndexes].reverse()) {
+    const ancestor = crumbs[index]!.node;
+    const directBranch = crumbs[index + 1]!.node;
+    projection = {
+      ...ancestor,
+      ...(ancestor.children === undefined
+        ? {}
+        : { children: projectChildren(ancestor.children, directBranch.id, projection) }),
+    };
+  }
+  return {
+    node: projection,
+    target,
+    crumbs,
+    retainedAncestorIds: retainedIndexes.map((index) => crumbs[index]!.id),
+  };
+}
+
+function projectChildren(
+  children: ComponentChildren<ResolvedComponentNode>,
+  branchNodeId: string,
+  projection: ResolvedComponentNode,
+): ComponentChildren<ResolvedComponentNode> {
+  if (Array.isArray(children)) {
+    return children.flatMap((edge) => {
+      if (edge.node.id === branchNodeId) return [{ ...edge, node: projection }];
+      return edge.node.persistOnFocus ? [edge] : [];
+    });
+  }
+  return projectLayout(children, branchNodeId, projection)!;
+}
+
+function projectLayout(
+  layout: ComponentChildLayout<ResolvedComponentNode>,
+  branchNodeId: string,
+  projection: ResolvedComponentNode,
+): ComponentChildLayout<ResolvedComponentNode> | null {
+  if ("node" in layout) {
+    if (layout.node.id === branchNodeId) return { ...layout, node: projection };
+    return layout.node.persistOnFocus ? layout : null;
+  }
+  const first = projectLayout(layout.first, branchNodeId, projection);
+  const second = projectLayout(layout.second, branchNodeId, projection);
+  if (!first) return second;
+  if (!second) return first;
+  return { ...layout, first, second };
 }
 
 export function virtualRootStorageKey(projectRoot: string): string {

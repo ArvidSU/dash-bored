@@ -298,9 +298,11 @@ Privileged work still flows through the component's declared host APIs.
 
 The application provides the frames, space, and topology in which components
 render. Any component may be the root of a dashboard, including a single
-button or display, and any rendered component may be focused as a temporary
-virtual root. Composition branches are not themselves components, and
-components cannot claim app-level layout or persistence special cases.
+button or display. Focusing a component projects the configured tree around
+that target: explicitly persistent ancestors and sibling navigation rails stay
+visible while unrelated branches disappear. The selected target remains
+per-user presentation state; the explicit persistence markers are portable
+composition intent in YAML. Composition branches are not themselves components.
 
 ## Success Criteria
 

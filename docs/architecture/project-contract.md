@@ -139,6 +139,7 @@ interface ComponentNode {
   component: string;
   props?: Record<string, unknown>;
   children?: ComponentChildren;
+  persistOnFocus?: boolean;
 }
 
 type ComponentChildren = ComponentChildLayout | ComponentChildEdge[];
@@ -170,6 +171,11 @@ to `0.5`; vertical topology uses document flow and rejects `ratio`. A managed
 child boundary contains an array of child edges. The manifest still declares
 which presentation it accepts, and validation checks the configured shape
 against that declaration. Component manifests keep schema version 2.
+Manifest reference declarations accept `resource: process` for provider-node
+IDs and `resource: action` for stable action references. Only action-declared
+props interpolate `${root...}` node paths. Resolution is scoped to the owning
+YAML bundle, then linked-tree namespacing remaps the node-bearing segment of
+focus, process, and component-action IDs.
 
 The same representation is used for YAML, drafts, resolved trees, and saved
 configuration. There is no shorthand expansion or alternate topology model.
@@ -214,6 +220,14 @@ frames, focus, collapse, draft validation, and atomic Save/Cancel persistence.
 A tile branch is composition structure, not a component node. YAML recursively
 stores the topology and component content as the sole source of truth; there
 is no hidden grid database or parallel coordinate store.
+
+`persistOnFocus` is an optional composition marker, defaulting to false. When a
+descendant is focused, marked ancestors remain as the effective parent chain;
+at those retained boundaries, marked direct sibling component edges remain as
+complete navigation subtrees. Unmarked ancestors and siblings are projected
+away. Managed edge order and metadata survive, tiled splits retain their axis
+and ratio when both sides survive, and one-sided splits collapse. The current
+focus target itself remains renderer-owned per-user state and never enters YAML.
 
 An ordinary component manifest declares whether it renders a visible `surface`
 (the default) or is a transparent `layout` boundary, plus exactly one `children`

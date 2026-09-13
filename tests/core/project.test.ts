@@ -223,6 +223,48 @@ describe("project paths and YAML", () => {
 });
 
 describe("tree resolution and local compilation", () => {
+  test("namespaces action path interpolation inside linked bundles", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Base",
+      root: { id: "personal", component: "./arvid" },
+    });
+    const named = join(root, ".dash-bored", "arvid");
+    await mkdir(join(named, "components"), { recursive: true });
+    await Promise.all([
+      writeFile(join(named, "dash-bored.yaml"), stringify({
+        schemaVersion: 3,
+        name: "Arvid",
+        root: {
+          id: "linked-root",
+          component: "@dash-bored/group",
+          children: {
+            axis: "horizontal",
+            first: child({
+              id: "navigate",
+              component: "@dash-bored/button",
+              props: { name: "Focus target", action: "focus:${root.children.second.node}" },
+            }),
+            second: child({
+              id: "target",
+              component: "@dash-bored/status",
+              props: { label: "Target", state: "healthy" },
+            }),
+          },
+        },
+      })),
+      writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
+    ]);
+
+    const result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    const linkedRoot = resolvedChildren(result.tree)[0];
+    expect(resolvedChildren(linkedRoot)[0]?.props.action)
+      .toBe("focus:personal%3A%3Atarget");
+  });
+
   test("renders relative and absolute standalone config links without coupling validation", async () => {
     const root = await temporaryDirectory();
     const external = await temporaryDirectory();

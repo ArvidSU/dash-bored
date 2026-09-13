@@ -22,6 +22,7 @@ import {
   updateChildMetadata,
   updateDashboardMetadata,
   updateNodeProps,
+  updateNodePersistOnFocus,
   updateTiledSplitRatio,
 } from "../../src/renderer/composition/dashboard-editor";
 
@@ -187,6 +188,10 @@ describe("dashboard editor tree operations", () => {
 
     const updated = updateNodeProps(config(), [{ type: "tiled", path: ["second"] }], { content: "Updated" });
     expect(nodePathById(updated.root, "second")).toEqual([{ type: "tiled", path: ["second"] }]);
+    const persistent = updateNodePersistOnFocus(updated, [{ type: "tiled", path: ["second"] }], true);
+    expect((persistent.root.children as { second: { node: ComponentNode } }).second.node.persistOnFocus).toBeTrue();
+    const ordinary = updateNodePersistOnFocus(persistent, [{ type: "tiled", path: ["second"] }], false);
+    expect((ordinary.root.children as { second: { node: ComponentNode } }).second.node.persistOnFocus).toBeUndefined();
 
     const renamed = updateDashboardMetadata(config(), "name", "New dashboard");
     const icon = updateDashboardMetadata(renamed, "icon", " ./icon.svg ");

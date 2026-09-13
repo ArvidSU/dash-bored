@@ -13,6 +13,10 @@ import type {
   ResolvedComponentNode,
 } from "../shared/contracts";
 import { CONFIG_FILE } from "../shared/contracts";
+import {
+  interpolateActionReference,
+  remapActionReferenceNode,
+} from "../shared/action-reference";
 import { getBuiltinManifest, listBuiltinManifests } from "./builtins";
 import { diagnostic, errorMessage } from "./diagnostics";
 import {
@@ -141,9 +145,11 @@ function namespaceLinkedTree(
       ? undefined
       : { ...node.manifest, id: `${prefix}::${node.manifest.id}` };
     const props = { ...node.props };
-    for (const propName of Object.keys(node.manifest?.references ?? {})) {
+    for (const [propName, reference] of Object.entries(node.manifest?.references ?? {})) {
       if (typeof props[propName] === "string") {
-        props[propName] = ids.get(props[propName]) ?? props[propName];
+        props[propName] = reference.resource === "action"
+          ? remapActionReferenceNode(props[propName], (id) => ids.get(id))
+          : ids.get(props[propName]) ?? props[propName];
       }
     }
     return {
@@ -590,6 +596,7 @@ export async function resolveComponentTree(
         id,
         component: node.component,
         props: node.props ?? {},
+        ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
         ...(linkedTree
           ? {
               children: [{ node: linkedTree }],
@@ -863,6 +870,7 @@ export async function resolveComponentTree(
       component: node.component,
       props,
       ...(resolvedChildren === undefined ? {} : { children: resolvedChildren }),
+      ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
       source: node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? "local" : "builtin",
       sourceConfigPath: location.configPath,
       sourcePath,
@@ -885,9 +893,37 @@ export async function resolveComponentTree(
     };
     collect(tree);
 
+    const nodesByBundlePath = new Map<string, ResolvedComponentNode>();
+    for (const node of allNodes) {
+      if (node.sourceConfigPath && node.sourcePath) {
+        nodesByBundlePath.set(JSON.stringify([node.sourceConfigPath, node.sourcePath]), node);
+      }
+    }
+
     for (const node of allNodes) {
       for (const [propName, reference] of Object.entries(node.manifest?.references ?? {})) {
         const targetId = node.props[propName];
+        if (reference.resource === "action") {
+          if (typeof targetId !== "string") {
+            diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_REFERENCE_INVALID",
+              message: `${node.manifest?.name ?? node.component} action reference must be a string.`,
+              path: `${node.id}.props.${propName}`,
+            }));
+            continue;
+          }
+          try {
+            node.props[propName] = interpolateActionReference(targetId, (sourcePath) =>
+              nodesByBundlePath.get(JSON.stringify([node.sourceConfigPath, sourcePath]))?.id);
+          } catch (error) {
+            diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_REFERENCE_INVALID",
+              message: errorMessage(error),
+              path: `${node.id}.props.${propName}`,
+            }));
+          }
+          continue;
+        }
         if (typeof targetId !== "string" || !resourceProviders.get(reference.resource)?.has(targetId)) {
           diagnostics.push(diagnostic({
             code: "COMPONENT_RESOURCE_REFERENCE_UNKNOWN",

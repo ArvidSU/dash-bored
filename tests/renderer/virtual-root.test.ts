@@ -51,6 +51,85 @@ describe("virtual dashboard roots", () => {
     expect(fallback.crumbs.map((crumb) => crumb.id)).toEqual(["root"]);
   });
 
+  test("retains marked ancestors, marked direct siblings, and original breadcrumbs", () => {
+    const navigation: ResolvedComponentNode = {
+      id: "navigation",
+      component: "@dash-bored/group",
+      props: {},
+      persistOnFocus: true,
+      children: { node: { ...leaf, id: "navigation-child" } },
+      source: "builtin",
+    };
+    const discarded: ResolvedComponentNode = { ...leaf, id: "discarded" };
+    const target: ResolvedComponentNode = { ...leaf, id: "target" };
+    const skipped: ResolvedComponentNode = {
+      id: "skipped",
+      component: "@dash-bored/group",
+      props: {},
+      children: { node: target },
+      source: "builtin",
+    };
+    const persistentRoot: ResolvedComponentNode = {
+      ...tree,
+      persistOnFocus: true,
+      children: [
+        { node: navigation, metadata: { tab: "Navigate" } },
+        { node: discarded, metadata: { tab: "Discard" } },
+        { node: skipped, metadata: { tab: "Target" } },
+      ],
+    };
+
+    const focused = resolveVirtualRoot(persistentRoot, "target");
+    expect(focused.target).toBe(target);
+    expect(focused.retainedAncestorIds).toEqual(["root"]);
+    expect(focused.crumbs.map((crumb) => crumb.id)).toEqual(["root", "skipped", "target"]);
+    expect(focused.node.children).toEqual([
+      { node: navigation, metadata: { tab: "Navigate" } },
+      { node: target, metadata: { tab: "Target" } },
+    ]);
+  });
+
+  test("retains nested marked ancestors while skipping unmarked ancestors", () => {
+    const inner = {
+      ...tree,
+      id: "inner",
+      persistOnFocus: true,
+      children: { node: leaf },
+    };
+    const middle = { ...tree, id: "middle", children: { node: inner } };
+    const root = { ...tree, persistOnFocus: true, children: { node: middle } };
+    const focused = resolveVirtualRoot(root, leaf.id);
+    expect(focused.retainedAncestorIds).toEqual(["root", "inner"]);
+    expect(focused.node.id).toBe("root");
+    expect((focused.node.children as { node: ResolvedComponentNode }).node.id).toBe("inner");
+  });
+
+  test("prunes tiled siblings, preserves surviving split metadata, and collapses one-sided splits", () => {
+    const target = { ...leaf, id: "target" };
+    const rail = { ...leaf, id: "rail", persistOnFocus: true };
+    const discarded = { ...leaf, id: "discarded" };
+    const root: ResolvedComponentNode = {
+      ...tree,
+      persistOnFocus: true,
+      children: {
+        axis: "horizontal",
+        ratio: 0.3,
+        first: { node: rail, metadata: { role: "rail" } },
+        second: {
+          axis: "vertical",
+          first: { node: discarded },
+          second: { node: target, metadata: { role: "content" } },
+        },
+      },
+    };
+    expect(resolveVirtualRoot(root, "target").node.children).toEqual({
+      axis: "horizontal",
+      ratio: 0.3,
+      first: { node: rail, metadata: { role: "rail" } },
+      second: { node: target, metadata: { role: "content" } },
+    });
+  });
+
   test("accepts a leaf component as the dashboard's actual root", () => {
     const resolved = resolveVirtualRoot(leaf, null);
     expect(resolved.node).toBe(leaf);

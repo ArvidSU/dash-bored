@@ -211,6 +211,34 @@ export function App(): ReactNode {
     actionExecutor.subscribe,
     actionExecutor.getSnapshot,
   );
+  const runningActionIdsRef = useRef<ReadonlySet<string>>(runningActionIds);
+  runningActionIdsRef.current = runningActionIds;
+  const actionController = useMemo(() => ({
+    resolve(reference: string) {
+      const action = actionsByIdRef.current.get(reference);
+      if (!action) return {
+        id: reference,
+        label: "Unavailable action",
+        enabled: false,
+        disabledReason: "This action is not available in the current view.",
+        running: false,
+        active: false,
+        requiresInteraction: false,
+      };
+      return {
+        id: action.id,
+        label: action.label,
+        enabled: action.enabled,
+        ...(action.disabledReason ? { disabledReason: action.disabledReason } : {}),
+        running: runningActionIdsRef.current.has(action.id),
+        active: action.active === true,
+        requiresInteraction: Boolean(action.choices?.length || action.confirmation),
+      };
+    },
+    invoke(reference: string) {
+      requestAction(reference);
+    },
+  }), []);
 
   useEffect(() => () => {
     if (compositionPointerFrame.current !== null) {
@@ -359,13 +387,7 @@ export function App(): ReactNode {
         .find(([, shortcut]) => keyboardEventMatchesShortcut(event, shortcut))?.[0];
       if (actionId) {
         event.preventDefault();
-        const action = actionsByIdRef.current.get(actionId);
-        if (action?.choices?.length) {
-          setPaletteInitialActionId(actionId);
-          setPaletteOpen(true);
-        } else {
-          void executePaletteAction(actionId);
-        }
+        requestAction(actionId);
       }
     }
     window.addEventListener("keydown", openFromKeyboard);
@@ -582,7 +604,7 @@ export function App(): ReactNode {
 
   async function loadCompositionSource(): Promise<void> {
     if (!snapshot?.projectRoot || !snapshot.configPath) return;
-    const focusedSource = virtualRoot?.node.sourceConfigPath;
+    const focusedSource = virtualRoot?.target.sourceConfigPath;
     if (!focusedSource || focusedSource === snapshot.configPath) {
       setCompositionSource(null);
       return;
@@ -636,7 +658,7 @@ export function App(): ReactNode {
 
     let loaded: DashboardEditSession | null = null;
     await perform(`edit:${snapshot.configPath}`, async () => {
-      const focusedSource = requestedConfigPath ?? virtualRoot?.node.sourceConfigPath;
+      const focusedSource = requestedConfigPath ?? virtualRoot?.target.sourceConfigPath;
       const source = await host.getDashboardConfigSource(focusedSource);
       const validation = await host.validateDashboardDraft(source.config, source.configPath);
       loaded = {
@@ -973,7 +995,7 @@ export function App(): ReactNode {
     const source = compositionSource
       && compositionSource.projectRoot === snapshot.projectRoot
       && compositionSource.activeDashboardPath === snapshot.configPath
-      && compositionSource.focusedSourcePath === virtualRoot?.node.sourceConfigPath
+      && compositionSource.focusedSourcePath === virtualRoot?.target.sourceConfigPath
       && compositionSource.snapshotRevision === snapshot.revision
       ? compositionSource
       : null;
@@ -1011,7 +1033,7 @@ export function App(): ReactNode {
     snapshot?.configPath,
     snapshot?.projectRoot,
     snapshot?.tree,
-    virtualRoot?.node.sourceConfigPath,
+    virtualRoot?.target.sourceConfigPath,
   ]);
   const compositionVirtualRoot = compositionPreviewTree
     ? resolveVirtualRoot(compositionPreviewTree, storedVirtualRoot ?? null)
@@ -1019,7 +1041,7 @@ export function App(): ReactNode {
   const activeCompositionSource = compositionSource
     && compositionSource.projectRoot === snapshot?.projectRoot
     && compositionSource.activeDashboardPath === snapshot?.configPath
-    && compositionSource.focusedSourcePath === virtualRoot?.node.sourceConfigPath
+    && compositionSource.focusedSourcePath === virtualRoot?.target.sourceConfigPath
     && compositionSource.snapshotRevision === snapshot?.revision
     ? compositionSource
     : null;
@@ -1032,9 +1054,9 @@ export function App(): ReactNode {
   const compositionSourcePending = Boolean(
     componentLibraryOpen
     && !editSession
-    && virtualRoot?.node.sourceConfigPath
+    && virtualRoot?.target.sourceConfigPath
     && snapshot?.configPath
-    && virtualRoot.node.sourceConfigPath !== snapshot.configPath
+    && virtualRoot.target.sourceConfigPath !== snapshot.configPath
     && !activeCompositionSource,
   );
   const editingComposition = Boolean(editSession && editingActiveProject && compositionPreviewTree);
@@ -1350,7 +1372,7 @@ export function App(): ReactNode {
 
   useEffect(() => {
     if (!componentLibraryOpen || editSession || !snapshot?.projectRoot || !snapshot.configPath) return;
-    const focusedSource = virtualRoot?.node.sourceConfigPath;
+    const focusedSource = virtualRoot?.target.sourceConfigPath;
     if (!focusedSource || focusedSource === snapshot.configPath) {
       if (compositionSource !== null) setCompositionSource(null);
       return;
@@ -1370,7 +1392,7 @@ export function App(): ReactNode {
     snapshot?.configPath,
     snapshot?.projectRoot,
     snapshot?.revision,
-    virtualRoot?.node.sourceConfigPath,
+    virtualRoot?.target.sourceConfigPath,
   ]);
 
   const compositionUiActive = componentLibraryOpen
@@ -1404,8 +1426,7 @@ export function App(): ReactNode {
   async function focusProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
     if (snapshot?.configPath === targetProject.configPath) {
       setActiveView("dashboard");
-      expandComponent(targetProject.configPath, nodeId);
-      storeVirtualRoot(targetProject.configPath, nodeId);
+      focusComponent(nodeId);
       return;
     }
     if (editSession && editSession.configPath !== targetProject.configPath && !requireDiscard(
@@ -1453,7 +1474,7 @@ export function App(): ReactNode {
 
   const nodeFocusActions = buildNodeFocusActions(
     snapshot,
-    virtualRoot?.node.id ?? null,
+    virtualRoot?.target.id ?? null,
     editingActiveProject,
     (nodeId) => {
       setActiveView("dashboard");
@@ -1465,7 +1486,20 @@ export function App(): ReactNode {
     () => new Set(appSettings.favoriteActionIds),
     [appSettings.favoriteActionIds],
   );
-  actionsByIdRef.current = new Map(allActions.map((action) => [action.id, action]));
+  actionsByIdRef.current = new Map(allActions.flatMap((action) => [
+    [action.id, action] as const,
+    ...(action.reference ? [[action.reference, action] as const] : []),
+  ]));
+
+  function requestAction(reference: string): void {
+    const action = actionsByIdRef.current.get(reference);
+    if (action?.choices?.length || action?.confirmation) {
+      setPaletteInitialActionId(action.id);
+      setPaletteOpen(true);
+      return;
+    }
+    void executePaletteAction(reference);
+  }
 
   async function executePaletteAction(id: string, selections?: Readonly<Record<string, string>>): Promise<void> {
     setActionError(null);
@@ -1599,6 +1633,7 @@ export function App(): ReactNode {
                       localComponents={localComponents}
                       actionRegistry={actionRegistry}
                       actionScope={actionScope}
+                      actionController={actionController}
                       updateBatch={componentUpdateBatch}
                       collapsedNodeIds={activeCollapsedComponentIds}
                       splitRatioOverrides={editingComposition ? EMPTY_SPLIT_RATIO_OVERRIDES : activeSplitRatioOverrides}
@@ -1611,7 +1646,7 @@ export function App(): ReactNode {
                       onEditComponent={(node) => void editCompositionNode(node)}
                       onOpenAgent={setAgentDialog}
                       onUpdateProps={updateComponentProps}
-                      isVirtualRoot
+                      focusedNodeId={visibleVirtualRoot?.target.id ?? snapshot.tree.id}
                     />
                   </CompositionContext.Provider>
                 </ComponentVisibilityContext.Provider>
@@ -1647,7 +1682,7 @@ export function App(): ReactNode {
         pendingAction={pendingAction}
         projectOutlines={projectOutlines}
         currentVirtualRootProjectPath={snapshot?.configPath ?? null}
-        currentVirtualRootId={virtualRoot?.node.id ?? null}
+        currentVirtualRootId={virtualRoot?.target.id ?? null}
         collapsedNodeIds={activeCollapsedComponentIds}
         title={title}
         dashboardPath={headerDashboardPath}

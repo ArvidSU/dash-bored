@@ -107,6 +107,7 @@ describe("ActionRegistry", () => {
       label: "Refresh service health",
       group: "Component · Service health",
       source: "health",
+      reference: "component:health:refresh",
     });
 
     expect(() =>
@@ -309,6 +310,19 @@ describe("action search and execution", () => {
     const failed = await executor.run("failure");
     expect(failed.status).toBe("failed");
     if (failed.status === "failed") expect(String(failed.error)).toContain("Boom");
+  });
+
+  test("canonicalizes aliases before suppressing duplicate runs", async () => {
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const slow = action("runtime:slow", { reference: "component:node:slow", run: () => pending });
+    const executor = new ActionExecutor((id) =>
+      id === slow.id || id === slow.reference ? slow : undefined);
+    const first = executor.run(slow.reference!);
+    expect(executor.getSnapshot()).toEqual(new Set([slow.id]));
+    expect(await executor.run(slow.id)).toEqual({ status: "running" });
+    release?.();
+    expect(await first).toEqual({ status: "completed" });
   });
 
   test("passes completed choice selections to the action", async () => {

@@ -200,7 +200,7 @@ export function useDashboardViewState(
   useEffect(() => {
     if (!dashboardPath || !tree || !storedVirtualRoot) return;
     const resolved = resolveVirtualRoot(tree, storedVirtualRoot);
-    if (resolved.node.id === storedVirtualRoot) return;
+    if (resolved.target.id === storedVirtualRoot) return;
     setVirtualRoots((current) => ({ ...current, [dashboardPath]: null }));
     try {
       window.localStorage.removeItem(virtualRootStorageKey(dashboardPath));
@@ -208,6 +208,22 @@ export function useDashboardViewState(
       // See the read path above.
     }
   }, [dashboardPath, tree, storedVirtualRoot]);
+
+  useEffect(() => {
+    if (
+      !dashboardPath
+      || collapsedDashboardPath !== dashboardPath
+      || !tree
+      || !storedVirtualRoot
+    ) return;
+    const focused = resolveVirtualRoot(tree, storedVirtualRoot);
+    if (focused.target.id !== storedVirtualRoot) return;
+    const expandedIds = new Set([...focused.retainedAncestorIds, focused.target.id]);
+    setCollapsedComponentIds((current) => {
+      if (![...expandedIds].some((id) => current.has(id))) return current;
+      return new Set([...current].filter((id) => !expandedIds.has(id)));
+    });
+  }, [collapsedDashboardPath, dashboardPath, storedVirtualRoot, tree]);
   function storeVirtualRoot(targetDashboardPath: string, nodeId: string): void {
     setVirtualRoots((current) => ({ ...current, [targetDashboardPath]: nodeId }));
     try {
@@ -317,7 +333,10 @@ export function useDashboardViewState(
 
   function focusComponent(nodeId: string): void {
     if (!dashboardPath) return;
-    expandComponent(dashboardPath, nodeId);
+    const focused = tree ? resolveVirtualRoot(tree, nodeId) : null;
+    for (const id of [...(focused?.retainedAncestorIds ?? []), nodeId]) {
+      expandComponent(dashboardPath, id);
+    }
     storeVirtualRoot(dashboardPath, nodeId);
   }
 

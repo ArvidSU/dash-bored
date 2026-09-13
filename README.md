@@ -389,18 +389,23 @@ Each node supports:
   `first`, and `second`, or an array of edges for managed children such as tabs.
   Horizontal splits accept an optional `ratio` from `0.1` to `0.9`, defaulting
   to `0.5`. Vertical splits use document flow and do not accept a ratio.
+- `persistOnFocus`: keep this ancestor or direct sibling navigation subtree in
+  the projected view when a related node is focused; defaults to `false`.
 
 The `root` is a normal component node. A dashboard may use a layout tree, but
 it may just as well have one command button, status, or project component as
-its root. In the app, any rendered component can also be focused as a temporary
-virtual root; breadcrumbs return to its configured ancestors without changing
-the YAML.
+its root. In the app, any rendered component can be focused. The renderer keeps
+marked ancestors and marked direct sibling rails around that target, while
+breadcrumbs still follow the original configured path. The selected focus
+target is local presentation state; only the optional persistence markers live
+in YAML.
 
 The initial built-ins are:
 
 - Composition: `@dash-bored/group` for transparent child-surface projection,
   plus core-owned tiled branches and managed child presentation.
-- Display: `@dash-bored/markdown` and `@dash-bored/status`.
+- Controls and display: `@dash-bored/button`, `@dash-bored/markdown`, and
+  `@dash-bored/status`.
 - Charts: `@dash-bored/chart` for static YAML data and
   `@dash-bored/live-chart` for polling JSON data.
 - Host-backed: `@dash-bored/command`, `@dash-bored/conditional`,
@@ -410,6 +415,25 @@ The initial built-ins are:
 These shipped components are examples of the public component contracts, not
 privileged types. Local components can declare the same child contracts,
 process resources, references, and permissions.
+
+`@dash-bored/button` takes exactly `name` and `action`. It invokes the same
+action used by the command palette and shortcuts, including trust,
+confirmation, choices, running-state, and availability behavior:
+
+```yaml
+component: "@dash-bored/button"
+props:
+  name: Focus todos
+  action: focus:${root.children[2].node.children.first.first.node.children.node}
+```
+
+Node paths in manifest-declared action-reference props are resolved within the
+YAML bundle that owns the button. This keeps linked bundles portable and gives
+their resolved node IDs the enclosing namespace automatically. Stable literal
+forms include `app:reload`, `focus:<node-id>`, `process:<node-id>`, and
+`component:<node-id>:<local-action-id>`. Malformed or missing interpolated paths
+fail validation; a valid action that is currently unmounted remains valid and
+renders as a disabled button with its reason.
 
 `@dash-bored/markdown` accepts either inline `content` or a project-relative
 `path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes
@@ -559,7 +583,7 @@ linked bundle that owns it.
 
 Expand the project sidebar and use a dashboard row's tree button to inspect its
 read-only component outline. Branches can be collapsed independently, and the
-node that is currently serving as the dashboard's virtual root is highlighted.
+node that is currently focused is highlighted.
 Selecting a node focuses it in the dashboard without changing its YAML.
 
 Native webviews are hidden through their visibility contract while the flyout,
@@ -593,7 +617,7 @@ until the expanded permission set is trusted.
 
 Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
-every node in the currently selected dashboard for virtual-root focus,
+every node in the currently selected dashboard for focused projection,
 all declared process resources, and actions contributed by active components.
 Settings is split into **General**, **Themes**, and **Actions**. Themes contains app appearance defaults, a per-dashboard list of theme and appearance selections, and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
@@ -722,13 +746,16 @@ entry as a browser ESM bundle and shares the application's React runtime.
 
 ### Component host APIs
 
-The host object always includes `dashboard.reload()` and
-`actions.register(action)`. Additional APIs appear only when the manifest
+The host object always includes `dashboard.reload()`,
+`actions.register(action)`, `actions.resolve(reference)`, and
+`actions.invoke(reference)`. `resolve` reports the current label, availability,
+disabled reason, running state, active state, and whether palette interaction
+is required. `invoke` uses the shared action request/execution path. Additional APIs appear only when the manifest
 declares the corresponding permission:
 
 | Manifest permission | Host API | Purpose |
 | --- | --- | --- |
-| None | `host.actions.register(action)` | Contribute a mounted-instance action to the command palette. |
+| None | `host.actions.register/resolve/invoke` | Contribute or invoke mounted and application actions without adding capability. |
 | `filesystem:read` | `host.filesystem.readText(path)` | Read a bounded UTF-8 file below the project root. |
 | `filesystem:write` | `host.filesystem.writeText(path, content)` | Atomically replace a bounded UTF-8 file below the project root. |
 | `network:http` | `host.http.request(request)` | Make a bounded, timed `http:` or `https:` request. |

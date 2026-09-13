@@ -57,7 +57,7 @@ Pure helpers and their contracts:
 - `render/NodeRenderer.tsx` — recursive node rendering plus the staggered
   update-polish batch hook.
 - `app/use-dashboard-view-state.ts` — renderer-owned presentation state
-  (collapse, split ratios, height caps, virtual-root focus) with per-dashboard
+  (collapse, split ratios, height caps, focused target) with per-dashboard
   localStorage persistence; never part of a draft.
 - `panels/DiagnosticsPanel.tsx`, `panels/TrustPanel.tsx`, `panels/EmptyProject.tsx`,
   `panels/AgentPromptPanel.tsx`, `panels/SettingsPanel.tsx` — app-level panels.
@@ -71,6 +71,9 @@ examples, not privileged component types:
 
 - Core tile branches compose layout; components such as cards may declare
   children presentation but do not own topology or resizing.
+- `@dash-bored/button` resolves and invokes one action through the shared
+  executor. It reflects active Focus actions, running work, interaction steps,
+  and unavailable reasons without adding permissions.
 - `@dash-bored/markdown` and `@dash-bored/status` display safe project
   information. Markdown does not enable raw HTML. Markdown accepts either
   inline `content` or a project-relative `path`; preview is the default view,
@@ -116,9 +119,12 @@ dashboard host. That change begins or updates the owning dashboard draft; it
 never reloads the project or bypasses Save/Cancel.
 The popover is rendered in a document-level fixed overlay with viewport
 clamping, so isolated or overflowing component frames cannot paint over it.
-Focusing a node makes it a virtual root
-in the application viewport and provides breadcrumb navigation back to its
-configured ancestors; it never rewrites YAML or changes which bundle owns the
+Focusing a node builds a projection from the original resolved tree. Marked
+`persistOnFocus` ancestors on the target path become its effective parent
+chain, and marked direct siblings at each retained boundary keep their complete
+subtrees as navigation rails. Unmarked branches disappear; tiled branches are
+pruned and one-sided splits collapse. Breadcrumbs and focused identity still
+come from the original tree, and focusing never changes which bundle owns the
 node. Copy uses an unambiguous locator such as
 `/project/.dash-bored/dash-bored.yaml#root.children.first.node`.
 Resolved nodes
@@ -270,9 +276,9 @@ Each expanded sidebar row also reveals a tree-disclosure button immediately
 before the trash affordance. It loads a read-only resolved outline for that
 registered dashboard without activating its runtime, then expands the complete
 node hierarchy below the row. Selecting an outline node switches to that
-dashboard when necessary and uses the existing virtual-root focus model for
+dashboard when necessary and uses the focused projection model for
 navigation. Each outline branch has its own disclosure control, while the
-currently focused virtual root is highlighted and exposed as the current
+currently focused node is highlighted and exposed as the current
 location to assistive technology. The active dashboard outline follows live
 snapshots; inactive outlines are refreshed whenever their disclosure is
 reopened.
@@ -366,7 +372,7 @@ command palette merges three providers:
 - application navigation, lifecycle, and dashboard editing actions from shell
   state;
 - focus actions for every node in the currently selected dashboard, using the
-  same virtual-root navigation as the inline Focus controls;
+  same focused projection as the inline Focus controls;
 - start/stop actions derived from every resolved process resource and its
   authoritative process snapshot;
 - actions registered by mounted, trusted local component instances.
@@ -378,7 +384,15 @@ the same typed `startProcess` and `stopProcess` RPC used by any component UI;
 the palette never executes a shell command directly.
 
 The registry re-resolves an action by ID immediately before invocation, tracks
-running IDs to reject duplicate execution, and drops stale registrations.
+canonical running IDs to reject duplicate execution through aliases, and drops
+stale registrations. Mounted component actions also expose stable
+`component:<node-id>:<local-action-id>` aliases while their runtime registrations
+remain scoped to the mount. Buttons, shortcuts, and palette choices use the
+same request path: simple actions run immediately, while confirmation or choice
+actions open the palette directly at that interaction step.
+`LocalComponentHost.actions.resolve(reference)` exposes the current label,
+availability, reason, canonical running state, active state, and interaction
+requirement; `invoke(reference)` enters that shared request path.
 Trust, revoke, and component-selected sensitive actions use the palette's
 confirmation state. Trust confirmation names the complete requested capability
 set before calling the existing trust RPC.

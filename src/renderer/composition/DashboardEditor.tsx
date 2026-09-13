@@ -24,6 +24,7 @@ import {
   countDiscardedRootNodes,
   countNodes,
   defaultChildMetadata,
+  generateNodeId,
   managedChildEdges,
   nodeAtPath,
   nodePathById,
@@ -33,6 +34,7 @@ import {
   updateChildMetadata,
   updateDashboardMetadata,
   updateNodeProps,
+  updateNodePersistOnFocus,
   updateTiledSplitRatio,
   type InsertionTarget,
   type NodePath,
@@ -187,6 +189,7 @@ export function ComponentDialog({
   const item = catalog.find((entry) => entry.reference === reference);
   const [props, setProps] = useState<Record<string, unknown>>(() =>
     item?.manifest ? initialValues(item.manifest.propsSchema, current?.props ?? {}) : {});
+  const [persistOnFocus, setPersistOnFocus] = useState(current?.persistOnFocus === true);
   const [metadata, setMetadata] = useState<Record<string, unknown>>(() => {
     if (!existing || existing.path.length === 0) return target?.placement.metadata ?? {};
     const parent = nodeAtPath(config.root, existing.path.slice(0, -1));
@@ -246,9 +249,10 @@ export function ComponentDialog({
               setApplyError(planned.message);
               return;
             }
-            onApply(planned.nextConfig);
+            onApply(updateNodePersistOnFocus(planned.nextConfig, [], persistOnFocus));
           } else if (existing) {
             let next = updateNodeProps(config, existing.path, props);
+            next = updateNodePersistOnFocus(next, existing.path, persistOnFocus);
             if (existing.path.length > 0 && metadataSchema) next = updateChildMetadata(next, existing.path, metadata);
             onApply(next);
           } else if (target) {
@@ -265,7 +269,11 @@ export function ComponentDialog({
               setApplyError(planned.message);
               return;
             }
-            onApply(planned.nextConfig);
+            const createdId = generateNodeId(config, item.manifest!);
+            const createdPath = nodePathById(planned.nextConfig.root, createdId);
+            onApply(createdPath
+              ? updateNodePersistOnFocus(planned.nextConfig, createdPath, persistOnFocus)
+              : planned.nextConfig);
           }
           onDismiss();
         }}>
@@ -282,6 +290,10 @@ export function ComponentDialog({
           ) : null}
           {applyError ? <p className="inline-error" role="alert">{applyError}</p> : null}
           <SchemaEditor schema={item.manifest.propsSchema} value={props} onChange={setProps} label="Component props" />
+          <label className="props-field props-field--checkbox">
+            <input type="checkbox" checked={persistOnFocus} onChange={(event) => setPersistOnFocus(event.target.checked)} />
+            <span>Keep visible around focused components</span>
+          </label>
           {metadataSchema ? (
             <fieldset>
               <legend>Child presentation metadata</legend>

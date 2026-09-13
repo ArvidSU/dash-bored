@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { ComponentEnvironmentSnapshot, ProcessSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { ComponentEnvironmentSnapshot, ProcessSnapshot, ResolvedComponentAction, ResolvedComponentNode } from "../../shared/contracts";
 import type { ComponentHeightOverrides } from "../lib/component-height";
 import { componentRendersSurface } from "../lib/component-height";
 import type { SplitRatioOverrides } from "./split-layout";
@@ -27,6 +27,10 @@ export interface NodeRendererProps {
   localComponents: ReadonlyMap<string, LoadedLocalComponent>;
   actionRegistry: ActionRegistry;
   actionScope: string;
+  actionController: {
+    resolve(reference: string): ResolvedComponentAction;
+    invoke(reference: string): void;
+  };
   updateBatch: ComponentUpdateBatch | null;
   collapsedNodeIds: ReadonlySet<string>;
   splitRatioOverrides: Readonly<SplitRatioOverrides>;
@@ -45,7 +49,7 @@ export interface NodeRendererProps {
   onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
   onUpdateProps: (node: ResolvedComponentNode, props: Record<string, unknown>) => Promise<void>;
-  isVirtualRoot?: boolean;
+  focusedNodeId?: string | null;
 }
 
 export interface ComponentUpdateBatch {
@@ -80,6 +84,7 @@ export function NodeRenderer({
   localComponents,
   actionRegistry,
   actionScope,
+  actionController,
   updateBatch,
   collapsedNodeIds,
   splitRatioOverrides,
@@ -92,7 +97,7 @@ export function NodeRenderer({
   onEditComponent,
   onOpenAgent,
   onUpdateProps,
-  isVirtualRoot = false,
+  focusedNodeId = null,
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const nodeRef = useRef(node);
@@ -102,8 +107,8 @@ export function NodeRenderer({
     [onUpdateProps],
   );
   const localHost = useMemo(
-    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, updateProps),
-    [actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted, updateProps],
+    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, updateProps, actionController),
+    [actionController, actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted, updateProps],
   );
   // Keep capability objects stable while public values update, so unsaved editor
   // contents and long-running component effects survive environment refreshes.
@@ -134,6 +139,7 @@ export function NodeRenderer({
             localComponents={localComponents}
             actionRegistry={actionRegistry}
             actionScope={actionScope}
+            actionController={actionController}
             updateBatch={updateBatch}
             collapsedNodeIds={collapsedNodeIds}
             splitRatioOverrides={splitRatioOverrides}
@@ -146,6 +152,7 @@ export function NodeRenderer({
             onEditComponent={onEditComponent}
             onOpenAgent={onOpenAgent}
             onUpdateProps={onUpdateProps}
+            focusedNodeId={focusedNodeId}
           />
         ),
       });
@@ -157,7 +164,7 @@ export function NodeRenderer({
         {...frameHeightProps}
         node={node}
         className="component-node"
-        isVirtualRoot={isVirtualRoot}
+        isVirtualRoot={node.id === focusedNodeId}
         collapsed={collapsed}
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
@@ -189,7 +196,7 @@ export function NodeRenderer({
         as="section"
         node={node}
         className="component-node config-link"
-        isVirtualRoot={isVirtualRoot}
+        isVirtualRoot={node.id === focusedNodeId}
         collapsed={collapsed}
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
@@ -224,7 +231,7 @@ export function NodeRenderer({
         {...frameHeightProps}
         node={node}
         className="component-node component-state component-state--locked"
-        isVirtualRoot={isVirtualRoot}
+        isVirtualRoot={node.id === focusedNodeId}
         collapsed={collapsed}
         onFocus={onFocus}
         onToggleCollapse={() => onToggleCollapse(node.id)}
@@ -252,7 +259,7 @@ export function NodeRenderer({
         {...frameHeightProps}
         node={node}
         className="component-node component-state component-state--error"
-        isVirtualRoot={isVirtualRoot}
+        isVirtualRoot={node.id === focusedNodeId}
         collapsed={collapsed}
         role="alert"
         onFocus={onFocus}
@@ -277,7 +284,7 @@ export function NodeRenderer({
         {...frameHeightProps}
         node={node}
         className="component-node component-state"
-        isVirtualRoot={isVirtualRoot}
+        isVirtualRoot={node.id === focusedNodeId}
         collapsed={collapsed}
         ariaLive="polite"
         onFocus={onFocus}
@@ -303,7 +310,7 @@ export function NodeRenderer({
         {...frameHeightProps}
         node={node}
         className="component-node component-state component-state--error"
-        isVirtualRoot={isVirtualRoot}
+        isVirtualRoot={node.id === focusedNodeId}
         collapsed={collapsed}
         role="alert"
         onFocus={onFocus}
@@ -329,7 +336,7 @@ export function NodeRenderer({
       {...frameHeightProps}
       node={node}
       className="component-node component-node--local"
-      isVirtualRoot={isVirtualRoot}
+      isVirtualRoot={node.id === focusedNodeId}
       collapsed={collapsed}
       onFocus={onFocus}
       onToggleCollapse={() => onToggleCollapse(node.id)}

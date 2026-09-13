@@ -140,6 +140,7 @@ export function buildNodeFocusActions(
       ],
       group: "Dashboard nodes",
       source: node.id,
+      active: alreadyFocused,
       enabled: disabledReason === undefined,
       ...(disabledReason ? { disabledReason } : {}),
       run: () => focusNode(node.id),

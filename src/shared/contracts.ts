@@ -18,6 +18,8 @@ export interface ComponentNode {
   component: string;
   props?: Record<string, unknown>;
   children?: ComponentChildren;
+  /** Keep this node in the projected tree while one of its relatives is focused. */
+  persistOnFocus?: boolean;
 }
 
 export interface ComponentChildEdge<Node = ComponentNode> {
@@ -104,7 +106,7 @@ export interface ComponentResourceDefinitions {
 }
 
 export interface ComponentReferenceDefinition {
-  resource: "process";
+  resource: "process" | "action";
 }
 
 export interface ComponentManifest {
@@ -149,6 +151,7 @@ export interface ResolvedComponentNode {
   component: string;
   props: Record<string, unknown>;
   children?: ComponentChildren<ResolvedComponentNode>;
+  persistOnFocus?: boolean;
   source: "builtin" | "local" | "config";
   manifest?: ComponentManifest;
   /** Canonical source path for a standalone config-link component. */
@@ -483,6 +486,17 @@ export interface ComponentAction {
   run(selections?: ComponentActionSelections): void | Promise<void>;
 }
 
+export interface ResolvedComponentAction {
+  /** Canonical runtime action id. */
+  id: string;
+  label: string;
+  enabled: boolean;
+  disabledReason?: string;
+  running: boolean;
+  active: boolean;
+  requiresInteraction: boolean;
+}
+
 export interface ComponentEnvironmentSnapshot {
   values: Array<{
     key: "DASH_BORED_AGENT";
@@ -502,7 +516,11 @@ export interface LocalComponentHost {
     /** Starts the app-owned starter setup agent for this component. */
     setupWithAgent?(): Promise<ComponentAgentLaunch>;
   };
-  actions: { register(action: ComponentAction): () => void };
+  actions: {
+    register(action: ComponentAction): () => void;
+    resolve(reference: string): ResolvedComponentAction;
+    invoke(reference: string): void;
+  };
   filesystem?: {
     readText(path: string): Promise<string>;
     writeText?(path: string, content: string): Promise<void>;

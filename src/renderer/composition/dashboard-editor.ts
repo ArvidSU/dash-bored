@@ -402,6 +402,18 @@ export function updateNodeProps(
   return next;
 }
 
+export function updateNodePersistOnFocus(
+  config: DashboardConfig,
+  path: NodePath,
+  persistOnFocus: boolean,
+): DashboardConfig {
+  const next = structuredClone(config);
+  const node = nodeAtPath(next.root, path);
+  if (persistOnFocus) node.persistOnFocus = true;
+  else delete node.persistOnFocus;
+  return next;
+}
+
 export function updateTiledSplitRatio(
   config: DashboardConfig,
   parentPath: NodePath,

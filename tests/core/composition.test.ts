@@ -20,6 +20,75 @@ afterEach(async () => {
 const edge = (node: ComponentNode, metadata?: Record<string, unknown>) => ({ node, ...(metadata === undefined ? {} : { metadata }) });
 
 describe("component child composition", () => {
+  test("resolves action node paths within the owning YAML bundle", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const todoPath = "root.children[2].node.children.first.first.node.children.node";
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Action paths",
+      root: {
+        component: "@dash-bored/tabs",
+        persistOnFocus: true,
+        children: [
+          edge({ id: "focus-button", component: "@dash-bored/button", props: { name: "Focus todos", action: `focus:\${${todoPath}}` } }, { label: "Button" }),
+          edge({ component: "@dash-bored/markdown", props: { content: "Spacer" } }, { label: "Spacer" }),
+          edge({
+            component: "@dash-bored/group",
+            children: {
+              axis: "horizontal",
+              first: {
+                axis: "horizontal",
+                first: edge({
+                  component: "@dash-bored/group",
+                  children: edge({ id: "yaml-todo", component: "@dash-bored/todo-list", props: { todos: [] } }),
+                }),
+                second: edge({ component: "@dash-bored/status", props: { label: "Ready", state: "healthy" } }),
+              },
+              second: edge({ component: "@dash-bored/markdown", props: { content: "Notes" } }),
+            },
+          }, { label: "Overview" }),
+        ],
+      },
+    });
+    const result = await inspectProject(root);
+    expect(result.ok).toBeTrue();
+    expect(result.tree?.persistOnFocus).toBeTrue();
+    const first = Array.isArray(result.tree?.children) ? result.tree.children[0]?.node : undefined;
+    expect(first?.props.action).toBe("focus:yaml-todo");
+
+    const configPath = join(root, ".dash-bored", "dash-bored.yaml");
+    const invalid = structuredClone(result.config!);
+    if (Array.isArray(invalid.root.children)) {
+      invalid.root.children[0]!.node.props = { name: "Focus todos", action: "focus:${root.children[9].node}" };
+    }
+    await writeFile(configPath, stringify(invalid));
+    const missing = await inspectProject(root);
+    expect(missing.diagnostics.map((item) => item.code)).toContain("COMPONENT_ACTION_REFERENCE_INVALID");
+  });
+
+  test("interpolates paths to generated node ids", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Generated action target",
+      root: {
+        component: "@dash-bored/group",
+        children: {
+          axis: "horizontal",
+          first: edge({ component: "@dash-bored/button", props: { name: "Focus status", action: "focus:${root.children.second.node}" } }),
+          second: edge({ component: "@dash-bored/status", props: { label: "Status", state: "healthy" } }),
+        },
+      },
+    });
+    const result = await inspectProject(root);
+    expect(result.ok).toBeTrue();
+    const first = result.tree?.children;
+    if (!first || Array.isArray(first) || !("axis" in first)) throw new Error("Expected split layout");
+    expect((first.first as { node: { props: Record<string, unknown> } }).node.props.action)
+      .toBe("focus:root.children.1");
+  });
   test("resolves recursive tiled topology and attaches built-in manifests", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
