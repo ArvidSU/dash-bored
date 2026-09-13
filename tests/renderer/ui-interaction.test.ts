@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { access } from "node:fs/promises";
 import { chromium, type Browser, type Page } from "playwright-core";
 import type { ComponentNode, ComponentChildLayout } from "../../src/shared/contracts";
+import { startFixtureServer, type FixtureServer } from "../helpers/fixture-server";
 
-let fixtureProcess: ReturnType<typeof Bun.spawn> | null = null;
+let fixtureServer: FixtureServer | null = null;
 let browser: Browser | null = null;
 let page: Page | null = null;
 let fixtureUrl = "";
@@ -14,18 +15,6 @@ async function unusedPort(): Promise<number> {
   reservation.stop(true);
   if (port === undefined) throw new Error("Could not reserve a renderer fixture port.");
   return port;
-}
-
-async function waitForFixture(url: string): Promise<void> {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    try {
-      if ((await fetch(url)).ok) return;
-    } catch {
-      // Vite is still starting.
-    }
-    await Bun.sleep(100);
-  }
-  throw new Error(`Renderer fixture did not start at ${url}.`);
 }
 
 function currentPage(): Page {
@@ -89,14 +78,13 @@ beforeAll(async () => {
   await access(executablePath);
   const port = await unusedPort();
   fixtureUrl = `http://127.0.0.1:${port}/ui-harness.html`;
-  fixtureProcess = Bun.spawn({
+  fixtureServer = startFixtureServer({
     cmd: ["bun", "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     cwd: process.cwd(),
     env: { ...process.env, DASH_BORED_VITE_PORT: String(port) },
-    stdout: "ignore",
-    stderr: "pipe",
+    url: fixtureUrl,
   });
-  await waitForFixture(fixtureUrl);
+  await fixtureServer.ready;
   browser = await chromium.launch({ executablePath, headless: true });
   page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(fixtureUrl);
@@ -105,10 +93,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await browser?.close();
-  if (fixtureProcess) {
-    fixtureProcess.kill();
-    await fixtureProcess.exited;
-  }
+  await fixtureServer?.stop();
 });
 
 describe("renderer fixture interactions", () => {

@@ -42,7 +42,7 @@ root:
                     props:
                       todos:
                         - description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
-                          done: false
+                          done: true
                           tags:
                             - tooling
                         - description: Add a better agent interface with user feedback and control
