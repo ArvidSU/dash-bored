@@ -137,7 +137,8 @@ source equals the link target and that target is a bundled
   `inspect` writes JSON describing the resolved tree, the complete component
   catalog, component metadata used by the tree, requested permissions, and
   diagnostics. Agents read `componentCatalog[].manifest.propsSchema`, `children`,
-  and `permissions` before editing instead of relying on static examples.
+  `actions`, and `permissions` before editing instead of relying on static
+  examples.
 - `migrate inspect <dashboard>` reports whether the dashboard needs migration to
   the tool's contract, with the applicable cumulative recipes. Installing
   releases and authorizing app-driven migrations are user workflows in the app.

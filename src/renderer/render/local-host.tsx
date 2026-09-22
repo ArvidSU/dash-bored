@@ -21,6 +21,9 @@ export function createLocalHost(
     scope: actionScope,
     nodeId: node.id,
     componentName: node.manifest?.name ?? node.component,
+    ...(node.manifest?.actions === undefined
+      ? {}
+      : { declaredActionIds: node.manifest.actions.map(({ id }) => id) }),
   };
   const componentHost: LocalComponentHost = {
     ...(trusted && environment ? { environment } : {}),

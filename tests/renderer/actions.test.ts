@@ -10,6 +10,7 @@ import type {
 } from "../../src/renderer/lib/actions";
 import {
   buildApplicationActions,
+  buildDeclaredComponentActions,
   buildProcessActions,
   buildNodeFocusActions,
 } from "../../src/renderer/lib/action-providers";
@@ -94,6 +95,30 @@ function snapshot(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
 }
 
 describe("ActionRegistry", () => {
+  test("rejects undeclared registrations only for manifests that opt in", () => {
+    const registry = new ActionRegistry();
+    registry.register({ ...owner, componentName: "package-scripts" }, {
+      id: "test",
+      label: "Run tests",
+      run: () => undefined,
+    });
+    registry.register({
+      ...owner,
+      nodeId: "strict",
+      declaredActionIds: ["refresh"],
+    }, {
+      id: "other",
+      label: "Undeclared",
+      run: () => undefined,
+    });
+
+    expect(registry.getSnapshot()).toHaveLength(1);
+    expect(registry.getDiagnostics()).toEqual([expect.objectContaining({
+      code: "COMPONENT_ACTION_UNDECLARED",
+      path: "strict",
+    })]);
+  });
+
   test("namespaces registrations and disposes them by token, owner, and scope", () => {
     const registry = new ActionRegistry();
     const disposeFirst = registry.register(owner, {
@@ -340,6 +365,30 @@ describe("action search and execution", () => {
 });
 
 describe("application action providers", () => {
+  test("lists declared actions while their component is unmounted", () => {
+    const project = snapshot({ trusted: true });
+    const rootChildren = project.tree?.children;
+    const target = rootChildren && !Array.isArray(rootChildren) && "node" in rootChildren
+      ? rootChildren.node
+      : null;
+    expect(target).not.toBeNull();
+    target!.manifest = {
+      ...target!.manifest!,
+      actions: [{ id: "run", label: "Run check" }],
+    };
+
+    const declared = buildDeclaredComponentActions(project, []);
+    expect(declared).toHaveLength(1);
+    expect(declared[0]).toMatchObject({
+      id: "component:server:run",
+      enabled: false,
+      disabledReason: "Component is not mounted",
+    });
+    expect(buildDeclaredComponentActions(project, [action("mounted", {
+      reference: "component:server:run",
+    })])).toEqual([]);
+  });
+
   const callbacks = {
     reloadApp: () => undefined,
     showDashboard: () => undefined,

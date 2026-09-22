@@ -635,6 +635,8 @@ Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application navigation, remembered dashboards,
 every node in the currently selected dashboard for focused projection,
 all declared process resources, and actions contributed by active components.
+Manifest-declared actions also stay in the palette and Settings while their
+component is collapsed or hidden; they show why they cannot run until mounted.
 Settings is split into **General**, **Themes**, and **Actions**. Themes contains app appearance defaults, a per-dashboard list of theme and appearance selections, and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
 palette actions: search them, assign an app-local keyboard shortcut, or mark an
@@ -684,7 +686,17 @@ children:
     axes: both
 permissions:
   - network:http
+actions:
+  - id: check-now
+    label: Check service health now
+    description: Fetch the current endpoint status.
 ```
+
+Declare each stable local action in `actions`. The palette and Settings can
+show its metadata before this component mounts, and dashboard validation can
+check references to its ID. When `actions` is present, runtime registrations
+must use a declared ID. Omitting it retains legacy dynamic registration for
+components that discover actions at runtime, such as `package-scripts`.
 
 `renderMode` defaults to `surface`. Declare `layout` when the component is an
 organizational boundary whose height follows its descendants rather than an

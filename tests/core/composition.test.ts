@@ -343,4 +343,85 @@ describe("component child composition", () => {
     expect((await parseComponentManifest(referenceManifest)).diagnostics.map((item) => item.code))
       .toContain("MANIFEST_REFERENCE_PERMISSION_MISSING");
   });
+
+  test("validates manifest action declarations and args schemas", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const directory = join(root, "manifests");
+    await mkdir(directory, { recursive: true });
+    const file = join(directory, "actions.yaml");
+    const base = {
+      schemaVersion: 2,
+      id: "actions",
+      name: "Actions",
+      description: "Declared action test.",
+      entry: "./index.tsx",
+      propsSchema: { type: "object" },
+    };
+    await writeFile(file, stringify({
+      ...base,
+      actions: [{ id: "refresh", label: "Refresh", args: {
+        type: "object",
+        properties: { force: { type: "boolean" } },
+      } }],
+    }));
+    expect((await parseComponentManifest(file)).value?.actions).toEqual([{
+      id: "refresh",
+      label: "Refresh",
+      args: { type: "object", properties: { force: { type: "boolean" } } },
+    }]);
+
+    await writeFile(file, stringify({
+      ...base,
+      actions: [{ id: "refresh", label: "Refresh" }, { id: "refresh", label: "Again" }],
+    }));
+    expect((await parseComponentManifest(file)).diagnostics.map((item) => item.code))
+      .toContain("MANIFEST_ACTION_ID_DUPLICATE");
+  });
+
+  test("rejects component action references missing from the target manifest", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const buttonDirectory = join(root, ".dash-bored", "components", "action-button");
+    const workerDirectory = join(root, ".dash-bored", "components", "worker");
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Action reference validation",
+      root: {
+        component: "@dash-bored/group",
+        children: [
+          edge({ component: "./components/action-button", props: { action: "component:worker:typo" } }),
+          edge({ id: "worker", component: "./components/worker" }),
+        ],
+      },
+    });
+    await Promise.all([
+      mkdir(buttonDirectory, { recursive: true }),
+      mkdir(workerDirectory, { recursive: true }),
+    ]);
+    const common = { schemaVersion: 2, description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } };
+    await Promise.all([
+      writeFile(join(buttonDirectory, "component.yaml"), stringify({
+        ...common,
+        id: "action-button",
+        name: "Action button",
+        propsSchema: { type: "object", properties: { action: { type: "string" } } },
+        references: { action: { resource: "action" } },
+      })),
+      writeFile(join(workerDirectory, "component.yaml"), stringify({
+        ...common,
+        id: "worker",
+        name: "Worker",
+        actions: [{ id: "refresh", label: "Refresh" }],
+      })),
+      writeFile(join(buttonDirectory, "index.tsx"), "export default () => null;"),
+      writeFile(join(workerDirectory, "index.tsx"), "export default () => null;"),
+    ]);
+
+    const result = await inspectProject(root);
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: "COMPONENT_ACTION_REFERENCE_UNKNOWN",
+      message: expect.stringContaining("typo"),
+    }));
+  });
 });

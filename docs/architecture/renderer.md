@@ -386,11 +386,13 @@ command palette merges three providers:
   same focused projection as the inline Focus controls;
 - start/stop actions derived from every resolved process resource and its
   authoritative process snapshot;
-- actions registered by mounted, trusted local component instances.
+- manifest-declared component actions for mounted and unmounted nodes, plus
+  registrations from mounted, trusted local component instances.
 
 Known actions remain searchable when unavailable and carry a reason. For
-example, configured commands remain visible before project trust, while local
-component actions do not exist until their code mounts. Process actions call
+example, configured commands remain visible before project trust, while
+manifest-declared component actions remain visible before their code mounts
+with the reason `Component is not mounted`. Process actions call
 the same typed `startProcess` and `stopProcess` RPC used by any component UI;
 the palette never executes a shell command directly.
 

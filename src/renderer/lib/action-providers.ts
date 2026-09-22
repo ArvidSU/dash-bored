@@ -8,6 +8,7 @@ import type {
 } from "../../shared/contracts";
 import type { ThemeCatalogItem, ThemeMode } from "../../shared/themes";
 import type { PaletteAction } from "./actions";
+import { componentActionReference } from "../../shared/action-reference";
 import { childNodes } from "./component-children";
 
 export type AppView = "dashboard" | "settings";
@@ -146,6 +147,40 @@ export function buildNodeFocusActions(
       run: () => focusNode(node.id),
     } satisfies PaletteAction;
   });
+}
+
+/** Stable palette entries for declared actions whose component code is not mounted. */
+export function buildDeclaredComponentActions(
+  snapshot: ProjectSnapshot | null,
+  registeredActions: readonly PaletteAction[],
+): PaletteAction[] {
+  if (!snapshot?.tree) return [];
+  const registeredReferences = new Set(registeredActions.flatMap((action) =>
+    action.reference ? [action.reference] : [],
+  ));
+  const visit = (node: ResolvedComponentNode): PaletteAction[] => {
+    const own = (node.manifest?.actions ?? []).flatMap((definition) => {
+      const reference = componentActionReference(node.id, definition.id);
+      if (registeredReferences.has(reference)) return [];
+      const disabledReason = snapshot.trusted
+        ? "Component is not mounted"
+        : "Trust this project to load its component code.";
+      return [{
+        id: reference,
+        reference,
+        label: definition.label,
+        ...(definition.description ? { description: definition.description } : {}),
+        keywords: ["component", "action", node.component, node.id, definition.id],
+        group: `Component · ${node.manifest?.name ?? node.component}`,
+        source: node.id,
+        enabled: false,
+        disabledReason,
+        run: () => undefined,
+      } satisfies PaletteAction];
+    });
+    return [...own, ...childNodes(node).flatMap(visit)];
+  };
+  return visit(snapshot.tree);
 }
 
 function appAction(

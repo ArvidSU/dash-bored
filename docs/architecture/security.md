@@ -86,9 +86,13 @@ project reloads, trust is revoked, or the active project changes.
 An action may provide a description, search keywords, an unavailable state and
 reason, and optional confirmation copy. Its callback runs as trusted local
 component code in the shared renderer and can perform privileged work only by
-calling that component instance's already-shaped host APIs. Component actions
-are intentionally unknown before the component is trusted and mounted; their
-metadata is neither cached nor declared in `component.yaml` in this version.
+calling that component instance's already-shaped host APIs. Manifests may
+declare `actions` with stable IDs, labels, descriptions, and optional JSON
+Schema `args`; declaring the field opts the component into checking runtime
+registrations against that list. Omit the field to retain the legacy dynamic
+registration contract. This keeps `package-scripts`, whose IDs come from
+`package.json`, working during migration. An undeclared registration becomes a
+component action diagnostic and is not added to the registry.
 
 The dogfood `package-scripts` component demonstrates dynamic action discovery:
 it reads a configured `package.json`, registers one action for each

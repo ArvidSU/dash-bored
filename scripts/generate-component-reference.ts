@@ -164,6 +164,16 @@ function renderResources(manifest: ComponentManifest): string[] {
   return ["Resources:", "", `- \`process\`: ${parts.join(", ")}.`];
 }
 
+function renderActions(manifest: ComponentManifest): string[] {
+  if (!manifest.actions?.length) return [];
+  const lines = ["Actions:", ""];
+  for (const action of manifest.actions) {
+    lines.push(`- ${backtick(action.id)} — ${action.label}${action.description ? `: ${action.description}` : ""}`);
+    if (action.args) lines.push(`  - Arguments: JSON Schema ${backtick(JSON.stringify(action.args))}.`);
+  }
+  return lines;
+}
+
 function renderComponent(manifest: ComponentManifest): string[] {
   return [
     `${manifest.name} — ${manifest.description}`,
@@ -175,6 +185,7 @@ function renderComponent(manifest: ComponentManifest): string[] {
     renderPermissions(manifest),
     "",
     ...renderResources(manifest),
+    ...(manifest.actions?.length ? ["", ...renderActions(manifest)] : []),
     "",
   ];
 }

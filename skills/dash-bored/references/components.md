@@ -154,6 +154,32 @@ Resource nodes require stable IDs. References are validated across the
 resolved tree, including config links, and command-palette actions are derived
 from resources rather than component IDs.
 
+## Manifest-declared actions
+
+Declare stable component action IDs in `component.yaml`. This makes their
+labels available to the palette and Settings before the component mounts, and
+lets validation check references before runtime:
+
+```yaml
+actions:
+  - id: refresh
+    label: Refresh data
+    description: Fetch the latest project state.
+    args:
+      type: object
+      properties:
+        force:
+          type: boolean
+```
+
+When a manifest has an `actions` field, `host.actions.register` may register
+only those IDs. A component without that field keeps the legacy dynamic
+registration contract; this supports components such as `package-scripts`,
+which discovers its action IDs from `package.json`.
+Declared actions remain listed while their component is collapsed or hidden.
+Until its handler mounts, the action is disabled with the reason
+`Component is not mounted`.
+
 `propsSchema` and `children.metadataSchema` are JSON Schema. `children` is
 optional; when present it declares `min`, optional `max`, and a presentation
 of `{type: tiled, axes: horizontal|vertical|both}` or `{type: managed}`.

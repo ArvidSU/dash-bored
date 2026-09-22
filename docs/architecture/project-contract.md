@@ -181,6 +181,13 @@ warning; the v4 migration will rewrite them and remove that compatibility.
 Resolution is scoped to the owning YAML bundle, then linked-tree namespacing
 remaps the node-bearing segment of focus, process, and component-action IDs.
 
+Manifests may also declare `actions: [{id, label, description?, args?}]`;
+`args` is JSON Schema. A present `actions` array opts into registration checks,
+including an empty array. Component action references are checked against the
+target node's manifest. Palette and Settings include declared actions before
+mount with an unavailable reason. Omitting `actions` preserves dynamic legacy
+registration for components that discover IDs at runtime.
+
 The same representation is used for YAML, drafts, resolved trees, and saved
 configuration. There is no shorthand expansion or alternate topology model.
 

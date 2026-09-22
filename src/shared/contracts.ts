@@ -109,6 +109,14 @@ export interface ComponentReferenceDefinition {
   resource: "process" | "action";
 }
 
+export interface ComponentActionDefinition {
+  id: string;
+  label: string;
+  description?: string;
+  /** JSON Schema for arguments accepted by this action. */
+  args?: Record<string, unknown>;
+}
+
 export interface ComponentManifest {
   schemaVersion: 2;
   id: string;
@@ -118,6 +126,8 @@ export interface ComponentManifest {
   /** Whether this node owns a resizable surface or follows descendant layout. */
   renderMode?: "surface" | "layout";
   propsSchema: Record<string, unknown>;
+  /** When present, opts this component into manifest-declared action IDs. */
+  actions?: ComponentActionDefinition[];
   children?: ComponentChildrenDefinition;
   /** App-owned resources configured declaratively from component props. */
   resources?: ComponentResourceDefinitions;

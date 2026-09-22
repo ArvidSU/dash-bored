@@ -4,6 +4,7 @@ import type {
   ComponentActionChoice,
   ComponentActionOption,
   ComponentActionSelections,
+  Diagnostic,
 } from "../../shared/contracts";
 import { componentActionReference } from "../../shared/action-reference";
 import { agentActionRefusal, type AgentActionDescriptor } from "../../shared/agent-control";
@@ -49,6 +50,8 @@ export interface ComponentActionOwner {
   scope: string;
   nodeId: string;
   componentName: string;
+  /** Undefined keeps legacy dynamic registration; an empty list opts in and rejects every ID. */
+  declaredActionIds?: readonly string[];
 }
 
 interface RegisteredAction {
@@ -183,6 +186,7 @@ export class ActionRegistry {
   private readonly actions = new Map<string, RegisteredAction>();
   private readonly listeners = new Set<Listener>();
   private snapshot: readonly PaletteAction[] = [];
+  private readonly registrationDiagnostics = new Map<string, Diagnostic>();
 
   readonly subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
@@ -190,6 +194,7 @@ export class ActionRegistry {
   };
 
   readonly getSnapshot = (): readonly PaletteAction[] => this.snapshot;
+  readonly getDiagnostics = (): readonly Diagnostic[] => [...this.registrationDiagnostics.values()];
 
   get(id: string): PaletteAction | undefined {
     return this.actions.get(id)?.action;
@@ -197,6 +202,18 @@ export class ActionRegistry {
 
   register(owner: ComponentActionOwner, input: ComponentAction): () => void {
     const action = validateComponentAction(input);
+    if (owner.declaredActionIds !== undefined && !owner.declaredActionIds.includes(action.id)) {
+      const key = `${ownerKey(owner)}:${action.id}`;
+      this.registrationDiagnostics.set(key, {
+        severity: "error",
+        code: "COMPONENT_ACTION_UNDECLARED",
+        message: `${owner.componentName} registered action ${action.id}, which is not declared in its manifest.`,
+        path: owner.nodeId,
+      });
+      this.emit();
+      return () => undefined;
+    }
+    this.registrationDiagnostics.delete(`${ownerKey(owner)}:${action.id}`);
     const id = componentActionId(owner, action.id);
     if (this.actions.has(id)) {
       throw new Error(
@@ -260,6 +277,12 @@ export class ActionRegistry {
       this.actions.delete(id);
       changed = true;
     }
+    const diagnosticPrefix = `${expectedOwner}:`;
+    for (const key of this.registrationDiagnostics.keys()) {
+      if (!key.startsWith(diagnosticPrefix)) continue;
+      this.registrationDiagnostics.delete(key);
+      changed = true;
+    }
     if (changed) this.emit();
   }
 
@@ -271,12 +294,19 @@ export class ActionRegistry {
       this.actions.delete(id);
       changed = true;
     }
+    for (const key of this.registrationDiagnostics.keys()) {
+      const owner = JSON.parse(key.slice(0, key.lastIndexOf(":"))) as [string, string];
+      if (owner[0] !== scope) continue;
+      this.registrationDiagnostics.delete(key);
+      changed = true;
+    }
     if (changed) this.emit();
   }
 
   clear(): void {
-    if (this.actions.size === 0) return;
+    if (this.actions.size === 0 && this.registrationDiagnostics.size === 0) return;
     this.actions.clear();
+    this.registrationDiagnostics.clear();
     this.emit();
   }
 

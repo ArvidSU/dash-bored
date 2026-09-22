@@ -18,6 +18,7 @@ import {
   remapActionReferenceNode,
 } from "../shared/action-reference";
 import { resolveLegacyActionReference } from "./action-reference-migration";
+import { validateDeclaredComponentActionReferences } from "./component-action-references";
 import { getBuiltinManifest, listBuiltinManifests } from "./builtins";
 import { diagnostic, errorMessage } from "./diagnostics";
 import {
@@ -985,6 +986,7 @@ export async function resolveComponentTree(
         }
       }
     }
+    diagnostics.push(...validateDeclaredComponentActionReferences(allNodes));
   }
   return {
     tree,

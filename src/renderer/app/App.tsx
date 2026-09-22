@@ -28,6 +28,7 @@ import {
   keyboardShortcutLabel,
 } from "../../shared/keyboard-shortcut";
 import {
+  buildDeclaredComponentActions,
   buildApplicationActions,
   buildNodeFocusActions,
 } from "../lib/action-providers";
@@ -1494,7 +1495,10 @@ export function App(): ReactNode {
       focusComponent(nodeId);
     },
   );
-  const allActions = [...applicationActions, ...nodeFocusActions, ...componentActions];
+  const declaredComponentActions = buildDeclaredComponentActions(snapshot, componentActions);
+  const allActions = [...applicationActions, ...nodeFocusActions, ...declaredComponentActions, ...componentActions];
+  const runtimeDiagnostics = actionRegistry.getDiagnostics();
+  const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...runtimeDiagnostics];
   const favoriteActionIds = useMemo(
     () => new Set(appSettings.favoriteActionIds),
     [appSettings.favoriteActionIds],
@@ -1512,8 +1516,8 @@ export function App(): ReactNode {
     focusedNodeId: virtualRoot?.target.id ?? null,
     editing: editSession !== null,
     diagnostics: {
-      errors: snapshot?.diagnostics.filter((item) => item.severity === "error").length ?? 0,
-      warnings: snapshot?.diagnostics.filter((item) => item.severity === "warning").length ?? 0,
+      errors: visibleDiagnostics.filter((item) => item.severity === "error").length,
+      warnings: visibleDiagnostics.filter((item) => item.severity === "warning").length,
     },
   };
   useEffect(() => registerAgentControlHandler({
@@ -1643,7 +1647,7 @@ export function App(): ReactNode {
             ) : null}
 
             <Diagnostics
-              diagnostics={snapshot.diagnostics}
+              diagnostics={visibleDiagnostics}
               pending={pendingAction === "diagnostics-agent"}
               repairPending={pendingAction === "installed-tools-repair"}
               onFixWithAgent={() => void runDiagnosticsAgent()}

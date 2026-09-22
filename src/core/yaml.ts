@@ -127,6 +127,20 @@ const manifestSchema = {
     entry: { type: "string", pattern: "^\\./", minLength: 3 },
     renderMode: { enum: ["surface", "layout"] },
     propsSchema: { type: "object" },
+    actions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "label"],
+        properties: {
+          id: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+          label: { type: "string", minLength: 1 },
+          description: { type: "string", minLength: 1 },
+          args: { type: "object" },
+        },
+      },
+    },
     children: {
       type: "object",
       additionalProperties: false,
@@ -401,6 +415,36 @@ export function serializeDashboardLock(lock: DashboardLock): string {
 export async function parseComponentManifest(file: string): Promise<ParsedYaml<ComponentManifest>> {
   const result = await parseTyped<ComponentManifest>(file, "MANIFEST", validateManifest);
   if (result.value === null) return result;
+
+  const actionIds = new Set<string>();
+  for (const [index, action] of (result.value.actions ?? []).entries()) {
+    if (actionIds.has(action.id)) {
+      return {
+        value: null,
+        diagnostics: [diagnostic({
+          code: "MANIFEST_ACTION_ID_DUPLICATE",
+          message: `Manifest actions contain duplicate id ${action.id}.`,
+          file,
+          path: `/actions/${index}/id`,
+        })],
+      };
+    }
+    actionIds.add(action.id);
+    if (action.args === undefined) continue;
+    try {
+      ajv.compile(action.args);
+    } catch (error) {
+      return {
+        value: null,
+        diagnostics: [diagnostic({
+          code: "MANIFEST_ACTION_ARGS_SCHEMA_INVALID",
+          message: errorMessage(error),
+          file,
+          path: `/actions/${index}/args`,
+        })],
+      };
+    }
+  }
 
   try {
     ajv.compile(result.value.propsSchema);

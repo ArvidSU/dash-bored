@@ -45,6 +45,10 @@ root:
                           done: false
                           tags:
                             - agent-tools
+                        - description: "Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3."
+                          done: false
+                          tags:
+                            - atoms
                         - description: "Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly."
                           done: false
                           tags:
