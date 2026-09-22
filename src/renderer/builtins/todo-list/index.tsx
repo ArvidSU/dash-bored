@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -9,8 +10,9 @@ import "./todo-list.css";
 import type { LocalComponentHost } from "../../../shared/contracts";
 import {
   filterTodos,
+  createTodoId,
+  migrateTodoItems,
   sortTodos,
-  todoItemsFromProps,
   todoTags,
 } from "../../lib/todo";
 import type { TodoItem } from "../../lib/todo";
@@ -23,7 +25,7 @@ interface TodoListProps {
 type EditField = "description" | "tags";
 
 interface EditTarget {
-  index: number;
+  id: string;
   field: EditField;
 }
 
@@ -36,8 +38,11 @@ function tagsFromInput(value: string): string[] {
 }
 
 export function TodoList({ props, host }: TodoListProps): ReactNode {
-  const configuredItems = todoItemsFromProps(props.todos);
-  const configuredItemsKey = JSON.stringify(configuredItems);
+  const configuredItemsKey = JSON.stringify(props.todos);
+  const configuredItems = useMemo(
+    () => migrateTodoItems(props.todos).items,
+    [configuredItemsKey],
+  );
   const [items, setItems] = useState<TodoItem[]>(configuredItems);
   const [filterTag, setFilterTag] = useState("");
   const [description, setDescription] = useState("");
@@ -76,6 +81,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
     }
     setFormError(null);
     const added: TodoItem = {
+      id: createTodoId(),
       description: nextDescription,
       done: false,
       tags: tagsFromInput(newTags),
@@ -87,29 +93,25 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
   };
 
   const toggleTodo = (item: TodoItem): void => {
-    const index = items.indexOf(item);
-    if (index < 0) return;
-    const nextItems = items.map((candidate, candidateIndex) =>
-      candidateIndex === index ? { ...candidate, done: !candidate.done } : candidate,
+    const nextItems = items.map((candidate) =>
+      candidate.id === item.id ? { ...candidate, done: !candidate.done } : candidate,
     );
     void persist(nextItems);
   };
 
   const removeTodo = (item: TodoItem): void => {
-    const index = items.indexOf(item);
-    if (index < 0) return;
-    void persist(items.filter((_, candidateIndex) => candidateIndex !== index));
+    void persist(items.filter((candidate) => candidate.id !== item.id));
   };
 
   const canWrite = !saving;
 
-  const beginEdit = (index: number, field: EditField): void => {
+  const beginEdit = (id: string, field: EditField): void => {
     if (!canWrite) return;
-    const item = items[index];
+    const item = items.find((candidate) => candidate.id === id);
     if (!item) return;
     editActionRef.current = "idle";
     setFormError(null);
-    setEditTarget({ index, field });
+    setEditTarget({ id, field });
     setEditValue(field === "description" ? item.description : item.tags.join(", "));
   };
 
@@ -122,7 +124,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
 
   const commitEdit = (): void => {
     if (editActionRef.current !== "idle" || editTarget === null || saving) return;
-    const item = items[editTarget.index];
+    const item = items.find((candidate) => candidate.id === editTarget.id);
     if (!item) {
       cancelEdit();
       return;
@@ -133,8 +135,8 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
       return;
     }
 
-    const nextItems = items.map((candidate, index) => {
-      if (index !== editTarget.index) return candidate;
+    const nextItems = items.map((candidate) => {
+      if (candidate.id !== editTarget.id) return candidate;
       return editTarget.field === "description"
         ? { ...candidate, description: value }
         : { ...candidate, tags: tagsFromInput(value) };
@@ -184,11 +186,10 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
         visibleItems.length ? (
           <div className="todo__list" role="list" aria-label="Todos">
             {visibleItems.map((item) => {
-              const itemIndex = items.indexOf(item);
-              const editingDescription = editTarget?.index === itemIndex && editTarget.field === "description";
-              const editingTags = editTarget?.index === itemIndex && editTarget.field === "tags";
+              const editingDescription = editTarget?.id === item.id && editTarget.field === "description";
+              const editingTags = editTarget?.id === item.id && editTarget.field === "tags";
               return (
-                <article className={`todo__item${item.done ? " todo__item--done" : ""}`} key={itemIndex} role="listitem">
+                <article className={`todo__item${item.done ? " todo__item--done" : ""}`} key={item.id} role="listitem">
                   <div className="todo__item-main">
                     <input
                       type="checkbox"
@@ -222,7 +223,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
                         type="button"
                         disabled={!canWrite}
                         aria-label={`Edit description: ${item.description}`}
-                        onClick={() => beginEdit(itemIndex, "description")}
+                        onClick={() => beginEdit(item.id, "description")}
                       >
                         <span className="todo__description">{item.description}</span>
                       </button>
@@ -255,7 +256,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
                         type="button"
                         disabled={!canWrite}
                         aria-label={`Edit tags: ${item.description}`}
-                        onClick={() => beginEdit(itemIndex, "tags")}
+                        onClick={() => beginEdit(item.id, "tags")}
                       >
                         {item.tags.length ? (
                           <span className="todo__tags" aria-label="Tags">

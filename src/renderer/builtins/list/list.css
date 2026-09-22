@@ -1,0 +1,106 @@
+.source-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.7rem;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.source-list__header,
+.source-list__controls,
+.source-list__controls label,
+.source-list__item-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.source-list__header {
+  justify-content: space-between;
+}
+
+.source-list__header > div:first-child,
+.source-list__item-text {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.source-list__header span,
+.source-list__controls label > span,
+.source-list__item-text > span,
+.source-list__empty {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.source-list__controls select {
+  min-width: 7rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+.source-list__items,
+.source-list__diagnostics {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-list__item {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.source-list__item-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.source-list__item--closed .source-list__item-text > strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.source-list__item-meta {
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.source-list__state,
+.source-list__tag {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 0.72rem;
+}
+
+.source-list__diagnostics {
+  padding: 0.55rem 0.7rem 0.55rem 1.8rem;
+  border-left: 3px solid var(--negative);
+  color: var(--negative);
+  background: color-mix(in srgb, var(--negative) 8%, transparent);
+  font-size: 0.82rem;
+}
+
+.source-list__empty { margin: 0; }
+
+@media (max-width: 760px) {
+  .source-list__item { flex-direction: column; }
+  .source-list__item-meta { justify-content: flex-start; }
+}

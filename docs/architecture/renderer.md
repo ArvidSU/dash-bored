@@ -93,6 +93,13 @@ examples, not privileged component types:
   editor with Save/Cancel behavior. Inline
   edits update the owning dashboard draft, and path-backed edits use the
   declared bounded filesystem capability.
+- `@dash-bored/list` reads one bounded source and renders items keyed by
+  source-owned string IDs. Its output must be an array of objects with unique,
+  non-empty `id` and `title` strings; optional `detail`, `tags`, `state`, and
+  `done` fields have fixed types. Invalid entries remain visible as shape
+  diagnostics. Tag filtering is exact, and the default stable sort places
+  explicitly completed states after open items. The declared `refresh` action
+  requests a new read; polling stops while the list is hidden.
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
   terminal session.
@@ -105,8 +112,10 @@ examples, not privileged component types:
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
   unrecognized lines; writes are bounded, project-contained, and atomic.
 - `@dash-bored/todo-list` edits its `todos` prop in the owning
-  `dash-bored.yaml`, containing only descriptions, boolean completion state,
-  and tags. It sorts open items first, filters by tag, and supports adding,
+  `dash-bored.yaml`, with stable item IDs, descriptions, boolean completion
+  state, and tags. Legacy items receive IDs the next time a user edits the
+  list; IDs are retained in each dashboard draft write. It sorts open items
+  first, filters by tag, and supports adding,
   removing, and inline editing items without reloading the component. Its
   interactions use the normal draft Save/Cancel boundary.
 - `@dash-bored/webview` embeds a sandboxed application page. Native child

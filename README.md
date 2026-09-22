@@ -450,6 +450,8 @@ The initial built-ins are:
   plus core-owned tiled branches and managed child presentation.
 - Controls and display: `@dash-bored/button`, `@dash-bored/markdown`, and
   `@dash-bored/status`.
+- Lists: `@dash-bored/list` for bounded source data with stable item IDs,
+  tag filtering, and open-first sorting.
 - Charts: `@dash-bored/chart` for static YAML data or a bounded source, with
   `@dash-bored/live-chart` retained as a compatibility form for endpoint data.
 - Host-backed: `@dash-bored/command`, `@dash-bored/conditional`,
@@ -497,6 +499,23 @@ its reason.
 `path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes
 the source editor, with Save/Cancel behavior. Inline saves update the owning
 dashboard draft, while path-backed saves write the bounded project file.
+
+`@dash-bored/list` reads JSON from one bounded source and expects an array of
+items with source-owned, unique string `id` and non-empty string `title`
+fields. Optional `detail`, `tags`, `state`, and `done` fields have fixed types;
+shape errors are shown beside the list. It filters by tags and puts items with
+an open state before completed items by default. A source may be inline, a
+project file, a bounded shell command, HTTP, or a supervised process:
+
+```yaml
+component: "@dash-bored/list"
+props:
+  title: Package scripts
+  source:
+    shell: bun run dash-bored -- scripts --json
+    cwd: .
+    timeoutMs: 5000
+```
 
 `@dash-bored/group` is an ordinary transparent component boundary with
 `renderMode: layout`: it accepts
@@ -547,10 +566,10 @@ code. Both forms keep schema-v3 dashboards readable while migration is in
 progress.
 
 `@dash-bored/todo-list` stores its `todos` array directly in the component's
-dashboard YAML props. Each item contains only `description`, `done`, and
-`tags`; the component provides status sorting, tag filtering, add/remove
-actions, and inline description/tag editing. Interactions update the normal
-dashboard draft, so Save or Cancel remains the persistence boundary.
+dashboard YAML props. Items have stable `id` strings, descriptions, boolean
+completion state, and tags. Legacy items receive IDs when the user next edits
+the list; add, remove, toggle, and inline edits use the normal dashboard draft
+Save/Cancel boundary.
 
 Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
 static line or bar data from YAML or reads the same shape from a bounded source

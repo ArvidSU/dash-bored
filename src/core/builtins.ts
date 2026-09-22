@@ -10,12 +10,32 @@ const objectSchema = (properties: Record<string, unknown>, required: string[] = 
 const string = { type: "string", minLength: 1 } as const;
 const todoItemSchema = objectSchema(
   {
+    id: string,
     description: string,
     done: { type: "boolean" },
     tags: { type: "array", maxItems: 32, items: string },
   },
   ["description", "done", "tags"],
 );
+const sourceSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    shell: string,
+    file: string,
+    http: { type: "string", pattern: "^https?://" },
+    process: string,
+    inline: {},
+    every: { type: "integer", minimum: 1000, maximum: 300000 },
+    timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
+    cwd: { type: "string", minLength: 1 },
+    env: { type: "object", additionalProperties: { type: "string" } },
+  },
+  oneOf: [
+    { required: ["shell"] }, { required: ["file"] }, { required: ["http"] },
+    { required: ["process"] }, { required: ["inline"] },
+  ],
+};
 const chartSeriesSchema = objectSchema(
   {
     label: string,
@@ -183,25 +203,7 @@ const manifests: ComponentManifest[] = [
         content: { type: "string" },
         path: string,
         title: { type: "string" },
-        source: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            shell: string,
-            file: string,
-            http: { type: "string", pattern: "^https?://" },
-            process: string,
-            inline: {},
-            every: { type: "integer", minimum: 1000, maximum: 300000 },
-            timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
-            cwd: { type: "string", minLength: 1 },
-            env: { type: "object", additionalProperties: { type: "string" } },
-          },
-          oneOf: [
-            { required: ["shell"] }, { required: ["file"] }, { required: ["http"] },
-            { required: ["process"] }, { required: ["inline"] },
-          ],
-        },
+        source: sourceSchema,
       }),
       oneOf: [
         { required: ["content"] },
@@ -328,6 +330,27 @@ const manifests: ComponentManifest[] = [
     entry: "builtin:env",
     propsSchema: objectSchema({ path: string }, ["path"]),
     permissions: ["filesystem:read", "filesystem:write"],
+  },
+  {
+    schemaVersion: 2,
+    id: "@dash-bored/list",
+    name: "Source list",
+    description: "Renders stable-ID items from a bounded source, with tags, status, and refresh.",
+    entry: "builtin:list",
+    propsSchema: objectSchema({
+      title: { type: "string" },
+      source: sourceSchema,
+      filterByTags: { type: "boolean", default: true },
+      sort: { enum: ["open-first", "source-order"], default: "open-first" },
+    }, ["source"]),
+    actions: [{ id: "refresh", label: "Refresh list" }],
+    permissionsByProp: {
+      "source.shell": ["process:execute"],
+      "source.file": ["filesystem:read"],
+      "source.http": ["network:http"],
+      "source.process": ["process:observe"],
+    },
+    references: { "source.process": { resource: "process" } },
   },
   {
     schemaVersion: 2,
