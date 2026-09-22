@@ -293,7 +293,7 @@ export function ComponentDialog({
           }
           if (replace) {
             const planned = planCompositionOperation({
-              config,
+              config: withActionTargetId(config, selectedActionTarget?.path, proposedTargetId),
               catalog,
               payload: { type: "component", reference: item.reference, props },
               target: { type: "root-replacement", path: [] },
@@ -310,7 +310,7 @@ export function ComponentDialog({
             if (existing.path.length > 0 && metadataSchema) next = updateChildMetadata(next, existing.path, metadata);
             onApply(next);
           } else if (target) {
-            let sourceConfig = withActionTargetId(config, selectedActionTarget?.path, proposedTargetId);
+            const sourceConfig = withActionTargetId(config, selectedActionTarget?.path, proposedTargetId);
             const planned = planCompositionOperation({
               config: sourceConfig,
               catalog,
