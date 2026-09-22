@@ -10,6 +10,7 @@ export function parseStatusValue(value: unknown): StatusValue | null {
   if (!isRecord(value)) return null;
   const states = ["unknown", "healthy", "warning", "error"] as const;
   if (states.includes(value.state as StatusValue["state"])) {
+    if (value.detail !== undefined && typeof value.detail !== "string") return null;
     return { state: value.state as StatusValue["state"], ...(typeof value.detail === "string" ? { detail: value.detail } : {}) };
   }
   if (value.phase === "idle" || value.phase === "running" || value.phase === "stopping" || value.phase === "exited" || value.phase === "failed") {

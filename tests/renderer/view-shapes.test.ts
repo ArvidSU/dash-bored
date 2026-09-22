@@ -8,6 +8,7 @@ describe("source-bound view shapes", () => {
     expect(parseStatusValue({ phase: "exited", exitCode: 0 })).toMatchObject({ state: "healthy" });
     expect(parseStatusValue({ phase: "failed", exitCode: 1 })).toMatchObject({ state: "error" });
     expect(parseStatusValue({ ready: true })).toBeNull();
+    expect(parseStatusValue({ state: "healthy", detail: 1 })).toBeNull();
   });
 
   test("requires the documented chart source shape", () => {
