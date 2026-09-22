@@ -69,6 +69,9 @@ describe("ProcessManager", () => {
     await waitFor(() => manager.get("hello")?.phase === "exited");
     const snapshot = manager.get("hello");
     expect(snapshot?.exitCode).toBe(0);
+    expect(snapshot?.startedAt).toBeString();
+    expect(snapshot?.durationMs).toBeNumber();
+    expect(snapshot?.durationMs).toBeGreaterThanOrEqual(0);
     expect(snapshot?.logs.some((entry) => entry.stream === "stdout" && entry.text.includes("hello"))).toBeTrue();
     expect(snapshot?.logs.some((entry) => entry.stream === "stderr" && entry.text.includes("warn"))).toBeTrue();
     expect(

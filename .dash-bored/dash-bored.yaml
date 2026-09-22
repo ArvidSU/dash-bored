@@ -41,6 +41,10 @@ root:
                     component: "@dash-bored/todo-list"
                     props:
                       todos:
+                        - description: "Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path."
+                          done: false
+                          tags:
+                            - atom-roadmap
                         - description: "Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today)."
                           done: false
                           tags:
@@ -352,15 +356,31 @@ root:
                   props:
                     url: https://www.google.com
               second:
-                node:
-                  id: package-scripts-card
-                  component: "@dash-bored/group"
-                  children:
-                    node:
-                      id: package-scripts
-                      component: ./components/package-scripts
-                      props:
-                        packageFile: package.json
+                axis: vertical
+                first:
+                  node:
+                    id: package-scripts-card
+                    component: "@dash-bored/group"
+                    children:
+                      node:
+                        id: package-scripts
+                        component: ./components/package-scripts
+                        props:
+                          packageFile: package.json
+                second:
+                  node:
+                    id: source-proof-card
+                    component: "@dash-bored/group"
+                    children:
+                      node:
+                        id: source-proof
+                        component: "@dash-bored/markdown"
+                        props:
+                          title: Project script source proof
+                          source:
+                            shell: bun run scripts/dashboard-source-proof.ts
+                            cwd: .
+                            every: 30000
     - metadata:
         label: Release
       node:

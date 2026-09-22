@@ -147,10 +147,12 @@ function renderChildren(manifest: ComponentManifest): string[] {
 }
 
 function renderPermissions(manifest: ComponentManifest): string {
-  if (!manifest.permissions || manifest.permissions.length === 0) {
-    return "Permissions: none.";
-  }
-  return `Permissions: ${manifest.permissions.map((permission) => backtick(permission)).join(", ")}.`;
+  const parts: string[] = [];
+  if (manifest.permissions?.length) parts.push(manifest.permissions.map((permission) => backtick(permission)).join(", "));
+  const conditional = Object.entries(manifest.permissionsByProp ?? {}).map(([path, permissions]) =>
+    `${backtick(path)} requires ${permissions.map((permission) => backtick(permission)).join(", ")}`);
+  if (conditional.length) parts.push(`when configured: ${conditional.join("; ")}`);
+  return parts.length ? `Permissions: ${parts.join("; ")}.` : "Permissions: none.";
 }
 
 function renderResources(manifest: ComponentManifest): string[] {

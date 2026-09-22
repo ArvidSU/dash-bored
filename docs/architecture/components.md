@@ -17,6 +17,24 @@ write session state to YAML or issue background notifications.
 Core composition branches are YAML topology and do not appear in the component
 catalog.
 
+The Markdown view accepts the additive shared `source` contract alongside its
+existing `content` and `path` forms. A source defines exactly one of `shell`,
+`file`, `http`, `process`, or `inline`, and may set `every` (1000–300000 ms),
+`timeoutMs` (1–30000 ms), `cwd`, and string `env`. JSON output is rendered in a
+fenced JSON block; text output is previewed as Markdown. The view keeps the last
+good value on failure, shows an error (including a bounded stderr excerpt), and
+exposes a `refresh` component action. Polling pauses while hidden and only runs
+automatically when `every` is configured; process snapshots update from the
+existing process snapshot feed. Each source kind activates only its required
+capability through `permissionsByProp`, and `path` activates the existing file
+read/write capabilities. `process` names a supervised
+process node ID through a declared process resource reference, which is checked
+against the resolved tree and remapped when a linked bundle is namespaced. Its
+authoritative snapshot includes phase, exit code, start time, duration, and
+bounded logs. This reports process completion independently of the action
+request that started it. Existing `live-chart` and `conditional` remain
+available during migration.
+
 ## Standalone dashboard paths
 
 A component reference outside the built-in `@dash-bored/*` namespace and the

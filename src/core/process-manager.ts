@@ -40,6 +40,9 @@ interface ManagedProcess {
   logBytes: number;
   nextSequence: number;
   completion: Promise<void> | null;
+  startedAt: string | null;
+  startedAtMs: number | null;
+  durationMs: number | null;
 }
 
 function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
@@ -117,6 +120,9 @@ export class ProcessManager {
       logBytes: 0,
       nextSequence: 1,
       completion: null,
+      startedAt: null,
+      startedAtMs: null,
+      durationMs: null,
     };
   }
 
@@ -128,6 +134,8 @@ export class ProcessManager {
       exitCode: processState.exitCode,
       signal: processState.signal,
       logs: processState.logs.map((entry) => ({ ...entry })),
+      ...(processState.startedAt === null ? {} : { startedAt: processState.startedAt }),
+      ...(processState.durationMs === null ? {} : { durationMs: processState.durationMs }),
     };
   }
 
@@ -198,6 +206,7 @@ export class ProcessManager {
       processState.exitCode = subprocess.signalCode === null ? exitCode : null;
       processState.signal = subprocess.signalCode;
       processState.phase = exitResult?.status === "rejected" ? "failed" : "exited";
+      processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
       processState.subprocess = null;
       processState.terminal = null;
       processState.completion = null;
@@ -275,6 +284,9 @@ export class ProcessManager {
     processState.logBytes = 0;
     processState.exitCode = null;
     processState.signal = null;
+    processState.startedAt = null;
+    processState.startedAtMs = null;
+    processState.durationMs = null;
 
     try {
       const environment = await resolveEnvironment(
@@ -308,6 +320,8 @@ export class ProcessManager {
         processState.subprocess = subprocess;
         processState.terminal = terminal;
         processState.phase = "running";
+        processState.startedAtMs = Date.now();
+        processState.startedAt = new Date(processState.startedAtMs).toISOString();
         this.append(processState, "system", `Started interactive terminal ${subprocess.pid}.`);
         processState.completion = this.monitorTerminal(processState, subprocess, terminal, decoder);
         if (options.runQuickAction !== false) terminal.write(`${processState.definition.command}\n`);
@@ -326,11 +340,14 @@ export class ProcessManager {
       });
       processState.subprocess = subprocess;
       processState.phase = "running";
+      processState.startedAtMs = Date.now();
+      processState.startedAt = new Date(processState.startedAtMs).toISOString();
       this.append(processState, "system", `Started process ${subprocess.pid}.`);
       processState.completion = this.monitor(processState, subprocess);
       return this.emit(processState);
     } catch (error) {
       processState.phase = "failed";
+      processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
       this.append(processState, "system", `Failed to start: ${errorMessage(error)}`);
       return this.emit(processState);
     }
@@ -390,6 +407,7 @@ export class ProcessManager {
         processState.exitCode = subprocess.signalCode === null ? exitCode : null;
         processState.signal = subprocess.signalCode;
         processState.phase = "exited";
+        processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
         processState.subprocess = null;
         processState.terminal = null;
         processState.completion = null;
@@ -406,6 +424,7 @@ export class ProcessManager {
       (error) => {
         if (processState.subprocess !== subprocess) return;
         processState.phase = "failed";
+        processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
         processState.subprocess = null;
         processState.terminal = null;
         processState.completion = null;

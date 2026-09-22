@@ -189,7 +189,7 @@ const manifestSchema = {
     },
     references: {
       type: "object",
-      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
+      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_.-]*$" },
       additionalProperties: {
         type: "object",
         additionalProperties: false,
@@ -201,6 +201,15 @@ const manifestSchema = {
       type: "array",
       uniqueItems: true,
       items: { enum: ["filesystem:read", "filesystem:write", "network:http", "process:execute", "process:observe", "webview:embed"] },
+    },
+    permissionsByProp: {
+      type: "object",
+      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_.-]*$" },
+      additionalProperties: {
+        type: "array",
+        uniqueItems: true,
+        items: { enum: ["filesystem:read", "filesystem:write", "network:http", "process:execute", "process:observe", "webview:embed"] },
+      },
     },
   },
 } as const;
@@ -493,6 +502,7 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
     };
   }
   const permissions = new Set(result.value.permissions ?? []);
+  const conditionalPermissions = new Set(Object.values(result.value.permissionsByProp ?? {}).flat());
   if (result.value.resources?.process && !permissions.has("process:execute")) {
     return {
       value: null,
@@ -508,6 +518,8 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
     Object.values(result.value.references ?? {}).some((reference) => reference.resource === "process")
     && !permissions.has("process:observe")
     && !permissions.has("process:execute")
+    && !conditionalPermissions.has("process:observe")
+    && !conditionalPermissions.has("process:execute")
   ) {
     return {
       value: null,

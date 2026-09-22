@@ -120,7 +120,7 @@ Permissions: none.
 
 ## @dash-bored/markdown
 
-Markdown — Previews safe Markdown from inline content or a project file, with raw editing.
+Markdown — Previews safe Markdown from inline content or a project file, with raw editing and bounded source polling.
 
 Props:
 
@@ -128,12 +128,14 @@ Props:
 | --- | --- | --- | --- |
 | `content` | string | see note |  |
 | `path` | string | see note | non-empty |
+| `title` | string | no |  |
+| `source` | object | see note | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
 
-Exactly one of `content` or `path` is required.
+Exactly one of `content` or `path` or `source` is required.
 
 Children: none (leaf component).
 
-Permissions: `filesystem:read`, `filesystem:write`.
+Permissions: when configured: `path` requires `filesystem:read`, `filesystem:write`; `source.shell` requires `process:execute`; `source.file` requires `filesystem:read`; `source.http` requires `network:http`; `source.process` requires `process:observe`.
 
 
 ## @dash-bored/status

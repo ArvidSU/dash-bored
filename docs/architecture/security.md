@@ -21,6 +21,12 @@ speaking the internal RPC protocol directly. Project trust is the security
 boundary for local code. Strong per-component isolation would require
 separate execution realms and authenticated capability channels.
 
+Manifests may use `permissionsByProp` for capabilities activated by configured
+props. The resolved tree includes only the permissions whose prop paths are
+present in that node's props. Those effective permissions drive the project
+trust union, the renderer host shape, and the main-process capability check.
+They cannot be selected by renderer code at request time.
+
 Local components receive only the host methods allowed by their manifest:
 
 ```ts
@@ -115,6 +121,10 @@ Capability behavior is bounded:
   request time.
 - Short shell calls bound output and execution time; an optional relative
   working directory must remain inside the project root.
+- Markdown sources use those same bounds. Source polling is limited to
+  1–300 seconds, stops while the view is hidden, and reports process snapshots
+  only through a validated `process` resource reference and
+  `process:observe` permission.
 - Process and shell launches receive a fresh environment assembled in this
   order: component-declared values, app-published settings when configured,
   inherited process values, then the owning bundle's `.env` defaults. Bundle files are parsed as

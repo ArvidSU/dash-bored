@@ -134,6 +134,8 @@ export interface ComponentManifest {
   /** Props that reference resources supplied by other component nodes. */
   references?: Record<string, ComponentReferenceDefinition>;
   permissions?: Permission[];
+  /** Additional capabilities required when the configured prop path is present. */
+  permissionsByProp?: Record<string, Permission[]>;
 }
 
 export interface ComponentCatalogItem {
@@ -280,6 +282,10 @@ export interface ProcessSnapshot {
   exitCode: number | null;
   signal: string | null;
   logs: ProcessLogEntry[];
+  /** Wall-clock start of the latest supervised run, when one has started. */
+  startedAt?: string;
+  /** Duration of the latest completed supervised run in milliseconds. */
+  durationMs?: number;
 }
 
 export interface ProjectSnapshot {

@@ -12,6 +12,7 @@ import type {
   Permission,
   ResolvedComponentNode,
 } from "../shared/contracts";
+import { permissionsForComponent } from "../shared/component-permissions";
 import { CONFIG_FILE } from "../shared/contracts";
 import {
   parseActionReferenceNodeId,
@@ -148,10 +149,20 @@ function namespaceLinkedTree(
       : { ...node.manifest, id: `${prefix}::${node.manifest.id}` };
     const props = { ...node.props };
     for (const [propName, reference] of Object.entries(node.manifest?.references ?? {})) {
-      if (typeof props[propName] === "string") {
-        props[propName] = reference.resource === "action"
-          ? remapActionReferenceNode(props[propName], (id) => ids.get(id))
-          : ids.get(props[propName]) ?? props[propName];
+      const parts = propName.split(".");
+      let parent: Record<string, unknown> = props;
+      for (const part of parts.slice(0, -1)) {
+        const value = parent[part];
+        if (value === null || typeof value !== "object" || Array.isArray(value)) { parent = {}; break; }
+        const copy = { ...(value as Record<string, unknown>) };
+        parent[part] = copy;
+        parent = copy;
+      }
+      const key = parts.at(-1)!;
+      if (typeof parent[key] === "string") {
+        parent[key] = reference.resource === "action"
+          ? remapActionReferenceNode(parent[key] as string, (id) => ids.get(id))
+          : ids.get(parent[key] as string) ?? parent[key];
       }
     }
     return {
@@ -718,7 +729,7 @@ export async function resolveComponentTree(
       }
     }
 
-    const nodePermissions = new Set(manifest.permissions ?? []);
+    const nodePermissions = new Set(permissionsForComponent(manifest, props));
     permissionsByNode.set(id, nodePermissions);
     projectRootsByNode.set(id, location.projectRoot);
     for (const permission of nodePermissions) requestedPermissions.add(permission);
@@ -879,7 +890,7 @@ export async function resolveComponentTree(
       source: node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? "local" : "builtin",
       sourceConfigPath: location.configPath,
       sourcePath,
-      manifest,
+      manifest: { ...manifest, permissions: [...nodePermissions] },
     };
   };
 
@@ -910,7 +921,13 @@ export async function resolveComponentTree(
       // namespacing. Their IDs are intentionally private to that bundle.
       if (node.sourceConfigPath !== location.configPath) continue;
       for (const [propName, reference] of Object.entries(node.manifest?.references ?? {})) {
-        const targetId = node.props[propName];
+        const parts = propName.split(".");
+        let target: unknown = node.props;
+        for (const part of parts) target = target !== null && typeof target === "object" ? (target as Record<string, unknown>)[part] : undefined;
+        const targetId = target;
+        // Nested resource references may be optional branches of a tagged union
+        // prop (for example source.process versus source.inline).
+        if (targetId === undefined && parts.length > 1) continue;
         if (reference.resource === "action") {
           if (typeof targetId !== "string") {
             diagnostics.push(diagnostic({

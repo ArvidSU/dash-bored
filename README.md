@@ -219,6 +219,30 @@ project/
     └── components/
 ```
 
+### Show output from a project source
+
+The Markdown view can display JSON or text from a bounded project source. A
+small project script owns any domain-specific processing:
+
+```yaml
+component: "@dash-bored/markdown"
+props:
+  title: Project summary
+  source:
+    shell: bun run scripts/dashboard-summary.ts
+    cwd: .
+    timeoutMs: 5000
+    every: 30000
+```
+
+Use one of `shell`, `file`, `http`, `process`, or `inline` in `source`. HTTP
+sources use absolute HTTP(S) URLs. Process sources name a supervised command
+node by ID. Omitting `every` runs the source on mount and on manual refresh;
+process snapshots update when the supervised process changes. Polling pauses
+while the view is hidden. Each source kind requests only its needed capability:
+shell execution, file read, HTTP, or process observation. The app bounds source
+timeouts and output, and shows a stale last value when a refresh fails.
+
 The generated dashboard is immediately valid and combines a short guided tour,
 a sampler of the available component primitives, and a setup action that asks your
 chosen CLI coding agent to tailor the dashboard to the project. It uses

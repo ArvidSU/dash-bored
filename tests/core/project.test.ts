@@ -62,6 +62,53 @@ afterEach(async () => {
 });
 
 describe("project paths and YAML", () => {
+  test("activates only the capability selected by a Markdown source", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      ...defaultConfig,
+      root: { id: "observed", component: "@dash-bored/markdown", props: { source: { inline: { state: "ready" } } } },
+    });
+    let result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    expect(result.permissions).toEqual([]);
+    expect(result.permissionsByNode.get("observed")).toEqual(new Set());
+
+    await createProject(root, {
+      ...defaultConfig,
+      root: { id: "observed", component: "@dash-bored/markdown", props: { source: { shell: "bun run data" } } },
+    });
+    result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    expect(result.permissions).toEqual(["process:execute"]);
+    expect(result.tree?.manifest?.permissions).toEqual(["process:execute"]);
+  });
+
+  test("resolves a Markdown process source only to a declared supervised node", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const config: DashboardConfig = {
+      ...defaultConfig,
+      root: {
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "process-output", component: "@dash-bored/markdown", props: { source: { process: "run-qa" } } },
+          { id: "run-qa", component: "@dash-bored/command", props: { label: "Run QA", command: "bun test" } },
+        ]),
+      },
+    };
+    await createProject(root, config);
+    const result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    expect(result.permissionsByNode.get("process-output")).toEqual(new Set(["process:observe"]));
+    expect(resolvedChildren(result.tree)[0]?.props.source).toEqual({ process: "run-qa" });
+
+    await createProject(root, { ...config, root: { ...config.root, children: child({ id: "process-output", component: "@dash-bored/markdown", props: { source: { process: "missing" } } }) } });
+    const invalid = await loadProjectDefinition(root);
+    expect(invalid.ok).toBeFalse();
+    expect(invalid.diagnostics.some((item) => item.code === "COMPONENT_RESOURCE_REFERENCE_UNKNOWN")).toBeTrue();
+  });
+
   test("resolves a root, config directory, and config file consistently", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
@@ -263,6 +310,37 @@ describe("tree resolution and local compilation", () => {
     const linkedRoot = resolvedChildren(result.tree)[0];
     expect(resolvedChildren(linkedRoot)[0]?.props.action)
       .toBe("focus:personal%3A%3Atarget");
+  });
+
+  test("remaps and validates a process source inside a linked bundle", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, { schemaVersion: 3, name: "Base", root: { id: "personal", component: "./arvid" } });
+    const named = join(root, ".dash-bored", "arvid");
+    await mkdir(join(named, "components"), { recursive: true });
+    await Promise.all([
+      writeFile(join(named, "dash-bored.yaml"), stringify({
+        schemaVersion: 3,
+        name: "Arvid",
+        root: {
+          id: "linked-root",
+          component: "@dash-bored/group",
+          children: {
+            axis: "horizontal",
+            first: child({ id: "source", component: "@dash-bored/markdown", props: { source: { process: "run-qa" } } }),
+            second: child({ id: "run-qa", component: "@dash-bored/command", props: { label: "QA", command: "bun test" } }),
+          },
+        },
+      })),
+      writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
+    ]);
+
+    const result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    const linked = resolvedChildren(result.tree)[0]!;
+    const source = resolvedChildren(linked)[0]!;
+    expect(source.props.source).toEqual({ process: "personal::run-qa" });
+    expect(result.permissionsByNode.get("personal::source")).toEqual(new Set(["process:observe"]));
   });
 
   test("renders relative and absolute standalone config links without coupling validation", async () => {
