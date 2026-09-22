@@ -82,13 +82,13 @@ function renderNotes(schema: Schema): string[] {
   return notes;
 }
 
-interface AnyOfNote {
+interface OneOfNote {
   alternatives: string[];
 }
 
-function anyOfNote(schema: Schema): AnyOfNote | null {
-  if (!Array.isArray(schema.anyOf)) return null;
-  const alternatives = schema.anyOf
+function oneOfNote(schema: Schema): OneOfNote | null {
+  if (!Array.isArray(schema.oneOf)) return null;
+  const alternatives = schema.oneOf
     .map((branch: Schema) => (Array.isArray(branch.required) ? branch.required : []))
     .filter((required: string[]) => required.length > 0)
     .map((required: string[]) => required.map((name) => backtick(name)).join(" + "));
@@ -100,7 +100,7 @@ function renderPropsTable(manifest: ComponentManifest): string[] {
   const schema = manifest.propsSchema as Schema;
   const properties = (schema.properties ?? {}) as Record<string, Schema>;
   const required: string[] = Array.isArray(schema.required) ? schema.required : [];
-  const oneOf = anyOfNote(schema);
+  const oneOf = oneOfNote(schema);
   const names = Object.keys(properties);
   const lines: string[] = ["Props:", ""];
   if (names.length === 0) {

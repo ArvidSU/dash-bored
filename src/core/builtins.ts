@@ -138,7 +138,7 @@ const manifests: ComponentManifest[] = [
         content: { type: "string" },
         path: string,
       }),
-      anyOf: [
+      oneOf: [
         { required: ["content"] },
         { required: ["path"] },
       ],

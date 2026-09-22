@@ -151,7 +151,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
           type: "object",
           additionalProperties: false,
           properties: { content: { type: "string" }, path: { type: "string", minLength: 1 } },
-          anyOf: [{ required: ["content"] }, { required: ["path"] }],
+          oneOf: [{ required: ["content"] }, { required: ["path"] }],
         }
       : name === "status"
         ? { type: "object", additionalProperties: false, properties: { label: { type: "string", minLength: 1 }, state: { enum: ["unknown", "healthy", "warning", "error"] }, detail: { type: "string" } }, required: ["label", "state"] }

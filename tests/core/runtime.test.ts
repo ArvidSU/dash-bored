@@ -330,6 +330,7 @@ describe("ProjectRuntime", () => {
     const expectedRevision = loaded.configRevision!;
     expect((await runtime.validateComponentProps("@dash-bored/markdown", {})).ok).toBeFalse();
     expect((await runtime.validateComponentProps("@dash-bored/markdown", { content: "Valid" })).ok).toBeTrue();
+    expect((await runtime.validateComponentProps("@dash-bored/markdown", { content: "Both", path: "README.md" })).ok).toBeFalse();
     const changed: DashboardConfig = {
       ...loaded.config!,
       name: "Edited in app",
