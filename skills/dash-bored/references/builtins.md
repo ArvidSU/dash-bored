@@ -138,6 +138,10 @@ Children: none (leaf component).
 Permissions: when configured: `path` requires `filesystem:read`, `filesystem:write`; `source.shell` requires `process:execute`; `source.file` requires `filesystem:read`; `source.http` requires `network:http`; `source.process` requires `process:observe`.
 
 
+Actions:
+
+- `refresh` — Refresh Markdown: Reload the configured Markdown source.
+
 ## @dash-bored/status
 
 Status — Displays a labeled status indicator.

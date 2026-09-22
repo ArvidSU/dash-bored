@@ -75,8 +75,8 @@ examples, not privileged component types:
   executor. It reflects active Focus actions, running work, interaction steps,
   and unavailable reasons without adding permissions.
 - `@dash-bored/markdown` and `@dash-bored/status` display safe project
-  information. Markdown does not enable raw HTML. Markdown accepts either
-  inline `content` or a project-relative `path`; preview is the default view,
+  information. Markdown does not enable raw HTML. Markdown accepts inline
+  `content`, a project-relative `path`, or a bounded `source`; preview is the default view,
   while Raw / edit exposes an explicit editor with Save/Cancel behavior. Inline
   edits update the owning dashboard draft, and path-backed edits use the
   declared bounded filesystem capability.

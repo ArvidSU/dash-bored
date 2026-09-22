@@ -11,14 +11,18 @@ import { readDashboardSource, type DashboardSource } from "../../lib/source";
 
 type MarkdownView = "preview" | "raw";
 
-function MarkdownSourceView({ props, source, host }: { props: Record<string, unknown>; source: DashboardSource; host: ComponentRendererProps["host"] }): ReactNode {
+function MarkdownSourceView({ props, source, host, refresh, onRefresh }: {
+  props: Record<string, unknown>;
+  source: DashboardSource;
+  host: ComponentRendererProps["host"];
+  refresh: number;
+  onRefresh: () => void;
+}): ReactNode {
   const visible = useContext(ComponentVisibilityContext);
   const every = typeof source.every === "number" ? Math.max(1000, Math.min(300000, source.every)) : undefined;
   const title = stringProp(props, ["title"], "Markdown source");
   const [state, setState] = useState<{ value?: unknown; error?: string; loading: boolean }>({ loading: true });
-  const [refresh, setRefresh] = useState(0);
   const processSnapshot = source.process ? host.processes?.get(source.process) : undefined;
-  useEffect(() => host.actions.register({ id: "refresh", label: `Refresh ${title}`, run: () => setRefresh((n) => n + 1) }), [host.actions, title]);
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
@@ -45,7 +49,7 @@ function MarkdownSourceView({ props, source, host }: { props: Record<string, unk
   if (missing) return <CapabilityGate title={title}>Trust this project and grant {permission} to read this source.</CapabilityGate>;
   const text = typeof state.value === "string" ? state.value : state.value === undefined ? "" : `\`\`\`json\n${JSON.stringify(state.value, null, 2)}\n\`\`\``;
   return <section className="markdown-viewer" aria-label={title}>
-    <header className="markdown-viewer__header"><strong>{title}</strong><button className="button button--quiet" type="button" onClick={() => setRefresh((n) => n + 1)} disabled={state.loading}>Refresh</button></header>
+    <header className="markdown-viewer__header"><strong>{title}</strong><button className="button button--quiet" type="button" onClick={onRefresh} disabled={state.loading}>Refresh</button></header>
     {state.loading && state.value === undefined ? <div className="component-state" role="status">Loading…</div> : null}
     {state.loading && state.value !== undefined ? <small role="status">Updating…</small> : null}
     {state.error ? <div className="component-state component-state--error" role="alert">{state.value === undefined ? "Source error" : "Stale value"}: {state.error}</div> : null}
@@ -92,6 +96,23 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const sourcePermissionAvailable = !sourceSpec
+    || (sourceSpec.shell ? Boolean(componentHost.shell)
+      : sourceSpec.http ? Boolean(componentHost.http)
+        : sourceSpec.process ? Boolean(componentHost.processes)
+          : sourceSpec.file ? Boolean(filesystem)
+            : true);
+
+  useEffect(() => componentHost.actions.register({
+    id: "refresh",
+    label: "Refresh Markdown",
+    enabled: sourceSpec ? sourcePermissionAvailable : Boolean(path && filesystem),
+    disabledReason: sourceSpec
+      ? sourcePermissionAvailable ? undefined : "Trust this project to read the configured source."
+      : path ? filesystem ? undefined : "Trust this project to read the Markdown file."
+        : "Inline Markdown has no source to refresh.",
+    run: () => setRefresh((current) => current + 1),
+  }), [componentHost.actions, filesystem, path, sourcePermissionAvailable, sourceSpec]);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,7 +163,7 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
 
   const dirty = source !== savedSource;
 
-  if (sourceSpec !== undefined) return <MarkdownSourceView host={componentHost} props={props} source={sourceSpec} />;
+  if (sourceSpec !== undefined) return <MarkdownSourceView host={componentHost} props={props} source={sourceSpec} refresh={refresh} onRefresh={() => setRefresh((current) => current + 1)} />;
 
   async function save(): Promise<void> {
     if (!dirty || saving) return;

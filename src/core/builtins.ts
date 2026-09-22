@@ -171,6 +171,7 @@ const manifests: ComponentManifest[] = [
       "source.http": ["network:http"],
       "source.process": ["process:observe"],
     },
+    actions: [{ id: "refresh", label: "Refresh Markdown", description: "Reload the configured Markdown source." }],
     references: { "source.process": { resource: "process" } },
   },
   {
