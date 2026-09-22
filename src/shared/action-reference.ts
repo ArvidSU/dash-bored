@@ -1,7 +1,7 @@
 /** Return the stable node ID carried by a node-targeting action reference. */
 export function parseActionReferenceNodeId(reference: string): string | undefined {
   const parts = reference.split(":");
-  const targetIndex = parts[0] === "focus" || parts[0] === "process"
+  const targetIndex = parts[0] === "focus" || parts[0] === "process" || parts[0] === "reveal"
     ? parts.length === 2 ? 1 : -1
     : parts[0] === "component" && parts.length === 3 ? 1 : -1;
   if (targetIndex < 0 || !parts[targetIndex]) return undefined;
@@ -11,6 +11,16 @@ export function parseActionReferenceNodeId(reference: string): string | undefine
   } catch {
     return undefined;
   }
+}
+
+export function parseSelectionActionReference(reference: string): { containerId: string; childId: string } | undefined {
+  const match = /^select:([^/]+)\/([^/]+)$/.exec(reference);
+  if (!match) return undefined;
+  try {
+    const containerId = decodeURIComponent(match[1]!);
+    const childId = decodeURIComponent(match[2]!);
+    return containerId.trim() && childId.trim() ? { containerId, childId } : undefined;
+  } catch { return undefined; }
 }
 
 export function parseComponentActionReference(reference: string): { nodeId: string; actionId: string } | undefined {
@@ -31,8 +41,14 @@ export function remapActionReferenceNode(
   remap: (nodeId: string) => string | undefined,
 ): string {
   const parts = reference.split(":");
-  if ((parts[0] === "focus" || parts[0] === "process") && parts.length === 2) {
+  if ((parts[0] === "focus" || parts[0] === "process" || parts[0] === "reveal") && parts.length === 2) {
     return remapPart(parts, 1, remap);
+  }
+  const selection = parseSelectionActionReference(reference);
+  if (selection) {
+    const containerId = remap(selection.containerId) ?? selection.containerId;
+    const childId = remap(selection.childId) ?? selection.childId;
+    return `select:${encodeURIComponent(containerId)}/${encodeURIComponent(childId)}`;
   }
   if (parts[0] === "component" && parts.length === 3) {
     return remapPart(parts, 1, remap);

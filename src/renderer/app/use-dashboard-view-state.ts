@@ -5,6 +5,10 @@ import {
   collectComponentNodeIds,
   parseCollapsedComponentIds,
   serializeCollapsedComponentIds,
+  childSelectionsStorageKey,
+  parseChildSelections,
+  pruneChildSelections,
+  serializeChildSelections,
 } from "../lib/component-view-state";
 import {
   componentHeightOverridesStorageKey,
@@ -23,7 +27,7 @@ import {
   splitRatioOverridesStorageKey,
   type SplitRatioOverrides,
 } from "../render/split-layout";
-import { resolveVirtualRoot, virtualRootStorageKey } from "../lib/virtual-root";
+import { findVirtualRootPath, resolveVirtualRoot, virtualRootStorageKey } from "../lib/virtual-root";
 import {
   EMPTY_COLLAPSED_COMPONENT_IDS,
   EMPTY_COMPONENT_HEIGHT_OVERRIDES,
@@ -43,12 +47,14 @@ export function useDashboardViewState(
   activeCollapsedComponentIds: ReadonlySet<string>;
   activeSplitRatioOverrides: Readonly<SplitRatioOverrides>;
   activeComponentHeightOverrides: Readonly<ComponentHeightOverrides>;
+  activeChildSelections: Readonly<Record<string, string>>;
   storeVirtualRoot: (targetDashboardPath: string, nodeId: string) => void;
   expandComponent: (targetDashboardPath: string, nodeId: string) => void;
   toggleComponentCollapse: (nodeId: string) => void;
   updateSplitRatio: (branchKey: string, defaultRatio: number, ratio: number | null) => void;
   updateComponentHeight: (nodeId: string, height: number | null) => void;
   focusComponent: (nodeId: string) => void;
+  selectChild: (containerId: string, childId: string) => void;
   forgetDashboard: (configPath: string) => void;
 } {
   const [virtualRoots, setVirtualRoots] = useState<Record<string, string | null>>({});
@@ -58,6 +64,8 @@ export function useDashboardViewState(
   const [splitRatioOverrides, setSplitRatioOverrides] = useState<SplitRatioOverrides>({});
   const [componentHeightDashboardPath, setComponentHeightDashboardPath] = useState<string | null>(null);
   const [componentHeightOverrides, setComponentHeightOverrides] = useState<ComponentHeightOverrides>({});
+  const [selectionDashboardPath, setSelectionDashboardPath] = useState<string | null>(null);
+  const [childSelections, setChildSelections] = useState<Record<string, string>>({});
 
   const storedVirtualRoot = dashboardPath ? virtualRoots[dashboardPath] : null;
   const activeCollapsedComponentIds = collapsedDashboardPath === dashboardPath
@@ -69,6 +77,28 @@ export function useDashboardViewState(
   const activeComponentHeightOverrides = componentHeightDashboardPath === dashboardPath
     ? componentHeightOverrides
     : EMPTY_COMPONENT_HEIGHT_OVERRIDES;
+  const activeChildSelections = selectionDashboardPath === dashboardPath ? childSelections : {};
+
+  useEffect(() => {
+    if (!dashboardPath) { setSelectionDashboardPath(null); setChildSelections({}); return; }
+    let saved: string | null = null;
+    try { saved = window.localStorage.getItem(childSelectionsStorageKey(dashboardPath)); } catch { /* session-only */ }
+    setChildSelections(parseChildSelections(saved));
+    setSelectionDashboardPath(dashboardPath);
+  }, [dashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || selectionDashboardPath !== dashboardPath) return;
+    try { window.localStorage.setItem(childSelectionsStorageKey(dashboardPath), serializeChildSelections(childSelections)); } catch { /* session-only */ }
+  }, [childSelections, dashboardPath, selectionDashboardPath]);
+
+  useEffect(() => {
+    if (!dashboardPath || selectionDashboardPath !== dashboardPath || !tree) return;
+    setChildSelections((current) => {
+      const next = pruneChildSelections(current, tree);
+      return serializeChildSelections(next) === serializeChildSelections(current) ? current : next;
+    });
+  }, [dashboardPath, selectionDashboardPath, tree]);
   useEffect(() => {
     if (!dashboardPath) {
       setCollapsedDashboardPath(null);
@@ -218,11 +248,21 @@ export function useDashboardViewState(
     ) return;
     const focused = resolveVirtualRoot(tree, storedVirtualRoot);
     if (focused.target.id !== storedVirtualRoot) return;
-    const expandedIds = new Set([...focused.retainedAncestorIds, focused.target.id]);
+    const path = findVirtualRootPath(tree, storedVirtualRoot);
+    const expandedIds = new Set(path?.map((crumb) => crumb.id) ?? [focused.target.id]);
     setCollapsedComponentIds((current) => {
       if (![...expandedIds].some((id) => current.has(id))) return current;
       return new Set([...current].filter((id) => !expandedIds.has(id)));
     });
+    for (let index = 0; index < (path?.length ?? 0) - 1; index += 1) {
+      const ancestor = path![index]!.node;
+      if (ancestor.manifest?.children?.select === "single" && Array.isArray(ancestor.children)) {
+        const childId = path![index + 1]!.id;
+        setChildSelections((current) => current[ancestor.id] === childId
+          ? current
+          : { ...current, [ancestor.id]: childId });
+      }
+    }
   }, [collapsedDashboardPath, dashboardPath, storedVirtualRoot, tree]);
   function storeVirtualRoot(targetDashboardPath: string, nodeId: string): void {
     setVirtualRoots((current) => ({ ...current, [targetDashboardPath]: nodeId }));
@@ -266,6 +306,11 @@ export function useDashboardViewState(
       else next.add(nodeId);
       return next;
     });
+  }
+
+  function selectChild(containerId: string, childId: string): void {
+    if (!dashboardPath || selectionDashboardPath !== dashboardPath) return;
+    setChildSelections((current) => current[containerId] === childId ? current : { ...current, [containerId]: childId });
   }
 
   function updateSplitRatio(
@@ -326,6 +371,7 @@ export function useDashboardViewState(
       window.localStorage.removeItem(virtualRootStorageKey(configPath));
       window.localStorage.removeItem(splitRatioOverridesStorageKey(configPath));
       window.localStorage.removeItem(componentHeightOverridesStorageKey(configPath));
+      window.localStorage.removeItem(childSelectionsStorageKey(configPath));
     } catch {
       // The in-memory focus, split, and component-height state has already been cleared.
     }
@@ -334,8 +380,15 @@ export function useDashboardViewState(
   function focusComponent(nodeId: string): void {
     if (!dashboardPath) return;
     const focused = tree ? resolveVirtualRoot(tree, nodeId) : null;
-    for (const id of [...(focused?.retainedAncestorIds ?? []), nodeId]) {
-      expandComponent(dashboardPath, id);
+    const path = tree ? findVirtualRootPath(tree, nodeId) : null;
+    for (const crumb of path ?? []) expandComponent(dashboardPath, crumb.id);
+    for (const id of focused?.retainedAncestorIds ?? []) expandComponent(dashboardPath, id);
+    for (let index = 0; index < (path?.length ?? 0) - 1; index += 1) {
+      const ancestor = path![index]!.node;
+      const definition = ancestor.manifest?.children;
+      if (definition?.select !== "single" || !Array.isArray(ancestor.children)) continue;
+      const directChildId = path![index + 1]!.id;
+      selectChild(ancestor.id, directChildId);
     }
     storeVirtualRoot(dashboardPath, nodeId);
   }
@@ -345,12 +398,14 @@ export function useDashboardViewState(
     activeCollapsedComponentIds,
     activeSplitRatioOverrides,
     activeComponentHeightOverrides,
+    activeChildSelections,
     storeVirtualRoot,
     expandComponent,
     toggleComponentCollapse,
     updateSplitRatio,
     updateComponentHeight,
     focusComponent,
+    selectChild,
     forgetDashboard,
   };
 }

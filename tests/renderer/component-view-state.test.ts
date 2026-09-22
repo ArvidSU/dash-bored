@@ -2,9 +2,13 @@ import { describe, expect, test } from "bun:test";
 import type { ResolvedComponentNode } from "../../src/shared/contracts";
 import {
   collapsedComponentsStorageKey,
+  childSelectionsStorageKey,
   collectComponentNodeIds,
   countComponentDescendants,
   parseCollapsedComponentIds,
+  parseChildSelections,
+  pruneChildSelections,
+  serializeChildSelections,
   serializeCollapsedComponentIds,
 } from "../../src/renderer/lib/component-view-state";
 
@@ -38,6 +42,18 @@ describe("component view state", () => {
   test("round-trips and sorts collapsed node IDs", () => {
     const parsed = parseCollapsedComponentIds(serializeCollapsedComponentIds(new Set(["z", "a"])));
     expect([...parsed]).toEqual(["a", "z"]);
+  });
+
+  test("persists only selections whose container and child still exist", () => {
+    const selectable = {
+      ...tree,
+      manifest: { schemaVersion: 2 as const, id: "x", name: "X", description: "", entry: "./x", propsSchema: {}, children: { min: 0, presentation: { type: "managed" as const }, select: "single" as const } },
+      children: [{ node: leaf }, { node: { ...leaf, id: "other" } }],
+    };
+    expect(childSelectionsStorageKey("a")).not.toBe(childSelectionsStorageKey("b"));
+    const decoded = parseChildSelections(serializeChildSelections({ dashboard: "other", unknown: "missing" }));
+    expect(pruneChildSelections(decoded, selectable)).toEqual({ dashboard: "other" });
+    expect(parseChildSelections("invalid")).toEqual({});
   });
 
   test("fails closed for malformed persisted values", () => {

@@ -168,6 +168,8 @@ const manifestSchema = {
           ],
         },
         metadataSchema: { type: "object" },
+        select: { const: "single" },
+        defaultChild: { type: "string", minLength: 1, maxLength: 128 },
       },
     },
     resources: {

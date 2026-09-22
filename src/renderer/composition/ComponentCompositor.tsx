@@ -28,6 +28,7 @@ interface ComponentCompositorProps {
     splitPath: readonly LayoutBranch[],
   ) => void;
   renderNode: (node: ResolvedComponentNode) => ReactNode;
+  selectedChildId?: string;
 }
 
 function childDisplayName(node: ResolvedComponentNode): string {
@@ -59,6 +60,7 @@ export function composeComponentChildren({
   splitRatioOverrides,
   onSplitRatioChange,
   renderNode,
+  selectedChildId,
 }: ComponentCompositorProps): ComponentRenderedChildren | undefined {
   const children = node.children;
   if (!children) return undefined;
@@ -69,7 +71,7 @@ export function composeComponentChildren({
       reference: edge.node.component,
       displayName: childDisplayName(edge.node),
       metadata: edge.metadata ?? {},
-      render: ({ visible = true } = {}) => (
+      render: ({ visible = true } = {}) => selectedChildId !== undefined && edge.node.id !== selectedChildId ? null : (
         <VisibleChild
           key={edge.node.id}
           node={edge.node}

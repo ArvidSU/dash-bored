@@ -29,7 +29,7 @@ modules under feature directories:
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
   `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
   `clipboard.ts`, `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
-  `right-drawer.tsx` (shared Agent work / component-library drawer shell,
+  `selection-actions.ts` (core select/reveal actions), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
 - `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one
@@ -57,7 +57,7 @@ Pure helpers and their contracts:
 - `render/NodeRenderer.tsx` — recursive node rendering plus the staggered
   update-polish batch hook.
 - `app/use-dashboard-view-state.ts` — renderer-owned presentation state
-  (collapse, split ratios, height caps, focused target) with per-dashboard
+  (collapse, split ratios, height caps, focused target, selected managed child) with per-dashboard
   localStorage persistence; never part of a draft.
 - `panels/DiagnosticsPanel.tsx`, `panels/TrustPanel.tsx`, `panels/EmptyProject.tsx`,
   `panels/AgentPromptPanel.tsx`, `panels/SettingsPanel.tsx` — app-level panels.
@@ -140,6 +140,16 @@ continue consuming dashboard space. Processes remain owned by the main
 process, so collapsing a command does not stop a running command.
 Focusing a collapsed node expands it first. This runtime state is separate from
 the structural editor's temporary tree-branch collapse state.
+
+Managed containers may declare `select: single` in their child contract. The
+renderer persists one selected direct child ID per container and dashboard;
+unselected child handles remain available to the owning component but do not
+mount their rendered subtree. Core supplies `select:<container>/<child>` palette
+actions with active state. `reveal:<node>` expands its ancestors, selects the
+path through every switching ancestor, focuses the target, and scrolls it into
+view. Focus is global navigation for top-level pages; selection is local
+presentation for nested panels. Reveal connects the two when navigation targets
+a nested node.
 
 Core-owned horizontal tile branches support runtime ratio resizing. Their
 project-owned topology contains a normalized first-pane `ratio` between

@@ -50,6 +50,7 @@ export interface NodeRendererProps {
   onOpenAgent: (node: ResolvedComponentNode) => void;
   onUpdateProps: (node: ResolvedComponentNode, props: Record<string, unknown>) => Promise<void>;
   focusedNodeId?: string | null;
+  childSelections?: Readonly<Record<string, string>>;
 }
 
 export interface ComponentUpdateBatch {
@@ -98,6 +99,7 @@ export function NodeRenderer({
   onOpenAgent,
   onUpdateProps,
   focusedNodeId = null,
+  childSelections = {},
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const nodeRef = useRef(node);
@@ -129,6 +131,9 @@ export function NodeRenderer({
         node,
         splitRatioOverrides,
         onSplitRatioChange,
+        selectedChildId: node.manifest?.children?.select === "single"
+          ? childSelections[node.id] ?? node.manifest.children.defaultChild ?? (Array.isArray(node.children) ? node.children[0]?.node.id : undefined)
+          : undefined,
         renderNode: (child) => (
           <NodeRenderer
             key={child.id}
@@ -153,6 +158,7 @@ export function NodeRenderer({
             onOpenAgent={onOpenAgent}
             onUpdateProps={onUpdateProps}
             focusedNodeId={focusedNodeId}
+            childSelections={childSelections}
           />
         ),
       });

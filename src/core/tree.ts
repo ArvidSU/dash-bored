@@ -16,6 +16,7 @@ import { permissionsForComponent } from "../shared/component-permissions";
 import { CONFIG_FILE } from "../shared/contracts";
 import {
   parseActionReferenceNodeId,
+  parseSelectionActionReference,
   remapActionReferenceNode,
 } from "../shared/action-reference";
 import { resolveLegacyActionReference } from "./action-reference-migration";
@@ -737,6 +738,28 @@ export async function resolveComponentTree(
     const definition = manifest.children;
     const configuredChildren = node.children;
     const configuredEdges = childEdges(configuredChildren);
+    if (definition?.select !== undefined && definition.presentation.type !== "managed") {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_SELECTION_PRESENTATION_INVALID",
+        message: `${manifest.name} can select children only with managed presentation.`,
+        path: `${nodePath}.children`,
+      }));
+    }
+    if (definition?.defaultChild !== undefined) {
+      if (definition.select !== "single" || definition.presentation.type !== "managed") {
+        diagnostics.push(diagnostic({
+          code: "COMPONENT_DEFAULT_CHILD_INVALID",
+          message: `${manifest.name} defaultChild requires single selection on managed children.`,
+          path: `${nodePath}.children.defaultChild`,
+        }));
+      } else if (!configuredEdges.some((edge) => edge.node.id === definition.defaultChild)) {
+        diagnostics.push(diagnostic({
+          code: "COMPONENT_DEFAULT_CHILD_MISSING",
+          message: `${manifest.name} defaultChild ${definition.defaultChild} is not a child node ID.`,
+          path: `${nodePath}.children.defaultChild`,
+        }));
+      }
+    }
     if (definition === undefined && configuredChildren !== undefined) {
       diagnostics.push(diagnostic({
         code: "COMPONENT_CHILDREN_UNSUPPORTED",
@@ -938,6 +961,19 @@ export async function resolveComponentTree(
             continue;
           }
           const targetNodeId = parseActionReferenceNodeId(targetId);
+          const selectionTarget = parseSelectionActionReference(targetId);
+          if (selectionTarget) {
+            const container = allNodes.find((candidate) => candidate.id === selectionTarget.containerId);
+            const valid = container?.manifest?.children?.select === "single"
+              && Array.isArray(container.children)
+              && container.children.some((edge) => edge.node.id === selectionTarget.childId);
+            if (!valid) diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_REFERENCE_UNKNOWN",
+              message: `Selection action must target a selectable container and one of its child IDs: ${selectionTarget.containerId}/${selectionTarget.childId}`,
+              path: `${node.id}.props.${propName}`,
+            }));
+            continue;
+          }
           if (targetId.includes("${") || /[{}]/.test(targetId)) {
             try {
               node.props[propName] = resolveLegacyActionReference(targetId, (sourcePath) =>
@@ -967,10 +1003,10 @@ export async function resolveComponentTree(
               message: "Malformed component action reference; expected component:<node-id>:<action-id>.",
               path: `${node.id}.props.${propName}`,
             }));
-          } else if (targetNodeId === undefined && /^(focus|process):/.test(targetId)) {
+          } else if (targetNodeId === undefined && /^(focus|process|reveal|select):/.test(targetId)) {
             diagnostics.push(diagnostic({
               code: "COMPONENT_ACTION_REFERENCE_INVALID",
-              message: "Malformed node action reference; expected focus:<node-id>, process:<node-id>, or component:<node-id>:<action-id>.",
+              message: "Malformed node action reference; expected focus:<node-id>, reveal:<node-id>, process:<node-id>, select:<container-id>/<child-id>, or component:<node-id>:<action-id>.",
               path: `${node.id}.props.${propName}`,
             }));
           }

@@ -32,6 +32,7 @@ import {
   buildApplicationActions,
   buildNodeFocusActions,
 } from "../lib/action-providers";
+import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
 import type { AppView } from "../lib/action-providers";
 import { ActionExecutor, ActionRegistry, describeAgentAction } from "../lib/actions";
 import type { PaletteAction } from "../lib/actions";
@@ -983,17 +984,26 @@ export function App(): ReactNode {
     activeCollapsedComponentIds,
     activeSplitRatioOverrides,
     activeComponentHeightOverrides,
+    activeChildSelections,
     storeVirtualRoot,
     expandComponent,
     toggleComponentCollapse,
     updateSplitRatio,
     updateComponentHeight,
     focusComponent,
+    selectChild,
     forgetDashboard,
   } = useDashboardViewState(dashboardPath, snapshot?.tree);
   const virtualRoot = snapshot?.tree
     ? resolveVirtualRoot(snapshot.tree, storedVirtualRoot ?? null)
     : null;
+  useLayoutEffect(() => {
+    const targetId = virtualRoot?.target.id;
+    if (!targetId) return;
+    const target = [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
+      .find((element) => element.dataset.nodeId === targetId);
+    target?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [snapshot?.configPath, virtualRoot?.target.id]);
   const compositionPreviewTree = useMemo(() => {
     if (!snapshot?.tree) return null;
     const source = compositionSource
@@ -1495,8 +1505,13 @@ export function App(): ReactNode {
       focusComponent(nodeId);
     },
   );
+  const selectionActions = buildSelectionActions(snapshot, activeChildSelections, selectChild);
+  const revealActions = buildRevealActions(snapshot, virtualRoot?.target.id ?? null, (nodeId) => {
+    setActiveView("dashboard");
+    focusComponent(nodeId);
+  });
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, componentActions);
-  const allActions = [...applicationActions, ...nodeFocusActions, ...declaredComponentActions, ...componentActions];
+  const allActions = [...applicationActions, ...nodeFocusActions, ...selectionActions, ...revealActions, ...declaredComponentActions, ...componentActions];
   const runtimeDiagnostics = actionRegistry.getDiagnostics();
   const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...runtimeDiagnostics];
   const favoriteActionIds = useMemo(
@@ -1683,6 +1698,7 @@ export function App(): ReactNode {
                       collapsedNodeIds={activeCollapsedComponentIds}
                       splitRatioOverrides={editingComposition ? EMPTY_SPLIT_RATIO_OVERRIDES : activeSplitRatioOverrides}
                       componentHeightOverrides={activeComponentHeightOverrides}
+                      childSelections={activeChildSelections}
                       onFocus={focusComponent}
                       onToggleCollapse={toggleComponentCollapse}
                       onSplitRatioChange={handleCompositionSplitRatio}

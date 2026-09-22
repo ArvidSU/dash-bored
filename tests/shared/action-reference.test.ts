@@ -3,6 +3,7 @@ import {
   componentActionReference,
   parseActionReferenceNodeId,
   parseComponentActionReference,
+  parseSelectionActionReference,
   remapActionReferenceNode,
 } from "../../src/shared/action-reference";
 import { migrateActionReferences, resolveLegacyActionReference } from "../../src/core/action-reference-migration";
@@ -70,5 +71,12 @@ describe("action references", () => {
     expect(remapActionReferenceNode("process:pulse", remap)).toBe("process:bundle%3A%3Apulse");
     expect(remapActionReferenceNode("component:pulse:refresh", remap)).toBe("component:bundle%3A%3Apulse:refresh");
     expect(remapActionReferenceNode("app:reload", remap)).toBe("app:reload");
+  });
+
+  test("parses and remaps selection actions by container and child ID", () => {
+    expect(parseSelectionActionReference("select:tabs%2Fmain/child%3Aone")).toEqual({ containerId: "tabs/main", childId: "child:one" });
+    expect(parseSelectionActionReference("select:bad")).toBeUndefined();
+    expect(remapActionReferenceNode("select:tabs/child", (id) => `bundle::${id}`))
+      .toBe("select:bundle%3A%3Atabs/bundle%3A%3Achild");
   });
 });
