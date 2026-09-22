@@ -1,5 +1,6 @@
 import type { Diagnostic, ResolvedComponentNode } from "../shared/contracts";
 import { parseComponentActionReference } from "../shared/action-reference";
+import { actionInvocation } from "../shared/action-invocation";
 import { diagnostic } from "./diagnostics";
 
 /** Check stable component action references only when the target opts into declarations. */
@@ -11,9 +12,9 @@ export function validateDeclaredComponentActionReferences(
   for (const node of nodes) {
     for (const [propName, referenceDefinition] of Object.entries(node.manifest?.references ?? {})) {
       if (referenceDefinition.resource !== "action") continue;
-      const reference = node.props[propName];
-      if (typeof reference !== "string") continue;
-      const target = parseComponentActionReference(reference);
+      const invocation = actionInvocation(node.props[propName]);
+      if (!invocation) continue;
+      const target = parseComponentActionReference(invocation.run);
       if (!target) continue;
       const targetNode = nodesById.get(target.nodeId);
       const declaredActions = targetNode?.manifest?.actions;

@@ -165,7 +165,9 @@ automation surface for the user's own agents, not a new capability.
   `project:revoke-trust`), the user's draft lifecycle (`project:edit`,
   `project:save-draft`, `project:cancel-edit`), the native Add dashboard
   chooser, and any action that declares a palette confirmation. The listing
-  marks these with the refusal reason so agents can ask the user instead.
+  marks these with the refusal reason so agents can ask the user instead. It
+  also refuses every `agent:*` action because configured prompts require a
+  visible user review and explicit Send.
 - Opening a dashboard is refused while a draft is open. It loads and registers
   the dashboard but never trusts it.
 - Screenshots capture only the app's own window: the NSWindow number (read

@@ -149,4 +149,5 @@ test("trust, draft lifecycle, and confirmations are reserved for the user", () =
   expect(agentActionRefusal({ id: "project:save-draft" })).toBeDefined();
   expect(agentActionRefusal({ id: "component:x:y", confirmation: { title: "Deploy?" } })).toBeDefined();
   expect(agentActionRefusal({ id: "focus:logs" })).toBeUndefined();
+  expect(agentActionRefusal({ id: "agent:prompt" })).toContain("user review");
 });

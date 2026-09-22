@@ -17,10 +17,13 @@ import { CONFIG_FILE } from "../shared/contracts";
 import {
   parseActionReferenceNodeId,
   parseSelectionActionReference,
+  parseComponentActionReference,
   remapActionReferenceNode,
 } from "../shared/action-reference";
 import { resolveLegacyActionReference } from "./action-reference-migration";
 import { validateDeclaredComponentActionReferences } from "./component-action-references";
+import { actionInvocation } from "../shared/action-invocation";
+import { validateActionArguments } from "./action-arguments";
 import { getBuiltinManifest, listBuiltinManifests } from "./builtins";
 import { diagnostic, errorMessage } from "./diagnostics";
 import {
@@ -160,10 +163,16 @@ function namespaceLinkedTree(
         parent = copy;
       }
       const key = parts.at(-1)!;
-      if (typeof parent[key] === "string") {
-        parent[key] = reference.resource === "action"
-          ? remapActionReferenceNode(parent[key] as string, (id) => ids.get(id))
-          : ids.get(parent[key] as string) ?? parent[key];
+      if (reference.resource === "action") {
+        const invocation = actionInvocation(parent[key]);
+        if (invocation) {
+          const run = remapActionReferenceNode(invocation.run, (id) => ids.get(id));
+          parent[key] = typeof parent[key] === "string"
+            ? run
+            : { ...(parent[key] as Record<string, unknown>), run };
+        }
+      } else if (typeof parent[key] === "string") {
+        parent[key] = ids.get(parent[key]) ?? parent[key];
       }
     }
     return {
@@ -947,16 +956,35 @@ export async function resolveComponentTree(
         const parts = propName.split(".");
         let target: unknown = node.props;
         for (const part of parts) target = target !== null && typeof target === "object" ? (target as Record<string, unknown>)[part] : undefined;
-        const targetId = target;
         // Nested resource references may be optional branches of a tagged union
         // prop (for example source.process versus source.inline).
-        if (targetId === undefined && parts.length > 1) continue;
+        if (target === undefined && parts.length > 1) continue;
+        const rawReference = target;
+        const invocation = actionInvocation(rawReference);
         if (reference.resource === "action") {
-          if (typeof targetId !== "string") {
+          if (!invocation) {
             diagnostics.push(diagnostic({
               code: "COMPONENT_ACTION_REFERENCE_INVALID",
-              message: `${node.manifest?.name ?? node.component} action reference must be a string.`,
+              message: `${node.manifest?.name ?? node.component} action reference must be a string or an object with run and with fields.`,
               path: `${node.id}.props.${propName}`,
+            }));
+            continue;
+          }
+          const targetId = invocation.run;
+          if (targetId === "agent:prompt") {
+            const error = validateActionArguments(
+              {
+                type: "object",
+                additionalProperties: false,
+                properties: { prompt: { type: "string", minLength: 1, maxLength: 12000 } },
+                required: ["prompt"],
+              },
+              invocation.with,
+            );
+            if (error) diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
+              message: `agent:prompt arguments are invalid: ${error}`,
+              path: `${node.id}.props.${propName}.with`,
             }));
             continue;
           }
@@ -976,8 +1004,11 @@ export async function resolveComponentTree(
           }
           if (targetId.includes("${") || /[{}]/.test(targetId)) {
             try {
-              node.props[propName] = resolveLegacyActionReference(targetId, (sourcePath) =>
+              const migratedReference = resolveLegacyActionReference(targetId, (sourcePath) =>
                 nodesByBundlePath.get(JSON.stringify([node.sourceConfigPath, sourcePath]))?.id);
+              node.props[propName] = typeof rawReference === "string"
+                ? migratedReference
+                : { ...(rawReference as Record<string, unknown>), run: migratedReference };
               diagnostics.push(diagnostic({
                 severity: "warning",
                 code: "COMPONENT_ACTION_REFERENCE_DEPRECATED",
@@ -1010,12 +1041,25 @@ export async function resolveComponentTree(
               path: `${node.id}.props.${propName}`,
             }));
           }
+          const componentReference = parseComponentActionReference(targetId);
+          if (componentReference && explicitNodeIds.has(targetNodeId ?? "")) {
+            const target = allNodes.find((candidate) => candidate.id === targetNodeId);
+            const definition = target?.manifest?.actions?.find((action) => action.id === componentReference.actionId);
+            if (definition) {
+              const error = validateActionArguments(definition.args, invocation.with);
+              if (error) diagnostics.push(diagnostic({
+                code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
+                message: `Arguments for ${definition.label} are invalid: ${error}`,
+                path: `${node.id}.props.${propName}.with`,
+              }));
+            }
+          }
           continue;
         }
-        if (typeof targetId !== "string" || !resourceProviders.get(reference.resource)?.has(targetId)) {
+        if (typeof rawReference !== "string" || !resourceProviders.get(reference.resource)?.has(rawReference)) {
           diagnostics.push(diagnostic({
             code: "COMPONENT_RESOURCE_REFERENCE_UNKNOWN",
-            message: `${node.manifest?.name ?? node.component} references unknown ${reference.resource} resource node: ${String(targetId)}`,
+            message: `${node.manifest?.name ?? node.component} references unknown ${reference.resource} resource node: ${String(rawReference)}`,
             path: `${node.id}.props.${propName}`,
           }));
         }

@@ -25,7 +25,7 @@ export interface PaletteAction {
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
   choices?: readonly ComponentActionChoice[];
-  run(selections?: ComponentActionSelections): void | Promise<void>;
+  run(selections?: ComponentActionSelections, args?: Record<string, unknown>, callerNodeId?: string): void | Promise<void>;
 }
 
 /** Serializable view of a palette action for the agent-control channel. */
@@ -134,6 +134,25 @@ export function resolveActionChoiceOptions(
   }
   options.forEach((option) => validateChoiceOption(option, choice.id));
   return options;
+}
+
+export function matchActionChoiceSelections(
+  choices: readonly ComponentActionChoice[],
+  args: Readonly<Record<string, unknown>>,
+): ComponentActionSelections {
+  let matched: ComponentActionSelections = {};
+  for (const choice of choices) {
+    const value = args[choice.id];
+    if (typeof value !== "string") continue;
+    try {
+      if (resolveActionChoiceOptions(choice, matched).some((option) => option.value === value)) {
+        matched = { ...matched, [choice.id]: value };
+      }
+    } catch {
+      // Choices with unresolved dependent options remain interactive in the palette.
+    }
+  }
+  return matched;
 }
 
 function validateComponentAction(action: ComponentAction): ComponentAction {
@@ -437,7 +456,7 @@ export class ActionExecutor {
 
   readonly getSnapshot = (): ReadonlySet<string> => this.snapshot;
 
-  async run(id: string, selections: ComponentActionSelections = {}): Promise<ActionRunResult> {
+  async run(id: string, selections: ComponentActionSelections = {}, args: Record<string, unknown> = {}, callerNodeId?: string): Promise<ActionRunResult> {
     const action = this.resolve(id);
     if (!action) {
       return {
@@ -457,7 +476,7 @@ export class ActionExecutor {
     this.running.add(canonicalId);
     this.emit();
     try {
-      await action.run(selections);
+      await action.run(selections, args, callerNodeId);
       return { status: "completed" };
     } catch (error) {
       return { status: "failed", error };

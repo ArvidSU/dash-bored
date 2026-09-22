@@ -21,6 +21,7 @@ export interface AppDialogsProps {
   editSession: DashboardEditSession | null;
   editingActiveProject: boolean;
   agentDialog: ResolvedComponentNode | null;
+  agentPromptDraft?: string;
   pendingAction: string | null;
   discardConfirmation: { message: string; continueAction: () => void } | null;
   deletionDialog: {
@@ -52,6 +53,7 @@ export function AppDialogs({
   editSession,
   editingActiveProject,
   agentDialog,
+  agentPromptDraft,
   pendingAction,
   discardConfirmation,
   deletionDialog,
@@ -152,6 +154,7 @@ export function AppDialogs({
         key={agentDialog.id}
         node={agentDialog}
         agentCommand={agentCommandForNode?.(agentDialog) ?? agentCommand}
+        initialPrompt={agentPromptDraft}
         pending={pendingAction === `component-agent:${agentDialog.id}`}
         onDismiss={() => onDismissAgentDialog()}
         onSend={(prompt) => onRunComponentAgent(agentDialog, prompt)}

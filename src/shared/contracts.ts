@@ -503,8 +503,10 @@ export interface ComponentAction {
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
   choices?: readonly ComponentActionChoice[];
-  run(selections?: ComponentActionSelections): void | Promise<void>;
+  run(selections?: ComponentActionSelections, args?: Record<string, unknown>, callerNodeId?: string): void | Promise<void>;
 }
+
+export type ActionInvocation = string | { run: string; with?: Record<string, unknown> };
 
 export interface ResolvedComponentAction {
   /** Canonical runtime action id. */
@@ -539,7 +541,7 @@ export interface LocalComponentHost {
   actions: {
     register(action: ComponentAction): () => void;
     resolve(reference: string): ResolvedComponentAction;
-    invoke(reference: string): void;
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string): void;
   };
   filesystem?: {
     readText(path: string): Promise<string>;

@@ -8,16 +8,18 @@ export function AgentPromptPanel({
   node,
   agentCommand,
   pending,
+  initialPrompt = "",
   onDismiss,
   onSend,
 }: {
   node: ResolvedComponentNode;
   agentCommand: string;
   pending: boolean;
+  initialPrompt?: string;
   onDismiss: () => void;
   onSend: (prompt: string) => Promise<void>;
 }): ReactNode {
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [error, setError] = useState<string | null>(null);
   const locator = componentPath(node);
 
@@ -34,7 +36,7 @@ export function AgentPromptPanel({
   return (
     <div className="agent-prompt">
       <p>
-        Describe the change to this component. dash-bored adds the owning
+        Review the prompt below. dash-bored adds the owning
         dashboard, component locator, and project instructions to the prompt.
       </p>
       <code className="agent-prompt__path" title={locator}>{locator}</code>
@@ -46,8 +48,8 @@ export function AgentPromptPanel({
         <span className="agent-prompt__quote" aria-hidden="true">&quot;</span>
         <textarea
           data-modal-autofocus
-          aria-label="Wanted component change"
-          placeholder="Change this component…"
+          aria-label="Agent prompt"
+          placeholder="Describe a dashboard or component change…"
           maxLength={12_000}
           value={prompt}
           disabled={pending}

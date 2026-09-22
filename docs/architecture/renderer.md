@@ -74,6 +74,11 @@ examples, not privileged component types:
 - `@dash-bored/button` resolves and invokes one action through the shared
   executor. It reflects active Focus actions, running work, interaction steps,
   and unavailable reasons without adding permissions.
+- Action references may be argument-free strings or `{ run, with }`
+  invocations. Typed arguments and any remaining palette choices share the same
+  action executor. `agent:prompt` opens the existing agent composer prefilled
+  from YAML; the composer shows the resolved command and prompt and waits for an
+  explicit Send.
 - `@dash-bored/markdown` and `@dash-bored/status` display safe project
   information. Markdown does not enable raw HTML. Markdown accepts inline
   `content`, a project-relative `path`, or a bounded `source`; preview is the default view,

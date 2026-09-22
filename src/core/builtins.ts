@@ -34,6 +34,12 @@ const chartCommonProperties = {
   type: { enum: ["line", "bar"] },
   maxPoints: { type: "integer", minimum: 2, maximum: 200 },
 };
+const actionInvocationSchema = {
+  oneOf: [
+    { ...string, format: "action-reference" },
+    objectSchema({ run: { ...string, format: "action-reference" }, with: { type: "object" } }, ["run"]),
+  ],
+};
 
 const manifests: ComponentManifest[] = [
   {
@@ -42,7 +48,7 @@ const manifests: ComponentManifest[] = [
     name: "Action button",
     description: "Invokes a command-palette action and reflects its current availability, active state, and progress.",
     entry: "builtin:button",
-    propsSchema: objectSchema({ name: string, action: { ...string, format: "action-reference" } }, ["name", "action"]),
+    propsSchema: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
     references: { action: { resource: "action" } },
   },
   {

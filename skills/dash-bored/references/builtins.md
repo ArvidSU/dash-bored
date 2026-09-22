@@ -16,7 +16,7 @@ Props:
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `name` | string | yes | non-empty |
-| `action` | string | yes | non-empty |
+| `action` | any | yes |  |
 
 Children: none (leaf component).
 

@@ -1,10 +1,12 @@
 import { useId, type ReactNode } from "react";
 import type { ComponentRendererProps } from "../types";
+import { actionInvocation } from "../../../shared/action-invocation";
 import "./button.css";
 
 export default function ActionButton({ props, host }: ComponentRendererProps): ReactNode {
   const name = typeof props.name === "string" ? props.name : "Action";
-  const reference = typeof props.action === "string" ? props.action : "";
+  const invocation = actionInvocation(props.action);
+  const reference = invocation?.run ?? "";
   const action = host.actions.resolve(reference);
   const reasonId = useId();
   const disabledReason = action.running
@@ -26,7 +28,7 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
         title={disabledReason}
         data-active={action.active || undefined}
         data-running={action.running || undefined}
-        onClick={() => host.actions.invoke(reference)}
+        onClick={() => host.actions.invoke(reference, invocation?.with)}
       >
         <span>{name}</span>
         {action.running ? <span className="action-button__spinner" aria-hidden="true" /> : null}

@@ -12,7 +12,7 @@ export function createLocalHost(
   onUpdateProps: (props: Record<string, unknown>) => Promise<void>,
   actionController: {
     resolve(reference: string): ResolvedComponentAction;
-    invoke(reference: string): void;
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string): void;
   },
   environment?: ComponentEnvironmentSnapshot,
 ): LocalComponentHost {
@@ -43,7 +43,7 @@ export function createLocalHost(
         return actionRegistry.register(actionOwner, action);
       },
       resolve: actionController.resolve,
-      invoke: actionController.invoke,
+      invoke: (reference, args) => actionController.invoke(reference, args, node.id),
     },
   };
 

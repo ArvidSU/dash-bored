@@ -29,7 +29,7 @@ export interface NodeRendererProps {
   actionScope: string;
   actionController: {
     resolve(reference: string): ResolvedComponentAction;
-    invoke(reference: string): void;
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string): void;
   };
   updateBatch: ComponentUpdateBatch | null;
   collapsedNodeIds: ReadonlySet<string>;

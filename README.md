@@ -273,6 +273,11 @@ dashboard that adds permissions still requires trust before becoming live.
 Validation establishes configuration correctness; review the workflows the
 agent created to decide whether they meet your needs.
 
+A button can invoke an action with typed YAML arguments, for example
+`action: { run: "agent:prompt", with: { prompt: "Review the failing checks." } }`.
+The app validates those arguments when it loads the dashboard. Agent prompts show
+the resolved command and prompt for review, then wait for the user's Send.
+
 Every rendered component has a context menu
 with Focus, Edit component, Copy component path, and Change with agent. The
 Edit component action opens the declared props and child metadata editor. The

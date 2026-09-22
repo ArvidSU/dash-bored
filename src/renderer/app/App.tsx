@@ -22,7 +22,7 @@ import type {
   ProjectTarget,
   ResolvedComponentNode,
 } from "../../shared/contracts";
-import { componentPath } from "../../shared/component-agent";
+import { componentPath, findResolvedNode } from "../../shared/component-agent";
 import {
   keyboardEventMatchesShortcut,
   keyboardShortcutLabel,
@@ -65,6 +65,7 @@ import { useLocalComponents } from "../render/local-components";
 import { host, registerAgentControlHandler } from "../lib/rpc-client";
 import { agentActionRefusal, type AgentViewState } from "../../shared/agent-control";
 import { resolveVirtualRoot } from "../lib/virtual-root";
+import { actionInvocation } from "../../shared/action-invocation";
 import {
   CompositionContext,
   type CompositionDragPayload,
@@ -127,6 +128,10 @@ export function App(): ReactNode {
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteInitialActionId, setPaletteInitialActionId] = useState<string | null>(null);
+  const [paletteInvocationArgs, setPaletteInvocationArgs] = useState<Record<string, unknown>>({});
+  const [paletteInvocationActionId, setPaletteInvocationActionId] = useState<string | null>(null);
+  const [paletteCallerNodeId, setPaletteCallerNodeId] = useState<string | undefined>(undefined);
+  const [agentPromptDraft, setAgentPromptDraft] = useState("");
   const compositionInteraction = useCompositionInteractionController();
   const {
     libraryOpen: componentLibraryOpen,
@@ -240,8 +245,8 @@ export function App(): ReactNode {
         requiresInteraction: Boolean(action.choices?.length || action.confirmation),
       };
     },
-    invoke(reference: string) {
-      requestAction(reference);
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string) {
+      requestAction(reference, args, callerNodeId);
     },
   }), []);
 
@@ -852,6 +857,7 @@ export function App(): ReactNode {
     try {
       const launched = await host.runComponentAgent({ nodeId: node.id, prompt });
       setAgentDialog(null);
+      setAgentPromptDraft("");
       setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
     } finally {
@@ -976,6 +982,16 @@ export function App(): ReactNode {
         { ...appSettings, theme, themeMode },
         "Default theme and appearance updated.",
       ),
+      requestAgentPrompt: (args, callerNodeId) => {
+        const prompt = args.prompt;
+        const target = callerNodeId && snapshot?.tree ? findResolvedNode(snapshot.tree, callerNodeId) : null;
+        if (typeof prompt !== "string" || !target) {
+          setActionError("The configured agent prompt target is no longer available.");
+          return;
+        }
+        setAgentPromptDraft(prompt);
+        setAgentDialog(target);
+      },
     },
   });
   const dashboardPath = snapshot?.configPath ?? null;
@@ -1492,6 +1508,7 @@ export function App(): ReactNode {
     } else if (action === "collapse") {
       toggleComponentCollapse(node.id);
     } else {
+      setAgentPromptDraft("");
       setAgentDialog(node);
     }
   }
@@ -1551,24 +1568,41 @@ export function App(): ReactNode {
     },
   }), [actionExecutor]);
 
-  function requestAction(reference: string): void {
-    const action = actionsByIdRef.current.get(reference);
+  function requestAction(reference: string, args: Record<string, unknown> = {}, callerNodeId?: string): void {
+    const invocation = actionInvocation(reference);
+    if (!invocation) return;
+    const actionArgs = { ...invocation.with, ...args };
+    const action = actionsByIdRef.current.get(invocation.run);
+    if (action) {
+      setPaletteInvocationArgs(actionArgs);
+      setPaletteInvocationActionId(action.id);
+      setPaletteCallerNodeId(callerNodeId);
+    }
+    if (invocation.run === "agent:prompt") {
+      if (action) void actionExecutor.run(invocation.run, {}, actionArgs, callerNodeId);
+      return;
+    }
     if (action?.choices?.length || action?.confirmation) {
       setPaletteInitialActionId(action.id);
       setPaletteOpen(true);
       return;
     }
-    void executePaletteAction(reference);
+    void executePaletteAction(invocation.run, undefined, actionArgs, callerNodeId);
   }
 
-  async function executePaletteAction(id: string, selections?: Readonly<Record<string, string>>): Promise<void> {
+  async function executePaletteAction(
+    id: string,
+    selections?: Readonly<Record<string, string>>,
+    args: Record<string, unknown> = paletteInvocationActionId === id ? paletteInvocationArgs : {},
+    callerNodeId?: string,
+  ): Promise<void> {
     setActionError(null);
     const action = actionsByIdRef.current.get(id);
     if (!action) {
       setActionError("This action is no longer available.");
       return;
     }
-    const result = await actionExecutor.run(id, selections);
+    const result = await actionExecutor.run(id, selections, args, callerNodeId);
     if (result.status === "failed") setActionError(errorMessage(result.error));
     else if (result.status === "unavailable") setActionError(result.reason);
     else if (result.status === "running") {
@@ -1834,7 +1868,13 @@ export function App(): ReactNode {
         favoritesDisabled={pendingAction !== null}
         initialActionId={paletteInitialActionId}
         onDismiss={() => { setPaletteInitialActionId(null); setPaletteOpen(false); }}
-        onExecute={(id, selections) => void executePaletteAction(id, selections)}
+        initialSelections={paletteInvocationActionId === paletteInitialActionId ? paletteInvocationArgs as Readonly<Record<string, string>> : {}}
+        onExecute={(id, selections) => void executePaletteAction(
+          id,
+          selections,
+          paletteInvocationActionId === id ? paletteInvocationArgs : {},
+          paletteInvocationActionId === id ? paletteCallerNodeId : undefined,
+        )}
         onToggleFavorite={toggleFavoriteAction}
       />
       <CompositionFlyout
@@ -1888,6 +1928,7 @@ export function App(): ReactNode {
         editSession={editSession}
         editingActiveProject={editingActiveProject}
         agentDialog={agentDialog}
+        agentPromptDraft={agentPromptDraft}
         pendingAction={pendingAction}
         discardConfirmation={discardConfirmation}
         deletionDialog={deletionDialog}
@@ -1900,7 +1941,7 @@ export function App(): ReactNode {
         onConfirmRemoval={confirmCompositionRemoval}
         onBuildWithAgent={requestComponentCreationAgent}
         onRunComponentAgent={runComponentAgent}
-        onDismissAgentDialog={() => setAgentDialog(null)}
+        onDismissAgentDialog={() => { setAgentDialog(null); setAgentPromptDraft(""); }}
         onDismissDiscard={() => setDiscardConfirmation(null)}
         onConfirmDiscard={confirmDiscardChanges}
         onDismissDeletion={() => setDeletionDialog(null)}

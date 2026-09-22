@@ -58,6 +58,9 @@ const USER_ONLY_ACTION_IDS = new Set([
 ]);
 
 export function agentActionRefusal(action: AgentActionPolicyInput): string | undefined {
+  if (action.id.startsWith("agent:")) {
+    return "Agent actions require a user review and cannot be run through the agent-control channel.";
+  }
   if (USER_ONLY_ACTION_IDS.has(action.id)) {
     return "This action is reserved for the user. Ask them to run it from the command palette.";
   }

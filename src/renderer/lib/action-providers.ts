@@ -37,6 +37,7 @@ export interface ApplicationActionCallbacks {
   revokeTrust(): void | Promise<void>;
   runProcessQuickAction(nodeId: string): void | Promise<void>;
   stopProcess(nodeId: string): void | Promise<void>;
+  requestAgentPrompt?(args: Record<string, unknown>, callerNodeId?: string): void;
   setDashboardAppearance?(theme: string | undefined, themeMode: ThemeMode | undefined): void | Promise<void>;
   setDefaultAppearance?(theme: string, themeMode: ThemeMode): void | Promise<void>;
 }
@@ -217,6 +218,16 @@ export function buildApplicationActions(
   const projectOpen = snapshot?.projectRoot !== null && snapshot?.projectRoot !== undefined;
   const pendingReason = blockedReason(pendingAction);
   const actions: PaletteAction[] = [
+    appAction({
+      id: "agent:prompt",
+      label: "Run configured agent prompt",
+      description: "Review and send a configured prompt to the app-wide agent.",
+      keywords: ["agent", "prompt", "send"],
+      group: "Agent work",
+      enabled: pendingAction === null && Boolean(snapshot?.trusted),
+      ...(pendingReason ? { disabledReason: pendingReason } : {}),
+      run: (_selections, args, callerNodeId) => callbacks.requestAgentPrompt?.(args ?? {}, callerNodeId),
+    }),
     appAction({
       id: "app:reload",
       label: "Reload app",

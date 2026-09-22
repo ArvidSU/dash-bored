@@ -177,6 +177,8 @@ instances therefore never answer for the release app by accident.
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and returns the app window as PNG. |
 
+The channel refuses all `agent:*` actions. In particular, `agent:prompt` requires the desktop composer to show the resolved command and configured prompt and wait for the user's explicit Send.
+
 Main owns the socket and relays to the renderer through `webview.requests`
 (`agentViewState`, `agentListActions`, `agentRunAction`, `agentSettle`); the
 renderer shell registers the handler because it owns action, focus, and view

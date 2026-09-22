@@ -188,6 +188,15 @@ target node's manifest. Palette and Settings include declared actions before
 mount with an unavailable reason. Omitting `actions` preserves dynamic legacy
 registration for components that discover IDs at runtime.
 
+An action-bearing prop may keep the argument-free string form or use
+`{ run: <reference>, with: { ... } }`. The loader validates `with` against the
+target action's declared `args` schema. A button passes those typed values through
+the shared action executor; matching string values prefill choice steps, while
+unmatched choices remain interactive. The app action `agent:prompt` accepts a
+required `prompt` string. A button invocation opens the existing agent composer
+with the resolved command and configured prompt for review; the user must press
+Send.
+
 The same representation is used for YAML, drafts, resolved trees, and saved
 configuration. There is no shorthand expansion or alternate topology model.
 

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { PaletteAction } from "../lib/actions";
-import { rankActions, resolveActionChoiceOptions } from "../lib/actions";
+import { matchActionChoiceSelections, rankActions, resolveActionChoiceOptions } from "../lib/actions";
 import type { ComponentActionOption, ComponentActionSelections } from "../../shared/contracts";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 
@@ -13,6 +13,7 @@ interface CommandPaletteProps {
   actionShortcuts: Readonly<Record<string, string>>;
   favoritesDisabled: boolean;
   initialActionId?: string | null;
+  initialSelections?: ComponentActionSelections;
   onDismiss(): void;
   onExecute(id: string, selections?: ComponentActionSelections): void;
   onToggleFavorite(id: string): void;
@@ -36,6 +37,7 @@ export function CommandPalette({
   actionShortcuts,
   favoritesDisabled,
   initialActionId,
+  initialSelections = {},
   onDismiss,
   onExecute,
   onToggleFavorite,
@@ -107,8 +109,15 @@ export function CommandPalette({
     if (!action?.enabled) return;
     if (action.choices?.length) {
       setChoiceActionId(action.id);
-      setChoiceIndex(0);
-      setChoices({});
+      const matched = matchActionChoiceSelections(action.choices, initialSelections);
+      const firstMissing = action.choices.findIndex((choice) => matched[choice.id] === undefined);
+      setChoiceIndex(firstMissing < 0 ? action.choices.length - 1 : firstMissing);
+      setChoices(matched);
+      if (firstMissing < 0) {
+        dismiss();
+        onExecute(action.id, matched);
+        return;
+      }
     } else if (action.confirmation) {
       setConfirmationId(action.id);
     }
@@ -293,7 +302,11 @@ export function CommandPalette({
                 {choiceOptions.map((option) => (
                   <button className="button button--quiet command-palette__choice" type="button" key={option.value} onClick={() => {
                     const next = { ...choices, [currentChoice.id]: option.value };
-                    const nextIndex = choiceIndex + 1;
+                    let nextIndex = choiceIndex + 1;
+                    while (
+                      nextIndex < choiceAction.choices!.length
+                      && next[choiceAction.choices![nextIndex]!.id] !== undefined
+                    ) nextIndex += 1;
                     if (choiceAction.choices && nextIndex < choiceAction.choices.length) {
                       setChoices(next);
                       setChoiceIndex(nextIndex);

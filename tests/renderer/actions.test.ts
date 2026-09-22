@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   ActionExecutor,
   ActionRegistry,
+  matchActionChoiceSelections,
   rankActions,
 } from "../../src/renderer/lib/actions";
 import type {
@@ -355,12 +356,23 @@ describe("action search and execution", () => {
     const actions = new Map<string, PaletteAction>([
       ["choose", action("choose", {
         choices: [{ id: "mode", label: "Mode", options: [{ value: "safe", label: "Safe" }] }],
-        run: (selections) => { received = selections; },
+        run: (selections, args, callerNodeId) => { received = { selections, args, callerNodeId }; },
       })],
     ]);
-    const result = await new ActionExecutor((id) => actions.get(id)).run("choose", { mode: "safe" });
+    const result = await new ActionExecutor((id) => actions.get(id)).run("choose", { mode: "safe" }, { prompt: "Review" }, "button-node");
     expect(result).toEqual({ status: "completed" });
-    expect(received).toEqual({ mode: "safe" });
+    expect(received).toEqual({ selections: { mode: "safe" }, args: { prompt: "Review" }, callerNodeId: "button-node" });
+  });
+
+  test("matches configured arguments to compatible choice steps", () => {
+    const choices = [
+      { id: "mode", label: "Mode", options: [{ value: "safe", label: "Safe" }] },
+      { id: "region", label: "Region", options: (selections: Readonly<Record<string, string>>) => selections.mode === "safe"
+        ? [{ value: "local", label: "Local" }]
+        : [{ value: "remote", label: "Remote" }] },
+    ];
+    expect(matchActionChoiceSelections(choices, { mode: "safe", region: "local", ignored: "x" })).toEqual({ mode: "safe", region: "local" });
+    expect(matchActionChoiceSelections(choices, { mode: "unsafe", region: "local" })).toEqual({});
   });
 });
 
@@ -405,6 +417,26 @@ describe("application action providers", () => {
     runProcessQuickAction: () => undefined,
     stopProcess: () => undefined,
   };
+
+  test("routes agent:prompt typed arguments with the invoking node context", () => {
+    let received: unknown;
+    const actions = buildApplicationActions({
+      snapshot: snapshot({ trusted: true }),
+      projects: [],
+      activeView: "dashboard",
+      sidebarExpanded: false,
+      pendingAction: null,
+      editing: false,
+      draftDirty: false,
+      draftValid: false,
+      savingDraft: false,
+      callbacks: { ...callbacks, requestAgentPrompt: (args, callerNodeId) => { received = { args, callerNodeId }; } },
+    });
+    const action = actions.find((item) => item.id === "agent:prompt");
+    expect(action?.enabled).toBeTrue();
+    action?.run({}, { prompt: "Review this" }, "review-button");
+    expect(received).toEqual({ args: { prompt: "Review this" }, callerNodeId: "review-button" });
+  });
 
   test("exposes an always-available app reload action", () => {
     let reloaded = false;
