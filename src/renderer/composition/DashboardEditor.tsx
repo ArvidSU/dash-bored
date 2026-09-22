@@ -1,5 +1,5 @@
 import { ThemeSelect } from "../lib/theme";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { DragEvent, ReactNode } from "react";
 import type {
   ComponentCatalogItem,
@@ -100,8 +100,7 @@ function SchemaEditor({
   const [advanced, setAdvanced] = useState(false);
   const [json, setJson] = useState(() => JSON.stringify(value, null, 2));
   const [error, setError] = useState<string | null>(null);
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  useEffect(() => setFieldError(null), [value]);
+  const [fieldError, setFieldError] = useState<{ name: string; value: unknown; message: string } | null>(null);
   const required = requiredProperties(schema);
   const properties = schemaProperties(schema);
   if (advanced) {
@@ -137,7 +136,11 @@ function SchemaEditor({
         const enumValues = Array.isArray(property.enum) ? property.enum : null;
         const change = (nextValue: unknown): void => {
           if (property.format === "action-reference" && typeof nextValue === "string" && (nextValue.includes("${") || /[{}]/.test(nextValue))) {
-            setFieldError("Use a stable node ID. Positional references are kept only for existing schema-v3 dashboards.");
+            setFieldError({
+              name,
+              value: current,
+              message: "Use a stable node ID. Positional references are kept only for existing schema-v3 dashboards.",
+            });
             return;
           }
           setFieldError(null);
@@ -170,8 +173,8 @@ function SchemaEditor({
                 )}
               />
             )}
-            {property.format === "action-reference" && (fieldError || (typeof current === "string" && (current.includes("${") || /[{}]/.test(current))))
-              ? <small className="inline-warning" role="status">{fieldError ?? "Use the stable target picker to replace this legacy positional reference."}</small>
+            {property.format === "action-reference" && ((fieldError?.name === name && fieldError.value === current) || (typeof current === "string" && (current.includes("${") || /[{}]/.test(current))))
+              ? <small className="inline-warning" role="status">{fieldError?.name === name && fieldError.value === current ? fieldError.message : "Use the stable target picker to replace this legacy positional reference."}</small>
               : null}
             {typeof property.description === "string" ? <small>{property.description}</small> : null}
           </label>
