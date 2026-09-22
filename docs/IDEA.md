@@ -355,9 +355,10 @@ The app-wide `DASH_BORED_AGENT` choice is an override, not a replacement for a
 bundle's declared environment. Users can leave the Settings field empty and
 save to return agent selection to the owning dashboard bundle.
 
-Components register actions while they are mounted. The palette makes those
-actions easier to find; it does not bypass project trust or add capabilities.
-Privileged work still flows through the component's declared host APIs.
+Components declare actions in their manifests and register handlers while
+mounted. The palette makes those actions easier to find; it does not bypass
+project trust or add capabilities. Privileged work still flows through the
+component's declared host APIs.
 
 An action is a verb, an optional target, and optional typed arguments. Actions
 live in three scopes: navigation (focus and app actions), presentation (select
