@@ -1,27 +1,67 @@
 import { describe, expect, test } from "bun:test";
 import {
   componentActionReference,
-  interpolateActionReference,
+  parseActionReferenceNodeId,
+  parseComponentActionReference,
   remapActionReferenceNode,
 } from "../../src/shared/action-reference";
+import { migrateActionReferences, resolveLegacyActionReference } from "../../src/core/action-reference-migration";
+import type { DashboardConfig } from "../../src/shared/contracts";
+
+const config: DashboardConfig = {
+  schemaVersion: 3,
+  name: "Action refs",
+  root: {
+    id: "root",
+    component: "group",
+    children: {
+      axis: "horizontal",
+      first: { node: { component: "button", props: { action: "focus:${root.children.first.node}" } } },
+      second: { node: { id: "todo-list", component: "todo-list" } },
+    },
+  },
+};
 
 describe("action references", () => {
-  test("interpolates canonical YAML node paths into encoded action ids", () => {
-    const path = "root.children[2].node.children.first.first.node.children.node";
-    expect(interpolateActionReference(`focus:\${${path}}`, (candidate) =>
-      candidate === path ? "yaml-todo" : undefined)).toBe("focus:yaml-todo");
+  test("parses node IDs and component action IDs", () => {
+    expect(parseActionReferenceNodeId("focus:todo-list")).toBe("todo-list");
+    expect(parseActionReferenceNodeId("component:todo-list:refresh")).toBe("todo-list");
+    expect(parseActionReferenceNodeId("app:reload")).toBeUndefined();
+    expect(parseActionReferenceNodeId("focus:%E0%A4%A")).toBeUndefined();
+    expect(parseComponentActionReference("component:todo-list:refresh"))
+      .toEqual({ nodeId: "todo-list", actionId: "refresh" });
     expect(componentActionReference("linked::pulse", "refresh-project-pulse"))
       .toBe("component:linked%3A%3Apulse:refresh-project-pulse");
   });
 
-  test("rejects malformed and missing node paths without touching literal ids", () => {
-    expect(interpolateActionReference("app:reload", () => undefined)).toBe("app:reload");
-    expect(() => interpolateActionReference("focus:${root.children.nope.node}", () => undefined))
-      .toThrow("Malformed component node path");
-    expect(() => interpolateActionReference("focus:${root.children[8].node}", () => undefined))
+  test("rewrites legacy references and assigns IDs only when needed", () => {
+    const result = migrateActionReferences(config);
+    expect(result.migrated).toBe(1);
+    expect(result.assignedIds).toBe(1);
+    expect(result.diagnostics).toEqual([]);
+    const children = result.config.root.children as { first: { node: { id?: string; props?: Record<string, unknown> } } };
+    expect(children.first.node.id).toBe("action-target-1");
+    expect(children.first.node.props?.action).toBe("focus:action-target-1");
+  });
+
+  test("rewrites references at manifest-declared nested prop paths", () => {
+    const nested = structuredClone(config);
+    nested.root.children = {
+      axis: "horizontal",
+      first: { node: { id: "agent-button", component: "./local-button", props: { action: { run: "component:${root.children.second.node}:refresh" } } } },
+      second: { node: { id: "todo-list", component: "todo-list" } },
+    };
+    const result = migrateActionReferences(nested, (_component, path) => path === "action.run");
+    expect(result.migrated).toBe(1);
+    const children = result.config.root.children as { first: { node: { props?: Record<string, unknown> } } };
+    expect(children.first.node.props?.action).toEqual({ run: "component:todo-list:refresh" });
+  });
+
+  test("supports schema-v3 runtime resolution during the migration window", () => {
+    expect(resolveLegacyActionReference("focus:${root.children.second.node}", (path) =>
+      path === "root.children.second.node" ? "todo-list" : undefined)).toBe("focus:todo-list");
+    expect(() => resolveLegacyActionReference("focus:${root.children[8].node}", () => undefined))
       .toThrow("does not exist");
-    expect(() => interpolateActionReference("focus:${root.children[0].node", () => undefined))
-      .toThrow("Malformed component node path interpolation");
   });
 
   test("remaps only node-bearing action segments for linked namespaces", () => {

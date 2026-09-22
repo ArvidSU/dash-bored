@@ -14,9 +14,10 @@ import type {
 } from "../shared/contracts";
 import { CONFIG_FILE } from "../shared/contracts";
 import {
-  interpolateActionReference,
+  parseActionReferenceNodeId,
   remapActionReferenceNode,
 } from "../shared/action-reference";
+import { resolveLegacyActionReference } from "./action-reference-migration";
 import { getBuiltinManifest, listBuiltinManifests } from "./builtins";
 import { diagnostic, errorMessage } from "./diagnostics";
 import {
@@ -457,6 +458,7 @@ export async function resolveComponentTree(
   const usedManifests = new Map<string, ComponentManifest>();
   const manifestReferenceById = new Map<string, string>();
   const ids = new Set<string>();
+  const explicitNodeIds = new Set<string>();
   const requestedPermissions = new Set<Permission>();
   const permissionsByNode = new Map<string, ReadonlySet<Permission>>();
   const projectRootsByNode = new Map<string, string>();
@@ -518,6 +520,7 @@ export async function resolveComponentTree(
 
     if (isConfigReference(node.component)) {
       const id = node.id ?? nodePath;
+      if (node.id !== undefined) explicitNodeIds.add(id);
       if (ids.has(id)) {
         diagnostics.push(
           diagnostic({ code: "NODE_ID_DUPLICATE", message: `Duplicate node id: ${id}`, path: nodePath }),
@@ -645,6 +648,7 @@ export async function resolveComponentTree(
     usedManifests.set(manifest.id, manifest);
 
     const id = node.id ?? nodePath;
+    if (node.id !== undefined) explicitNodeIds.add(id);
     if (ids.has(id)) {
       diagnostics.push(
         diagnostic({ code: "NODE_ID_DUPLICATE", message: `Duplicate node id: ${id}`, path: nodePath }),
@@ -901,6 +905,9 @@ export async function resolveComponentTree(
     }
 
     for (const node of allNodes) {
+      // Linked dashboards resolve and validate their own references before
+      // namespacing. Their IDs are intentionally private to that bundle.
+      if (node.sourceConfigPath !== location.configPath) continue;
       for (const [propName, reference] of Object.entries(node.manifest?.references ?? {})) {
         const targetId = node.props[propName];
         if (reference.resource === "action") {
@@ -912,13 +919,40 @@ export async function resolveComponentTree(
             }));
             continue;
           }
-          try {
-            node.props[propName] = interpolateActionReference(targetId, (sourcePath) =>
-              nodesByBundlePath.get(JSON.stringify([node.sourceConfigPath, sourcePath]))?.id);
-          } catch (error) {
+          const targetNodeId = parseActionReferenceNodeId(targetId);
+          if (targetId.includes("${") || /[{}]/.test(targetId)) {
+            try {
+              node.props[propName] = resolveLegacyActionReference(targetId, (sourcePath) =>
+                nodesByBundlePath.get(JSON.stringify([node.sourceConfigPath, sourcePath]))?.id);
+              diagnostics.push(diagnostic({
+                severity: "warning",
+                code: "COMPONENT_ACTION_REFERENCE_DEPRECATED",
+                message: "Positional action references are deprecated. Migrate this target to a stable node ID before dashboard schema v4.",
+                path: `${node.id}.props.${propName}`,
+              }));
+            } catch (error) {
+              diagnostics.push(diagnostic({
+                code: "COMPONENT_ACTION_REFERENCE_INVALID",
+                message: errorMessage(error),
+                path: `${node.id}.props.${propName}`,
+              }));
+            }
+          } else if (targetNodeId !== undefined && !explicitNodeIds.has(targetNodeId)) {
+            diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_REFERENCE_UNKNOWN",
+              message: `Action reference targets unknown node ID: ${targetNodeId}`,
+              path: `${node.id}.props.${propName}`,
+            }));
+          } else if (targetNodeId === undefined && targetId.startsWith("component:")) {
             diagnostics.push(diagnostic({
               code: "COMPONENT_ACTION_REFERENCE_INVALID",
-              message: errorMessage(error),
+              message: "Malformed component action reference; expected component:<node-id>:<action-id>.",
+              path: `${node.id}.props.${propName}`,
+            }));
+          } else if (targetNodeId === undefined && /^(focus|process):/.test(targetId)) {
+            diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_REFERENCE_INVALID",
+              message: "Malformed node action reference; expected focus:<node-id>, process:<node-id>, or component:<node-id>:<action-id>.",
               path: `${node.id}.props.${propName}`,
             }));
           }

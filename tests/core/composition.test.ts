@@ -20,7 +20,7 @@ afterEach(async () => {
 const edge = (node: ComponentNode, metadata?: Record<string, unknown>) => ({ node, ...(metadata === undefined ? {} : { metadata }) });
 
 describe("component child composition", () => {
-  test("resolves action node paths within the owning YAML bundle", async () => {
+  test("transitionally resolves schema-v3 action paths within the owning bundle", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const todoPath = "root.children[2].node.children.first.first.node.children.node";
@@ -67,7 +67,7 @@ describe("component child composition", () => {
     expect(missing.diagnostics.map((item) => item.code)).toContain("COMPONENT_ACTION_REFERENCE_INVALID");
   });
 
-  test("interpolates paths to generated node ids", async () => {
+  test("transitionally resolves paths to generated node IDs", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
@@ -88,6 +88,24 @@ describe("component child composition", () => {
     if (!first || Array.isArray(first) || !("axis" in first)) throw new Error("Expected split layout");
     expect((first.first as { node: { props: Record<string, unknown> } }).node.props.action)
       .toBe("focus:root.children.1");
+  });
+
+  test("rejects stable action references to unknown node IDs", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Unknown action target",
+      root: {
+        component: "@dash-bored/group",
+        children: [
+          edge({ id: "action-button", component: "@dash-bored/button", props: { name: "Missing target", action: "focus:missing-target" } }),
+          edge({ id: "actual-target", component: "@dash-bored/markdown", props: { content: "Target" } }),
+        ],
+      },
+    });
+    const result = await inspectProject(root);
+    expect(result.diagnostics.some((item) => item.code === "COMPONENT_ACTION_REFERENCE_UNKNOWN" && item.message.includes("missing-target"))).toBeTrue();
   });
   test("resolves recursive tiled topology and attaches built-in manifests", async () => {
     const root = await temporaryDirectory();

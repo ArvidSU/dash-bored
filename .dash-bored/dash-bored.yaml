@@ -171,7 +171,7 @@ root:
                       component: "@dash-bored/button"
                       props:
                         name: Focus todos
-                        action: focus:${root.children[2].node.children.first.first.node.children.node}
+                        action: focus:yaml-todo
                   second:
                     axis: horizontal
                     first:
@@ -180,14 +180,14 @@ root:
                         component: "@dash-bored/button"
                         props:
                           name: Focus project pulse
-                          action: focus:${root.children[2].node.children.second.second.first.node.children.first.node.children.node}
+                          action: focus:project-pulse
                     second:
                       node:
                         id: refresh-project-pulse-button
                         component: "@dash-bored/button"
                         props:
                           name: Refresh project pulse
-                          action: component:${root.children[2].node.children.second.second.first.node.children.first.node.children.node}:refresh-project-pulse
+                          action: component:project-pulse:refresh-project-pulse
             second:
               axis: vertical
               first:

@@ -173,10 +173,13 @@ child boundary contains an array of child edges. The manifest still declares
 which presentation it accepts, and validation checks the configured shape
 against that declaration. Component manifests keep schema version 2.
 Manifest reference declarations accept `resource: process` for provider-node
-IDs and `resource: action` for stable action references. Only action-declared
-props interpolate `${root...}` node paths. Resolution is scoped to the owning
-YAML bundle, then linked-tree namespacing remaps the node-bearing segment of
-focus, process, and component-action IDs.
+IDs and `resource: action` for stable action references. Action references use
+explicit node IDs (`focus:<node-id>`, `process:<node-id>`, or
+`component:<node-id>:<action-id>`), never a tree position. Schema-v3 dashboards
+temporarily resolve legacy `${root...}` references and report a deprecation
+warning; the v4 migration will rewrite them and remove that compatibility.
+Resolution is scoped to the owning YAML bundle, then linked-tree namespacing
+remaps the node-bearing segment of focus, process, and component-action IDs.
 
 The same representation is used for YAML, drafts, resolved trees, and saved
 configuration. There is no shorthand expansion or alternate topology model.

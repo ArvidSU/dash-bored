@@ -1,25 +1,28 @@
-const NODE_PATH = /^root(?:\.children(?:\[\d+\]|(?:\.(?:first|second))+)?\.node)*$/;
-
-export function interpolateActionReference(
-  reference: string,
-  resolveNodePath: (path: string) => string | undefined,
-): string {
-  if (reference.trim() === "") throw new Error("Action references must be non-empty strings.");
-  let tokenCount = 0;
-  const interpolated = reference.replace(/\$\{([^{}]*)\}/g, (_token, expression: string) => {
-    tokenCount += 1;
-    if (!NODE_PATH.test(expression)) {
-      throw new Error(`Malformed component node path: ${expression || "(empty)"}`);
-    }
-    const nodeId = resolveNodePath(expression);
-    if (nodeId === undefined) throw new Error(`Component node path does not exist: ${expression}`);
-    return encodeURIComponent(nodeId);
-  });
-  const openingCount = (reference.match(/\$\{/g) ?? []).length;
-  if (openingCount !== tokenCount || interpolated.includes("${") || /[{}]/.test(interpolated)) {
-    throw new Error("Malformed component node path interpolation.");
+/** Return the stable node ID carried by a node-targeting action reference. */
+export function parseActionReferenceNodeId(reference: string): string | undefined {
+  const parts = reference.split(":");
+  const targetIndex = parts[0] === "focus" || parts[0] === "process"
+    ? parts.length === 2 ? 1 : -1
+    : parts[0] === "component" && parts.length === 3 ? 1 : -1;
+  if (targetIndex < 0 || !parts[targetIndex]) return undefined;
+  try {
+    const id = decodeURIComponent(parts[targetIndex]!);
+    return id.trim() ? id : undefined;
+  } catch {
+    return undefined;
   }
-  return interpolated;
+}
+
+export function parseComponentActionReference(reference: string): { nodeId: string; actionId: string } | undefined {
+  const parts = reference.split(":");
+  if (parts.length !== 3 || parts[0] !== "component") return undefined;
+  try {
+    const nodeId = decodeURIComponent(parts[1]!);
+    const actionId = decodeURIComponent(parts[2]!);
+    return nodeId.trim() && actionId.trim() ? { nodeId, actionId } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Remap the node-bearing segment of a stable action reference. */

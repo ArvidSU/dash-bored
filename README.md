@@ -439,16 +439,17 @@ confirmation, choices, running-state, and availability behavior:
 component: "@dash-bored/button"
 props:
   name: Focus todos
-  action: focus:${root.children[2].node.children.first.first.node.children.node}
+  action: focus:yaml-todo
 ```
 
-Node paths in manifest-declared action-reference props are resolved within the
-YAML bundle that owns the button. This keeps linked bundles portable and gives
-their resolved node IDs the enclosing namespace automatically. Stable literal
-forms include `app:reload`, `focus:<node-id>`, `process:<node-id>`, and
-`component:<node-id>:<local-action-id>`. Malformed or missing interpolated paths
-fail validation; a valid action that is currently unmounted remains valid and
-renders as a disabled button with its reason.
+Action references name nodes by their explicit stable ID, so moving a node does
+not change the button. The editor's target picker assigns an ID when needed.
+Stable forms include `app:reload`, `focus:<node-id>`, `process:<node-id>`, and
+`component:<node-id>:<local-action-id>`. Schema-v3 dashboards still resolve
+legacy positional references and show a deprecation warning; the v4 migration
+will replace that transitional support with ID-only validation. A valid action
+that is currently unmounted remains valid and renders as a disabled button with
+its reason.
 
 `@dash-bored/markdown` accepts either inline `content` or a project-relative
 `path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes

@@ -42,7 +42,7 @@ const manifests: ComponentManifest[] = [
     name: "Action button",
     description: "Invokes a command-palette action and reflects its current availability, active state, and progress.",
     entry: "builtin:button",
-    propsSchema: objectSchema({ name: string, action: string }, ["name", "action"]),
+    propsSchema: objectSchema({ name: string, action: { ...string, format: "action-reference" } }, ["name", "action"]),
     references: { action: { resource: "action" } },
   },
   {
