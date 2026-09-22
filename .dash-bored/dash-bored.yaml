@@ -129,6 +129,18 @@ root:
                           done: false
                           tags:
                             - chore
+                        - description: "Drag targeting: let edge distance escalate to ancestor boundaries so a drop can tile beside a whole split pane or at the dashboard edge, not only beside the deepest hovered node's siblings."
+                          done: false
+                          tags:
+                            - improvement
+                        - description: Auto-scroll scroll containers when a composition drag nears their edge.
+                          done: false
+                          tags:
+                            - improvement
+                        - description: Retire the native HTML5 drag handlers in ComponentFrame and keep composition drags pointer-only.
+                          done: false
+                          tags:
+                            - chore
             second:
               node:
                 id: overview-intro

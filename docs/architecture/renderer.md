@@ -309,10 +309,19 @@ and the pointer region decides the advertised target: the centered region
 offers a filled drop-inside target when the hovered container accepts children
 (center appends, so a Tabs center drop becomes the last tab), while the edge
 bands offer the nearest compatible sibling boundary for tiling beside the
-component. The source remains in place with a picked-up treatment and the
+component. The advertised zone is held with a 12px hysteresis margin (the
+center region grows while held, shrinks while an edge is held, and a competing
+edge must be nearer by the margin), and the drop resolves against the held zone
+so it lands where the indicator pointed. Edge targets draw a thin insertion bar
+on the boundary with the preview beside it; inside targets outline the frame.
+The source remains in place with a picked-up treatment and the
 target renders a compact component-and-destination preview; neither changes
-layout geometry or becomes a second topology representation. Handle gestures
-prevent native text selection before their movement threshold is crossed.
+layout geometry or becomes a second topology representation. A
+pointer-transparent chip follows the cursor naming the payload and whether the
+pointer is over a target, no target, or the trash; it is positioned directly
+per pointer frame without re-rendering. Escape cancels an in-progress drag
+without dropping (restoring the library's pre-drag visibility for node drags).
+Handle gestures prevent native text selection before their movement threshold is crossed.
 Keyboard movement, Configure, Remove, root replacement, and both-axis
 separator resizing use the same topology and draft helpers as pointer
 interactions. Composition-active split separators expose a visible grip, while

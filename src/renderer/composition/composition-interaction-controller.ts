@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { cancelActivePointerSession } from "../lib/pointer-session";
 import type {
   CompositionDragPayload,
   CompositionPointerState,
@@ -29,8 +30,14 @@ export function useCompositionInteractionController() {
   const [selectedTarget, setSelectedTarget] = useState<CompositionTarget | null>(null);
   const [dialog, setDialog] = useState<CompositionDialogState | null>(null);
   const [removePath, setRemovePath] = useState<NodePath | null>(null);
+  // Mirrors the advertised pointer target synchronously so hit-testing in the
+  // same frame can hold it (hysteresis) without waiting for a render.
+  const pointerRef = useRef<CompositionPointerState | null>(null);
+  // A node drag opens the library as its trash target; cancelling restores it.
+  const libraryOpenBeforeNodeDrag = useRef(false);
 
   const clearTransientDrag = useCallback((): void => {
+    pointerRef.current = null;
     setDragging(null);
     setPointer(null);
   }, []);
@@ -60,12 +67,15 @@ export function useCompositionInteractionController() {
   }, [closeLibrary, libraryOpen, openLibrary]);
 
   const beginNodeDrag = useCallback((path: NodePath): void => {
+    libraryOpenBeforeNodeDrag.current = libraryOpen;
+    pointerRef.current = null;
     setPointer(null);
     setDragging({ type: "node", path });
     setLibraryOpen(true);
-  }, []);
+  }, [libraryOpen]);
 
   const beginLibraryDrag = useCallback((reference: string): void => {
+    pointerRef.current = null;
     setPointer(null);
     setDragging({ type: "component", reference });
   }, []);
@@ -73,17 +83,19 @@ export function useCompositionInteractionController() {
   const updatePointer = useCallback((next: CompositionPointerState | null): void => {
     // Pointer input can outpace painting. Changes inside the same insertion
     // boundary cannot affect the preview, so do not invalidate the tree.
-    setPointer((current) => {
-      if (current === next) return current;
-      if (
-        current !== null
-        && next !== null
-        && current.nodeId === next.nodeId
-        && current.zoneId === next.zoneId
-      ) return current;
-      return next;
-    });
+    const current = pointerRef.current;
+    if (current === next) return;
+    if (
+      current !== null
+      && next !== null
+      && current.nodeId === next.nodeId
+      && current.zoneId === next.zoneId
+    ) return;
+    pointerRef.current = next;
+    setPointer(next);
   }, []);
+
+  const currentPointer = useCallback((): CompositionPointerState | null => pointerRef.current, []);
 
   const selectTarget = useCallback((target: CompositionTarget): void => {
     clearTransientDrag();
@@ -128,6 +140,23 @@ export function useCompositionInteractionController() {
     };
   }, [clearTransientDrag]);
 
+  useEffect(() => {
+    if (!dragging) return;
+    const cancelOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      // Capture phase so no other Escape owner (drawer, removal flyout) also
+      // reacts: the only effect is abandoning the gesture. The session owner
+      // receives "cancel" and ends the drag without committing a drop.
+      event.preventDefault();
+      event.stopPropagation();
+      cancelActivePointerSession();
+      clearTransientDrag();
+      if (dragging.type === "node" && !libraryOpenBeforeNodeDrag.current) setLibraryOpen(false);
+    };
+    window.addEventListener("keydown", cancelOnEscape, true);
+    return () => window.removeEventListener("keydown", cancelOnEscape, true);
+  }, [clearTransientDrag, dragging]);
+
   return {
     libraryOpen,
     dragging,
@@ -141,6 +170,7 @@ export function useCompositionInteractionController() {
     beginNodeDrag,
     beginLibraryDrag,
     updatePointer,
+    currentPointer,
     endDrag: clearTransientDrag,
     selectTarget,
     showDialog,

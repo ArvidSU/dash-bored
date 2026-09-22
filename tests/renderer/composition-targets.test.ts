@@ -215,3 +215,46 @@ describe("drop-inside container targets", () => {
       .toBe("inside");
   });
 });
+
+describe("pointer zone hysteresis", () => {
+  const margin = 0.05;
+  function held(zone: { id: string } | null | undefined) {
+    if (!zone) throw new Error("Expected a zone to hold.");
+    return { zoneId: zone.id, marginX: margin, marginY: margin };
+  }
+
+  test("a held inside zone survives small moves past the center boundary", () => {
+    const targets = targetsFor(configA, rootResolvedA);
+    const inside = targets.pointerDropZoneForNode(tabsResolved, 0.5, 0.5, leafPayload);
+    expect(inside?.side).toBe("inside");
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.23, 0.5, leafPayload)?.side).toBe("left");
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.23, 0.5, leafPayload, held(inside))?.side)
+      .toBe("inside");
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.18, 0.5, leafPayload, held(inside))?.side)
+      .toBe("left");
+  });
+
+  test("a held edge zone needs a clear lead before a nearer edge or the center wins", () => {
+    const targets = targetsFor(configA, rootResolvedA);
+    const left = targets.pointerDropZoneForNode(tabsResolved, 0.1, 0.12, leafPayload);
+    expect(left?.side).toBe("left");
+    // Near the diagonal, top is marginally nearer but left stays advertised.
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.1, 0.08, leafPayload)?.side).toBe("top");
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.1, 0.08, leafPayload, held(left))?.side)
+      .toBe("left");
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.1, 0.03, leafPayload, held(left))?.side)
+      .toBe("top");
+    // The center region shrinks while an edge is held.
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.27, 0.5, leafPayload, held(left))?.side)
+      .toBe("left");
+    expect(targets.pointerDropZoneForNode(tabsResolved, 0.35, 0.5, leafPayload, held(left))?.side)
+      .toBe("inside");
+  });
+
+  test("an unknown held zone falls back to raw resolution", () => {
+    const targets = targetsFor(configA, rootResolvedA);
+    expect(targets.pointerDropZoneForNode(
+      tabsResolved, 0.5, 0.5, leafPayload, { zoneId: "missing", marginX: margin, marginY: margin },
+    )?.side).toBe("inside");
+  });
+});

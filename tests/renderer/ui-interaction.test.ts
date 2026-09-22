@@ -809,6 +809,46 @@ describe("renderer fixture interactions", () => {
     })).not.toBe(beforeMove);
   }, 20_000);
 
+  test("a cursor chip follows a frame drag and Escape cancels it without a drop", async () => {
+    const active = currentPage();
+    const persisted = () => active.evaluate(() => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+      if (!host) throw new Error("UI harness host is unavailable.");
+      return JSON.stringify(host.getPersistedConfig());
+    });
+    const beforeDrag = await persisted();
+    await active.getByRole("tab", { name: "Wide layout", exact: true }).click({ force: true });
+    const source = active.locator('[data-node-id="renderer-proof-card"]');
+    const target = active.locator('[data-node-id="responsive-card"]');
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    if (!sourceBox || !targetBox) throw new Error("Cancel drag geometry is unavailable.");
+
+    await active.mouse.move(sourceBox.x + 12, sourceBox.y + sourceBox.height / 2);
+    await active.waitForTimeout(150);
+    const handleBox = await source.locator(":scope > [data-composition-drag-handle]").boundingBox();
+    if (!handleBox) throw new Error("Cancel drag handle is unavailable.");
+    await active.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await active.mouse.down();
+    await active.mouse.move(targetBox.x + 12, targetBox.y + targetBox.height / 2, { steps: 5 });
+    await target.locator(":scope > .composition-drop-indicator--left").waitFor();
+    const chip = active.locator(".composition-drag-chip");
+    await chip.waitFor();
+    expect(await chip.getAttribute("data-state")).toBe("target");
+    expect(await chip.textContent()).toContain("Renderer proof");
+    expect(await chip.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
+
+    await active.keyboard.press("Escape");
+    await chip.waitFor({ state: "detached" });
+    expect(await active.locator(".composition-drop-indicator").count()).toBe(0);
+    expect(await source.getAttribute("data-composition-drag-source")).toBeNull();
+    await active.mouse.up();
+    await active.waitForTimeout(150);
+    expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
+    expect(await active.getByRole("dialog", { name: "Component library" }).count()).toBe(0);
+    expect(await persisted()).toBe(beforeDrag);
+  }, 20_000);
+
   test("dragging a component handle to the removal surface opens confirmation", async () => {
     const active = currentPage();
     const source = active.locator('[data-node-id="renderer-proof-card"]');

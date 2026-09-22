@@ -2828,30 +2828,37 @@ img.sidebar__project-icon {
   outline-offset: -3px;
 }
 
+/* Edge targets draw a thin insertion bar on the boundary the drop lands on,
+ * leaving the target's content visible; inside targets outline the frame.
+ * All sides animate `inset` so moving between zones slides rather than jumps. */
 .composition-drop-indicator {
   position: absolute;
   z-index: 9;
-  display: grid;
   min-width: 0;
-  min-height: 42px;
-  place-items: center;
-  padding: 12px;
-  border: 2px solid var(--accent);
-  border-radius: 10px;
+  border-radius: 999px;
   pointer-events: none;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shadow-color) 22%, transparent), 0 0 26px color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 80%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: inset 110ms ease-out, border-radius 110ms ease-out, background-color 110ms ease-out;
 }
 
-.composition-drop-indicator--left { inset: 5px 50% 5px 5px; }
-.composition-drop-indicator--right { inset: 5px 5px 5px 50%; }
-.composition-drop-indicator--top { inset: 5px 5px 50%; }
-.composition-drop-indicator--bottom { inset: 50% 5px 5px; }
-.composition-drop-indicator--inside { inset: 5px; }
+.composition-drop-indicator--left { inset: 6px calc(100% - 7px) 6px 3px; }
+.composition-drop-indicator--right { inset: 6px 3px 6px calc(100% - 7px); }
+.composition-drop-indicator--top { inset: 3px 6px calc(100% - 7px); }
+.composition-drop-indicator--bottom { inset: calc(100% - 7px) 6px 3px; }
+.composition-drop-indicator--inside {
+  inset: 5px;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: none;
+}
 
 .composition-drop-indicator__preview {
+  position: absolute;
   display: grid;
-  width: min(100%, 15rem);
+  width: max-content;
+  max-width: 15rem;
   gap: 2px;
   padding: 7px 9px;
   overflow: hidden;
@@ -2861,6 +2868,33 @@ img.sidebar__project-icon {
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--shadow-color) 24%, transparent);
   text-align: center;
+}
+
+.composition-drop-indicator--left > .composition-drop-indicator__preview {
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+.composition-drop-indicator--right > .composition-drop-indicator__preview {
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+.composition-drop-indicator--top > .composition-drop-indicator__preview {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.composition-drop-indicator--bottom > .composition-drop-indicator__preview {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.composition-drop-indicator--inside > .composition-drop-indicator__preview {
+  top: 50%;
+  left: 50%;
+  max-width: calc(100% - 16px);
+  transform: translate(-50%, -50%);
 }
 
 .composition-drop-indicator__preview strong,
@@ -2886,6 +2920,61 @@ img.sidebar__project-icon {
 .composition-drop-indicator__target {
   color: var(--text);
   font-size: 10px;
+}
+
+.composition-drag-chip {
+  position: fixed;
+  z-index: 200;
+  top: 0;
+  left: 0;
+  display: grid;
+  max-width: 14rem;
+  gap: 1px;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 30%, transparent);
+  font-size: 11px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 90ms ease, border-color 90ms ease;
+  will-change: transform;
+}
+
+.composition-drag-chip[data-state] { opacity: 1; }
+.composition-drag-chip[data-state="none"] {
+  border-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  opacity: 0.85;
+}
+.composition-drag-chip[data-state="remove"] { border-color: var(--negative); }
+
+.composition-drag-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composition-drag-chip__mode {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.composition-drag-chip__status {
+  display: none;
+  color: var(--muted);
+  font-size: 10px;
+}
+.composition-drag-chip[data-state="none"] .composition-drag-chip__status--none,
+.composition-drag-chip[data-state="remove"] .composition-drag-chip__status--remove {
+  display: block;
+}
+.composition-drag-chip[data-state="remove"] .composition-drag-chip__status--remove {
+  color: var(--negative);
 }
 
 .right-drawer {

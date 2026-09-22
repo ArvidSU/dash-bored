@@ -45,11 +45,29 @@ export interface CompositionResolution {
 const COMPOSITION_INSIDE_CENTER_MIN = 0.25;
 const COMPOSITION_INSIDE_CENTER_MAX = 0.75;
 
-function inCompositionInsideCenter(xRatio: number, yRatio: number): boolean {
-  return xRatio >= COMPOSITION_INSIDE_CENTER_MIN
-    && xRatio <= COMPOSITION_INSIDE_CENTER_MAX
-    && yRatio >= COMPOSITION_INSIDE_CENTER_MIN
-    && yRatio <= COMPOSITION_INSIDE_CENTER_MAX;
+/**
+ * Pixels the pointer must travel past a zone boundary before the advertised
+ * zone changes, so jitter at a boundary does not flicker the indicator.
+ */
+export const COMPOSITION_ZONE_HYSTERESIS_PX = 12;
+
+/** The advertised zone to hold, with its hysteresis margin in frame ratios. */
+export interface CompositionHeldZone {
+  zoneId: string;
+  marginX: number;
+  marginY: number;
+}
+
+function inCompositionInsideCenter(
+  xRatio: number,
+  yRatio: number,
+  marginX = 0,
+  marginY = 0,
+): boolean {
+  return xRatio >= COMPOSITION_INSIDE_CENTER_MIN - marginX
+    && xRatio <= COMPOSITION_INSIDE_CENTER_MAX + marginX
+    && yRatio >= COMPOSITION_INSIDE_CENTER_MIN - marginY
+    && yRatio <= COMPOSITION_INSIDE_CENTER_MAX + marginY;
 }
 
 /**
@@ -69,10 +87,12 @@ export function createCompositionTargets(resolution: CompositionResolution): {
     xRatio: number,
     yRatio: number,
     payload?: CompositionDragPayload | null,
+    held?: CompositionHeldZone | null,
   ) => CompositionDropZone | null;
   pointerTargetAt: (
     point: ComponentPointerDragPoint,
     payload: CompositionDragPayload,
+    current?: { nodeId: string | null; zoneId: string | null } | null,
   ) => { node: ResolvedComponentNode; zone: CompositionDropZone } | null;
   targetIsValid: (target: CompositionTarget, payload: CompositionDragPayload) => boolean;
   defaultTarget: () => CompositionTarget | null;
@@ -201,6 +221,7 @@ export function createCompositionTargets(resolution: CompositionResolution): {
     xRatio: number,
     yRatio: number,
     payload: CompositionDragPayload | null = compositionDrag,
+    held: CompositionHeldZone | null = null,
   ): CompositionDropZone | null {
     if (
       !Number.isFinite(xRatio)
@@ -214,12 +235,6 @@ export function createCompositionTargets(resolution: CompositionResolution): {
     const inside = zones.filter((zone) => zone.side === "inside");
     const edges = zones.filter((zone) => zone.side !== "inside");
     if (edges.length === 0) return inside[0] ?? null;
-    if (inside.length > 0 && inCompositionInsideCenter(xRatio, yRatio)) {
-      // Center drops append inside the hovered container. Derivation order
-      // is stable with the append boundary last (ascending managed indices,
-      // depth-first tiled leaves), so the last valid inside target wins.
-      return inside[inside.length - 1]!;
-    }
     const distance = (zone: CompositionDropZone): number => {
       if (zone.side === "left") return xRatio;
       if (zone.side === "right") return 1 - xRatio;
@@ -227,12 +242,34 @@ export function createCompositionTargets(resolution: CompositionResolution): {
       if (zone.side === "bottom") return 1 - yRatio;
       return Number.POSITIVE_INFINITY;
     };
+    const current = held ? zones.find((zone) => zone.id === held.zoneId) ?? null : null;
+    if (current && held) {
+      // Hold the advertised zone until the pointer is clearly past its
+      // boundary: the center region grows while held and shrinks while an
+      // edge is held, and a competing edge must be nearer by the margin.
+      if (current.side === "inside") {
+        if (inCompositionInsideCenter(xRatio, yRatio, held.marginX, held.marginY)) return current;
+      } else if (
+        !(inside.length > 0 && inCompositionInsideCenter(xRatio, yRatio, -held.marginX, -held.marginY))
+      ) {
+        const margin = current.side === "left" || current.side === "right" ? held.marginX : held.marginY;
+        const nearest = Math.min(...edges.map(distance));
+        if (distance(current) - nearest <= margin) return current;
+      }
+    }
+    if (inside.length > 0 && inCompositionInsideCenter(xRatio, yRatio)) {
+      // Center drops append inside the hovered container. Derivation order
+      // is stable with the append boundary last (ascending managed indices,
+      // depth-first tiled leaves), so the last valid inside target wins.
+      return inside[inside.length - 1]!;
+    }
     return [...edges].sort((left, right) => distance(left) - distance(right))[0] ?? null;
   }
 
   function compositionPointerTargetAt(
     point: ComponentPointerDragPoint,
     payload: CompositionDragPayload,
+    current: { nodeId: string | null; zoneId: string | null } | null = null,
   ): { node: ResolvedComponentNode; zone: CompositionDropZone } | null {
     if (!compositionPreviewTree) return null;
     const eventTarget = document.elementFromPoint(point.clientX, point.clientY);
@@ -245,11 +282,19 @@ export function createCompositionTargets(resolution: CompositionResolution): {
     if (!node) return null;
     const rect = nodeElement.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return null;
+    const held = current?.nodeId === nodeId && current.zoneId
+      ? {
+          zoneId: current.zoneId,
+          marginX: COMPOSITION_ZONE_HYSTERESIS_PX / rect.width,
+          marginY: COMPOSITION_ZONE_HYSTERESIS_PX / rect.height,
+        }
+      : null;
     const zone = compositionPointerDropZone(
       node,
       (point.clientX - rect.left) / rect.width,
       (point.clientY - rect.top) / rect.height,
       payload,
+      held,
     );
     return zone && compositionTargetIsValid(zone.target, payload) ? { node, zone } : null;
   }

@@ -58,6 +58,17 @@ function installActiveListeners(): void {
 }
 
 /**
+ * Cancel whichever gesture currently owns the pointer, regardless of owner.
+ * Used for global gesture cancellation such as Escape during a drag; the
+ * owner's `onFinish` receives `"cancel"` and must not commit.
+ */
+export function cancelActivePointerSession(): boolean {
+  if (!activeSession) return false;
+  finishActiveSession(null, "cancel");
+  return true;
+}
+
+/**
  * Own one cancellation-safe, window-level pointer gesture at a time.
  * Listeners exist only between pointerdown and its terminal event, so mounting
  * a deeply nested dashboard does not multiply idle global listeners.

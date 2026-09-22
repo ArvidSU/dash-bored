@@ -88,7 +88,8 @@ import {
   type DashboardCompositionSource,
   type DashboardEditSession,
 } from "./app-utils";
-import { isRootCompositionTarget } from "../composition/composition-labels";
+import { compositionPayloadLabel, isRootCompositionTarget } from "../composition/composition-labels";
+import { CompositionDragChip, positionCompositionDragChip } from "../composition/CompositionDragChip";
 import { NodeRenderer, useComponentUpdateBatch } from "../render/NodeRenderer";
 import { Diagnostics } from "../panels/DiagnosticsPanel";
 import { TrustPanel } from "../panels/TrustPanel";
@@ -183,6 +184,7 @@ export function App(): ReactNode {
     removeFiles: boolean;
   } | null>(null);
   const compositionPointerFrame = useRef<number | null>(null);
+  const compositionDragChip = useRef<HTMLDivElement | null>(null);
   const pendingCompositionPointer = useRef<{
     payload: CompositionDragPayload;
     point: ComponentPointerDragPoint;
@@ -1094,11 +1096,21 @@ export function App(): ReactNode {
     defaultTarget: defaultCompositionTarget,
   } = compositionTargets;
 
+  function compositionRemovalTargetAt(point: ComponentPointerDragPoint): boolean {
+    return document.elementFromPoint(point.clientX, point.clientY)
+      ?.closest("[data-composition-removal-target]") != null;
+  }
+
   function updateCompositionPointerDrag(
     payload: CompositionDragPayload,
     point: ComponentPointerDragPoint,
   ): void {
-    const target = compositionPointerTargetAt(point, payload);
+    const target = compositionPointerTargetAt(point, payload, compositionInteraction.currentPointer());
+    positionCompositionDragChip(
+      compositionDragChip.current,
+      point,
+      target ? "target" : payload.type === "node" && compositionRemovalTargetAt(point) ? "remove" : "none",
+    );
     compositionInteraction.updatePointer(target ? {
       nodeId: target.node.id,
       zoneId: target.zone.id,
@@ -1133,16 +1145,16 @@ export function App(): ReactNode {
     payload: CompositionDragPayload,
     point: ComponentPointerDragPoint,
   ): void {
-    const target = compositionPointerTargetAt(point, payload);
+    // Resolve against the advertised zone so the drop lands where the
+    // indicator (with hysteresis) said it would, not a raw re-hit-test.
+    const target = compositionPointerTargetAt(point, payload, compositionInteraction.currentPointer());
     clearPendingCompositionPointer();
     compositionInteraction.updatePointer(null);
     if (target) {
       handleCompositionDrop(target.zone.target, payload);
       return;
     }
-    const removalTarget = document.elementFromPoint(point.clientX, point.clientY)
-      ?.closest("[data-composition-removal-target]");
-    if (payload.type === "node" && removalTarget) {
+    if (payload.type === "node" && compositionRemovalTargetAt(point)) {
       void removeCompositionNode(payload.path);
     }
   }
@@ -1843,6 +1855,13 @@ export function App(): ReactNode {
         agentPending={pendingAction === "component-agent:create"}
         loading={compositionSourcePending}
       />
+      {compositionDrag && compositionConfig ? (
+        <CompositionDragChip
+          ref={compositionDragChip}
+          dragging={compositionDrag}
+          label={compositionPayloadLabel(compositionDrag, compositionConfig, compositionCatalog)}
+        />
+      ) : null}
       <AppDialogs
         compositionDialog={compositionDialog}
         compositionRemovePath={compositionRemovePath}
