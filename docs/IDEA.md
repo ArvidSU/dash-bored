@@ -35,6 +35,38 @@ The application provides:
 
 Everything else is user/project/component defined.
 
+## Atoms, not a browser and not a product
+
+dash-bored sits deliberately between two failure modes. It must not reinvent
+the browser: no general layout engine, styling system, expression language, or
+application framework. It must not become a use-case-specific dashboard either:
+no Docker, git, npm, or CI knowledge in the app. Diversity comes from a small
+set of well-executed atoms that an agent can combine with a little YAML through
+the app's contracts.
+
+Every atom serves one of three jobs:
+
+- **Overview** — core tiling, one titled group, and single-child selection for
+  switching between panels.
+- **Act** — one action model, surfaced through the palette, buttons and action
+  bars, per-item actions, and persistent commands.
+- **Observe** — sources that produce data and a few views that render
+  declared data shapes.
+
+The shell is the integration layer. The app defines data shapes and view
+contracts; project knowledge lives in a small command or script the agent
+writes whose output matches one of those shapes. Transforming data is the
+script's job, never a YAML mini-language.
+
+The test for the atom set is the project's own dashboard: a project-specific
+list, fact sheet, or runnable-script catalog should be a few lines of YAML plus
+a script. When something still needs a local React component, first ask which
+atom is missing before adding one, and never promote a domain-specific
+component to a builtin.
+
+The planned sequence of work toward this atom set lives in
+[docs/roadmap/atoms.md](./roadmap/atoms.md).
+
 ## Agent-First Philosophy
 
 The primary way users customize dashboards should be through natural language.
@@ -47,7 +79,8 @@ The agent should:
 
 1. Inspect the project.
 2. Search available components.
-3. Reuse an existing component if appropriate.
+3. Reuse an existing component if appropriate, preferring a source script
+   feeding an existing view over new component code.
 4. Otherwise create a local component.
 5. Modify the dashboard configuration.
 6. Validate the result and look at it in the running app.
@@ -124,14 +157,23 @@ grows with any amount of content.
 
 Every ordinary component declares one `children` contract: its minimum and
 maximum child cardinality and the axes on which children may be arranged.
-Cards are reserved for grouping at least two related child components; a
-standalone component renders in its own core-owned frame instead.
+One group component provides a neutral composition boundary with an optional
+title and description; there is no separate card. A standalone component
+renders in its own core-owned frame and needs no wrapper.
 Complex containers may additionally declare managed child presentation and a
 schema for metadata attached to each child. Components receive generic child
 handles, read-only descriptors, and a projected render/visibility interface;
 tabs, accordions, and similar presentations therefore need no app-level,
-component-ID-specific behavior. A tab label is metadata on the parent-child
+component-ID-specific behavior. A panel label is metadata on the parent-child
 edge, not a special component prop.
+
+Showing one child at a time is a core contract, not a tabs component. A
+container that declares single-child selection gets core-owned selection state,
+persisted like collapse, and core-provided select actions. Tabs are that
+contract combined with a tab-styled action bar, so any presentation of
+switchable panels reuses the same actions, palette entries, and shortcuts.
+Visibility conditioned on a source is likewise composition intent on the
+parent-child edge rather than a dedicated component.
 
 YAML is the only source of truth. It recursively describes both the topology
 and component composition; no hidden grid database or parallel coordinate
@@ -251,14 +293,17 @@ Bad:
 
 Better:
 
-- command component
-- process component
-- HTTP component
-- Markdown component with inline or project-file content
-- graph component
-- status component
+- command component with a persistent terminal
+- sources: bounded shell, file, HTTP, process-result, or inline data
+- views over declared data shapes: status, list, chart, and Markdown with
+  inline, project-file, or source content
+- buttons and action bars over one action model
 
-Domain-specific functionality should be composed from primitives.
+Domain-specific functionality should be composed from primitives. A view never
+holds hand-written observed state: a status whose state is typed into YAML goes
+stale, so observed values always come from a source. A list whose items are
+the component's own YAML props (such as a todo list) is still a source, one
+the view may edit through the draft boundary.
 
 ### 4. Generated code is a feature
 
@@ -314,6 +359,27 @@ Components register actions while they are mounted. The palette makes those
 actions easier to find; it does not bypass project trust or add capabilities.
 Privileged work still flows through the component's declared host APIs.
 
+An action is a verb, an optional target, and optional typed arguments. Actions
+live in three scopes: navigation (focus and app actions), presentation (select
+a child, reveal a node), and domain (component, process, and agent actions).
+Buttons, action bars, per-item actions, shortcuts, the palette, and the agent
+control channel all invoke actions through the same executor, so there is one
+place where availability, confirmation, trust, and running state are decided.
+
+References name their targets by stable node ID, never by tree position, so
+rearranging a dashboard cannot silently break a button. Components declare
+their actions and argument schemas in the manifest, which lets validation check
+every reference at load and lets editors and the palette list actions before
+the owning component mounts. Arguments are data: a value templated from a list
+item or YAML may reach an agent prompt or a process only as a typed field or
+environment variable, never spliced into shell text. Actions that start an
+agent are refused from the agent control channel, so agents cannot recursively
+trigger agents.
+
+Acting and observing close the loop on the same control: a button reflects the
+running state and last result of the action it runs, and a process result is
+itself a source that views can observe.
+
 ### 7. Components render within core-owned composition
 
 The application provides the frames, space, and topology in which components
@@ -323,6 +389,12 @@ that target: explicitly persistent ancestors and sibling navigation rails stay
 visible while unrelated branches disappear. The selected target remains
 per-user presentation state; the explicit persistence markers are portable
 composition intent in YAML. Composition branches are not themselves components.
+
+Focus is global navigation: one target per dashboard, suited to page-like
+top-level sections with a persistent navigation rail. Selection is local
+presentation: many independent containers may each show one child. Revealing a
+node bridges the two by expanding it and selecting it in every switching
+ancestor, which gives buttons, the palette, and agents one deep-link verb.
 
 ## Success Criteria
 
