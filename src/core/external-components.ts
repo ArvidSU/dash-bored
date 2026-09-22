@@ -343,7 +343,7 @@ export async function addComponent(
   } catch (error) {
     throw new CoreError(
       "COMPONENT_ADD_FAILED",
-      `Added the ${name} submodule but could not check out ${commit}: ${gitErrorDetail(error)} Run \`dash-bored component remove ${name}\` to start over.`,
+      `Added the ${name} submodule but could not check out ${commit}: ${gitErrorDetail(error)} Remove it from the component library to start over.`,
     );
   }
   const next: DashboardLock = {
@@ -411,7 +411,7 @@ export async function updateComponent(
   if (checkedOutCommit === null) {
     throw new CoreError(
       "COMPONENT_NOT_INITIALIZED",
-      `External component ${name} is not initialized. Run \`dash-bored component sync\` first.`,
+      `External component ${name} is not initialized. Sync external components first.`,
     );
   }
   const porcelain = await runGit(["status", "--porcelain"], targetDirectory, { timeoutMs: 15_000 });
@@ -450,7 +450,7 @@ export async function updateComponent(
   } catch (error) {
     throw new CoreError(
       "COMPONENT_UPDATE_FAILED",
-      `Could not check out ${commit} for ${name}: ${gitErrorDetail(error)}${fetchDetail ? ` (fetch also failed: ${fetchDetail})` : ""} Run \`dash-bored component sync\` to restore the pinned checkout.`,
+      `Could not check out ${commit} for ${name}: ${gitErrorDetail(error)}${fetchDetail ? ` (fetch also failed: ${fetchDetail})` : ""} Sync external components to restore the pinned checkout.`,
     );
   }
   const next: DashboardLock = {
@@ -519,7 +519,7 @@ export async function syncComponents(projectInput: string): Promise<ExternalComp
     } catch (error) {
       throw new CoreError(
         "COMPONENT_SYNC_FAILED",
-        `Could not initialize ${name} from ${entry.url}: ${gitErrorDetail(error)} Re-add it with \`dash-bored component add ${entry.url} --name ${name}\`.`,
+        `Could not initialize ${name} from ${entry.url}: ${gitErrorDetail(error)} Remove it and add ${entry.url} again as ${name}.`,
       );
     }
     try {

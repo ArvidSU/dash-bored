@@ -99,13 +99,15 @@ def worker(args):
         app_directory.mkdir(exist_ok=True)
         candidate = str(app_directory / "dash-bored")
         shutil.copy2("/opt/candidate/dash-bored", candidate)
-        installed = str(home / ".local/bin/dash-bored")
+        # Agents reach the app's tool only through the skill launcher; the app
+        # publishes the bundled tool path in DASH_BORED_TOOL for its children.
+        os.environ["DASH_BORED_TOOL"] = candidate
+        launcher = str(home / ".agents/skills/dash-bored/scripts/dash-bored")
         if args.scenario == "existing":
             # Manual app replacement keeps the bundled tool at a stable path.
             shutil.copy2("/opt/previous/dash-bored", candidate)
             old = candidate
             check_version(evidence, old, args.previous_version, "previous-version")
-            evidence.run("previous-cli-install", [old, "install-cli"])
             evidence.run("previous-global-skill", [old, "install-skill", str(home)])
             existing = home / "existing-project"
             shutil.copytree("/qa/fixture", existing)
@@ -129,20 +131,18 @@ def worker(args):
                 result["existing_dashboard_compatible"] = False
                 result["compatibility_error"] = str(error)
         else:
-            evidence.run("cli-install", [candidate, "install-cli"])
             evidence.run("global-skill-install", [candidate, "install-skill", "--global"])
-        check_version(evidence, installed, args.candidate_version, "installed-version")
-        evidence.run("cli-check", [candidate, "install-cli", "--check"])
+        check_version(evidence, launcher, args.candidate_version, "launcher-version")
         evidence.run("global-skill-check", [candidate, "install-skill", "--global", "--check"])
         receipt = json.loads((home / ".agents/skills/dash-bored/skill-version.json").read_text())
         if receipt["skillVersion"] != args.candidate_version:
             raise RuntimeError("Skill version mismatch")
         save(out / "skill-version.json", receipt)
         shutil.copytree("/qa/fixture", project)
-        evidence.run("initialize", [installed, "init", "."], project)
-        evidence.run("project-skill-install", [installed, "install-skill", "."], project)
-        evidence.run("project-skill-check", [installed, "install-skill", ".", "--check"], project)
-        evidence.run("starter-validation", [installed, "validate", "."], project)
+        evidence.run("initialize", [launcher, "init", "."], project)
+        evidence.run("project-skill-install", [launcher, "install-skill", "."], project)
+        evidence.run("project-skill-check", [launcher, "install-skill", ".", "--check"], project)
+        evidence.run("starter-validation", [launcher, "validate", "."], project)
         evidence.run("fixture-test", ["bun", "run", "test"], project)
         evidence.run("fixture-build", ["bun", "run", "build"], project)
         shutil.copytree(project, out / "before")
@@ -155,9 +155,9 @@ def worker(args):
             before = digest_tree(project / ".dash-bored")
             env = dict(os.environ, DASH_BORED_AGENT_PROMPT=prompt)
             result["agent_status"] = "failed"
-            evidence.run("agent", [installed, "agent", args.agent_command], project, env=env)
-            evidence.run("agent-dashboard-validation", [installed, "validate", "."], project)
-            evidence.run("agent-dashboard-inspect", [installed, "inspect", "."], project)
+            evidence.run("agent", ["/bin/sh", "-lc", f'{args.agent_command} "$DASH_BORED_AGENT_PROMPT"'], project, env=env)
+            evidence.run("agent-dashboard-validation", [launcher, "validate", "."], project)
+            evidence.run("agent-dashboard-inspect", [launcher, "inspect", "."], project)
             if before == digest_tree(project / ".dash-bored"):
                 raise RuntimeError("Agent exited successfully but did not change the dashboard")
             evidence.run("post-agent-fixture-test", ["bun", "run", "test"], project)

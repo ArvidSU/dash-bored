@@ -39,9 +39,9 @@ Mac](https://support.apple.com/en-us/102445). Only do this for an artifact you
 downloaded from this repository and, preferably, verified with the published
 checksum.
 
-The application already contains its version-matched `dash-bored` CLI, so Bun
-is not required. The starter dashboard can optionally expose that CLI at
-`~/.local/bin/dash-bored` for external shells.
+Bun is not required. You work in the app; your coding agent works through the
+tools that ship with the dash-bored skill (see [Agent tools](#agent-tools)).
+Nothing is installed on your `PATH`.
 
 The installed application includes a custom dash-bored icon for Finder, the
 Applications folder, and the Dock.
@@ -54,7 +54,6 @@ and Electrobun versions; a global Electrobun install is not needed.
 ```sh
 bun install --frozen-lockfile
 bun run setup
-bun link
 ```
 
 For a new Git worktree, use the one-step setup instead:
@@ -71,15 +70,14 @@ instead of waiting for Hutch's build lock. If another desktop development
 process is already running, `bun run qa:fast` provides the non-locking
 typecheck, test, and renderer-build path once Hutch is prepared.
 
-`bun link` exposes the local `dash-bored` CLI. Without a link, invoke the same
-entrypoint with `bun run dash-bored -- <command>`.
+In a source checkout, run the agent tool with `bun run dash-bored -- <command>`.
 
 Useful repository commands:
 
 ```sh
 bun run dev             # Vite development renderer + watched Electrobun app
 bun run dev:desktop     # built renderer + watched Electrobun main process
-bun run build:cli       # standalone CLI embedded in desktop builds
+bun run build:cli       # standalone agent tool embedded in desktop builds
 bun run styles:dead     # report app CSS class/ID hooks without source references
 bun run typecheck
 bun run test            # repository tests only; excludes saved release artifacts
@@ -88,7 +86,7 @@ bun run build           # local canary application build
 bun run icon:generate   # regenerate the committed macOS iconset from its SVG
 bun run build:release   # clean unsigned Apple Silicon release build
 bun run release:prepare # verify artifacts and stage release files
-bun run qa              # prepare, typecheck, tests, renderer and CLI builds
+bun run qa              # prepare, typecheck, tests, renderer and agent-tool builds
 bun run qa:fast         # same checks/builds, reusing prepared Hutch files
 bun run ui:fixture      # isolated renderer fixture at http://127.0.0.1:5488/ui-harness.html
 bun run test:renderer-ui # browser-driven pointer and keyboard verification for that fixture
@@ -116,7 +114,7 @@ watcher is stopped before relying on fast checks.
 | Focused logic regression | `bun test tests/<area>/<file>.test.ts` |
 | TypeScript across the repo | `bun run typecheck:fast` |
 | Renderer bundling or CSS | `bun run build:renderer:fast` |
-| Completed code change | `bun run qa:fast` (includes the browser interaction suite and CLI build) |
+| Completed code change | `bun run qa:fast` (includes the browser interaction suite and agent-tool build) |
 | Dashboard YAML | `bun run dash-bored -- validate .` |
 | Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
 | Documentation only | Check links and `git diff --check`; no full build needed |
@@ -167,33 +165,50 @@ exactly matches `v<package.json version>` builds and verifies the unsigned DMG,
 generates its checksum and install notes, and creates a draft GitHub prerelease.
 Publishing that draft remains an explicit maintainer action.
 
-Packaged desktop builds contain a standalone, version-matched `dash-bored` CLI.
-The app prepends that embedded tool to `PATH` for dashboard commands and agents
-it launches, so users do not need a separate CLI installation. The starter
-dashboard also offers an explicit `dash-bored install-cli` action that creates
-an idempotent link at `~/.local/bin/dash-bored` for use from external shells.
-Later app launches refresh installer-owned links and skill files. Modified
-files and unrecognized links are preserved, with a notice explaining the conflict;
-successful refreshes do not remain in the diagnostics panel.
-Use `dash-bored install-cli --check` or `dash-bored install-skill --global --check`
-to check an installation without changing it.
-The Installed tools warning also offers **Remove old and reinstall**. This
-explicit action moves the conflicting managed skill directory/alias or CLI
-link/receipt to the OS Trash before installing the current payload.
+## Agent tools
+
+dash-bored separates the two audiences. You use the desktop app. Your coding
+agent uses the tools that ship with the dash-bored skill: a small launcher,
+`scripts/dash-bored` inside the installed skill, that runs the version-matched
+tool carried inside the app. The app passes that tool's path to agents it
+launches in `DASH_BORED_TOOL`, and the installed app records it for agents you
+start yourself. Nothing is linked onto your `PATH`. Earlier releases could link
+a CLI into `~/.local/bin`; the app removes that link at startup when its
+receipt shows dash-bored created it.
+
+With those tools an agent can:
+
+- create dashboard bundles (`init`), inspect the component catalog and
+  contracts (`inspect --summary`, `inspect --component <reference>`), and
+  validate its edits (`validate`);
+- check whether a dashboard needs migration and get the recipes
+  (`migrate inspect <dashboard>`);
+- manage external component and theme pins when you ask it to (`component`,
+  `theme`);
+- work with the running app through a private, per-instance control socket:
+  read its state (`app status`), list and run the same command-palette actions
+  you can (`app actions`, `app run <action>`), open a dashboard
+  (`app open <dashboard>`), and capture the app window to check the result
+  visually (`app screenshot [--focus <node-id>]`).
+
+The control channel never widens what an action can do. Trust, starting,
+saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
+action that asks for confirmation are refused and left to you. Opening a
+dashboard is refused while you have a draft open. Screenshots use macOS Screen
+Recording permission; the first capture asks for it.
+
+Later app launches refresh installer-owned skill files. Modified files are
+preserved, with a notice explaining the conflict; successful refreshes do not
+remain in the diagnostics panel. The Installed tools warning also offers
+**Remove old and reinstall**. This explicit action moves the conflicting
+managed skill directory and its alias to the OS Trash before installing the
+current payload.
 
 ## Start a project dashboard
 
-Launch the desktop application and select a project directory. Once you have
-optionally installed the bundled CLI link, you can also open a project root
-from a shell:
-
-```sh
-cd /path/to/project
-dash-bored open .
-```
-
-Opening through the CLI or the desktop project chooser creates any missing
-dash-bored files, without overwriting existing files:
+Launch the desktop application and select a project directory with **Add
+dashboard**. Opening a project creates any missing dash-bored files, without
+overwriting existing files:
 
 ```text
 project/
@@ -248,10 +263,8 @@ it opens Terminal, Diff, and Command tabs. Diff is scoped to the owning
 with a copy action. When configuration diagnostics are present, **Fix with
 agent** asks the configured CLI to repair the
 owning dashboard and includes the current reported issues, even when the tree
-cannot render. Adjacent actions optionally expose the
-bundled CLI to external shells, install the skill globally with
-`dash-bored install-skill --global`, or install it for this project with
-`dash-bored install-skill .`. The global form writes the portable guidance and
+cannot render. Adjacent starter actions install the skill globally or for this
+project. The global form writes the portable guidance and
 component-authoring reference to `~/.agents/skills/dash-bored/`; the project
 form writes to `.agents/skills/dash-bored/`. Both create
 `.claude/skills/dash-bored` as a link to the same canonical payload. Repeated
@@ -286,7 +299,9 @@ to the generic dashboard glyph. You can edit the dashboard name and this icon
 from the app's dashboard editor; clearing the icon field restores the generic
 glyph. Changes are written when you save the dashboard draft.
 
-Create a standalone named dashboard for a person or workflow with:
+Ask your agent to create a standalone named dashboard for a person or workflow;
+it runs the agent tool (shown here as `dash-bored`, which is the skill's
+`scripts/dash-bored` launcher):
 
 ```sh
 dash-bored init arvid
@@ -310,7 +325,7 @@ level, so `dash-bored init arvid cicd` creates `.dash-bored/arvid/cicd/`.
 Safe slash-separated names such as `dash-bored init people/arvid` remain
 supported; every leaf is a complete bundle.
 
-To check or inspect a dashboard:
+Agents check or inspect a dashboard with:
 
 ```sh
 dash-bored validate .
@@ -326,13 +341,13 @@ contract, and required permissions. Agents use this version-matched catalog inst
 examples; invalid local components remain in the catalog with diagnostics.
 
 `validate` and `inspect` accept a project root, a standalone bundle directory,
-or the path to its `dash-bored.yaml`. `open` accepts the same three forms and
-renders exactly the bundle selected by the path. For example:
+or the path to its `dash-bored.yaml`. `app open` accepts the same three forms
+and asks the running app to render exactly the bundle selected by the path:
 
 ```sh
-dash-bored open ./.dash-bored/arvid
+dash-bored app open ./.dash-bored/arvid
 # equivalent:
-dash-bored open ./.dash-bored/arvid/dash-bored.yaml
+dash-bored app open ./.dash-bored/arvid/dash-bored.yaml
 ```
 
 The app receives the selected config path separately from the project root, so
@@ -500,7 +515,7 @@ The child is projected when the command exits successfully; set `invert: true`
 to show it until the check succeeds. Checks poll only while their panel is
 visible and fail open before trust or when the host cannot complete a check.
 Use it for setup actions that should disappear after they are complete, such as
-the generated CLI and Agent Skill installers.
+the starter's agent-skill installers.
 
 ### Compose standalone dashboards
 
@@ -838,7 +853,7 @@ warm instrument-panel neutrals, charcoal functional surfaces, compact controls,
 and orange signal accents. It is a regular data-only theme package, so it can
 be copied or used as a starting point for another project.
 
-Create a local theme:
+Ask your agent to create a local theme; it runs:
 
 ```sh
 dash-bored theme init ocean .
@@ -860,33 +875,21 @@ dark:
 Select `./themes/ocean` under Component library → Dashboard appearance or set the top-level
 `theme: ./themes/ocean` in its YAML. Each variant inherits all unspecified
 built-in tokens. See the [token reference](skills/dash-bored/references/theme-tokens.md)
-and [JSON Schema](schemas/theme.schema.json). `dash-bored theme validate --schema`
-also prints the schema from the installed CLI. Theme packages contain data;
+and [JSON Schema](schemas/theme.schema.json). Agents can print the same schema
+with the agent tool's `theme validate --schema`. Theme packages contain data;
 custom CSS, scripts, downloaded fonts, and layout changes are unsupported.
 
 **Settings → Themes → Manage theme packages** lists personal or selected-dashboard
 packages with repository URLs, exact pins, and missing-checkout diagnostics. Choose
-Add, Update, Remove, Sync, or Status to copy a command targeting that exact dashboard
-bundle (or the personal store). Run it in a terminal and reload, matching the
-component library's command workflow. Local authored themes remain editable files.
-
-Install a repository with `theme.yaml` at its root:
-
-```sh
-dash-bored theme add https://example.com/ocean.git --name ocean .
-dash-bored theme add https://example.com/ocean.git --name ocean --global
-dash-bored theme list .
-dash-bored theme status .
-dash-bored theme update ocean --to v2 .
-dash-bored theme sync .
-dash-bored theme remove ocean .
-```
+Add, Update, Remove, Sync, or Status and select **Run theme operation** to apply it
+to that exact dashboard bundle (or the personal store). Local authored themes
+remain editable files. A theme repository has `theme.yaml` at its root. Agents
+can run the same operations with the agent tool's `theme` command.
 
 The project installation becomes `./themes/external/ocean`; commit its gitlink,
-`.gitmodules`, and `dash-bored-lock.yaml`. A fresh clone uses `theme sync` to
+`.gitmodules`, and `dash-bored-lock.yaml`. A fresh clone uses Sync to
 restore the exact pinned revision. Personal installation becomes `global:ocean`
-and lives under `~/.config/dash-bored/themes`; use `--global` instead of the
-project target with list/status/update/sync/remove/init. Git is required for
+and lives under `~/.config/dash-bored/themes`. Git is required for
 installations, and project installs require a Git checkout. Updates are always
 explicit and refuse local changes. Installation does not select a theme.
 Missing themes show a diagnostic and fall back to your app default, then the
@@ -907,49 +910,27 @@ and use **Migrate dashboard** afterward. **Later** defers the choice, and
 
 The app offers **Restart and install** using verified native update artifacts,
 plus **Open verified installer** as the DMG fallback. Save or cancel drafts and
-finish running terminals/agents first. The CLI opens the verified DMG; quit the
+finish running terminals/agents first. With the DMG fallback, quit the
 app, replace it, then restart. The
 first updater-capable release requires manual installation. Unsigned macOS
 builds retain the normal Privacy & Security → Open Anyway flow. Native replacement and relaunch passed an isolated two-version macOS test;
 downloaded-DMG Gatekeeper approval remains a separate manual check.
 
-The CLI offers the same workflow without an app window:
-
-```sh
-dash-bored update check
-dash-bored update --update-and-migrate --dashboard /path/to/project/.dash-bored/dash-bored.yaml
-dash-bored update install
-# After manually replacing the app, using the new bundled or managed CLI:
-dash-bored update resume
-dash-bored update status
-dash-bored migrate --dashboard /path/to/project/.dash-bored/dash-bored.yaml
-```
-
-Use `--update-only` to defer dashboard changes. Non-interactive updates require
-an explicit mode; `--yes` alone does not authorize migration. An interactive
-invocation offers Update and migrate, Update only, and Later. Source checkouts
-and independently copied CLI binaries require manual installation of the DMG.
-The CLI refuses installation while an app instance is running; use its Updates
-surface or finish work and quit first.
-
-`dash-bored migrate inspect <dashboard>` reads applicable bundled guidance.
+Agents read applicable bundled guidance with the agent tool's
+`migrate inspect <dashboard>`.
 The bundled v2-to-v3 recipe removes redundant topology wrappers and vertical
 ratios while preserving component content, edge metadata, and binary grouping.
 Component manifests remain at schema version 2. Schema version 1 and unknown
 schemas are unsupported.
-Agents receive the target CLI, diagnostics, cumulative recipes, and a read-only
-skill handoff. Existing customized skills are preserved. Migration requires the
+App-driven migration agents receive the target agent tool, diagnostics,
+cumulative recipes, and a read-only skill handoff. Existing customized skills are preserved. Migration requires the
 existing project trust decision; new permissions require review in the app.
 
-`dash-bored update cancel` cancels continuation. If an operation was interrupted,
-`dash-bored update recover` releases its lock only after the owner exits. Review
+**Cancel continuation** cancels pending migrations. If an operation was
+interrupted, the Updates surface's recovery action releases its lock only after
+the owner exits. Review
 reported snapshots and edits before explicitly retrying migrations; interrupted
 work never runs again just because the app restarted. Snapshot and receipt paths
 are under `~/.config/dash-bored/updates/`. To restore, first preserve current
 edits, then copy the desired files from the reported snapshot. Failed dashboard
 migrations are reported separately from a successful app installation.
-
-```sh
-dash-bored update settings --automatic-checks off
-dash-bored update settings --channel canary
-```

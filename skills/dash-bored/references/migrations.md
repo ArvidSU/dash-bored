@@ -1,12 +1,13 @@
 # Updates and dashboard migrations
 
-Use `dash-bored update check` to discover a published release, release notes,
-and required dashboard changes. `dash-bored update status` reads persisted
-progress without a network request. Canary is the only available channel.
-Use `dash-bored migrate inspect <dashboard>` for the current bundled contract.
-The first updater-capable release must be installed manually.
+The user discovers, installs, and authorizes releases in the app's Updates
+surface; do not try to install the app. Use `dash-bored migrate inspect
+<dashboard>` (the skill's agent tool) to learn whether a dashboard needs
+migration to the installed app's contract and which recipes apply. You may
+migrate a dashboard directly when the user asks; the app can also run a
+migration agent for dashboards the user selected during an update.
 
-Migration guidance is cumulative and version matched with the app and CLI.
+Migration guidance is cumulative and version matched with the app and its agent tool.
 Only apply the recipes selected by the host for the exact dashboard path.
 The current dashboard contract is 3 and the minimum migratable contract is 2.
 Schema version 1 and unknown schemas are unsupported.
@@ -18,10 +19,11 @@ Before edits, verify the host-created snapshot exists. Preserve unrelated
 files, user edits, environment files, component checkouts, and exact lock-file
 pins. Do not rename dashboards. Follow each applicable recipe in order and
 change schemaVersion only after that step is implemented. Inspect the
-matching CLI's component schemas before authoring. Do not grant trust or
+agent tool's component schemas before authoring. Do not grant trust or
 run project commands to evade permission checks.
 
-Run the exact matching CLI's `validate <dashboard> --json` after edits. A
+Run the agent tool's `validate <dashboard> --json` after edits, then
+screenshot the migrated dashboard in the app when it is running. A
 successful agent exit is followed by host validation; repairable errors may
 receive one corrective attempt. Cancellation, failed execution, unavailable
 tools, and permission changes never authorize a blind retry. Interrupted
@@ -43,5 +45,6 @@ binary grouping, and dashboard settings. Traverse only topology; data inside
 props and metadata may contain similar names and must remain intact. Set the
 dashboard `schemaVersion` to `3` after converting it. Component manifests stay
 at version `2`; lock files, themes, and linked bundles are independent and are
-not converted with the selected dashboard. Validate with the matching CLI and
-review the diff against the host snapshot.
+not converted with the selected dashboard. Validate with the agent tool and
+review the diff against the host snapshot, or against Git when you migrated
+without one.

@@ -1,24 +1,24 @@
 #!/usr/bin/env bun
-import { runUpdateCommand } from "./update";
+/**
+ * The dash-bored agent tool. It ships inside the desktop app and is invoked by
+ * agents through the skill's launcher; users work through the app instead.
+ */
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { runThemeCommand } from "./theme";
-
-import { spawn } from "node:child_process";
-import { constants } from "node:fs";
-import { access, realpath } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
 import { initializeProject } from "./init-project";
-import { ensureProjectFiles, inspectProject } from "../core/index";
+import { inspectProject } from "../core/index";
 import { runComponentCommand } from "./component";
+import { runAppCommand } from "./app";
+import { runMigrateCommand } from "./migrate";
 import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
-import { installDashBoredCli } from "./install-cli";
 
-const COMMANDS = new Set(["init", "install-cli", "install-skill", "open", "validate", "inspect", "agent", "component", "theme", "update", "migrate"]);
+const COMMANDS = new Set(["init", "install-skill", "validate", "inspect", "component", "theme", "migrate", "app"]);
 
 interface ParsedCommandArguments {
   project: string;
-  agentCommand?: string | null;
   configName: string;
   json: boolean;
   global: boolean;
@@ -27,16 +27,14 @@ interface ParsedCommandArguments {
 }
 
 function usage(): string {
-  return `dash-bored ${APP_VERSION}
+  return `dash-bored agent tool ${APP_VERSION}
 
 Usage:
   dash-bored init [name ...] [--project <path>]
-  dash-bored install-cli [--check]
   dash-bored install-skill [project] [--global] [--check]
-  dash-bored open [project]
   dash-bored validate [project] [--json]
   dash-bored inspect [project] [--summary | --component <reference>]
-  dash-bored agent [agent-command]
+  dash-bored app <status|actions|run|open|screenshot> [--instance <identifier>]
   dash-bored theme <init|validate|list|status|add|update|remove|sync> [--global]
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
@@ -44,7 +42,6 @@ Usage:
   dash-bored component update <name> [--to <ref>] [project]
   dash-bored component remove <name> [project]
   dash-bored component sync [project]
-  dash-bored update --help
   dash-bored migrate inspect <dashboard>
   dash-bored --help
   dash-bored --version`;
@@ -131,7 +128,7 @@ function parseCommandArguments(
     positional.push(argument);
   }
 
-  if (command !== "init" && command !== "agent" && positional.length > 1) {
+  if (command !== "init" && positional.length > 1) {
     return {
       project: ".",
       configName: ".",
@@ -139,26 +136,6 @@ function parseCommandArguments(
       global,
       help: false,
       error: `${command} accepts at most one project path.`,
-    };
-  }
-  if (command === "install-cli" && positional.length > 0) {
-    return {
-      project: ".",
-      configName: ".",
-      json,
-      global,
-      help: false,
-      error: "install-cli does not accept a project path.",
-    };
-  }
-  if (command === "agent" && positional.length > 1) {
-    return {
-      project: ".",
-      configName: ".",
-      json,
-      global,
-      help: false,
-      error: "agent accepts at most one agent-command; pass the dashboard request in DASH_BORED_AGENT_PROMPT.",
     };
   }
   if (command === "install-skill" && global && positional.length > 0) {
@@ -171,130 +148,30 @@ function parseCommandArguments(
       error: "install-skill --global does not accept a project path.",
     };
   }
-  if (command === "agent") {
-    return {
-      project: ".",
-      agentCommand: positional[0] ?? null,
-      configName: ".",
-      json,
-      global,
-      help: false,
-      error: null,
-    };
-  }
   return command === "init"
     ? { project, configName: positional.length === 0 ? "." : positional.join("/"), json, global, help: false, error: null }
     : { project: positional[0] ?? ".", configName: ".", json, global, help: false, error: null };
-}
-
-function agentInvocation(command: string): string {
-  return process.platform === "win32"
-    ? `${command} "%DASH_BORED_AGENT_PROMPT%"`
-    : `${command} "$DASH_BORED_AGENT_PROMPT"`;
-}
-
-async function runConfiguredAgent(commandOverride: string | null | undefined): Promise<number> {
-  const command = commandOverride?.trim() || process.env.DASH_BORED_AGENT?.trim() || "codex exec";
-  const prompt = process.env.DASH_BORED_AGENT_PROMPT?.trim() ?? "";
-  if (prompt.length === 0 || prompt.length > 16_384) {
-    console.error("DASH_BORED_AGENT_PROMPT must contain a dashboard request of at most 16384 characters.");
-    return 2;
-  }
-  const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
-  const shellArgs = process.platform === "win32"
-    ? ["/d", "/s", "/c", agentInvocation(command)]
-    : ["-lc", agentInvocation(command)];
-  const child = spawn(shell, shellArgs, { cwd: process.cwd(), env: process.env, stdio: "inherit" });
-  const forward = (signal: NodeJS.Signals) => child.kill(signal);
-  const onSigint = () => forward("SIGINT");
-  const onSigterm = () => forward("SIGTERM");
-  process.on("SIGINT", onSigint);
-  process.on("SIGTERM", onSigterm);
-  return await new Promise<number>((resolveExit) => {
-    child.once("error", (error) => {
-      console.error(`Could not launch DASH_BORED_AGENT: ${error.message}`);
-      resolveExit(1);
-    });
-    child.once("close", (code, signal) => {
-      process.off("SIGINT", onSigint);
-      process.off("SIGTERM", onSigterm);
-      resolveExit(signal ? 1 : code ?? 1);
-    });
-  });
 }
 
 async function inspect(path: string, compile: boolean): Promise<InspectResult> {
   return inspectProject(path, { compile });
 }
 
-function sanitizedChildEnvironment(projectRoot: string, configPath: string): Record<string, string> {
-  const environment: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value === undefined) continue;
-    if (key.startsWith("ELECTROBUN_") || key.startsWith("COTTONTAIL_ELECTROBUN_")) {
-      continue;
+/**
+ * The skill launcher names its directory; warn when that installed guidance
+ * was written for another version than this tool.
+ */
+async function warnOnSkillVersionMismatch(): Promise<void> {
+  const skillDirectory = process.env.DASH_BORED_SKILL_DIR;
+  if (!skillDirectory) return;
+  try {
+    const receipt = JSON.parse(await readFile(join(skillDirectory, "skill-version.json"), "utf8")) as { skillVersion?: unknown };
+    if (typeof receipt.skillVersion === "string" && receipt.skillVersion !== APP_VERSION) {
+      console.error(`dash-bored: the skill in ${skillDirectory} is ${receipt.skillVersion} but the app's tool is ${APP_VERSION}. Reinstall the skill with \`dash-bored install-skill\` or ask the user to open the app, which refreshes owned skills.`);
     }
-    environment[key] = value;
+  } catch {
+    // A source checkout or customized skill has no receipt; nothing to compare.
   }
-  environment.DASH_BORED_PROJECT_ROOT = projectRoot;
-  environment.DASH_BORED_CONFIG_PATH = configPath;
-  return environment;
-}
-
-async function openProject(input: string): Promise<number> {
-  const prepared = await ensureProjectFiles(input, {
-    // A project root contains .dash-bored/dash-bored.yaml. A bundle directory
-    // contains dash-bored.yaml directly, so auto resolution can target either
-    // the canonical dashboard or one standalone named dashboard.
-    inputKind: "auto",
-  });
-  const result = await inspect(prepared.location.configPath, false);
-  if (!result.ok) {
-    printDiagnostics(result.diagnostics);
-    return 1;
-  }
-
-  const configuredExecutable = process.env.DASH_BORED_APP_EXECUTABLE;
-  const realCli = await realpath(process.execPath).catch(() => null);
-  const discoveredExecutable = process.platform === "darwin" && realCli !== null
-    ? resolve(dirname(realCli), "..", "..", "..", "MacOS", "launcher")
-    : null;
-  const appExecutable = configuredExecutable ?? discoveredExecutable;
-  const packagedAppAvailable = appExecutable !== null
-    && await access(appExecutable, constants.X_OK).then(() => true).catch(() => false);
-  const packageRoot = resolve(import.meta.dirname, "../..");
-  const child = packagedAppAvailable
-    ? spawn(appExecutable, [], {
-        cwd: result.projectRoot,
-        env: sanitizedChildEnvironment(result.projectRoot, prepared.location.configPath),
-        stdio: "inherit",
-      })
-    : spawn("bun", ["run", "dev"], {
-        cwd: packageRoot,
-        env: sanitizedChildEnvironment(result.projectRoot, prepared.location.configPath),
-        stdio: "inherit",
-      });
-
-  const forward = (signal: NodeJS.Signals) => {
-    if (child.pid) child.kill(signal);
-  };
-  const onSigint = () => forward("SIGINT");
-  const onSigterm = () => forward("SIGTERM");
-  process.on("SIGINT", onSigint);
-  process.on("SIGTERM", onSigterm);
-
-  return new Promise<number>((resolveExit) => {
-    child.once("error", (error) => {
-      console.error(`Could not launch the dash-bored desktop app: ${error.message}`);
-      resolveExit(1);
-    });
-    child.once("close", (code, signal) => {
-      process.off("SIGINT", onSigint);
-      process.off("SIGTERM", onSigterm);
-      if (signal) resolveExit(1);
-      else resolveExit(code ?? 1);
-    });
-  });
 }
 
 async function main(): Promise<number> {
@@ -315,10 +192,12 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  if (command === "update" || command === "migrate") return runUpdateCommand(command, args.slice(1));
+  await warnOnSkillVersionMismatch();
+  if (command === "migrate") return runMigrateCommand(args.slice(1));
+  if (command === "app") return runAppCommand(args.slice(1));
 
   const commandArgs = args.slice(1);
-  const checkIndex = (command === "install-skill" || command === "install-cli") ? commandArgs.indexOf("--check") : -1;
+  const checkIndex = command === "install-skill" ? commandArgs.indexOf("--check") : -1;
   const separatorIndex = commandArgs.indexOf("--");
   const check = checkIndex >= 0 && (separatorIndex < 0 || checkIndex < separatorIndex);
   if (check) commandArgs.splice(checkIndex, 1);
@@ -375,21 +254,6 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  if (command === "install-cli") {
-    const result = await installDashBoredCli({ check });
-    console.log(
-      result.created || result.updated
-        ? `Installed dash-bored CLI at ${result.targetPath}`
-        : `dash-bored CLI is already installed at ${result.targetPath}`,
-    );
-    if (!result.targetDirectoryOnPath) {
-      console.warn(`Add ${dirname(result.targetPath)} to PATH to use dash-bored from your shell.`);
-    }
-    return 0;
-  }
-
-  if (command === "agent") return runConfiguredAgent(parsed.agentCommand);
-
   if (command === "validate") {
     const result = await inspect(project, true);
     if (parsed.json) {
@@ -417,10 +281,6 @@ async function main(): Promise<number> {
     } : componentReference ? { ok: result.ok, diagnostics: result.diagnostics, component: selected } : result;
     console.log(JSON.stringify(output, null, process.stdout.isTTY ? 2 : 0));
     return result.ok ? 0 : 1;
-  }
-
-  if (command === "open") {
-    return openProject(project);
   }
 
   return 2;

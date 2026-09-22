@@ -59,18 +59,15 @@ describe("dash-bored command arguments", () => {
     expect(result.stdout.trim()).toBe(APP_VERSION);
   });
 
-  test("agent runs its explicit agent command with the environment-backed dashboard request", async () => {
+  test("user-facing commands are not part of the agent tool", async () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
     temporaryDirectories.push(project);
 
-    const result = await runWithEnvironment(project, {
-      ...process.env,
-      DASH_BORED_AGENT: "printf ignored-by-explicit-command",
-      DASH_BORED_AGENT_PROMPT: "Set up the dashboard.",
-    }, "agent", "printf");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("Set up the dashboard.");
+    for (const command of ["install-cli", "open", "agent", "update"]) {
+      const result = await run(project, command);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain(`Unknown command: ${command}`);
+    }
   });
 
   test("command help never executes the command", async () => {

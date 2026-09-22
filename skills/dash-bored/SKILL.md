@@ -1,251 +1,265 @@
 ---
 name: dash-bored
-description: Create, configure, or improve a dash-bored project dashboard. Use when a user wants project workflows, status, documentation, commands, or local tools composed in dash-bored.
+description: Use this skill to build, extend, fix, or check a dash-bored dashboard — a local, project-owned cockpit that shows a project's state at a glance and turns its recurring commands, docs, services, and checks into one-click panels. Use it whenever the user wants a persistent overview of what they are working on (what is running, healthy, changed, or next; how to start, test, release, or operate it), or mentions dash-bored, .dash-bored/, dash-bored.yaml, or a project cockpit or control panel, even if they do not name dash-bored. Also use it to add or repair dashboard components, migrate a dashboard after an app update, or screenshot the running dash-bored app to verify one. Not for building dashboard UIs inside the user's own application code, or for Grafana/BI dashboards.
 ---
 
-# Build with dash-bored
+# dash-bored
 
-Turn the project into a useful local cockpit, not a generic component demo.
-A new user should understand what each panel does; a returning user should run
-the common workflow without rereading a tutorial. Prefer real project status
-and repeatable tasks over decorative examples.
+Your job is to give the user an overview of their project they can trust at a
+glance, plus one-click access to the work they repeat. A new user should
+understand every panel without a tutorial; a returning user should find the
+answer to "where does this stand and what do I do next?" in seconds. The
+project may be software, docs, research, ops, or anything with files and
+commands: work from what it actually contains, not from a generic template.
 
-## Start from the project
+The user works in the dash-bored desktop app. You work through this skill's
+tools. `dash-bored.yaml` is the only source of truth: there is no hidden
+database, and anything you do not write there does not exist.
 
-Read the project's instructions, README, and one relevant workflow source
-(such as `package.json`, a task file, or compose configuration) once. Inspect
-its existing `.dash-bored/` tree and preserve unrelated work and workflows.
-Start with those bounded inputs; follow additional files only to resolve a
-specific command, path, or contract question. Dashboard authoring should not
-require exploring the dash-bored application's source tree.
+## Running the tool
 
-The desktop app puts its matching CLI on `PATH`, so use `dash-bored` directly.
-Available commands: `init`, `install-cli`, `install-skill`, `open`,
-`validate`, `inspect`, `agent`. Start with `dash-bored inspect . --summary`
-to select components, then `dash-bored inspect . --component <reference>`
-for each selected contract. Full `dash-bored inspect .` is available when needed:
-its `componentCatalog` is the version-authoritative description of every
-available built-in and local component. For each entry, use
-`manifest.propsSchema` for props, `manifest.children` for child cardinality
-and presentation, and `manifest.permissions` for the trust impact. Check
-`available` and `diagnostics`; never guess a component shape from its name or
-from this skill. [references/builtins.md](references/builtins.md) is the
-generated per-component reference (props, permissions, resources, children)
-shipped with this dash-bored version — consult it instead of guessing or
-reading app source.
+`dash-bored` is **not** on `PATH`. Resolve it once per session:
 
-If the project is not initialized, run `dash-bored init .`. A standalone
-bundle owns its own `dash-bored.yaml`, `dash-bored-lock.yaml`, `.env`, and
-`components/` directory. Named bundles (`dash-bored init <name ...>`) are
-organization, not inheritance: they share nothing implicitly. Compose one by
-referencing its bundle path as a component (e.g. `component: "./arvid"`); it
-renders in the allocated rectangle with its own lock, env, and components.
+```sh
+DB="${DASH_BORED_TOOL:-<this skill's directory>/scripts/dash-bored}"
+"$DB" inspect . --summary
+```
 
-Keep discovery output bounded: save full JSON to a temporary file if needed and
-extract selected fields rather than printing the whole catalog repeatedly. Read
-only the relevant reference sections. Use available search tools, falling back
-to `find`/`grep` when `rg` is absent. Check `git rev-parse --is-inside-work-tree`
-before using Git status/diff; outside Git, compare the files you actually changed.
+`DASH_BORED_TOOL` is set when the app launched you; otherwise the launcher
+finds the installed app. If it exits 127, ask the user to install and open
+dash-bored once. In a checkout of the dash-bored repository itself, use
+`bun run dash-bored -- <command>`. Below, `dash-bored` means `"$DB"`.
 
-## Compose the dashboard
+The commands you need for a build are `inspect`, `validate`, `init`, and
+`app`; each step below says when. `dash-bored --help` lists the rest.
 
-`dash-bored.yaml` (`schemaVersion: 3`) is the only source of truth: one
-recursive root node plus core-owned tiled/managed topology. There is no hidden
-grid database. Give every stateful, actionable, or resource-producing node an
-explicit `id` unique across the tree (omitted IDs derive from the YAML path,
-but anything with state, actions, or a process resource needs a stable one).
+Dashboard commands the user runs from the app are different: they must call
+the tool as `"$DASH_BORED_TOOL" <command>`, never bare `dash-bored`.
 
-Structure:
+## Workflow
 
-- **Tabs per workflow.** `@dash-bored/tabs` is the usual root. It takes
-  managed children (an array of `{ node, metadata? }` edges); each edge carries the tab
-  label as `metadata: { label: ... }`. Labels live on the parent-child edge,
-  not in component props.
-- **Splits for layout.** Tiled children are a direct `{ node, metadata? }`
-  edge or a split with `axis` (`horizontal` | `vertical`), `first`, and `second`.
-  Horizontal splits optionally specify `ratio` (0.1–0.9, default 0.5).
-  Vertical splits use document flow and never specify a ratio. Nest splits
-  for tiled layouts. Never add grid coordinates or size props to components;
-  horizontal resizing and visible-surface compression belong to the core.
-- **Cards for framing.** `@dash-bored/card` takes optional `title` and
-  `description` plus two or more tiled children. Use it to group related
-  workflow panels; let a standalone component render in its own frame.
-- **`@dash-bored/group`** is only a transparent component boundary that
-  projects a tiled child surface. It is not a layout engine.
-- **`@dash-bored/conditional`** wraps exactly one tiled child shown while a
-  bounded shell `command` succeeds; `invert: true` means "show until done"
-  for setup/recovery actions. Optional `cwd`, `env`, `timeoutMs`,
-  `pollIntervalMs`. Requires `process:execute`, polls only while its panel is
-  visible, and fails open before trust or when the check cannot run. It is a recovery
-  visibility control, not a health observation: never wrap a positive healthy
-  indicator in a conditional or pair inverted conditions as a health state.
-  Use one bounded observation with explicit unknown/healthy/unavailable states;
-  a small local HTTP component is appropriate for a plain health endpoint.
+```text
+- [ ] 1. Orient: read the project and the existing dashboard
+- [ ] 2. Plan the overview: questions → panels
+- [ ] 3. Compose the YAML (and local components only where needed)
+- [ ] 4. Validate until clean
+- [ ] 5. Look at it in the app; fix what looks wrong
+- [ ] 6. Report
+```
 
-Keep additions tied to the requested workflows. A raw JSON health endpoint does
-not need a webview; extra permissions need a project-specific use. Add todo lists only for actual
-project work items or an explicit request, not as a checklist repeating buttons.
-Update an existing YAML file in place, or write a complete replacement atomically;
-do not delete and re-add the same path in one patch operation.
+### 1. Orient
 
-Pick components by need:
+- Read the project's agent instructions and README, then the one or two
+  files that define how work gets done (`package.json` scripts, `Makefile`,
+  `justfile`, compose files, CI workflows, `pyproject.toml`, a runbook).
+  Follow further files only to answer a specific question. Do not read the
+  dash-bored application's source; the catalog and references are
+  authoritative for this version.
+- Run `dash-bored inspect . --summary`. Without a dashboard it exits 1 with
+  `FILE_NOT_FOUND` for `dash-bored.yaml` and `dash-bored-lock.yaml` (and lists
+  an unavailable `./components` placeholder); that just means run
+  `dash-bored init .`. The starter it writes is a tour of dash-bored itself:
+  replace its whole `root` tree with the project's dashboard, and keep the
+  generated `.env` (it holds the user's agent choice).
+- If a dashboard exists, read its `dash-bored.yaml` fully. Keep what the user
+  built; change only what the request needs.
+- If the app is running, `dash-bored app status` tells you which dashboard is
+  open, which node is focused, and whether the user has an unsaved draft.
 
-- `@dash-bored/markdown` — safe Markdown preview (no raw HTML) from inline
-  `content` **or** project-relative `path` (one is required). Preview is the
-  default; Raw/edit exposes Save/Cancel editing. Use for explanations,
-  runbooks, and project docs next to the controls that act on them.
-- `@dash-bored/status` — labeled indicator: `label`, `state`
-  (`unknown`/`healthy`/`warning`/`error`), optional `detail`.
-- `@dash-bored/command` — explicit user action in a persistent interactive
-  terminal. Its `command` (`label` + `command`, optional `cwd`/`env`) is a
-  remembered quick action; users can keep typing in the same shell. Commands
-  never auto-start on open, trust, or reload. Keep paths relative to the
-  project root.
-- `@dash-bored/setup-agent` — starts the app-owned dashboard setup task,
-  with a generated bundle-specific prompt, validation, and at most one repair
-  attempt. Requires `process:execute`; its button remains available for recovery.
-- `@dash-bored/env` — edits a project-local dotenv file (`path`) via
-  key-value or bulk/raw editing. Key-value saves preserve comments and blank
-  lines; writes are bounded, project-contained, and atomic.
-- `@dash-bored/todo-list` — small list kept in the node's own YAML props as
-  `todos: [{ description, done, tags }]`. Sorts open items first, filters by
-  tag, edits through the normal draft Save/Cancel boundary.
-- `@dash-bored/chart` — static line/bar chart from YAML `labels` + `series`
-  (`[{ label, values, color? }]`), optional `title`, `type`, `maxPoints`.
-- `@dash-bored/live-chart` — polls an HTTP JSON endpoint returning that same
-  chart model. `endpoint` may be absolute `http(s)://` or app-relative
-  (`/...`); optional dot-separated `dataPath`, `pollIntervalMs`
-  (1000–300000), `maxPoints`. Requires `network:http`; keeps the last valid
-  result on refresh failure and stops polling while its tab is hidden.
-- `@dash-bored/webview` — embeds an `http(s)://` application page (e.g. a
-  local dev server or service UI). Requires `webview:embed`. Native surfaces
-  initialize only while their tab is visible; prefer it for "which browser
-  tab has the local UI" problems.
+### 2. Plan the overview
 
-Proven patterns from this repo's own dashboard: a component that reads one
-project file and exposes a refresh action (`project-pulse`); a component that
-turns config entries into palette actions (`package-scripts` reads
-`package.json` scripts); a bounded-shell observer panel (`git-branches`).
+Write down the questions this user will bring to the dashboard, and answer
+each with the smallest panel that answers it from real project data. Start
+with these and keep the ones the project gives you evidence for:
 
-## App runtime boundaries
+| Question | Default panel |
+| --- | --- |
+| What is this and how is it organized? | `@dash-bored/markdown` with `path:` to the README or a runbook |
+| Is it running / healthy? | A local component that polls one bounded check, with explicit unknown/healthy/error states |
+| What changed recently? | A local component running a bounded `git log`/`git status` (see the worked example in [references/components.md](references/components.md)) |
+| How do I start, test, build, or deploy it? | One `@dash-bored/command` per real script or task |
+| Where is the local UI or docs site? | `@dash-bored/webview` on its `http(s)://` URL |
+| Which settings does it need? | `@dash-bored/env` on the bundle's `.env`, for non-secret values (see Gotchas) |
+| What is next? | The repo's own tracking file (`TODO.md`, notes) via `@dash-bored/markdown`; `@dash-bored/todo-list` only for items the user names and nothing else tracks |
+| Numbers over time? | `@dash-bored/live-chart` from an HTTP endpoint; `@dash-bored/chart` only for fixed data |
 
-Trust gates host capabilities. Adding permissions requires a new user trust
-decision. Drafts, focus, collapse, shortcuts and agent-task state belong to the
-app; do not invent YAML settings for them. For work involving these features,
-read [references/app-runtime.md](references/app-runtime.md).
+Group panels into tabs by workflow, with an **Overview** tab first that
+answers "where does this stand" without scrolling. Put explanations next to
+the controls they explain. Skip any panel you cannot back with real data; an
+honest small dashboard beats a full one with placeholders. When a documented
+command cannot work (a missing script, an uninstalled tool), leave it out or
+say so in its label, and list it under **Needs you** in the report.
 
-## Environment and secrets
+### 3. Compose
 
-Put editable runtime choices in the bundle-local `.env`. The runtime loads
-it as data for processes and bounded shell calls from the component's owning
-bundle; commands do not need to source it. Explicit command/request env values
-override app settings, inherited process values, and bundle defaults, in that
-order. The app-wide `DASH_BORED_AGENT` setting can be cleared by saving an
-empty Settings field so the owning bundle's `.env` value can win. The environment panel shows the
-effective agent command and its source. Saving defaults changes future launches
-without restarting existing terminals.
-Never put secrets in dashboard YAML, and do not assume `.env` is git-ignored.
-Setup generates its prompt at launch; do not copy it into YAML or `.env`.
+Look up each component's contract before you write it:
+`dash-bored inspect . --component <ref>`, or
+[references/builtins.md](references/builtins.md) for every built-in. Never
+guess props from a component's name.
 
-Install the skill globally once when working across several projects. The app
-refreshes previously installed payloads using file hashes, preserving local
-edits and reporting conflicts. Use `dash-bored install-skill . --check` (or
-`--global --check`) to detect missing or stale guidance without writing files.
+A complete, valid dashboard in this shape:
 
-## Add local components
+```yaml
+schemaVersion: 3
+name: Example
+root:
+  id: cockpit
+  component: "@dash-bored/tabs"
+  children:
+    - metadata: { label: Overview }
+      node:
+        id: overview
+        component: "@dash-bored/card"
+        props:
+          title: Where things stand
+          description: Current state first, then the next step.
+        children:
+          axis: horizontal
+          ratio: 0.6
+          first:
+            node: { id: readme, component: "@dash-bored/markdown", props: { path: README.md } }
+          second:
+            node:
+              id: next-up
+              component: "@dash-bored/todo-list"
+              props:
+                todos:
+                  - { description: Ship the retry fix, done: false, tags: [release] }
+    - metadata: { label: Develop }
+      node:
+        id: develop
+        component: "@dash-bored/card"
+        props: { title: Run and test }
+        children:
+          axis: vertical
+          first:
+            node: { id: dev-server, component: "@dash-bored/command", props: { label: Start dev server, command: npm run dev } }
+          second:
+            node: { id: tests, component: "@dash-bored/command", props: { label: Run tests, command: npm test } }
+```
 
-Prefer a built-in component when one fits. When nothing in the catalog fits,
-create a small component by default — one-off local components are a core
-capability of the product, not a last resort — in the owning
-bundle's `components/<name>/` directory with `component.yaml`, `index.tsx`,
-and optional relative TS/TSX/CSS. Reference it as `./components/<name>`.
+Composition rules:
 
-Consult [references/components.md](references/components.md) by section:
-**Local component layout**, **TSX contract**, and **HTTP and bounded shell payloads**
-cover a leaf observer. Read **Child projection and managed tabs** only for local
-containers, and the worked Git example only for Git observers. Do not read the
-whole reference for a simple leaf component. It defines the manifest, renderer API, capability mapping, import boundary,
-and validation loop shipped with this dash-bored version. Essentials:
+- Tab labels live on the edge (`metadata: { label }`), not in props.
+- Tiled children are one `{ node }` edge or a split: `axis`, `first`,
+  `second`. Nest splits for more than two. Horizontal splits may set `ratio`
+  (0.1–0.9, default 0.5 — omit it when equal); vertical splits never do.
+- Give every node a stable, unique `id`. Anything stateful, actionable, or
+  process-backed needs one, and screenshots and actions address nodes by it.
+- A card frames two or more related panels; a lone panel needs no card.
+- Paths in props (`markdown` `path`, `command` `cwd`, `env` `path`) are
+  relative to the project root (the directory containing `.dash-bored/`), not
+  to the bundle.
+- The starter sets `icon: ./assets/icon.svg` (relative to the bundle) but does
+  not create the file, and validation does not check it; a missing icon shows
+  a generic glyph. Write a small, simple SVG there for the project.
+- Edit the existing YAML in place, or replace the whole file atomically.
 
-- Manifest: `schemaVersion: 2`, `id`, `name`, `description`, `entry`,
-  `renderMode` (`surface` default; `layout` only when height must follow
-  descendants), `propsSchema` (JSON Schema), one `children` contract (`min`,
-  optional `max`, `presentation: { type: tiled, axes }` or
-  `{ type: managed }` + optional `metadataSchema`).
-- Declare only the permissions used: `filesystem:read`,
-  `filesystem:write`, `network:http`, `process:execute`, `process:observe`,
-  `webview:embed`. Each maps to exactly the host methods the component gets;
-  packaged and local components share the same host contract.
-- A component needing a long-running process declares a `resources.process`
-  mapping (`commandProp`, optional `cwdProp`/`envProp`,
-  `interactive: true` for a PTY-backed shell) with `process:execute`; other
-  components observe it via `references: { processId: { resource: process } }`
-  with `process:observe`. Resource nodes require stable IDs, and palette
-  start/stop actions derive from these resources.
-- TSX imports only contained relative files plus `@dash-bored/component`
-  (`defineComponent`, hooks); the shared `react` and JSX runtimes are also
-  supported. Other bare package imports, Node/Electrobun APIs, and files
-  outside the component directory are unsupported. Register palette actions via
-  `host.actions.register` (IDs: letter-first, letters/digits/`_`/`-`) and
-  return its disposer from the effect. Render projected children through the
-  generic child surface.
-- Validation loop: reuse a built-in if one fits → add manifest + code → add
-  the node to the owning `dash-bored.yaml` → `dash-bored validate .` (also
-  compiles local code) → `dash-bored inspect . --component <reference>` to confirm catalog
-  availability, permissions, and tree placement. Keep privileged behavior
-  visible, bounded, and user-initiated where practical.
+When nothing in the catalog answers a question, write a small local component
+in `components/<name>/` with `component.yaml` and `index.tsx`, referenced as
+`./components/<name>`. That is the expected path for live, project-specific
+status, not a last resort. Read [references/components.md](references/components.md)
+by section: **Local component layout**, **TSX contract**, and
+**HTTP and bounded shell payloads** cover a status or observer panel, and the
+worked Git example is a good template to adapt; read **Child projection and
+managed tabs** only for containers. Declare only the permissions the code
+uses. Leave `renderMode` out (it defaults to `surface`, a panel with its own
+height); set `layout` only for a container whose height must follow its
+children.
 
-## Verify UI changes visually
+### 4. Validate
 
-For a project dashboard, reload it in the installed app and exercise the
-changed visible workflow when available. The commands below are specific to
-a checkout of the dash-bored application; do not assume another project owns
-its fixture, test scripts, or source tree.
+1. Run `dash-bored validate .`. It checks YAML, props, references, and
+   permissions and compiles local components, but does not type-check TSX or
+   run anything, so read your component code once more for runtime mistakes.
+2. If it fails, read each diagnostic's file, path, and code, fix the cause,
+   and run it again. Do not stop on a failing dashboard: the app keeps showing
+   the last valid one, so the user would see your change silently missing.
+3. Run `dash-bored inspect . --summary` and compare `permissions` with what you
+   meant to add. Each new permission makes the user re-approve trust.
 
-For renderer UI work in the dash-bored application, start the isolated proof fixture with `bun run
-ui:fixture`, then open `http://127.0.0.1:5488/ui-harness.html` in the available
-browser-control surface. It mounts the normal `App` with deterministic fixture
-data — inspect the actual CSS, sidebar, tabs, component library, and tiled
-composition, not a static mock. Check a normal desktop viewport and a narrow
-`390×844` viewport. Capture a screenshot or inspect layout geometry after any
-meaningful interaction.
+### 5. Look at it
 
-The fixture is renderer-only; never present it as native desktop proof. For
-native chrome, Electrobun webview overlays, or desktop pointer input, inspect
-the running Electrobun app separately and first confirm its header config path
-identifies this checkout. If the native surface is blocked, report the
-renderer fixture coverage and the exact missing native coverage; never kill a
-user-owned watcher just to obtain a smoke test.
+Validation proves the YAML is correct, not that the dashboard is useful.
+When the app is running, check what the user will see:
 
-## Validate the result
+1. `dash-bored app status`: note the open dashboard and `focusedNodeId` so
+   you can restore them.
+2. If a different bundle is open, `dash-bored app open .` (refused
+   while the user has a draft open; then ask them to save or cancel it).
+3. `dash-bored app screenshot --focus <node-id>` for each tab or panel you
+   changed, then view the PNG path it prints. Check that labels make sense,
+   nothing is empty or truncated, and the Overview answers its questions.
+4. Fix, validate, and screenshot again until it reads well.
+5. Restore the user's view with `dash-bored app run focus:<original-id>`.
 
-Run `dash-bored validate .` after editing. Resolve validation or compilation
-errors rather than leaving the dashboard on its last-known-good snapshot. Run
-`dash-bored inspect . --summary` again and check diagnostics and permissions.
-Inspect individual new component contracts as needed; request the full tree only
-when placement cannot be verified from the owning YAML.
+`dash-bored app actions` lists the palette actions you may run (`focus:<id>`,
+`dashboard:<path>`, component actions). The app refuses trust changes, draft
+start/save/cancel, the Add dashboard chooser, and anything that asks for
+confirmation. Tell the user which of these they need to do instead.
 
-Summarize the useful workflows exposed, any permissions added, and which
-runtime or native interactions were not exercised.
+If the app is not running, or a screenshot fails, say so in the report rather
+than implying you checked the result visually.
 
+### 6. Report
 
-## Theme authoring
+End with a short summary in this shape:
 
-Use `dash-bored theme init <name> [project]` to scaffold a theme, edit its
-`theme.yaml`, and run `dash-bored theme validate <directory>`. Use
-`theme add <git-url> [project]` for a pinned project installation or `--global`
-for a personal installation. `theme list`, `status`, `update`, `sync`, and
-`remove` expose the installation lifecycle; nothing auto-updates or selects a
-theme. The optional top-level dashboard `theme` references `builtin:default`,
-`global:<name>`, `./themes/<name>`, or `./themes/external/<name>` and themes the
-whole window. Settings owns Light/Dark/System mode. Theme selection belongs
-outside the component tree. Both light/dark maps inherit defaults; use the
-[complete token reference](references/theme-tokens.md) or
-`dash-bored theme validate --schema`. No custom CSS or executable theme code.
-Components consume CSS variables or reactive `useTheme()` from the component
-module; never hard-code dark-only colors or overwrite global tokens.
+```markdown
+**Dashboard:** <bundle path> — <one line on what it now shows>
+**Tabs:** <tab>: <what it answers>; ...
+**Needs you:** <trust approval for new permissions, Screen Recording, a draft to save — or "nothing">
+**Not verified:** <what you could not run or see, and why — or "nothing">
+```
 
-## Updates and migrations
+## Gotchas
 
-Read [references/migrations.md](references/migrations.md) for update discovery,
-version-matched recipes, snapshots, preservation, and bounded verification.
+- **`@dash-bored/status` is static.** Its `state` is whatever the YAML says.
+  For live health, write a local component that performs the check.
+- **`@dash-bored/conditional` is for setup and recovery, not health.** It
+  shows or hides one child based on a shell check, starts visible, and fails
+  open. Never use it (or a pair of inverted ones) as a health indicator.
+- **`@dash-bored/markdown` requests file read and write permission**, even for
+  inline `content`. Prefer `path:` to a real project file.
+- **Commands never auto-start.** A `@dash-bored/command` is a button that
+  opens a persistent terminal; it does not run on open, trust, or reload.
+  Don't start long-running processes just to take a screenshot.
+- **New permissions pause the dashboard.** Until the user re-approves trust,
+  the app renders layout and inline content only: no local components,
+  commands, file reads, HTTP, or webviews. A screenshot then shows that
+  untrusted state, not a broken dashboard.
+- **App state is not YAML.** Draft Save/Cancel, collapse, focus selection,
+  shortcuts, favorites, and agent tasks belong to the app; don't invent keys
+  for them. [references/app-runtime.md](references/app-runtime.md) covers
+  them when a request involves one.
+- **The bundle `.env` is data, not shell.** The app loads it for commands in
+  that bundle; don't `source` it. Never put secrets in YAML. `.env` is not
+  git-ignored by default: before pointing an `env` panel at credentials, check
+  `.gitignore` covers it, or leave the panel out and tell the user.
+- **Screenshots need macOS Screen Recording permission.** If `app screenshot`
+  fails with `SCREEN_RECORDING_PERMISSION_REQUIRED`, ask the user to allow it
+  and relaunch the app.
+- **Several app instances can run** (for example a release and a dev build).
+  If `app` commands say the choice is ambiguous, pass
+  `--instance <identifier>` from the list they print.
+
+## Other tasks
+
+- **Named dashboards** for a person or workflow: `dash-bored init <name>`
+  creates a standalone bundle under `.dash-bored/<name>/`. Show it inside
+  another dashboard by using its path as a component (`component: "./<name>"`);
+  bundles never merge or inherit.
+- **External components or themes from Git**, only when the user asks: the
+  `component` and `theme` commands pin exact commits (`--help` shows usage).
+  The user can do the same from the app's component library and Settings.
+- **Themes**: `dash-bored theme init <name>` scaffolds `themes/<name>/theme.yaml`
+  with `light` and `dark` token maps that inherit every default; check it with
+  `dash-bored theme validate <directory>`. Token names and defaults are in
+  [references/theme-tokens.md](references/theme-tokens.md). Select it with the
+  dashboard's top-level `theme:` (`builtin:default`, `global:<name>`,
+  `./themes/<name>`, or `./themes/external/<name>`); themes are data only, with
+  no CSS or code. In local components, use CSS variables or `useTheme()`,
+  never hard-coded colors.
+- **Migrations** after an app update, or when validation reports an old
+  `schemaVersion`: read [references/migrations.md](references/migrations.md)
+  and start with `dash-bored migrate inspect <dashboard>`.

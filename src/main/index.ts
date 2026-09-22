@@ -14,7 +14,7 @@ import Electrobun, {
   Utils,
 } from "electrobun/main";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import { resolveEnvironment } from "../core/environment";
 import type {
@@ -42,15 +42,25 @@ import { getRegisteredProjectOutline } from "./project-outline";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
 import {
-  installedCliPath,
   installedSkillPath,
   repairInstalledTools as repairInstalledToolConflicts,
   updateInstalledTools,
 } from "./installed-tools";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
+import { retireManagedCliLink } from "./retire-cli-link";
+import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
+import { startAgentControlServer, type AgentControlServer } from "./agent-control-server";
+import { captureWindowPng } from "./window-capture";
+import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
+import { APP_VERSION } from "../shared/app-metadata";
+import type { AgentActionDescriptor, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
 
 configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
+// Utils.paths.userData is <appData>/<identifier>/<channel>. Release and
+// development builds share the identifier, so the channel keeps them apart.
+const appInstanceIdentifier = `${basename(dirname(Utils.paths.userData))}.${basename(Utils.paths.userData)}`;
+process.env.DASH_BORED_APP_INSTANCE = appInstanceIdentifier;
 
 const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
   ?? `http://127.0.0.1:${process.env.DASH_BORED_VITE_PORT ?? "5173"}`;
@@ -178,51 +188,32 @@ function replaceInstalledToolDiagnostics(paths: readonly string[], next: readonl
 
 async function repairInstalledToolConflictsForUser(): Promise<ProjectSnapshot> {
   const home = resolve(homedir());
-  const cliTarget = installedCliPath(home);
   const globalSkillTarget = installedSkillPath(home);
-  let repairCli = false;
   let repairGlobalSkill = false;
   const projectRoots = new Set<string>();
 
   for (const diagnostic of installedToolDiagnostics) {
     if (diagnostic.code !== "INSTALLED_TOOL_UPDATE_CONFLICT" || !diagnostic.file) continue;
     const file = resolve(diagnostic.file);
-    if (file === cliTarget) {
-      repairCli = true;
-      continue;
-    }
     const skillRoot = installedSkillRootFromDiagnostic(file);
     if (skillRoot === null) continue;
     if (skillRoot === home || file === globalSkillTarget) repairGlobalSkill = true;
     else projectRoots.add(skillRoot);
   }
 
-  if (!repairCli && !repairGlobalSkill && projectRoots.size === 0) {
+  if (!repairGlobalSkill && projectRoots.size === 0) {
     throw new CoreError(
       "INSTALLED_TOOL_CONFLICTS_NOT_FOUND",
       "There are no current installed-tool conflicts to repair.",
     );
   }
-  const cliPath = bundledTools
-    ? join(bundledTools.toolsDirectory, process.platform === "win32" ? "dash-bored.exe" : "dash-bored")
-    : undefined;
-  if (repairCli && cliPath === undefined) {
-    throw new CoreError(
-      "INSTALLED_TOOL_REPAIR_UNAVAILABLE",
-      "The bundled dash-bored CLI is unavailable, so the conflicting link was left untouched.",
-    );
-  }
-
   const repairedPaths = [
     ...(repairGlobalSkill ? [globalSkillTarget] : []),
     ...[...projectRoots].map((root) => installedSkillPath(root)),
-    ...(repairCli ? [cliTarget] : []),
   ];
   const diagnostics = await repairInstalledToolConflicts({
-    cliPath,
     homeDirectory: home,
     repairGlobalSkill,
-    repairCli,
     projectRoots: [...projectRoots],
     moveToTrash: async (path) => await Utils.moveToTrash(path),
   });
@@ -258,10 +249,8 @@ const registeredRoots = [...new Set((await projectRegistry.list().catch((error: 
   console.error("Could not read projects for installed-tool updates.", error);
   return [];
 })).map((project) => project.projectRoot))];
-installedToolDiagnostics.push(...await refreshInstalledTools({
-  ...(bundledTools ? { cliPath: join(bundledTools.toolsDirectory, process.platform === "win32" ? "dash-bored.exe" : "dash-bored") } : {}),
-  projectRoots: registeredRoots,
-}));
+installedToolDiagnostics.push(...await refreshInstalledTools({ projectRoots: registeredRoots }));
+await retireManagedCliLink().catch(() => false);
 for (const root of registeredRoots) checkedSkillRoots.add(root);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
@@ -314,7 +303,7 @@ const updateCoordinator: UpdateCoordinator = new UpdateCoordinator({
   install: async (receipt, method) => {
     if (runtime.getSnapshot().processes.some(p => p.phase === "running" || p.phase === "stopping")
       || dashboardAgentHarness.list().some(t => t.process.phase === "running" || t.process.phase === "stopping")) throw new Error("Finish running terminals and agent work before installation. No work has been stopped.");
-    await bundledInstallation(bundledTools ? join(bundledTools.toolsDirectory, 'dash-bored') : process.execPath);
+    await bundledInstallation(bundledTools ? bundledTools.toolPath : process.execPath);
     if (DIRECT_UNSIGNED_UPDATES_VERIFIED && method !== "dmg") {
       try { await applyVerifiedNativeUpdate(Updater, receipt, updateDirectory(), fetch, async () => {
         if (await updateCoordinator.cancelled(receipt)) throw new Error("Update continuation cancelled before restart.");
@@ -328,9 +317,9 @@ const updateCoordinator: UpdateCoordinator = new UpdateCoordinator({
   migrate: async (configPath, receipt, report, snapshotReady) => {
     if (runtime.getSnapshot().configPath === configPath && runtime.getSnapshot().processes.some(p => p.phase === 'running' || p.phase === 'stopping')
       || dashboardAgentHarness.list().some(t => t.configPath === configPath && (t.process.phase === 'running' || t.process.phase === 'stopping'))) throw new Error('Finish running dashboard work before migration.');
-    const installation = await bundledInstallation(bundledTools ? join(bundledTools.toolsDirectory, 'dash-bored') : process.execPath);
+    const installation = await bundledInstallation(bundledTools ? bundledTools.toolPath : process.execPath);
     return runMigrationAgent({ directory: updateDirectory(), configPath, receipt, report, snapshotReady,
-      cliPath: installation.cliPath, command: await resolveAgentCommand(configPath, await appSettingsStore.get()),
+      toolPath: installation.cliPath, command: await resolveAgentCommand(configPath, await appSettingsStore.get()),
       trustStore, harness: dashboardAgentHarness, stop: id => dashboardAgentHarness.stop(id),
       cancelled: () => updateCoordinator.cancelled(receipt),
     });
@@ -345,7 +334,7 @@ Updater.onStatusChange(entry => {
 let updateOperation: Promise<unknown> | null = null;
 async function handleUpdateAction(action: import("../shared/updates").UpdateAction) {
   if (action.type === 'prepare' || action.type === 'migrate' || action.type === 'install') {
-    if (action.type === 'prepare') await bundledInstallation(bundledTools ? join(bundledTools.toolsDirectory, 'dash-bored') : process.execPath);
+    if (action.type === 'prepare') await bundledInstallation(bundledTools ? bundledTools.toolPath : process.execPath);
     if (updateOperation) throw new Error('An update operation is already running.');
     updateOperation = updateCoordinator.action(action).catch(error => console.error('Update operation needs recovery:', error)).finally(() => { updateOperation = null; });
     return updateCoordinator.state();
@@ -553,6 +542,18 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
         runComponentCreationAgent(configPath, target, prompt),
       runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),
       repairInstalledTools: (_request) => repairInstalledToolConflictsForUser(),
+      manageExternalComponent: async (operation) => {
+        const configPath = runtime.getSnapshot().configPath;
+        if (!configPath) throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before managing its external components.");
+        const result = await runExternalComponentOperation(configPath, operation);
+        return { result, snapshot: withInstalledToolDiagnostics(await runtime.reload()) };
+      },
+      manageThemePackage: async (operation) => {
+        const result = await runThemePackageOperation(operation);
+        const catalog = await loadApplicationThemes();
+        (mainWindow?.webview.rpc as { send?: { themes(value: typeof catalog): void } } | undefined)?.send?.themes(catalog);
+        return result;
+      },
       setupDashboardWithAgent: ({ nodeId }) => setupDashboardWithAgent(nodeId),
       getDashboardAgentTasks: () => dashboardAgentHarness.list(),
       getDashboardAgentDiff: ({ taskId }) => getDashboardAgentDiff(taskId),
@@ -678,6 +679,51 @@ mainWindow.on("resize", (event) => {
 
 mainWindow.webview.on("dom-ready", () => sendSnapshot(runtime.getSnapshot()));
 
+interface AgentControlRendererRequests {
+  agentViewState(params: {}): Promise<AgentViewState>;
+  agentListActions(params: {}): Promise<AgentActionDescriptor[]>;
+  agentRunAction(params: AgentRunActionRequest): Promise<AgentRunActionResult>;
+  agentSettle(params: {}): Promise<{}>;
+}
+
+function rendererRequests(): AgentControlRendererRequests {
+  const request = (mainWindow?.webview.rpc as { request?: AgentControlRendererRequests } | undefined)?.request;
+  if (!request) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
+  return request;
+}
+
+const agentControl: AgentControlServer | null = await startAgentControlServer({
+  identifier: appInstanceIdentifier,
+  pid: process.pid,
+  version: APP_VERSION,
+  socketPath: instanceSocketPath(appInstanceIdentifier),
+  toolPath: bundledTools?.toolPath ?? null,
+}, {
+  viewState: () => rendererRequests().agentViewState({}),
+  listActions: () => rendererRequests().agentListActions({}),
+  runAction: (request) => rendererRequests().agentRunAction(request),
+  settle: async () => { await rendererRequests().agentSettle({}); },
+  capture: () => {
+    if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
+    return captureWindowPng({ windowPointer: mainWindow.ptr, frame: mainWindow.getFrame() }, Utils.screenCapture);
+  },
+  openDashboard: async (configPath) => {
+    // Loading registers the dashboard through onSnapshot, as an app launch for
+    // that path did before; trust remains a separate user decision.
+    await runtime.load(resolve(configPath), { inputKind: "auto" });
+    runtime.watch();
+  },
+}).catch((error: unknown) => {
+  console.error("Agent control channel unavailable:", error);
+  return null;
+});
+// Only the installed release records its tool for agents started outside it.
+if (bundledTools && (await Updater.localInfo.channel()) === "canary") {
+  void publishToolLocator(bundledTools.toolPath).catch((error: unknown) => {
+    console.error("Could not record the agent tool location:", error);
+  });
+}
+
 let cleanupStarted = false;
 Electrobun.events.on("before-quit", (event) => {
   // Native apply already rejected running work. Its helper must receive quit
@@ -686,7 +732,7 @@ Electrobun.events.on("before-quit", (event) => {
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
-  void Promise.all([runtime.close(), dashboardAgentHarness.close()]).finally(() => {
+  void Promise.all([runtime.close(), dashboardAgentHarness.close(), agentControl?.close()]).finally(() => {
     Utils.quit(0);
   });
 });

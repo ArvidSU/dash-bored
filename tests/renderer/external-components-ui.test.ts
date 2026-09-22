@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ComponentCatalogItem, ComponentManifest } from "../../src/shared/contracts";
 import {
-  buildExternalAddCommand,
-  buildExternalRemoveCommand,
-  buildExternalSyncCommand,
-  buildExternalUpdateCommand,
   componentCatalogParity,
   componentProvenanceLabel,
   externalComponentInfo,
@@ -112,17 +108,6 @@ describe("external components flyout contract", () => {
     const badRef = validateExternalComponentInput({ url: "https://example.com/c.git", ref: "has space" });
     expect(badRef.ok).toBe(false);
     expect(badRef.errors.ref).toBeString();
-  });
-
-  test("previews the exact CLI commands with one-click copy text", () => {
-    expect(buildExternalAddCommand({ url: "https://example.com/clock.git" }))
-      .toBe("dash-bored component add https://example.com/clock.git");
-    expect(buildExternalAddCommand({ url: "https://example.com/clock.git", name: "clock", ref: "main" }))
-      .toBe("dash-bored component add https://example.com/clock.git --name clock --ref main");
-    expect(buildExternalUpdateCommand("clock")).toBe("dash-bored component update clock");
-    expect(buildExternalUpdateCommand("clock", "abc1234")).toBe("dash-bored component update clock --to abc1234");
-    expect(buildExternalRemoveCommand("clock")).toBe("dash-bored component remove clock");
-    expect(buildExternalSyncCommand()).toBe("dash-bored component sync");
   });
 
   test("reads pin details defensively and flags uninitialized checkouts for the Sync hint", () => {

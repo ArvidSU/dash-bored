@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe("configureBundledToolEnvironment", () => {
-  test("prepends the packaged tools directory to PATH", async () => {
+  test("publishes the packaged agent tool by path without touching PATH", async () => {
     const appDirectory = await mkdtemp(join(tmpdir(), "dash-bored-tools-"));
     cleanup.push(appDirectory);
     const mainDirectory = join(appDirectory, "Contents", "Resources", "app", "bun");
@@ -27,7 +27,9 @@ describe("configureBundledToolEnvironment", () => {
     const result = configureBundledToolEnvironment(mainDirectory, environment);
 
     expect(result?.toolsDirectory).toBe(toolsDirectory);
-    expect(environment.PATH?.split(delimiter)[0]).toBe(toolsDirectory);
+    expect(result?.toolPath).toBe(cliPath);
+    expect(environment.DASH_BORED_TOOL).toBe(cliPath);
+    expect(environment.PATH).toBe("/usr/bin");
   });
 });
 

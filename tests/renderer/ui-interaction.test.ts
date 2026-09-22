@@ -1262,7 +1262,7 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
 }, 30_000);
 
 
-test('theme package manager generates scoped commands without changing selection', async () => {
+test('theme package manager runs scoped operations in the app without changing selection', async () => {
   const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
   try {
     await proof.goto(fixtureUrl);
@@ -1270,22 +1270,28 @@ test('theme package manager generates scoped commands without changing selection
     await proof.getByRole('tab', { name: 'Themes', exact: true }).click();
     await proof.getByRole('region', { name: 'Manage theme packages', exact: true }).waitFor();
     const selection = await proof.getByRole('combobox', { name: 'Default theme', exact: true }).inputValue();
-    expect(await proof.getByRole('button', { name: 'Copy theme command', exact: true }).isDisabled()).toBe(true);
+    const run = proof.getByRole('button', { name: 'Run theme operation', exact: true });
+    expect(await run.isDisabled()).toBe(true);
     await proof.getByRole('textbox', { name: 'Theme repository URL', exact: true }).fill('https://example.com/ocean.git');
     await proof.getByRole('textbox', { name: 'Theme package name', exact: true }).fill('ocean');
-    await proof.getByRole('textbox', { name: 'Theme revision', exact: true }).fill("feature/ocean's-colors");
-    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toContain(`'feature/ocean'"'"'s-colors'`);
     await proof.getByRole('textbox', { name: 'Theme revision', exact: true }).fill('v2');
-    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toBe("dash-bored theme add 'https://example.com/ocean.git' --name 'ocean' --ref 'v2' --global");
+    await run.click();
+    await proof.getByText('Ran theme add.', { exact: true }).waitFor();
     await proof.getByRole('combobox', { name: 'Theme installation scope' }).selectOption('project');
     const configPath = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).configPath);
-    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toContain(configPath!);
     await proof.getByRole('combobox', { name: 'Theme operation', exact: true }).selectOption('sync');
-    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toBe(`dash-bored theme sync '${configPath}'`);
+    await run.click();
+    await proof.getByText('Ran theme sync.', { exact: true }).waitFor();
     await proof.getByRole('combobox', { name: 'Theme operation', exact: true }).selectOption('remove');
-    expect(await proof.getByRole('button', { name: 'Copy theme command', exact: true }).isDisabled()).toBe(true);
+    expect(await run.isDisabled()).toBe(true);
     await proof.getByRole('textbox', { name: 'Theme package name', exact: true }).fill('ocean');
-    expect(await proof.getByLabel('Theme command', { exact: true }).textContent()).toBe(`dash-bored theme remove 'ocean' '${configPath}'`);
+    await run.click();
+    await proof.getByText('Ran theme remove.', { exact: true }).waitFor();
+    expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPackageOperations())).toEqual([
+      { kind: 'theme', op: 'add', scope: 'global', url: 'https://example.com/ocean.git', name: 'ocean', ref: 'v2' },
+      { kind: 'theme', op: 'sync', scope: 'project', configPath },
+      { kind: 'theme', op: 'remove', scope: 'project', configPath, name: 'ocean' },
+    ]);
     expect(await proof.getByRole('combobox', { name: 'Default theme', exact: true }).inputValue()).toBe(selection);
     await proof.setViewportSize({ width: 430, height: 900 });
     await proof.screenshot({ path: '/tmp/dash-bored-theme-manager.png', fullPage: true });

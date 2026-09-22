@@ -7,6 +7,7 @@ import openAiMetadata from "../../skills/dash-bored/agents/openai.yaml" with { t
 import componentReference from "../../skills/dash-bored/references/components.md" with { type: "text" };
 import appRuntimeReference from "../../skills/dash-bored/references/app-runtime.md" with { type: "text" };
 import builtinsReference from "../../skills/dash-bored/references/builtins.md" with { type: "text" };
+import toolLauncher from "../../skills/dash-bored/scripts/dash-bored" with { type: "text" };
 
 /** Files embedded into the standalone CLI at build time. */
 const SKILL_CONTENTS = {
@@ -17,7 +18,13 @@ const SKILL_CONTENTS = {
   "references/components.md": componentReference,
   "references/builtins.md": builtinsReference,
   "references/app-runtime.md": appRuntimeReference,
+  "scripts/dash-bored": toolLauncher,
 } as const;
+
+/** Payload files that agents execute rather than read. */
+export function isExecutableSkillFile(path: string): boolean {
+  return path.startsWith("scripts/");
+}
 
 export function skillContentHash(contents: string): string {
   return createHash("sha256").update(contents).digest("hex");

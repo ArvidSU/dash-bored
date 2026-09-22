@@ -35,10 +35,11 @@ configs do not implicitly share lock entries, component directories, nodes, or
 defaults. Their only composition mechanism is an explicit component reference
 to another standalone bundle path.
 
-The `validate`, `inspect`, and CLI `open` project arguments may identify the
-project root, a standalone bundle directory, or its `dash-bored.yaml`. `open`
-renders exactly the selected bundle; the CLI passes both the canonical project
-root and the selected config path to the desktop process. Resolution does not
+The agent tool's `validate`, `inspect`, and `app open` project arguments may
+identify the project root, a standalone bundle directory, or its
+`dash-bored.yaml`. `app open` renders exactly the selected bundle; the tool
+resolves the selected config path and passes it to the running app over the
+agent-control channel. Resolution does not
 walk unrelated ancestor directories. Paths are canonicalized before they are
 used as trust keys or containment boundaries. The desktop project chooser uses
 the selected directory's shape: a nested `.dash-bored/dash-bored.yaml` selects
@@ -46,8 +47,8 @@ the project root, while a direct `dash-bored.yaml` selects that standalone
 bundle. The same chooser therefore opens either kind of dashboard without
 merging standalone configs into one another.
 
-Opening a project, either through `dash-bored open` or the desktop project
-chooser, ensures that this complete project contract exists. The application
+Opening a project, either through the desktop project chooser or the agent
+tool's `app open`, ensures that this complete project contract exists. The application
 creates the `.dash-bored/` directory, default configuration, empty lock file,
 starter environment file, and `components/` directory when they are missing. It
 creates only missing artifacts and never replaces an existing configuration,
@@ -358,7 +359,7 @@ is pinned in the lock file as
 A pin change alters the code under trust and re-runs the permission-union
 trust check. Only an actually empty external directory is reported as an
 uninitialized checkout (`COMPONENT_EXTERNAL_UNINITIALIZED`) with a pointer at
-`dash-bored component sync`; discovery descends into initialized checkouts
+Sync in the component library; discovery descends into initialized checkouts
 (monorepo-style layouts resolve deeper manifests as
 `./components/external/<name>/<path…>`), and a checkout with no manifest
 anywhere reports `COMPONENT_EXTERNAL_NO_MANIFEST`. Neither silently resolves

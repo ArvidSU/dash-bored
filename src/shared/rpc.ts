@@ -21,9 +21,12 @@ import type {
   ProjectSnapshot,
   ProjectTarget,
   DeleteProjectRequest,
+  ExternalComponentOperation,
+  PackageOperationResult,
   SaveDashboardConfigRequest,
   ShellRunRequest,
   ShellRunResult,
+  ThemePackageOperation,
 } from "./contracts";
 
 export type DashboardRPC = {
@@ -39,6 +42,8 @@ export type DashboardRPC = {
       runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
       runDiagnosticsAgent: { params: {}; response: ComponentAgentLaunch };
       repairInstalledTools: { params: {}; response: ProjectSnapshot };
+      manageExternalComponent: { params: ExternalComponentOperation; response: { result: PackageOperationResult; snapshot: ProjectSnapshot } };
+      manageThemePackage: { params: ThemePackageOperation; response: PackageOperationResult };
       setupDashboardWithAgent: { params: DashboardSetupAgentRequest; response: ComponentAgentLaunch };
       getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
       getDashboardAgentDiff: { params: { taskId: string }; response: string };
@@ -72,7 +77,12 @@ export type DashboardRPC = {
     messages: {};
   }>;
   webview: RPCSchema<{
-    requests: {};
+    requests: {
+      agentViewState: { params: {}; response: import("./agent-control").AgentViewState };
+      agentListActions: { params: {}; response: import("./agent-control").AgentActionDescriptor[] };
+      agentRunAction: { params: import("./agent-control").AgentRunActionRequest; response: import("./agent-control").AgentRunActionResult };
+      agentSettle: { params: {}; response: {} };
+    };
     messages: {
       themes: import("./themes").ThemeCatalogItem[];
       snapshot: ProjectSnapshot;

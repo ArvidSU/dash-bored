@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from '../lib/theme';
 import { parseProjectThemeReference } from '../../shared/themes';
-import type { DashboardSettingsItem } from '../../shared/contracts';
-
-// Quote every argument: repository URLs and bundle paths can contain shell syntax.
-const quote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
+import type { DashboardSettingsItem, ThemePackageOperation } from '../../shared/contracts';
+import { host } from '../lib/rpc-client';
 
 export function ThemeManager({ dashboards = [] }: { dashboards?: readonly DashboardSettingsItem[] }) {
   const { catalog } = useTheme();
@@ -15,6 +13,7 @@ export function ThemeManager({ dashboards = [] }: { dashboards?: readonly Dashbo
   const [name, setName] = useState('');
   const [ref, setRef] = useState('');
   const [notice, setNotice] = useState('');
+  const [running, setRunning] = useState(false);
   const project = scope === 'project';
   const targetConfigPath = projectConfigPath || dashboards[0]?.configPath || '';
   const items = catalog.filter((item) => {
@@ -34,21 +33,30 @@ export function ThemeManager({ dashboards = [] }: { dashboards?: readonly Dashbo
     && (!needsName || Boolean(name.trim()))
     && (operation !== 'add' || Boolean(url.trim()) && !url.trim().startsWith('-'))
     && (!usesRef || !ref.trim().startsWith('-'));
-  const args = ['dash-bored', 'theme', operation];
-  if (operation === 'add') {
-    args.push(quote(url.trim()));
-    if (name.trim()) args.push('--name', quote(name.trim()));
-    if (ref.trim()) args.push('--ref', quote(ref.trim()));
-  } else if (needsName) {
-    args.push(quote(name.trim()));
-    if (operation === 'update' && ref.trim()) args.push('--to', quote(ref.trim()));
-  }
-  args.push(...(project ? [quote(targetConfigPath)] : ['--global']));
-  const command = args.join(' ');
+  const request: ThemePackageOperation = {
+    op: operation as ThemePackageOperation['op'],
+    scope,
+    ...(project ? { configPath: targetConfigPath } : {}),
+    ...(operation === 'add' ? { url: url.trim() } : {}),
+    ...(usesName && name.trim() ? { name: name.trim() } : {}),
+    ...(usesRef && ref.trim() ? { ref: ref.trim() } : {}),
+  };
+  const run = async () => {
+    setRunning(true);
+    setNotice('');
+    try {
+      const result = await host.manageThemePackage(request);
+      setNotice(operation === 'status' ? `${result.message} ${JSON.stringify(result.details)}` : result.message);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRunning(false);
+    }
+  };
   return <section className="settings-card theme-manager" aria-labelledby="theme-management-title" style={{ display: 'block', minWidth: 0 }}>
     <h2 id="theme-management-title">Manage theme packages</h2>
     <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.75rem', minWidth: 0 }}>
-      <p>Copy a command, run it in a terminal, then reload the dashboard. Project packages use Git submodules; personal packages use managed Git clones. Installing does not select a theme.</p>
+      <p>Project packages use Git submodules; personal packages use managed Git clones. Installing does not select a theme.</p>
       <label className="props-field"><span>Installation scope</span><select aria-label="Theme installation scope" value={scope} onChange={(event) => { setScope(event.target.value as typeof scope); setName(''); setNotice(''); }}>
         <option value="global">Personal — all dashboards</option><option value="project" disabled={dashboards.length === 0}>Dashboard package</option>
       </select></label>
@@ -74,11 +82,7 @@ export function ThemeManager({ dashboards = [] }: { dashboards?: readonly Dashbo
       {!validName && <p role="alert">Use a name starting with a letter, followed by letters, numbers, underscores or hyphens.</p>}
       {(operation === 'add' || operation === 'update') && <label className="props-field"><span>Revision (optional)</span><input aria-label="Theme revision" value={ref} onChange={(event) => setRef(event.target.value)} placeholder="Branch, tag, or commit" /></label>}
       {operation === 'remove' && <p>Removal deletes the managed checkout. Select another theme if this package is in use. Local changes block removal.</p>}
-      {valid && <code aria-label="Theme command" style={{ overflowWrap: 'anywhere' }}>{command}</code>}
-      <button type="button" className="button button--quiet" disabled={!valid} onClick={async () => {
-        try { await navigator.clipboard.writeText(command); setNotice('Command copied. Run it in a terminal, then reload.'); }
-        catch { setNotice('Could not copy. Select and copy the displayed command manually.'); }
-      }}>Copy theme command</button>
+      <button type="button" className="button button--secondary" disabled={!valid || running} onClick={() => void run()}>{running ? 'Working…' : 'Run theme operation'}</button>
       <span role="status">{notice}</span>
     </div>
   </section>;

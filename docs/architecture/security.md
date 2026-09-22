@@ -132,6 +132,36 @@ code. Supported HTTP access goes through the checked host RPC. Embedded
 application pages use sandboxed `<electrobun-webview>` elements and receive no
 dash-bored RPC bridge.
 
+## Agent-control channel
+
+The running app's agent-control channel (see
+[Lifecycle and agent tools](./lifecycle-cli.md#app-control)) is a local
+automation surface for the user's own agents, not a new capability.
+
+- It listens only on a Unix socket in `~/.config/dash-bored/run/`; the
+  directory is 0700 and the socket 0600, so only the user's own processes can
+  connect. There is no network listener and no token to leak.
+- Request bodies are bounded JSON objects. Selections must map choice ids to
+  option ids.
+- Actions run through the same renderer action index and `ActionExecutor` as
+  the command palette, with the same availability and duplicate-run rules.
+  Component actions still flow through their declared host APIs and project
+  trust.
+- `src/shared/agent-control.ts` refuses trust changes (`project:trust`,
+  `project:revoke-trust`), the user's draft lifecycle (`project:edit`,
+  `project:save-draft`, `project:cancel-edit`), the native Add dashboard
+  chooser, and any action that declares a palette confirmation. The listing
+  marks these with the refusal reason so agents can ask the user instead.
+- Opening a dashboard is refused while a draft is open. It loads and registers
+  the dashboard but never trusts it.
+- Screenshots capture only the app's own window: the NSWindow number (read
+  through the Objective-C runtime after an `isKindOfClass:` check) is passed
+  to `/usr/sbin/screencapture -l`. When the number is unavailable, capture
+  falls back to the window's frame region, which includes anything covering
+  it. Capture requires macOS Screen Recording permission; without it the app
+  asks macOS once and returns `SCREEN_RECORDING_PERMISSION_REQUIRED`. The PNG
+  is returned to the caller and not retained by the app.
+
 ## Declarative process resources
 
 Any component may declare a supervised process resource. The manifest maps the

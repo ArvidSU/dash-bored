@@ -1,10 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
-import { cp, chmod, mkdir, mkdtemp, readFile, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, readFile, readlink, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installDashBoredSkill } from "../../src/cli/install-skill";
 import { DASH_BORED_SKILL_FILES, skillContentHash } from "../../src/cli/skill-payload";
-import { installDashBoredCli } from "../../src/cli/install-cli";
+import { retireManagedCliLink } from "../../src/main/retire-cli-link";
 import { repairInstalledTools, updateInstalledTools } from "../../src/main/installed-tools";
 import { APP_VERSION } from "../../src/shared/app-metadata";
 
@@ -76,46 +76,52 @@ test("skill checks are read-only and a replaced support symlink cannot write out
   expect(await Bun.file(join(external, "components.md")).exists()).toBeFalse();
 });
 
-test("CLI refreshes its managed old target, including a dangling target, and rejects replaced links", async () => {
+test("skill install writes an executable agent-tool launcher and restores its mode", async () => {
   const project = await root();
-  const oldSource = join(project, "old-cli");
-  const newSource = join(project, "new-cli");
-  await executable(oldSource);
-  await executable(newSource);
-  const targetDirectory = join(project, "bin");
-  const prior = await installDashBoredCli({ sourcePath: oldSource, targetDirectory });
-  await rm(oldSource);
-  await expect(installDashBoredCli({ sourcePath: newSource, targetDirectory, check: true })).rejects.toThrow("stale");
-  expect(await readlink(prior.targetPath)).toBe(oldSource);
-  expect((await installDashBoredCli({ sourcePath: newSource, targetDirectory })).updated).toBeTrue();
-  expect(await readlink(prior.targetPath)).toBe(newSource);
-  expect((await installDashBoredCli({ sourcePath: newSource, targetDirectory, check: true })).updated).toBeFalse();
-  await rm(prior.targetPath);
-  await symlink(join(project, "unrelated-tool"), prior.targetPath);
-  await expect(installDashBoredCli({ sourcePath: newSource, targetDirectory })).rejects.toThrow("existing CLI link");
-  expect(await readlink(prior.targetPath)).toBe(join(project, "unrelated-tool"));
+  const installed = await installDashBoredSkill(project);
+  const launcher = join(installed.skillPath, "scripts", "dash-bored");
+  expect((await stat(launcher)).mode & 0o777).toBe(0o755);
+  await chmod(launcher, 0o644);
+  await expect(installDashBoredSkill(project, { check: true })).rejects.toThrow("not executable");
+  await installDashBoredSkill(project);
+  expect((await stat(launcher)).mode & 0o111).not.toBe(0);
 });
 
-test("startup refreshes installed global and project skills and CLI, reports conflicts, and skips absent installs", async () => {
+test("startup retires only a receipt-owned CLI link into an app bundle", async () => {
+  const home = await root();
+  const bin = join(home, ".local", "bin");
+  await mkdir(bin, { recursive: true });
+  const bundled = join(home, "dash-bored.app", "Contents", "Resources", "app", "tools", "dash-bored");
+  await mkdir(join(bundled, ".."), { recursive: true });
+  await executable(bundled);
+  await symlink(bundled, join(bin, "dash-bored"));
+  await writeFile(join(bin, ".dash-bored-cli.json"), JSON.stringify({ sourcePath: bundled, version: "0.3.2" }));
+  expect(await retireManagedCliLink(home)).toBeTrue();
+  expect(await Bun.file(join(bin, ".dash-bored-cli.json")).exists()).toBeFalse();
+  await expect(readlink(join(bin, "dash-bored"))).rejects.toThrow();
+
+  const unrelated = join(home, "my-dash-bored");
+  await executable(unrelated);
+  await symlink(unrelated, join(bin, "dash-bored"));
+  await writeFile(join(bin, ".dash-bored-cli.json"), JSON.stringify({ sourcePath: bundled, version: "0.3.2" }));
+  expect(await retireManagedCliLink(home)).toBeFalse();
+  expect(await readlink(join(bin, "dash-bored"))).toBe(unrelated);
+});
+
+test("startup refreshes installed global and project skills, reports conflicts, and skips absent installs", async () => {
   const home = await root();
   const project = await root();
   const absentProject = await root();
   await olderSkill(home);
   const prior = await olderSkill(project);
   await writeFile(join(prior.skillPath, "SKILL.md"), "local customization\n");
-  const oldSource = join(home, "old-cli");
-  const newSource = join(home, "new-cli");
-  await executable(oldSource);
-  await executable(newSource);
-  await installDashBoredCli({ sourcePath: oldSource, targetDirectory: join(home, ".local/bin") });
-  const results = await updateInstalledTools({ homeDirectory: home, projectRoots: [project, absentProject], cliPath: newSource });
+  const results = await updateInstalledTools({ homeDirectory: home, projectRoots: [project, absentProject] });
   expect(results.filter((result) => result.code === "INSTALLED_TOOL_UPDATE_CONFLICT")).toHaveLength(1);
   expect(results.some((result) => result.code === "INSTALLED_TOOL_UPDATED")).toBeFalse();
   expect(await readFile(join(prior.skillPath, "SKILL.md"), "utf8")).toBe("local customization\n");
   expect(await Bun.file(join(absentProject, ".agents/skills/dash-bored/SKILL.md")).exists()).toBeFalse();
   const emptyHome = await root();
-  expect(await updateInstalledTools({ homeDirectory: emptyHome, cliPath: newSource })).toEqual([]);
-  expect(await Bun.file(join(emptyHome, ".local/bin/dash-bored")).exists()).toBeFalse();
+  expect(await updateInstalledTools({ homeDirectory: emptyHome })).toEqual([]);
 });
 
 async function legacySkill(project: string, version = "0.2.2") {
@@ -175,21 +181,13 @@ test("explicit repair trashes conflicting installs before reinstalling the curre
   const home = await root();
   const priorSkill = await installDashBoredSkill(home);
   await writeFile(join(priorSkill.skillPath, "SKILL.md"), "custom global guidance\n");
-  const oldSource = join(home, "old-cli");
-  const newSource = join(home, "new-cli");
-  await executable(oldSource);
-  await executable(newSource);
-  await installDashBoredCli({ sourcePath: oldSource, targetDirectory: join(home, ".local", "bin") });
-
   const trash = join(home, "trash");
   await mkdir(trash);
   const trashed: string[] = [];
   let trashIndex = 0;
   const diagnostics = await repairInstalledTools({
     homeDirectory: home,
-    cliPath: newSource,
     repairGlobalSkill: true,
-    repairCli: true,
     moveToTrash: async (path) => {
       trashed.push(path);
       await rename(path, join(trash, String(trashIndex++)));
@@ -201,11 +199,8 @@ test("explicit repair trashes conflicting installs before reinstalling the curre
   expect(trashed).toEqual(expect.arrayContaining([
     priorSkill.skillPath,
     priorSkill.claudeSkillPath,
-    join(home, ".local", "bin", "dash-bored"),
-    join(home, ".local", "bin", ".dash-bored-cli.json"),
   ]));
   expect(await readFile(join(priorSkill.skillPath, "SKILL.md"), "utf8")).toBe(DASH_BORED_SKILL_FILES["SKILL.md"]);
-  expect(await readlink(join(home, ".local", "bin", "dash-bored"))).toBe(newSource);
   const recoveredSkill = await readFile(join(trash, "1", "SKILL.md"), "utf8");
   expect(recoveredSkill).toBe("custom global guidance\n");
 });

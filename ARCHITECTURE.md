@@ -17,8 +17,8 @@ read the pages in this order only when a full system view is needed:
    host APIs, permissions, and supervised processes.
 5. [Renderer and shipped examples](./docs/architecture/renderer.md) — built-ins,
    composition UI, dashboard navigation, and the action registry.
-6. [Lifecycle and CLI](./docs/architecture/lifecycle-cli.md) — reload,
-   failure handling, and command-line behavior.
+6. [Lifecycle and agent tools](./docs/architecture/lifecycle-cli.md) — reload,
+   failure handling, the skill-shipped agent tool, and the app control channel.
 7. [Distribution and exclusions](./docs/architecture/distribution.md) — macOS
    packaging, release verification, and deferred scope.
 

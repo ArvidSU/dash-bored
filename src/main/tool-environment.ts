@@ -4,7 +4,7 @@ import { delimiter, join, resolve } from "node:path";
 
 export interface BundledToolEnvironment {
   toolsDirectory: string;
-  appExecutable: string;
+  toolPath: string;
 }
 
 interface DesktopExecutableEnvironmentOptions {
@@ -47,22 +47,18 @@ export function configureDesktopExecutableEnvironment(
   appendPathEntries(environment, [...userBins, ...platformBins]);
 }
 
-/** Makes app-bundled tools visible to every command launched by the dashboard. */
+/**
+ * Publishes the app-bundled agent tool to child processes by absolute path.
+ * Nothing is added to PATH: the skill launcher prefers this variable, so an
+ * agent launched from this app instance resolves exactly its matching tool.
+ */
 export function configureBundledToolEnvironment(
   mainDirectory: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): BundledToolEnvironment | null {
   const toolsDirectory = resolve(mainDirectory, "..", "tools");
-  const cliPath = join(toolsDirectory, process.platform === "win32" ? "dash-bored.exe" : "dash-bored");
-  if (!existsSync(cliPath)) return null;
-
-  const entries = (environment.PATH ?? "").split(delimiter).filter(Boolean);
-  if (!entries.includes(toolsDirectory)) environment.PATH = [toolsDirectory, ...entries].join(delimiter);
-  const appExecutable = process.platform === "win32"
-    ? resolve(mainDirectory, "..", "..", "..", "dash-bored.exe")
-    : process.platform === "darwin"
-      ? resolve(mainDirectory, "..", "..", "..", "MacOS", "launcher")
-      : resolve(mainDirectory, "..", "..", "..", "dash-bored");
-  environment.DASH_BORED_APP_EXECUTABLE = appExecutable;
-  return { toolsDirectory, appExecutable };
+  const toolPath = join(toolsDirectory, process.platform === "win32" ? "dash-bored.exe" : "dash-bored");
+  if (!existsSync(toolPath)) return null;
+  environment.DASH_BORED_TOOL = toolPath;
+  return { toolsDirectory, toolPath };
 }

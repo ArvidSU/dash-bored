@@ -32,7 +32,7 @@ import {
   buildNodeFocusActions,
 } from "../lib/action-providers";
 import type { AppView } from "../lib/action-providers";
-import { ActionExecutor, ActionRegistry } from "../lib/actions";
+import { ActionExecutor, ActionRegistry, describeAgentAction } from "../lib/actions";
 import type { PaletteAction } from "../lib/actions";
 import { writeClipboardText } from "../lib/clipboard";
 import { CommandPalette } from "../panels/CommandPalette";
@@ -60,7 +60,8 @@ import { planCompositionOperation } from "../composition/composition-operation";
 import { CompositionFlyout } from "../composition/CompositionFlyout";
 import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout";
 import { useLocalComponents } from "../render/local-components";
-import { host } from "../lib/rpc-client";
+import { host, registerAgentControlHandler } from "../lib/rpc-client";
+import { agentActionRefusal, type AgentViewState } from "../../shared/agent-control";
 import { resolveVirtualRoot } from "../lib/virtual-root";
 import {
   CompositionContext,
@@ -1491,6 +1492,34 @@ export function App(): ReactNode {
     ...(action.reference ? [[action.reference, action] as const] : []),
   ]));
 
+  const agentControlStateRef = useRef<AgentViewState | null>(null);
+  agentControlStateRef.current = {
+    view: activeView,
+    configPath: snapshot?.configPath ?? null,
+    dashboardName: snapshot?.dashboardName ?? null,
+    focusedNodeId: virtualRoot?.target.id ?? null,
+    editing: editSession !== null,
+    diagnostics: {
+      errors: snapshot?.diagnostics.filter((item) => item.severity === "error").length ?? 0,
+      warnings: snapshot?.diagnostics.filter((item) => item.severity === "warning").length ?? 0,
+    },
+  };
+  useEffect(() => registerAgentControlHandler({
+    viewState: () => agentControlStateRef.current!,
+    listActions: () => [...new Set(actionsByIdRef.current.values())].map(describeAgentAction),
+    async runAction({ reference, selections }) {
+      const action = actionsByIdRef.current.get(reference);
+      if (!action) return { status: "unavailable", reason: `No action matches ${reference}.` };
+      const refusal = agentActionRefusal(action);
+      if (refusal) return { status: "refused", id: action.id, reason: refusal };
+      const result = await actionExecutor.run(action.id, selections);
+      if (result.status === "completed") return { status: "completed", id: action.id };
+      if (result.status === "running") return { status: "running", id: action.id, reason: "That action is already running." };
+      if (result.status === "unavailable") return { status: "unavailable", id: action.id, reason: result.reason };
+      return { status: "failed", id: action.id, reason: errorMessage(result.error) };
+    },
+  }), [actionExecutor]);
+
   function requestAction(reference: string): void {
     const action = actionsByIdRef.current.get(reference);
     if (action?.choices?.length || action?.confirmation) {
@@ -1798,6 +1827,7 @@ export function App(): ReactNode {
         catalog={compositionCatalog}
         onClose={compositionInteraction.closeLibrary}
         onInsert={handleCompositionInsert}
+        onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).result.message}
         onRemoveDrop={(path) => void removeCompositionNode(path)}
         onBuildWithAgent={(description) => void handleCompositionAgent(description)}
         onPointerDragMove={handleCompositionPointerDragMove}

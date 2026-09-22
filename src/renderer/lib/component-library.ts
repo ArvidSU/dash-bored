@@ -309,37 +309,3 @@ export function validateExternalComponentInput(input: ExternalAddInput): {
   }
   return { ok: Object.keys(errors).length === 0, errors };
 }
-
-/** POSIX-quote one CLI argument only when it needs quoting. */
-export function quoteExternalArg(value: string): string {
-  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value) && value.length > 0) return value;
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-/** Exact `dash-bored component add` command previewed by the add dialog. */
-export function buildExternalAddCommand(input: ExternalAddInput): string {
-  const parts = ["dash-bored", "component", "add", quoteExternalArg(input.url.trim())];
-  const name = (input.name ?? "").trim();
-  const ref = (input.ref ?? "").trim();
-  if (name.length > 0) parts.push("--name", quoteExternalArg(name));
-  if (ref.length > 0) parts.push("--ref", quoteExternalArg(ref));
-  return parts.join(" ");
-}
-
-/** Exact `dash-bored component update` command previewed by the update confirm. */
-export function buildExternalUpdateCommand(name: string, to?: string): string {
-  const parts = ["dash-bored", "component", "update", quoteExternalArg(name.trim())];
-  const target = (to ?? "").trim();
-  if (target.length > 0) parts.push("--to", quoteExternalArg(target));
-  return parts.join(" ");
-}
-
-/** Exact `dash-bored component remove` command previewed by the remove confirm. */
-export function buildExternalRemoveCommand(name: string): string {
-  return ["dash-bored", "component", "remove", quoteExternalArg(name.trim())].join(" ");
-}
-
-/** Exact `dash-bored component sync` command shown for uninitialized checkouts. */
-export function buildExternalSyncCommand(): string {
-  return "dash-bored component sync";
-}

@@ -143,15 +143,15 @@ export function starterAgentPrompt(projectName: string, configPath?: string): st
   return [
     `Set up the dash-bored dashboard for ${projectName}.`,
     ...(configPath ? [`Use ${configPath} as the exact owning configuration.`] : []),
-    "Inspect this project before making changes; use dash-bored inspect . --summary, then --component <reference> for selected contracts.",
-    "Use the installed dash-bored skill for product-specific guidance.",
+    "Use the installed dash-bored skill for product-specific guidance. Its agent tool is \"$DASH_BORED_TOOL\" (also reachable as the skill's scripts/dash-bored launcher).",
+    "Inspect this project before making changes; use \"$DASH_BORED_TOOL\" inspect . --summary, then --component <reference> for selected contracts.",
     "Customize the owning dashboard configuration into a useful project cockpit, preserving unrelated dashboards and files.",
     "Keep the dashboard project-owned and task-focused: every tab should explain what its panels do, demonstrate live status where possible, and expose the repeatable actions.",
     "Prefer built-in components when they fit. When nothing in the catalog fits, build a small project-local component by default — one-off components are a core capability of the product, not a last resort.",
     "The dashboard belongs to the project: never include explanations of the dash-bored app itself, its onboarding, or its concepts in the finished dashboard content.",
-    "If the dash-bored skill is not installed for your agent, run dash-bored install-skill . and read it before composing.",
+    "If the dash-bored skill is not installed for your agent, run \"$DASH_BORED_TOOL\" install-skill . and read it before composing.",
     "Generate a small SVG icon customized for this project: write it to assets/icon.svg inside the owning bundle directory (next to that dash-bored.yaml), creating the directory if needed, and set that file's top-level icon to ./assets/icon.svg. Keep the artwork simple and geometric so it stays readable at sidebar size, with no scripts or external references.",
-    "Follow AGENTS.md and the project's own instructions, preserve unrelated changes and validate the finished dashboard.",
+    "Follow AGENTS.md and the project's own instructions, preserve unrelated changes and validate the finished dashboard, then check it visually with the tool's app screenshot command.",
   ].join(" ");
 }
 
@@ -257,45 +257,32 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     {
       component: "@dash-bored/markdown",
       props: {
-        content: "Choose your CLI agent in application Settings (`DASH_BORED_AGENT`), or leave that field empty and save to use the value declared below in `.env`. The app puts its matching dash-bored CLI on PATH for dashboard commands; optionally install a shell link for use outside the app. Install the portable skill globally for all projects, or only in this project, so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model and safe workflow. Install the skill globally (`dash-bored install-skill --global`) once if you plan to add dashboards to several projects; the per-project install covers only this project.\n\nWhen ready, run **Set up this dashboard**: the agent inspects this project, replaces this starter content with a project-specific cockpit, and generates a custom SVG icon for the sidebar. Review each command and trust the project when you are ready.\n",
+        content: "Choose your CLI agent in application Settings (`DASH_BORED_AGENT`), or leave that field empty and save to use the value declared below in `.env`. Install the portable skill globally for all projects, or only in this project, so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model, the agent tools that ship with it, and the safe workflow. Install it globally once if you plan to add dashboards to several projects; the per-project install covers only this project. The app keeps installed skills matched to its version.\n\nWhen ready, run **Set up this dashboard**: the agent inspects this project, replaces this starter content with a project-specific cockpit, and generates a custom SVG icon for the sidebar. Review each command and trust the project when you are ready.\n",
       },
     },
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
     conditional(
-      "show-install-dash-bored-cli",
-      "dash-bored install-cli --check",
-      {
-        id: "install-dash-bored-cli",
-        component: "@dash-bored/command",
-        props: {
-          label: "Install or update dash-bored CLI in ~/.local/bin",
-          command: "dash-bored install-cli",
-          cwd: ".",
-        },
-      },
-    ),
-    conditional(
       "show-install-dash-bored-global-skill",
-      "dash-bored install-skill --global --check",
+      '"$DASH_BORED_TOOL" install-skill --global --check',
       {
         id: "install-dash-bored-global-skill",
         component: "@dash-bored/command",
         props: {
           label: "Install or update dash-bored skill globally",
-          command: "dash-bored install-skill --global",
+          command: '"$DASH_BORED_TOOL" install-skill --global',
           cwd: ".",
         },
       },
     ),
     conditional(
       "show-install-dash-bored-skill",
-      "dash-bored install-skill . --check",
+      '"$DASH_BORED_TOOL" install-skill . --check',
       {
         id: "install-dash-bored-skill",
         component: "@dash-bored/command",
         props: {
           label: "Install or update portable dash-bored skill for this project",
-          command: "dash-bored install-skill .",
+          command: '"$DASH_BORED_TOOL" install-skill .',
           cwd: ".",
         },
       },

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  chmod,
   constants,
   link,
   lstat,
@@ -14,7 +15,7 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { DASH_BORED_SKILL_FILES, skillContentHash } from "./skill-payload";
+import { DASH_BORED_SKILL_FILES, isExecutableSkillFile, skillContentHash } from "./skill-payload";
 
 import { LEGACY_SKILL_PAYLOADS } from "./legacy-skill-hashes";
 
@@ -63,16 +64,22 @@ async function existingContents(path: string): Promise<string | null> {
   }
 }
 
-async function writeExclusiveAtomic(path: string, contents: string, previous: string | null = null): Promise<void> {
+async function writeExclusiveAtomic(
+  path: string,
+  contents: string,
+  previous: string | null = null,
+  mode = 0o644,
+): Promise<void> {
   const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   const handle = await open(
     temporaryPath,
     constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
-    0o644,
+    mode,
   );
   let closed = false;
   try {
     await handle.writeFile(contents, "utf8");
+    await handle.chmod(mode);
     await handle.sync();
     await handle.close();
     closed = true;
@@ -185,9 +192,16 @@ export async function installDashBoredSkill(
   const created: string[] = [];
   const updated: string[] = [];
   for (const file of files) {
-    if (file.existing === file.source) continue;
+    const mode = isExecutableSkillFile(file.relativePath) ? 0o755 : 0o644;
+    if (file.existing === file.source) {
+      if (mode === 0o755 && ((await stat(file.destination)).mode & 0o111) === 0) {
+        if (options.check) throw new Error(`dash-bored skill launcher is not executable: ${file.destination}`);
+        await chmod(file.destination, mode);
+      }
+      continue;
+    }
     try {
-      await writeExclusiveAtomic(file.destination, file.source, file.existing);
+      await writeExclusiveAtomic(file.destination, file.source, file.existing, mode);
       (file.existing === null ? created : updated).push(file.relativePath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;

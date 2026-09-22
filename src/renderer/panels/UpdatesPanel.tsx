@@ -60,7 +60,7 @@ export function UpdatesPanel({ draftsOpen = false }: { draftsOpen?: boolean }): 
       {Object.entries(receipt.migrations).map(([path, m]) => <p key={path} style={{ overflowWrap: 'anywhere' }}>{path}: {m.status}. {m.message} {m.snapshot ? `Recovery snapshot: ${m.snapshot}` : ''}</p>)}
       {!receipt.cancelled && ['ready', 'awaiting-install'].includes(receipt.installation) && <>
         <p>Save or cancel all drafts, then finish running terminals and agent work. Open the verified DMG, quit dash-bored, replace the app, and restart it. macOS may require Open Anyway. Running work is not stopped automatically.</p>
-        {state.directInstallAvailable && <><p>Restart and install replaces the app and bundled CLI, closes this window, then reopens the target release. Selected migration authorization continues after restart.</p><button className="button" type="button" disabled={busy || draftsOpen} onClick={() => void act({ type: "install" })}>Restart and install</button></>}
+        {state.directInstallAvailable && <><p>Restart and install replaces the app and its agent tools, closes this window, then reopens the target release. Selected migration authorization continues after restart.</p><button className="button" type="button" disabled={busy || draftsOpen} onClick={() => void act({ type: "install" })}>Restart and install</button></>}
         {draftsOpen && <p role="alert">Resolve the open dashboard draft before installation.</p>}
         <button className="button" type="button" disabled={busy || draftsOpen} onClick={() => void act({ type: 'install', method: 'dmg' })}>Open verified installer</button>{' '}
       </>}

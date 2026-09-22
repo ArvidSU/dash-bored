@@ -58,7 +58,8 @@ does not theme embedded websites or change OS-owned window controls.
 
 ## Distribution
 
-The theme CLI scaffolds, validates, discovers, and manages packages. It never
+The agent tool's `theme` command scaffolds, validates, discovers, and manages
+packages; Settings manages packages through the same core operations. Neither
 selects themes as a side effect of installation. Project git installations are
 submodules below the owning bundle's `themes/external/`, pinned in the optional
 `themes` section of lockfile version 1. Component commands preserve that
@@ -66,7 +67,7 @@ section. Each entry uses `{ url, commit, path }`, with a full SHA and canonical
 `themes/external/<name>` path.
 
 Personal packages live in `~/.config/dash-bored/themes/<name>`. This location is
-shared by standalone CLI and desktop channels, independent of Electrobun
+shared by the agent tool and desktop channels, independent of Electrobun
 instance IDs. Personal git installs use managed clones and `pins.yaml`, with
 the same lock shape; the entry path is a logical package identifier while the
 physical clone is directly under the personal theme directory.
@@ -76,14 +77,15 @@ checkout before registering a package. Updates validate the target revision,
 protect dirty checkouts, and restore the prior checkout if validation or pin
 publication fails. Sync restores pinned revisions only; no dashboard load runs
 Git fetch/update. Interrupted operation lock directories require explicit
-removal after verifying no theme CLI is running. Git-managed package removal
-protects local changes; authored local directories are not removed by this CLI.
+removal after verifying no theme operation is running. Git-managed package
+removal protects local changes; authored local directories are not removed by
+package management.
 
 The Settings Themes tab presents app defaults, a per-dashboard appearance list,
 and package management in separate, always-visible sections. Package management
-can target the personal store or any registered dashboard bundle using the same
-explicit command-copy workflow as external components. Commands quote all user
-arguments and target the canonical config path, including named bundles.
-Catalog entries carry validated lock metadata and retain missing pinned packages so
-users can discover their source/pin and generate a sync command. Catalog discovery
+can target the personal store or any registered dashboard bundle's canonical
+config path, including named bundles. Add, update, remove, sync, and status run
+in main through the `manageThemePackage` bun RPC, which then pushes a refreshed
+theme catalog. Catalog entries carry validated lock metadata and retain missing
+pinned packages so users can discover their source/pin and sync them. Catalog discovery
 performs no Git or network operations. Management does not change theme selection.

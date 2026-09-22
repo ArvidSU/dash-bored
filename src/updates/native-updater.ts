@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { APP_IDENTIFIER } from '../shared/app-metadata';
 
 /** 2026-09-08: isolated ad-hoc signed 99.0.1 -> 99.0.2 native replacement,
- * relaunch and matching CLI passed. See docs/release-qa.md. No OS approval bypass. */
+ * relaunch and matching bundled tool passed. See docs/release-qa.md. No OS approval bypass. */
 export const DIRECT_UNSIGNED_UPDATES_VERIFIED = true;
 export interface NativeUpdater {
   getLocalInfo(): Promise<{ baseUrl: string; channel: string; identifier: string }>;

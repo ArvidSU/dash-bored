@@ -22,7 +22,16 @@ import type {
   ProjectSnapshot,
   ShellRunRequest,
   ShellRunResult,
+  ExternalComponentOperation,
+  PackageOperationResult,
+  ThemePackageOperation,
 } from "../../shared/contracts";
+import type {
+  AgentActionDescriptor,
+  AgentRunActionRequest,
+  AgentRunActionResult,
+  AgentViewState,
+} from "../../shared/agent-control";
 import type { DashboardRPC } from "../../shared/rpc";
 import { createUiHarnessHost } from "./ui-harness-host";
 
@@ -47,6 +56,8 @@ export interface DashboardHost {
   runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
   runDiagnosticsAgent(): Promise<ComponentAgentLaunch>;
   repairInstalledTools(): Promise<ProjectSnapshot>;
+  manageExternalComponent(operation: ExternalComponentOperation): Promise<{ result: PackageOperationResult; snapshot: ProjectSnapshot }>;
+  manageThemePackage(operation: ThemePackageOperation): Promise<PackageOperationResult>;
   setupDashboardWithAgent(request: DashboardSetupAgentRequest): Promise<ComponentAgentLaunch>;
   getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
   getDashboardAgentDiff(taskId: string): Promise<string>;
@@ -86,11 +97,45 @@ function emit(event: HostEvent): void {
   }
 }
 
+/** Renderer side of the app's agent-control channel, registered by the shell. */
+export interface AgentControlHandler {
+  viewState(): AgentViewState;
+  listActions(): AgentActionDescriptor[];
+  runAction(request: AgentRunActionRequest): Promise<AgentRunActionResult>;
+}
+
+let agentControlHandler: AgentControlHandler | null = null;
+
+export function registerAgentControlHandler(handler: AgentControlHandler): () => void {
+  agentControlHandler = handler;
+  return () => {
+    if (agentControlHandler === handler) agentControlHandler = null;
+  };
+}
+
+function requireAgentControl(): AgentControlHandler {
+  if (agentControlHandler === null) throw new Error("The dashboard shell is still loading. Try again shortly.");
+  return agentControlHandler;
+}
+
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
 const rpc = Electroview.defineRPC<DashboardRPC>({
   // Capability calls may legitimately run for 30 seconds; leave transport and
   // process-cleanup headroom beyond that backend limit.
   maxRequestTime: 65_000,
   handlers: {
+    requests: {
+      agentViewState: () => requireAgentControl().viewState(),
+      agentListActions: () => requireAgentControl().listActions(),
+      agentRunAction: (request) => requireAgentControl().runAction(request),
+      agentSettle: async () => {
+        await nextPaint();
+        return {};
+      },
+    },
     messages: {
       themes: (catalog) => emit({ type: "themes", catalog }),
       snapshot: (snapshot) => emit({ type: "snapshot", snapshot }),
@@ -167,6 +212,18 @@ const liveHost: DashboardHost = {
 
   repairInstalledTools(): Promise<ProjectSnapshot> {
     return snapshotRequest(() => rpc.request.repairInstalledTools({}));
+  },
+
+  async manageExternalComponent(operation) {
+    ensureTransport();
+    const response = await rpc.request.manageExternalComponent(operation);
+    emit({ type: "snapshot", snapshot: response.snapshot });
+    return response;
+  },
+
+  async manageThemePackage(operation) {
+    ensureTransport();
+    return rpc.request.manageThemePackage(operation);
   },
 
   async setupDashboardWithAgent(request: DashboardSetupAgentRequest): Promise<ComponentAgentLaunch> {

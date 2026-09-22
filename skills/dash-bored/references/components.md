@@ -49,8 +49,11 @@ children:
     id: install-project-skill
     props:
       label: Install the project skill
-      command: dash-bored install-skill .
+      command: '"$DASH_BORED_TOOL" install-skill .'
 ```
+
+Dashboard commands run inside the app, which publishes its bundled agent tool
+as `DASH_BORED_TOOL`; nothing named `dash-bored` is on the user's `PATH`.
 
 Optional `cwd`, `env`, `timeoutMs`, and `pollIntervalMs` props use the same
 project-contained, bounded shell contract as `host.shell.run`. The component
@@ -114,7 +117,7 @@ propsSchema:
     - endpoint
 children:
   min: 0
-  max: 10
+  max: 0
   presentation:
     type: tiled
     axes: both
@@ -286,6 +289,8 @@ runtime exports.
 4. Run `dash-bored validate .`; this validates and compiles local code.
 5. Run `dash-bored inspect .` again. Confirm the catalog entry is available,
    its permissions are expected, and the resolved tree uses it.
+6. When the app is running and trusted, run
+   `dash-bored app screenshot --focus <node-id>` and check the rendered result.
 
 Trust is project-wide. Keep privileged behavior visible, bounded, and initiated
 by the user where practical.
@@ -458,7 +463,6 @@ id: git-summary
 name: Git summary
 description: Polls a read-only Git status command and offers manual refresh.
 entry: ./index.tsx
-renderMode: surface
 propsSchema:
   type: object
   additionalProperties: false

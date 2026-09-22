@@ -41,6 +41,22 @@ root:
                     component: "@dash-bored/todo-list"
                     props:
                       todos:
+                        - description: "Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today)."
+                          done: false
+                          tags:
+                            - agent-tools
+                        - description: "Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly."
+                          done: false
+                          tags:
+                            - agent-tools
+                        - description: "Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window."
+                          done: false
+                          tags:
+                            - agent-tools
+                        - description: "Windows and Linux agent tooling: a non-POSIX skill launcher and a window-capture backend for app screenshot (macOS only today)."
+                          done: false
+                          tags:
+                            - agent-tools
                         - description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
                           done: false
                           tags:
@@ -449,7 +465,9 @@ root:
                   Choose the CLI coding agent in Settings, install the version-matched
                   dash-bored skill globally or just for this repository, then ask the
                   agent to inspect this repository and improve its development cockpit.
-                  The app already exposes its bundled CLI to these commands.
+                  The skill ships the agent tools; the app passes its bundled tool to
+                  these commands and agents as `DASH_BORED_TOOL`. Capture the window
+                  below to see exactly what an agent's `app screenshot` returns.
                   App settings override the bundle environment; the environment panel
                   shows the effective agent command and where it comes from.
           second:
@@ -464,20 +482,12 @@ root:
               axis: vertical
               first:
                 node:
-                  id: show-install-cli-link
-                  component: "@dash-bored/conditional"
+                  id: capture-agent-view
+                  component: "@dash-bored/command"
                   props:
-                    command: dash-bored install-cli --check
-                    invert: true
-                    pollIntervalMs: 2000
-                  children:
-                    node:
-                      id: install-cli-link
-                      component: "@dash-bored/command"
-                      props:
-                        label: Install or update dash-bored CLI in ~/.local/bin
-                        command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-cli'
-                        cwd: .
+                    label: Capture the app window as an agent sees it
+                    command: '"$DASH_BORED_TOOL" app screenshot --output "${TMPDIR:-/tmp}/dash-bored-agent-view.png" && open "${TMPDIR:-/tmp}/dash-bored-agent-view.png"'
+                    cwd: .
               second:
                 axis: vertical
                 first:
@@ -485,7 +495,7 @@ root:
                     id: show-install-agent-skill-global
                     component: "@dash-bored/conditional"
                     props:
-                      command: dash-bored install-skill --global --check
+                      command: '"$DASH_BORED_TOOL" install-skill --global --check'
                       invert: true
                       pollIntervalMs: 2000
                     children:
@@ -494,7 +504,7 @@ root:
                         component: "@dash-bored/command"
                         props:
                           label: Install or update dash-bored skill globally
-                          command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill --global'
+                          command: '"$DASH_BORED_TOOL" install-skill --global'
                           cwd: .
                 second:
                   axis: vertical
@@ -503,7 +513,7 @@ root:
                       id: show-install-agent-skill
                       component: "@dash-bored/conditional"
                       props:
-                        command: dash-bored install-skill . --check
+                        command: '"$DASH_BORED_TOOL" install-skill . --check'
                         invert: true
                         pollIntervalMs: 2000
                       children:
@@ -512,7 +522,7 @@ root:
                           component: "@dash-bored/command"
                           props:
                             label: Install or update portable dash-bored skill for this project
-                            command: '"${DASH_BORED_BUNDLED_CLI:-dash-bored}" install-skill .'
+                            command: '"$DASH_BORED_TOOL" install-skill .'
                             cwd: .
                   second:
                     node:
@@ -546,10 +556,10 @@ root:
             first:
               node:
                 id: update-check
-                component: "@dash-bored/command"
+                component: "@dash-bored/button"
                 props:
-                  label: Check published canary releases
-                  command: bun run dash-bored -- update check
+                  name: Open Settings to check canary releases
+                  action: app:show-settings
             second:
               node:
                 id: migration-inspect

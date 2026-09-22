@@ -1,7 +1,6 @@
 import { lstat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { installDashBoredCli } from "../cli/install-cli";
 import { installDashBoredSkill } from "../cli/install-skill";
 import type { Diagnostic } from "../shared/contracts";
 
@@ -16,16 +15,7 @@ export function installedClaudeSkillPath(root: string): string {
   return join(root, ...CLAUDE_SKILL_DIRECTORY);
 }
 
-export function installedCliPath(home: string): string {
-  return join(home, ".local", "bin", "dash-bored");
-}
-
-export function installedCliReceiptPath(home: string): string {
-  return join(home, ".local", "bin", ".dash-bored-cli.json");
-}
-
 export interface InstalledToolsOptions {
-  cliPath?: string;
   homeDirectory?: string;
   projectRoots?: string[];
   /** Select only project skills when a dashboard is opened later. */
@@ -33,11 +23,8 @@ export interface InstalledToolsOptions {
 }
 
 export interface RepairInstalledToolsOptions {
-  /** The bundled CLI to install after the managed link is moved aside. */
-  cliPath?: string;
   homeDirectory?: string;
   repairGlobalSkill?: boolean;
-  repairCli?: boolean;
   projectRoots?: string[];
   /** Move a path to the operating system Trash and report whether it moved. */
   moveToTrash: (path: string) => boolean | Promise<boolean>;
@@ -68,14 +55,6 @@ async function removeSkillInstallation(
   await moveToTrashIfPresent(installedSkillPath(root), moveToTrash);
 }
 
-async function removeCliInstallation(
-  home: string,
-  moveToTrash: RepairInstalledToolsOptions["moveToTrash"],
-): Promise<void> {
-  await moveToTrashIfPresent(installedCliPath(home), moveToTrash);
-  await moveToTrashIfPresent(installedCliReceiptPath(home), moveToTrash);
-}
-
 /** Refresh only artifacts the user has already chosen to install.
  *
  * A successful refresh is maintenance, not a diagnostic. Only conflicts and
@@ -96,14 +75,6 @@ export async function updateInstalledTools(options: InstalledToolsOptions): Prom
       },
     });
   }
-  if (options.cliPath && options.includeGlobal !== false && process.platform !== "win32") {
-    jobs.push({
-      path: installedCliPath(home),
-      update: async () => {
-        await installDashBoredCli({ sourcePath: options.cliPath, targetDirectory: join(home, ".local", "bin") });
-      },
-    });
-  }
   for (const job of jobs) {
     try {
       // lstat includes conflicting paths and broken links, which need a visible report.
@@ -113,7 +84,7 @@ export async function updateInstalledTools(options: InstalledToolsOptions): Prom
       }
       await job.update();
     } catch (error) {
-      diagnostics.push({ severity: "warning", code: "INSTALLED_TOOL_UPDATE_CONFLICT", file: job.path, message: `Could not update installed dash-bored tool: ${error instanceof Error ? error.message : String(error)}` });
+      diagnostics.push({ severity: "warning", code: "INSTALLED_TOOL_UPDATE_CONFLICT", file: job.path, message: `Could not update the installed dash-bored skill: ${error instanceof Error ? error.message : String(error)}` });
     }
   }
   return diagnostics;
@@ -144,17 +115,6 @@ export async function repairInstalledTools(options: RepairInstalledToolsOptions)
       update: async () => { await installDashBoredSkill(root); },
     });
   }
-  if (options.repairCli) {
-    jobs.push({
-      path: installedCliPath(home),
-      remove: () => removeCliInstallation(home, options.moveToTrash),
-      update: async () => {
-        if (!options.cliPath) throw new Error("The bundled dash-bored CLI is unavailable.");
-        if (process.platform === "win32") throw new Error("CLI link repair is not supported on Windows.");
-        await installDashBoredCli({ sourcePath: options.cliPath, targetDirectory: join(home, ".local", "bin") });
-      },
-    });
-  }
 
   const diagnostics: Diagnostic[] = [];
   for (const job of jobs) {
@@ -166,7 +126,7 @@ export async function repairInstalledTools(options: RepairInstalledToolsOptions)
         severity: "warning",
         code: "INSTALLED_TOOL_UPDATE_CONFLICT",
         file: job.path,
-        message: `Could not remove and reinstall the conflicting dash-bored tool: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Could not remove and reinstall the conflicting dash-bored skill: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
   }

@@ -130,7 +130,7 @@ shipped skill get per-component props, permissions, `resources.process`
 mappings, and children contracts without reading app source. The output is
 deterministic (manifest order, no timestamps) and committed; regenerate it
 with `bun run generate:components` after changing any built-in manifest. The
-CLI embeds the file at build time via `src/cli/skill-payload.ts`, and the
+agent tool embeds the file at build time via `src/cli/skill-payload.ts`, and the
 drift test in `tests/scripts/generate-component-reference.test.ts` regenerates
 the markdown in memory and fails when it diverges from the committed file.
 
@@ -179,12 +179,15 @@ repos may provide components deeper inside (referenced as
 `./components/external/<name>/<path…>`, all labeled `external`). Only an
 actually empty directory is an uninitialized checkout and stays in the
 catalog as unavailable with a `COMPONENT_EXTERNAL_UNINITIALIZED` diagnostic
-pointing at `dash-bored component sync`. A checked-out tree with no manifest
+pointing at Sync in the component library. A checked-out tree with no manifest
 anywhere reports `COMPONENT_EXTERNAL_NO_MANIFEST` instead, so the library
 flyout can show the Sync hint and the dashboard keeps rendering around it.
-The renderer never runs git: add, update, remove, and sync are CLI operations
-(`dash-bored component add|update|remove|sync`), and the flyout previews those
-exact commands with a one-click copy.
+The renderer never runs git. The library flyout requests add, update, remove,
+and sync through the `manageExternalComponent` bun RPC, which runs the core
+external-component operations in main against the active dashboard's config
+path and then reloads, so pin changes pass the normal permission-union trust
+check. Agents use the tool's equivalent `component add|update|remove|sync`
+commands.
 
 ## Local React contract and compilation
 

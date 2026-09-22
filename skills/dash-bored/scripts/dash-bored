@@ -1,0 +1,32 @@
+#!/bin/sh
+# dash-bored agent tool launcher. It resolves the tool bundled inside the
+# installed desktop app, so the skill and the app update together and nothing
+# is installed on PATH. Resolution order:
+#   1. DASH_BORED_TOOL, set by the app for agents it launches
+#   2. the location recorded by the installed app (~/.config/dash-bored/tool-path)
+#   3. the conventional application folders
+set -eu
+
+skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+bundled=Contents/Resources/app/tools/dash-bored
+
+tool=${DASH_BORED_TOOL:-}
+if [ -z "$tool" ] && [ -r "$HOME/.config/dash-bored/tool-path" ]; then
+  tool=$(head -n 1 "$HOME/.config/dash-bored/tool-path")
+fi
+if [ -z "$tool" ] || [ ! -x "$tool" ]; then
+  for candidate in "/Applications/dash-bored.app/$bundled" "$HOME/Applications/dash-bored.app/$bundled"; do
+    if [ -x "$candidate" ]; then
+      tool=$candidate
+      break
+    fi
+  done
+fi
+if [ -z "$tool" ] || [ ! -x "$tool" ]; then
+  echo "dash-bored: the desktop app's agent tool was not found. Ask the user to install and open dash-bored once, then retry." >&2
+  exit 127
+fi
+
+DASH_BORED_SKILL_DIR=$skill_dir
+export DASH_BORED_SKILL_DIR
+exec "$tool" "$@"

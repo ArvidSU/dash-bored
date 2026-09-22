@@ -15,16 +15,18 @@ that topology without containing project-specific integrations itself.
 
 The implementation deliberately has three boundaries:
 
-1. The CLI creates and inspects project configuration.
+1. The agent tool creates and inspects project configuration.
 2. The Electrobun main process owns files, trust, compilation, processes,
    network access, and application lifecycle.
 3. The React renderer owns presentation and can reach privileged behavior only
    through typed Electrobun RPC.
 
-Desktop builds also carry a standalone CLI compiled from the same source and
-an embedded agent-skill payload. This is distribution of the first boundary,
-not a fourth runtime authority: CLI validation uses the same core loader, and
-the skill tells agents to discover the live component catalog from that CLI.
+Desktop builds also carry a standalone agent tool compiled from the same source
+(`Contents/Resources/app/tools/dash-bored`) and an embedded agent-skill payload.
+There is no user-facing CLI; the skill's `scripts/dash-bored` launcher resolves
+the tool for agents. This is distribution of the first boundary, not a fourth
+runtime authority: tool validation uses the same core loader, and the skill
+tells agents to discover the live component catalog from that tool.
 
 Desktop launchers commonly inherit only a system PATH. Before resolving or
 launching dashboard commands, the main process appends conventional user CLI
@@ -33,6 +35,21 @@ pnpm, and npm locations). It does not read or evaluate login-shell files. A
 nonstandard agent installation remains an explicit absolute command in
 application settings. Agent PTYs use a fixed system shell so login-shell hooks
 cannot replace the preflighted environment between validation and execution.
+The tool is not added to PATH. Main sets `DASH_BORED_TOOL` to the absolute
+bundled tool path and `DASH_BORED_APP_INSTANCE` to the app identifier, so
+dashboard commands and launched agents inherit both. The canary release instance also
+records the tool path in `~/.config/dash-bored/tool-path` for the launcher.
+
+Main serves a per-instance agent-control channel: HTTP over a user-private Unix
+socket at `~/.config/dash-bored/run/<identifier>.sock`, advertised by
+`<identifier>.json` in the same directory and withdrawn on quit. Its
+`/v1/status`, `/v1/actions`, `/v1/actions/run`, `/v1/open`, and
+`/v1/screenshot` routes back the tool's `app` command. Actions are relayed to
+the renderer and run through the palette's `ActionExecutor`; trust, edit-mode,
+add-dashboard, and confirmation-requiring actions are refused, and `/v1/open`
+is refused while a draft is open. Screenshots capture the app window with
+`screencapture` and require Screen Recording permission. See
+[Security](./security.md).
 
 ## Runtime topology
 
@@ -59,6 +76,7 @@ Electrobun Bun main process
   - enforce trust and component permissions
   - own subprocesses, file access, and HTTP requests
   - persist app settings and launch the explicitly configured CLI agent
+  - serve the per-instance agent-control channel
           |
           | typed request/response and snapshot RPC
           v
@@ -152,6 +170,6 @@ the source file, and a component catalog. The catalog contains every built-in
 plus bounded, containment-checked local manifest discovery. Invalid local
 manifests are represented as unavailable catalog entries with diagnostics, so
 they can be explained in the picker without breaking an otherwise valid tree.
-The CLI's `inspect` result exposes this same complete catalog, including
+The agent tool's `inspect` result exposes this same complete catalog, including
 `propsSchema`, children contract, permissions, availability, and diagnostics. It is the
 version-authoritative component-shape interface for coding agents.

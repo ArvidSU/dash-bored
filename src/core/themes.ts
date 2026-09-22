@@ -7,7 +7,7 @@ import Ajv from 'ajv';
 import { parseDocument } from 'yaml';
 import { BUILTIN_THEME, projectThemeReference, THEME_SCHEMA, type ThemeCatalogItem, type ThemeManifest } from '../shared/themes';
 
-/** Shared by the bundled CLI and every desktop channel; independent of Electrobun's instance ID. */
+/** Shared by the agent tool and every desktop channel; independent of Electrobun's instance ID. */
 export function personalThemesDirectory(): string { return join(homedir(), '.config', 'dash-bored', 'themes'); }
 export interface ApplicationThemeSource {
   configPath: string;

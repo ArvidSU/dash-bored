@@ -5,14 +5,9 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from "react";
-import type { ComponentCatalogItem, ComponentManifest } from "../../shared/contracts";
+import type { ComponentCatalogItem, ComponentManifest, ExternalComponentOperation } from "../../shared/contracts";
 import { PERMISSION_LABELS } from "../lib/action-providers";
-import { writeClipboardText } from "../lib/clipboard";
 import {
-  buildExternalAddCommand,
-  buildExternalRemoveCommand,
-  buildExternalSyncCommand,
-  buildExternalUpdateCommand,
   externalComponentInfo,
   filterComponentCatalog,
   isExternalCatalogItem,
@@ -78,16 +73,12 @@ export interface CompositionFlyoutProps {
   loading?: boolean;
   title?: string;
   /**
-   * Optional external-component hooks for a future host RPC. The flyout never
-   * runs git itself: without these hooks every add/update/remove/sync action
-   * stays a draft-safe dialog that previews the exact CLI command with a
-   * one-click copy. Insertion still flows through `onInsert`, so the
+   * Runs an external-component pin change in the app and resolves with a
+   * status message. Pin changes reload the dashboard and go through the
+   * normal trust check; insertion still flows through `onInsert`, so the
    * Save/Cancel draft boundary is unchanged.
    */
-  onAddExternal?: (input: { url: string; name?: string; ref?: string; command: string }) => void;
-  onUpdateExternal?: (input: { name: string; command: string }) => void;
-  onRemoveExternal?: (input: { name: string; command: string }) => void;
-  onSyncExternals?: (input: { command: string }) => void;
+  onExternalOperation?: (operation: ExternalComponentOperation) => Promise<string>;
 }
 
 const provenanceLabels: Record<string, string> = {
@@ -156,10 +147,7 @@ export function CompositionFlyout({
   agentPending = false,
   loading = false,
   title = "Component library",
-  onAddExternal,
-  onUpdateExternal,
-  onRemoveExternal,
-  onSyncExternals,
+  onExternalOperation,
 }: CompositionFlyoutProps): ReactNode {
   const searchRef = useRef<HTMLInputElement>(null);
   const removalRef = useRef<HTMLElement>(null);
@@ -185,10 +173,9 @@ export function CompositionFlyout({
     kind: "update" | "remove";
     reference: string;
     name: string;
-    command: string;
   } | null>(null);
-  const [syncCommandVisible, setSyncCommandVisible] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [externalBusy, setExternalBusy] = useState(false);
+  const [externalStatus, setExternalStatus] = useState<string | null>(null);
   const filteredCatalog = useMemo(
     () => filterComponentCatalog(catalog, query),
     [catalog, query],
@@ -199,10 +186,6 @@ export function CompositionFlyout({
   );
   const externalValidation = useMemo(
     () => validateExternalComponentInput({ url: externalUrl, name: externalName, ref: externalRef }),
-    [externalUrl, externalName, externalRef],
-  );
-  const externalAddCommand = useMemo(
-    () => buildExternalAddCommand({ url: externalUrl.trim() || "https://example.com/component.git", name: externalName, ref: externalRef }),
     [externalUrl, externalName, externalRef],
   );
   const hasUninitializedExternal = filteredExternalCatalog.some((entry) => {
@@ -224,12 +207,18 @@ export function CompositionFlyout({
     setExternalConfirm(null);
   }
 
-  async function copyExternalCommand(command: string, label: string): Promise<void> {
+  async function runExternalOperation(operation: ExternalComponentOperation): Promise<boolean> {
+    if (!onExternalOperation) return false;
+    setExternalBusy(true);
+    setExternalStatus(null);
     try {
-      await writeClipboardText(command);
-      setCopyStatus(`${label} copied to the clipboard.`);
-    } catch {
-      setCopyStatus(`${label} could not be copied. The command is shown above.`);
+      setExternalStatus(await onExternalOperation(operation));
+      return true;
+    } catch (error) {
+      setExternalStatus(error instanceof Error ? error.message : String(error));
+      return false;
+    } finally {
+      setExternalBusy(false);
     }
   }
   const hasMatchingAvailableEntry = filteredCatalog.some((entry) =>
@@ -281,8 +270,7 @@ export function CompositionFlyout({
     setAddExternalOpen(false);
     setManageExternalReference(null);
     setExternalConfirm(null);
-    setSyncCommandVisible(false);
-    setCopyStatus(null);
+    setExternalStatus(null);
   }, [open]);
 
   useEffect(() => {
@@ -483,7 +471,7 @@ export function CompositionFlyout({
         ) : null}
         {externalInfo && (!entry.available || !externalInfo.initialized) ? (
           <p style={{ margin: 0 }}>
-            Not checked out. Run <code>{buildExternalSyncCommand()}</code> in a terminal, then reload the dashboard.
+            Not checked out. Select “Sync external components” to check out the pinned commit.
           </p>
         ) : null}
         {!available ? (
@@ -589,7 +577,7 @@ export function CompositionFlyout({
           type="button"
           onClick={() => {
             setAddExternalOpen(true);
-            setCopyStatus(null);
+            setExternalStatus(null);
           }}
         >
           Add
@@ -627,45 +615,21 @@ export function CompositionFlyout({
             <button
               className="button button--quiet"
               type="button"
-              onClick={() => {
-                setSyncCommandVisible(true);
-                onSyncExternals?.({ command: buildExternalSyncCommand() });
-              }}
+              disabled={externalBusy || !onExternalOperation}
+              onClick={() => void runExternalOperation({ op: "sync" })}
             >
-              Sync external components
+              {externalBusy ? "Working…" : "Sync external components"}
             </button>
           </div>
         </div>
         <p style={{ margin: 0, color: "var(--muted)" }}>
-          External components are git submodules pinned by commit. The flyout never runs git;
-          add, update, remove, and sync run as terminal commands.
+          External components are git submodules pinned by commit. Pin changes reload the
+          dashboard and ask for a new trust decision when permissions change.
         </p>
-        {hasUninitializedExternal && !syncCommandVisible ? (
+        {hasUninitializedExternal ? (
           <p style={{ margin: 0 }}>
-            Some checkouts are missing. Select “Sync external components” for the exact command.
+            Some checkouts are missing. Select “Sync external components” to check them out.
           </p>
-        ) : null}
-        {syncCommandVisible ? (
-          <div style={{ ...cardStyle }}>
-            <strong>Sync command</strong>
-            <code style={{ overflowWrap: "anywhere" }}>{buildExternalSyncCommand()}</code>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <button
-                className="button button--secondary"
-                type="button"
-                onClick={() => void copyExternalCommand(buildExternalSyncCommand(), "Sync command")}
-              >
-                Copy sync command
-              </button>
-              <button
-                className="button button--quiet"
-                type="button"
-                onClick={() => setSyncCommandVisible(false)}
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
         ) : null}
         {filteredExternalCatalog.length > 0 ? (
           <ul aria-label="External component catalog" style={{ display: "grid", gap: "0.75rem", margin: 0, padding: 0, listStyle: "none" }}>
@@ -675,12 +639,12 @@ export function CompositionFlyout({
           <p style={{ margin: 0 }} role="status">
             {query.trim()
               ? `No external components match “${agentDescription}”.`
-              : "No external components yet. Select “Add” in the library header for the exact command."}
+              : "No external components yet. Select “Add” in the library header."}
           </p>
         )}
       </section>
 
-      {copyStatus ? <p role="status" style={{ margin: 0 }}>{copyStatus}</p> : null}
+      {externalStatus ? <p role="status" style={{ margin: 0 }}>{externalStatus}</p> : null}
 
       {filteredCatalog.length === 0 ? (
         <p role="status">No catalog entries match “{agentDescription}”.</p>
@@ -709,8 +673,8 @@ export function CompositionFlyout({
       <EditorModal title="Add external component" onDismiss={() => setAddExternalOpen(false)}>
         <div style={{ display: "grid", gap: "0.75rem", padding: "1rem" }}>
           <p style={{ margin: 0 }}>
-            Runs <code>dash-bored component add</code> in a terminal. The renderer never runs git,
-            and nothing changes until you run the command and reload the dashboard.
+            Adds the repository as a git submodule and pins its commit in the lock file. The
+            dashboard reloads; nothing is inserted until you place the component.
           </p>
           <label style={{ display: "grid", gap: "0.35rem" }}>
             <span>Repository URL</span>
@@ -745,10 +709,7 @@ export function CompositionFlyout({
             />
           </label>
           {externalValidation.errors.ref ? <p role="alert" style={{ margin: 0 }}>{externalValidation.errors.ref}</p> : null}
-          <div style={{ display: "grid", gap: "0.35rem" }}>
-            <span>Exact command</span>
-            <code style={{ overflowWrap: "anywhere" }}>{externalAddCommand}</code>
-          </div>
+          {externalStatus ? <p role="status" style={{ margin: 0 }}>{externalStatus}</p> : null}
           <footer className="editor-modal__actions" style={{ margin: 0 }}>
             <button
               className="button button--quiet"
@@ -760,19 +721,15 @@ export function CompositionFlyout({
             <button
               className="button button--primary"
               type="button"
-              disabled={!externalValidation.ok}
-              onClick={() => {
-                const input = {
-                  url: externalUrl.trim(),
-                  name: externalName.trim() || undefined,
-                  ref: externalRef.trim() || undefined,
-                  command: buildExternalAddCommand({ url: externalUrl, name: externalName, ref: externalRef }),
-                };
-                onAddExternal?.(input);
-                void copyExternalCommand(input.command, "Add command");
-              }}
+              disabled={!externalValidation.ok || externalBusy || !onExternalOperation}
+              onClick={() => void runExternalOperation({
+                op: "add",
+                url: externalUrl.trim(),
+                ...(externalName.trim() ? { name: externalName.trim() } : {}),
+                ...(externalRef.trim() ? { ref: externalRef.trim() } : {}),
+              }).then((ok) => { if (ok) setAddExternalOpen(false); })}
             >
-              Copy add command
+              {externalBusy ? "Adding…" : "Add component"}
             </button>
           </footer>
         </div>
@@ -814,7 +771,7 @@ export function CompositionFlyout({
           </div>
           {!managedExternal.available || !managedExternalInfo.initialized ? (
             <p style={{ margin: 0 }}>
-              Not checked out. Run <code>{buildExternalSyncCommand()}</code> in a terminal, then reload the dashboard.
+              Not checked out. Select “Sync external components” to check out the pinned commit.
             </p>
           ) : null}
           {managedExternal.manifest === null || !managedExternal.available ? (
@@ -840,16 +797,15 @@ export function CompositionFlyout({
               </strong>
               {managedConfirm.kind === "update" ? (
                 <p style={{ margin: 0 }}>
-                  Updating the pin requests a new trust decision. Run the exact command in a terminal;
-                  the renderer never runs git.
+                  Moves the pin to the latest commit of its tracked ref. Changed permissions
+                  need a new trust decision before the component runs.
                 </p>
               ) : (
                 <p style={{ margin: 0 }}>
-                  Removing detaches the submodule. Run the exact command in a terminal;
-                  dashboard references keep working until you save a new revision.
+                  Removing detaches the submodule. Dashboard references keep working until you
+                  save a new revision.
                 </p>
               )}
-              <code style={{ overflowWrap: "anywhere" }}>{managedConfirm.command}</code>
               <footer className="editor-modal__actions" style={{ margin: 0 }}>
                 <button
                   className="button button--quiet"
@@ -859,26 +815,12 @@ export function CompositionFlyout({
                   Back
                 </button>
                 <button
-                  className="button button--secondary"
-                  type="button"
-                  onClick={() => void copyExternalCommand(
-                    managedConfirm.command,
-                    managedConfirm.kind === "update" ? "Update command" : "Remove command",
-                  )}
-                >
-                  {managedConfirm.kind === "update" ? "Copy update command" : "Copy remove command"}
-                </button>
-                <button
                   className="button button--primary"
                   type="button"
-                  onClick={() => {
-                    if (managedConfirm.kind === "update") {
-                      onUpdateExternal?.({ name: managedConfirm.name, command: managedConfirm.command });
-                    } else {
-                      onRemoveExternal?.({ name: managedConfirm.name, command: managedConfirm.command });
-                    }
-                    closeManagedExternal();
-                  }}
+                  disabled={externalBusy || !onExternalOperation}
+                  onClick={() => void runExternalOperation(managedConfirm.kind === "update"
+                    ? { op: "update", name: managedConfirm.name }
+                    : { op: "remove", name: managedConfirm.name }).then((ok) => { if (ok) closeManagedExternal(); })}
                 >
                   {managedConfirm.kind === "update" ? "Confirm update" : "Confirm remove"}
                 </button>
@@ -897,9 +839,10 @@ export function CompositionFlyout({
                 <button
                   className="button button--secondary"
                   type="button"
-                  onClick={() => void copyExternalCommand(buildExternalSyncCommand(), "Sync command")}
+                  disabled={externalBusy || !onExternalOperation}
+                  onClick={() => void runExternalOperation({ op: "sync" })}
                 >
-                  Copy sync command
+                  Sync checkout
                 </button>
               ) : null}
               {managedExternal.available && managedExternal.manifest !== null ? (
@@ -923,7 +866,6 @@ export function CompositionFlyout({
                       kind: "update",
                       reference: managedExternal.reference,
                       name: managedExternalInfo.name,
-                      command: buildExternalUpdateCommand(managedExternalInfo.name),
                     })}
                   >
                     Update
@@ -935,7 +877,6 @@ export function CompositionFlyout({
                       kind: "remove",
                       reference: managedExternal.reference,
                       name: managedExternalInfo.name,
-                      command: buildExternalRemoveCommand(managedExternalInfo.name),
                     })}
                   >
                     Remove

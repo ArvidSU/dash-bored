@@ -544,3 +544,25 @@ export interface LocalComponentHost {
     render(request: { url: string; title?: string }): ReactNode;
   };
 }
+
+/** An external-component pin change run by the app for the active dashboard. */
+export type ExternalComponentOperation =
+  | { op: "add"; url: string; name?: string; ref?: string }
+  | { op: "update"; name: string; ref?: string }
+  | { op: "remove"; name: string }
+  | { op: "sync" };
+
+/** A theme-package change run by the app, personally or for one dashboard. */
+export interface ThemePackageOperation {
+  op: "add" | "update" | "remove" | "sync" | "status";
+  scope: "global" | "project";
+  configPath?: string;
+  url?: string;
+  name?: string;
+  ref?: string;
+}
+
+export interface PackageOperationResult {
+  message: string;
+  details?: unknown;
+}

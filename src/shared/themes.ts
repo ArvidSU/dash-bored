@@ -95,7 +95,7 @@ export function resolveTheme(catalog: ThemeCatalogItem[], requested: string | un
   for (const reference of references) {
     const item = reference === 'builtin:default' ? BUILTIN_THEME : catalog.find((item) => item.reference === reference);
     if (item?.manifest) return { item, errors };
-    errors.push(`${reference}: ${item?.error ?? 'Theme not installed. Use dash-bored theme list or sync.'}`);
+    errors.push(`${reference}: ${item?.error ?? 'Theme not installed. Sync theme packages in Settings → Themes.'}`);
   }
   return { item: BUILTIN_THEME, errors };
 }

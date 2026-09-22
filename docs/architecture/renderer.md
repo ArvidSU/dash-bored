@@ -209,7 +209,7 @@ harness. The harness publishes one generated `DASH_BORED_AGENT_PROMPT`, keeps
 the finite agent process and its output in Agent work, and leaves validation and
 repair status visible after the starter node is removed by the agent.
 
-Setup completion rereads and compiles the owning bundle through the CLI's core
+Setup completion rereads and compiles the owning bundle through the shared core
 loader, independently of the renderer's last-known-good snapshot. A clean CLI
 exit with bundle-fixable errors permits one diagnostics repair, carrying the
 original request and exact config locator; the repair result is validated again.
@@ -297,6 +297,8 @@ component menu; only the deepest hovered frame reveals those controls, while
 keyboard focus can reveal a focused control independently. Hidden ancestor
 controls do not intercept pointer input, and component content has no drag
 semantics. Custom components do not need special markup.
+External-component add, update, remove, and sync run in the app through the
+`manageExternalComponent` RPC; the flyout does not present commands to copy.
 A node drag turns the flyout into a dotted 20%-wide trash target; dropping
 there uses the same confirmed removal path as the toolbar.
 Each component frame keeps those choices in one compact Add menu with contextual
@@ -396,6 +398,15 @@ requirement; `invoke(reference)` enters that shared request path.
 Trust, revoke, and component-selected sensitive actions use the palette's
 confirmation state. Trust confirmation names the complete requested capability
 set before calling the existing trust RPC.
+
+The agent-control channel reaches the registry through main-to-renderer
+`agentViewState`, `agentListActions`, `agentRunAction`, and `agentSettle`
+requests. `App.tsx` registers their handler with
+`registerAgentControlHandler` in `rpc-client.ts`, and agent-run actions go
+through the same `ActionExecutor` as the palette. The policy in
+`src/shared/agent-control.ts` refuses trust, revoke, edit, save/cancel draft,
+add-dashboard, and any confirmation-requiring action, so the channel never
+widens what a palette action may do. See [Security](./security.md).
 
 Actions may declare ordered choices. The palette collects each selection before
 running the action, presents options as full-width stacked buttons in a bounded,

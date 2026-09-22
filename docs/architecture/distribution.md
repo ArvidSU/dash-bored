@@ -5,7 +5,7 @@
 The initial distribution boundary is an unsigned Apple Silicon prerelease for
 macOS 14 or newer. Linux, Windows, and Intel Mac artifacts are not produced.
 `package.json` is the single source of truth for the application version; the
-Electrobun configuration, standalone CLI, release tag check, packaged app, and
+Electrobun configuration, bundled agent tool, release tag check, packaged app, and
 update metadata must all agree with it.
 
 Pull requests and pushes to `main` run QA and dashboard validation on GitHub's
@@ -35,7 +35,7 @@ following hold:
 - Electrobun's update manifest describes the same macOS arm64 canary and names
   the generated full-app archive;
 - the expanded application contains a runnable, version-matched standalone
-  `dash-bored` CLI; and
+  `dash-bored` agent tool at `Contents/Resources/app/tools/dash-bored`; and
 - the DMG mounts successfully and contains the app plus its Applications link.
 
 The preparation step stages a versioned `*-macos-arm64-unsigned.dmg`, a SHA-256
@@ -53,7 +53,7 @@ malformed bundle as damaged while retaining the unsigned-prerelease boundary.
 Release documentation must state that friction and must not present the build
 as a trusted broad-consumer installer. Signing and notarization can later be
 inserted into the same build-and-verify boundary without changing the project
-or bundled-CLI contracts.
+or bundled agent-tool contracts.
 
 ## Deliberate exclusions
 
@@ -75,7 +75,8 @@ consistent with the product principles in [Product vision](../IDEA.md).
 ## Release onboarding evidence
 
 The opt-in `scripts/release-qa/` harness compiles pinned source revisions into
-Linux CLI test images. Fresh non-root containers exercise CLI and skill installs,
+Linux agent-tool test images. Fresh non-root containers exercise skill installs
+and the skill launcher,
 the candidate app startup tool-refresh function, project initialization and an
 optional external agent using the shipped starter prompt. It records correctness
 and timing separately from qualitative review. It does not add Linux distribution
@@ -93,7 +94,7 @@ recipes, and rejects incomplete metadata. Publication adds the native full
 archive, native manifest, `dash-bored-release.json`, `MIGRATIONS.md`, and SHA-256
 checksums alongside the verified DMG. No independent signing is claimed.
 
-App and CLI share `~/.config/dash-bored/updates/`. Settings contain the selected
+The app keeps update state in `~/.config/dash-bored/updates/`. Settings contain the selected
 channel and startup/24-hour check preference. Canary is available; Beta and
 Stable are rejected. Downloads never happen on scheduled checks. A future
 channel-enablement package will publish beta/stable, default new installs to
@@ -111,12 +112,12 @@ non-cancelled combined authorization continues in the exact target version.
 
 Installation stages and verifies the DMG fallback. The app offers Restart and
 install through the native updater after the user resolves drafts and finishes
-running work. The CLI opens the verified DMG without requiring an app window.
-Both preserve normal macOS approval. Source
-checkouts and independently copied CLI binaries receive manual-install guidance.
-A running app blocks CLI installation; app installation rejects active terminals
-and agent tasks. A managed shell link follows the bundled CLI when the app is
-replaced. App startup refreshes existing owned skills and CLI links.
+running work, preserving normal macOS approval. The app UI is the only
+installation path; the agent tool has no update commands. Source checkouts and
+independently copied tool binaries receive manual-install guidance.
+App installation rejects active terminals and agent tasks. App startup refreshes
+existing owned skills and retires a legacy `~/.local/bin/dash-bored` link only
+when its receipt shows it pointed at a bundled app tool.
 
 `native-updater.ts` adapts the existing Electrobun updater to a version-pinned
 loopback mirror of SHA-256-verified artifacts. It retains native quit approval,
@@ -138,8 +139,9 @@ contract changes must update the embedded cumulative recipes and minimum
 supported contract together with the actual schema implementation.
 Unknown/older unsupported schemas stay diagnosable even when the dashboard
 cannot load. Migration dispatch requires the target executable and its exact
-embedded recipes, existing project trust, a matching CLI, a recoverable copy of
-the dashboard bundle and a read-only skill/reference handoff. Skill ownership
+embedded recipes, existing project trust, a version-matched agent tool (passed
+to the agent as `DASH_BORED_TOOL`), a recoverable copy of the dashboard bundle
+and a read-only skill/reference handoff that includes the launcher. Skill ownership
 receipts refresh existing installs while preserving customizations. Conflicts
 are passed to the agent; the target handoff remains usable without an install.
 

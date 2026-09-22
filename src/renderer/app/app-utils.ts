@@ -45,7 +45,7 @@ export function starterDashboardAgentTask(
   const resolvedConfigPath = configPath ?? "dash-bored.yaml";
   return {
     id: process.id,
-    command: "dash-bored agent",
+    command: "DASH_BORED_AGENT",
     prompt: "Initial dashboard setup",
     componentPath: `${resolvedConfigPath}#id=${encodeURIComponent(process.id)}`,
     request: "Initial dashboard setup",

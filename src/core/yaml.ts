@@ -329,7 +329,7 @@ export function validateDashboardConfigValue(
   ) {
     return [diagnostic({
       code: "CONFIG_SCHEMA_MIGRATION_REQUIRED",
-      message: "Dashboard schema version 2 requires migration to version 3. Run `dash-bored migrate inspect <dashboard>` and follow the version-matched migration guidance; component manifests remain at version 2.",
+      message: "Dashboard schema version 2 requires migration to version 3. Migrate it from Updates in the app, or ask an agent to follow the dash-bored skill's migration guidance; component manifests remain at version 2.",
       file,
       path: "schemaVersion",
     })];

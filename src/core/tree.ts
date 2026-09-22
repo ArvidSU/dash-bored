@@ -271,7 +271,7 @@ export async function discoverComponentCatalog(
     }
 
     // An external component directory is a submodule checkout. Only an
-    // actually empty directory means `dash-bored component sync` can help.
+    // actually empty directory means syncing external components can help.
     // An initialized checkout without a root manifest may still hold
     // components deeper inside (monorepo-style repos), so descend first and
     // report a distinct diagnostic only when nothing resolves below it.
@@ -289,7 +289,7 @@ export async function discoverComponentCatalog(
           diagnostics: [
             diagnostic({
               code: "COMPONENT_EXTERNAL_UNINITIALIZED",
-              message: `External component ${externalReference} is not initialized. Run \`dash-bored component sync\`.`,
+              message: `External component ${externalReference} is not initialized. Sync external components from the component library.`,
               path: externalReference,
             }),
           ],

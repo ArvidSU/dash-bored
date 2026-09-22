@@ -6,6 +6,7 @@ import type {
   ComponentActionSelections,
 } from "../../shared/contracts";
 import { componentActionReference } from "../../shared/action-reference";
+import { agentActionRefusal, type AgentActionDescriptor } from "../../shared/agent-control";
 
 const ACTION_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
@@ -24,6 +25,24 @@ export interface PaletteAction {
   confirmation?: ComponentActionConfirmation;
   choices?: readonly ComponentActionChoice[];
   run(selections?: ComponentActionSelections): void | Promise<void>;
+}
+
+/** Serializable view of a palette action for the agent-control channel. */
+export function describeAgentAction(action: PaletteAction): AgentActionDescriptor {
+  const refusal = agentActionRefusal(action);
+  return {
+    id: action.id,
+    ...(action.reference ? { reference: action.reference } : {}),
+    label: action.label,
+    ...(action.description ? { description: action.description } : {}),
+    group: action.group,
+    ...(action.source ? { source: action.source } : {}),
+    enabled: action.enabled,
+    ...(action.active !== undefined ? { active: action.active } : {}),
+    ...(action.disabledReason ? { disabledReason: action.disabledReason } : {}),
+    ...(action.choices?.length ? { choices: action.choices } : {}),
+    ...(refusal ? { refusal } : {}),
+  };
 }
 
 export interface ComponentActionOwner {

@@ -414,6 +414,8 @@ export interface UiHarnessHost extends DashboardHost {
   /** Test-only diagnostics control is exposed only on the ui-harness page. */
   setDiagnostics(diagnostics: Diagnostic[]): Promise<void>;
   finishAgentTask(taskId: string, validation: NonNullable<DashboardAgentTask["validation"]>): Promise<void>;
+  /** Test-only record of package operations the UI asked the app to run. */
+  getPackageOperations(): readonly unknown[];
 }
 
 export function createUiHarnessHost(): UiHarnessHost {
@@ -429,6 +431,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   let configRevision = 1;
   let snapshotRevision = 1;
   let currentDiagnostics: Diagnostic[] = [];
+  const packageOperations: unknown[] = [];
   const processSnapshots = new Map<string, ProcessSnapshot>();
   const files = new Map<string, string>([
     ["README.md", "# Fixture document\n\nThis file is loaded by the Markdown component.\n"],
@@ -525,6 +528,15 @@ export function createUiHarnessHost(): UiHarnessHost {
       currentDiagnostics = [];
       return emitSnapshot();
     },
+    async manageExternalComponent(operation) {
+      packageOperations.push({ kind: "external", ...operation });
+      return { result: { message: `Ran external ${operation.op}.` }, snapshot: emitSnapshot() };
+    },
+    async manageThemePackage(operation) {
+      packageOperations.push({ kind: "theme", ...operation });
+      return { message: `Ran theme ${operation.op}.` };
+    },
+    getPackageOperations() { return structuredClone(packageOperations); },
     async setupDashboardWithAgent(_request: { nodeId: string }) {
       return launch({
         prompt: "Set up the fixture dashboard.",

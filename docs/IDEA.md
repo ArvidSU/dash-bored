@@ -50,18 +50,15 @@ The agent should:
 3. Reuse an existing component if appropriate.
 4. Otherwise create a local component.
 5. Modify the dashboard configuration.
-6. Reload the dashboard.
+6. Validate the result and look at it in the running app.
 
 Creating a dashboard should feel closer to asking an agent to modify code than configuring a traditional dashboard product.
 
 The starter dashboard should make that workflow self-contained: it can install
 global or project-local guidance that teaches compatible agents the dash-bored
 component model, then launch the user's chosen CLI agent with a project-specific prompt.
-The desktop app carries a version-matched dash-bored CLI and skill payload so
-the generated dashboard, the agent's discovery commands, and the component
-contract do not depend on a separate global dash-bored installation.
 
-Previously installed CLI links and skill payloads follow app updates while
+Previously installed skill payloads follow app updates while
 preserving local edits and reporting conflicts. Successful maintenance is not a
 diagnostic; only an unresolved conflict needs to remain visible. The setup
 action owns its agent
@@ -89,6 +86,28 @@ flyout is read-only; the first insertion, move, removal, replacement, metadata
 edit, or horizontal ratio resize implicitly starts a draft. Save/Cancel remains the
 boundary for publishing or discarding the same project-owned YAML tree, rather
 than a second layout model or a hidden application database.
+
+## User and agent separation
+
+The user works through the desktop app. There is no user-facing dash-bored
+command-line tool and nothing is installed on the user's `PATH`: opening,
+arranging, trusting, updating, and managing dashboards, external components,
+and themes are UI workflows.
+
+The agent works through tools shipped with the dash-bored skill. The skill is
+the single agent-facing distribution unit: its guidance and a small launcher
+that resolves the version-matched tool carried inside the installed app. With
+those tools an agent can create dashboard bundles, discover and inspect
+component contracts, validate its edits, migrate dashboards to a new contract,
+and verify its work visually. Visual verification goes through a local,
+per-instance control channel of the running app: the agent reads app state,
+lists and invokes the same command-palette actions a user can (for example to
+open a dashboard or focus a component), and captures a screenshot of the app
+window. The channel never widens what a palette action may do: trust
+decisions and actions that require user confirmation stay with the user.
+
+Keeping the tools behind the skill means one payload to version and refresh,
+and no separately maintained CLI link that can drift from the app.
 
 ## Composition direction
 
@@ -136,7 +155,8 @@ and capabilities.
 Reusable components travel as git submodules, referenced by repository URL
 only. There is no marketplace, no registry, and no auto-update: a component
 is added from a URL, pinned to an exact commit in `dash-bored-lock.yaml`, and
-updated only by an explicit user action. This keeps reuse reproducible and
+updated only by an explicit user action in the app, or by an agent the
+user asked to do so. This keeps reuse reproducible and
 reviewable without a second distribution model.
 
 An external component uses exactly the same manifest, render, host, children,
@@ -159,9 +179,9 @@ content and focused components never take ownership of the window theme.
 Theme packages customize colors, typography, corners, and shadows while core
 retains layout, native chrome geometry, focus, and interaction ownership. They
 contain no executable code, custom CSS, or downloaded resources. Personal
-installations are shared by the CLI and desktop app; project installations
+installations are shared by the agent tools and desktop app; project installations
 travel with the dashboard bundle. Git themes use exact commit pins, explicit
-installation/update commands, and no marketplace or automatic network updates.
+installation/update actions, and no marketplace or automatic network updates.
 
 ## Design Principles
 
@@ -317,7 +337,7 @@ The product succeeds if a developer can:
 
 ## Application updates and migrations
 
-The app and its matching CLI discover published canary releases at startup and
+The app discovers published canary releases at startup and
 every 24 hours, with an off switch. Installation is always user initiated.
 Update and migrate authorizes continuation for explicitly selected dashboards
 after restart; Update only leaves migration available for later. Persist this

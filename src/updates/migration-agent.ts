@@ -9,7 +9,7 @@ import { assertAgentAvailable } from "../main/agent-preflight";
 import { DashboardSetupSupervisor, type DashboardSetupHarness } from "../main/dashboard-setup";
 import { updateInstalledTools } from "../main/installed-tools";
 import { APP_VERSION } from "../shared/app-metadata";
-import type { DashboardAgentTask, Permission } from "../shared/contracts";
+import type { Permission } from "../shared/contracts";
 import type { UpdateReceipt, UpdateState } from "../shared/updates";
 import { BUNDLED_MIGRATIONS } from "./releases";
 import { inspectMigration } from "./migrations";
@@ -19,7 +19,8 @@ export interface MigrationAgentOptions {
   directory: string;
   configPath: string;
   receipt: UpdateReceipt;
-  cliPath: string;
+  /** The target release's bundled agent tool. */
+  toolPath: string;
   command: string;
   trustStore: TrustStore;
   harness: DashboardSetupHarness;
@@ -39,22 +40,22 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
   await assertProjectLocationContained(location);
   const grant = await trustStore.getGrant(location.projectRoot);
   if (!grant || !grant.permissions.includes('process:execute')) throw new Error("Review project trust in dash-bored before running a migration agent.");
-  const cliVersion = Bun.spawn([options.cliPath, '--version'], { stdout: 'pipe', stderr: 'pipe' });
-  if (await cliVersion.exited !== 0 || (await new Response(cliVersion.stdout).text()).trim() !== APP_VERSION) throw new Error("The migration CLI is not the target release's executable.");
+  const toolVersion = Bun.spawn([options.toolPath, '--version'], { stdout: 'pipe', stderr: 'pipe' });
+  if (await toolVersion.exited !== 0 || (await new Response(toolVersion.stdout).text()).trim() !== APP_VERSION) throw new Error("The migration agent tool is not the target release's executable.");
   const migration = await inspectMigration(configPath, metadata);
   if (migration.status !== 'required') throw new Error(migration.message);
   const initial = await loadProjectDefinition(location, { compile: true });
-  const env = { ...await resolveEnvironment(configPath, {}), PATH: `${dirname(options.cliPath)}:${process.env.PATH ?? ''}`, DASH_BORED_AGENT: command };
+  const env = { ...await resolveEnvironment(configPath, {}), DASH_BORED_TOOL: options.toolPath, DASH_BORED_AGENT: command };
   assertAgentAvailable(command, env, location.projectRoot);
   if (await options.cancelled()) throw new Error("Migration cancelled before snapshot.");
   report('updating-guidance', 'Refreshing previously installed agent guidance…');
-  const conflicts = await updateInstalledTools({ cliPath: options.cliPath, projectRoots: [location.projectRoot] });
+  const conflicts = await updateInstalledTools({ projectRoots: [location.projectRoot] });
   const runDirectory = join(options.directory, 'migrations', receipt.id, `${createHash('sha256').update(configPath).digest('hex').slice(0, 16)}-${randomUUID()}`);
   const handoff = join(runDirectory, 'guidance');
   for (const [path, text] of Object.entries(DASH_BORED_SKILL_FILES)) {
     const target = join(handoff, path);
     await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, text, { mode: 0o444 });
+    await writeFile(target, text, { mode: path.startsWith('scripts/') ? 0o555 : 0o444 });
   }
   await writeFile(join(handoff, 'migration.json'), JSON.stringify(migration, null, 2), { mode: 0o444 });
   await chmod(handoff, 0o555);
@@ -93,11 +94,11 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
   const prompt = [
     `Migrate only the selected dashboard ${JSON.stringify(configPath)} to dash-bored ${APP_VERSION}.`,
     `Read the exact target skill ${JSON.stringify(join(handoff, 'SKILL.md'))} and its references/migrations.md, then ${JSON.stringify(join(handoff, 'migration.json'))}.`,
-    `Matching CLI: ${JSON.stringify(options.cliPath)}. Recovery snapshot: ${JSON.stringify(snapshot)}.`,
+    `Agent tool: ${JSON.stringify(join(handoff, 'scripts', 'dash-bored'))} (resolves ${JSON.stringify(options.toolPath)}). Recovery snapshot: ${JSON.stringify(snapshot)}.`,
     'Preserve unrelated files, environment files, customized guidance, and exact component pins. Do not grant trust. Do not edit the read-only handoff or snapshot.',
     `Current diagnostics: ${JSON.stringify(initial.diagnostics)}`,
     `Guidance refresh conflicts (preserved): ${JSON.stringify(conflicts)}`,
-    'Apply the supplied cumulative recipes in order, then validate with the matching CLI. The host allows at most one repair after a successful exit.',
+    'Apply the supplied cumulative recipes in order, then validate with that agent tool. The host allows at most one repair after a successful exit.',
   ].join('\n');
   try {
     await new Promise<void>((resolve, reject) => {
@@ -124,30 +125,4 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
     await readFile(join(runDirectory, 'recovery.json'), 'utf8');
     return { snapshot, message: 'Dashboard migration and validation finished.' };
   } finally { clearInterval(timer); }
-}
-
-/** Headless CLI uses the same supervisor and finish contract without an app window. */
-export function createHeadlessHarness(): DashboardSetupHarness & { stop(id: string): Promise<void> } {
-  const children = new Map<string, ReturnType<typeof Bun.spawn>>();
-  const cancelled = new Set<string>();
-  return {
-    async launch(options) {
-      const id = randomUUID();
-      const child = Bun.spawn(['/bin/sh', '-c', `${options.command} "$DASH_BORED_AGENT_PROMPT"`], {
-        cwd: options.projectRoot, env: { ...process.env, ...options.env, DASH_BORED_AGENT_PROMPT: options.prompt },
-        stdin: 'ignore', stdout: 'inherit', stderr: 'inherit',
-      });
-      children.set(id, child);
-      void child.exited.then(async exitCode => {
-        children.delete(id);
-        const task: DashboardAgentTask = { id, ...options, dashboardChanged: false, cancelled: cancelled.has(id),
-          process: { id, phase: 'exited', pid: child.pid, exitCode, signal: child.signalCode, logs: [] } };
-        await options.onFinished?.(task);
-      });
-      return { taskId: id, command: options.command, componentPath: options.componentPath, pid: child.pid };
-    },
-    setValidation(_id, validation) { if (validation?.message) console.error(validation.message); },
-    isCancelled(id) { return cancelled.has(id); },
-    async stop(id) { cancelled.add(id); const child = children.get(id); if (child) { child.kill('SIGTERM'); await child.exited; } },
-  };
 }

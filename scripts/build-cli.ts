@@ -19,5 +19,5 @@ if (!result.success) {
   for (const log of result.logs) console.error(log);
   process.exitCode = 1;
 } else {
-  console.log(`Built dash-bored CLI: ${outputPath}`);
+  console.log(`Built dash-bored agent tool: ${outputPath}`);
 }

@@ -159,9 +159,9 @@ Unsigned macOS prerelease for **Apple Silicon** on **macOS 14 or newer**.
 4. Try to open the app. Because this prerelease is not signed or notarized, macOS may block the first launch.
 5. If blocked, open **System Settings → Privacy & Security**, select **Open Anyway**, and confirm.
 
-The desktop app already contains its matching \`dash-bored\` CLI; Bun is not required. You can expose the CLI to external shells later from the starter dashboard.
+Bun is not required. The app carries the agent tools that ship with its dash-bored skill; install the skill from the starter dashboard so your coding agent can build, validate, and screenshot dashboards.
 
-The first updater-capable release requires manual installation. Later releases expose Update and migrate, Update only, and Later in the app and CLI. Save drafts and finish running work before replacing the app. Combined authorization continues in the exact target release. Restart and install uses the verified native updater; an isolated two-version unsigned macOS replacement and relaunch passed acceptance. The verified DMG fallback preserves normal security approval.
+The first updater-capable release requires manual installation. Later releases expose Update and migrate, Update only, and Later in the app. Save drafts and finish running work before replacing the app. Combined authorization continues in the exact target release. Restart and install uses the verified native updater; an isolated two-version unsigned macOS replacement and relaunch passed acceptance. The verified DMG fallback preserves normal security approval.
 
 Signing, notarization, independent update signing, Linux, Windows, and Intel Mac builds are deferred.
 `;
@@ -213,7 +213,7 @@ async function prepare(): Promise<void> {
     await requireFile(bundledCli);
     const cliVersion = await run([bundledCli, "--version"]);
     if (cliVersion !== APP_VERSION) {
-      throw new Error(`Bundled CLI version ${cliVersion} does not match package version ${APP_VERSION}.`);
+      throw new Error(`Bundled agent tool version ${cliVersion} does not match package version ${APP_VERSION}.`);
     }
 
     await run(["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountedDmg, sourceDmg]);

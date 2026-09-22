@@ -1,7 +1,8 @@
 # Release onboarding QA
 
 Run this suite for a release candidate, separately from per-change QA. It uses
-Docker to test the Linux build of the version-matched embedded CLI and skill,
+Docker to test the Linux build of the version-matched embedded agent tool and
+skill,
 then evaluates an external agent against a small, fixed service project.
 It does not install the macOS application or prove native onboarding behavior.
 
@@ -31,7 +32,7 @@ pass `--candidate-worktree` with `--candidate HEAD`: the harness snapshots
 nonignored working files, records their hashes and marks the candidate as a
 working-tree build. This is not a tagged release artifact. The run records both
 resolved commit IDs and package versions. Equal versions fail unless explicitly
-allowed for a harness smoke check. Old revisions must contain a buildable CLI;
+allowed for a harness smoke check. Old revisions must contain a buildable tool;
 unsupported installer syntax or migration conflicts are failures to investigate.
 The old global skill is installed using the portable project-path form.
 
@@ -44,17 +45,22 @@ The Bun image version is pinned; its resolved image and the final built image
 identity are captured by Docker build logs and run metadata. OS package mirrors
 are not immutable, so retain the built image for exact reruns.
 
-The new-user scenario installs the candidate CLI and skill, checks the installed
-version and skill file hashes through the installer's check mode, initializes
+Both scenarios set `DASH_BORED_TOOL` to the candidate tool, as the app does for
+its children, and run project commands through the installed skill launcher
+`~/.agents/skills/dash-bored/scripts/dash-bored`. The new-user scenario installs
+the candidate skill, checks the launcher-resolved version and skill file hashes
+through the installer's check mode, initializes
 and validates the first project, and optionally runs the agent. The existing-user
 scenario first installs the previous version and creates a project with local
-skills. Replacement copies the candidate CLI into the same app path, preserving
-installed symlink semantics. It calls the candidate's actual `updateInstalledTools` function, checks
+skills. Replacement copies the candidate tool into the same app path, as manual
+app replacement does. It calls the candidate's actual `updateInstalledTools` function, checks
 that existing project data was preserved, records old-dashboard compatibility separately, verifies
 refreshed tools, then initializes a separate new project and runs the same agent.
 It exercises app-startup tool refresh, not the app replacement itself.
 
-The agent receives the candidate's actual `starterAgentPrompt`. This is a CLI
+The agent receives the candidate's actual `starterAgentPrompt` in
+`DASH_BORED_AGENT_PROMPT` and runs directly as
+`/bin/sh -lc '<agent> "$DASH_BORED_AGENT_PROMPT"'`. This is a headless
 benchmark of the initial attempt: desktop PTY handling, trust prompts, reload,
 and the setup supervisor's bounded repair remain native checklist items.
 
@@ -103,19 +109,20 @@ Use disposable macOS accounts or VM snapshots on supported Apple Silicon hardwar
 Record the release tag, DMG checksum, OS version, screenshots and command logs.
 
 1. Run `bun run build:release` and `bun run release:prepare -- --tag vX.Y.Z`.
-   Verify the staged checksum, bundle version, embedded CLI version and signature.
+   Verify the staged checksum, bundle version, embedded agent tool version and
+   signature.
 2. New account: install the DMG into Applications, follow the documented unsigned
    first-launch flow, open an uninitialized fixture project and verify its starter.
-3. Install global CLI and skill from the visible setup controls. Check their
-   versions, reopen the app and confirm the setup controls reflect installation.
+3. Install the global skill from the visible setup controls. Check its
+   version, reopen the app and confirm the setup controls reflect installation.
 4. Choose Codex/luna, run **Set up this dashboard**, retain Agent work output,
    inspect the final dashboard and run its test/build controls. Verify trust
    changes remain explicit. Exercise a controlled invalid configuration to check
    the bounded repair and its output, separately from the timed baseline.
-5. Existing account: install the previous DMG, create a dashboard, install CLI
-   and both global/project skills. Save hashes of project data. Quit, manually
+5. Existing account: install the previous DMG, create a dashboard, install
+   both global/project skills. Save hashes of project data. Quit, manually
    replace the application with the candidate, and launch it again.
-6. Verify the app/CLI/skill versions, preserved existing dashboard and settings,
+6. Verify the app/agent tool/skill versions, preserved existing dashboard and settings,
    refreshed installer-owned files, and visible conflicts for deliberately edited
    skill files. Never resolve conflicts by silently overwriting local edits.
 7. Initialize a new fixture project after updating and repeat the agent workflow.
@@ -126,7 +133,7 @@ cycle; a green Docker run cannot establish DMG, Gatekeeper or native UI success.
 
 ### Legacy dashboard compatibility
 
-A v0.2.2 project uses schema v1 in `dash-bored/`; refreshing its CLI and skills
+A v0.2.2 project uses schema v1 in `dash-bored/`; refreshing its tool and skills
 does not migrate that dashboard to schema v3. The compatibility check remains a
 failed release gate, but the suite continues through new-project initialization
 and the agent benchmark so that old-format incompatibility cannot mask those
@@ -140,7 +147,7 @@ Run `bun scripts/native-update-acceptance.ts` on Apple Silicon macOS. The opt-in
 harness copies the current source and a separate Hutch cache into a temporary
 directory, builds unsigned `99.0.1` and `99.0.2` applications with a unique test
 bundle identifier, and invokes the production native updater adapter. The old
-app must be replaced and the new app must report its matching bundled CLI.
+app must be replaced and the new app must report its matching bundled agent tool.
 It does not update the installed dash-bored app, stop development watchers, or
 bypass macOS security approval. Evidence, command logs, app bundles and native
 result receipts remain available for inspection. A failed relaunch never retries
