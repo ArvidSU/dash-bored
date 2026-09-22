@@ -1,4 +1,4 @@
-import type { ResolvedComponentNode } from "../../shared/contracts";
+import type { ComponentChildEdge, ComponentChildLayout, ResolvedComponentNode } from "../../shared/contracts";
 import { childNodes } from "./component-children";
 
 const MAX_COLLAPSED_COMPONENTS = 2_000;
@@ -40,7 +40,7 @@ export function pruneChildSelections(selections: ChildSelections, node: Resolved
   return result;
 }
 
-function layoutEdges(children: Exclude<ResolvedComponentNode["children"], unknown[] | undefined>) {
+function layoutEdges(children: ComponentChildLayout<ResolvedComponentNode>): ComponentChildEdge<ResolvedComponentNode>[] {
   if ("node" in children) return [children];
   return [...layoutEdges(children.first), ...layoutEdges(children.second)];
 }
