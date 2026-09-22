@@ -144,24 +144,31 @@ Actions:
 
 ## @dash-bored/status
 
-Status — Displays a labeled status indicator.
+Status — Displays a labeled state, with optional bounded sources emitting { state, detail? } or a supervised process snapshot.
 
 Props:
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `label` | string | yes | non-empty |
-| `state` | `unknown` \| `healthy` \| `warning` \| `error` | yes |  |
+| `label` | string | see note | non-empty |
+| `state` | `unknown` \| `healthy` \| `warning` \| `error` | see note |  |
 | `detail` | string | no |  |
+| `source` | object | see note | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
+
+Exactly one of `label` + `state` or `label` + `source` is required.
 
 Children: none (leaf component).
 
-Permissions: none.
+Permissions: when configured: `source.shell` requires `process:execute`; `source.file` requires `filesystem:read`; `source.http` requires `network:http`; `source.process` requires `process:observe`.
 
+
+Actions:
+
+- `refresh` — Refresh status: Reload the configured status source.
 
 ## @dash-bored/chart
 
-Chart — Plots static line or bar data declared in dashboard YAML.
+Chart — Plots line or bar data from YAML or a bounded source emitting { labels: string[], series: [{ label, values }] }.
 
 Props:
 
@@ -170,13 +177,20 @@ Props:
 | `title` | string | no |  |
 | `type` | `line` \| `bar` | no |  |
 | `maxPoints` | integer | no | 2–200 |
-| `labels` | array of string | yes | 1–500 items |
-| `series` | array of object | yes | 1–12 items; object with keys: `label` (required) string, `values` (required) array of number \| null, `color` string |
+| `source` | object | see note | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
+| `labels` | array of string | see note | 1–500 items |
+| `series` | array of object | see note | 1–12 items; object with keys: `label` (required) string, `values` (required) array of number \| null, `color` string |
+
+Exactly one of `source` or `labels` + `series` is required.
 
 Children: none (leaf component).
 
-Permissions: none.
+Permissions: when configured: `source.shell` requires `process:execute`; `source.file` requires `filesystem:read`; `source.http` requires `network:http`; `source.process` requires `process:observe`.
 
+
+Actions:
+
+- `refresh` — Refresh chart: Reload the configured chart source.
 
 ## @dash-bored/live-chart
 
@@ -197,6 +211,10 @@ Children: none (leaf component).
 
 Permissions: `network:http`.
 
+
+Actions:
+
+- `refresh` — Refresh chart: Reload the live chart endpoint.
 
 ## @dash-bored/command
 

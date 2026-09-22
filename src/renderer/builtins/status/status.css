@@ -49,3 +49,15 @@
     grid-column: 2;
   }
 }
+
+.status__diagnostic {
+  grid-column: 2 / -1;
+  color: var(--warning);
+  line-height: 1.4;
+}
+
+.status__refreshing {
+  grid-column: 2 / -1;
+  color: var(--faint);
+  font-size: 10px;
+}

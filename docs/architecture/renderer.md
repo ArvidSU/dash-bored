@@ -79,10 +79,16 @@ examples, not privileged component types:
   action executor. `agent:prompt` opens the existing agent composer prefilled
   from YAML; the composer shows the resolved command and prompt and waits for an
   explicit Send.
-- `@dash-bored/markdown` and `@dash-bored/status` display safe project
-  information. Markdown does not enable raw HTML. Markdown accepts inline
-  `content`, a project-relative `path`, or a bounded `source`; preview is the default view,
-  while Raw / edit exposes an explicit editor with Save/Cancel behavior. Inline
+- `@dash-bored/markdown`, `@dash-bored/status`, and `@dash-bored/chart` display
+  project information from inline configuration or bounded sources. Status
+  sources expose a state/detail model or derive state from supervised process
+  snapshots; chart sources require `{ labels, series }` and surface shape
+  diagnostics. Polling pauses while hidden, and source views expose a declared
+  refresh action. The legacy live-chart form delegates to the same chart source
+  renderer until dashboard migration. Markdown does not enable raw HTML.
+  Markdown accepts inline `content`, a project-relative `path`, or a bounded
+  `source`; preview is the default view, while Raw / edit exposes an explicit
+  editor with Save/Cancel behavior. Inline
   edits update the owning dashboard draft, and path-backed edits use the
   declared bounded filesystem capability.
 - `@dash-bored/command` opens a persistent interactive terminal after a user

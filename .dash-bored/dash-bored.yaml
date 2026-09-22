@@ -251,8 +251,8 @@ root:
                                 component: "@dash-bored/status"
                                 props:
                                   label: Local components
-                                  state: healthy
-                                  detail: The Project pulse card is compiled from this repository.
+                                  source:
+                                    process: run-qa
                             second:
                               node:
                                 id: status-trust

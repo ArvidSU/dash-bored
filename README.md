@@ -450,8 +450,8 @@ The initial built-ins are:
   plus core-owned tiled branches and managed child presentation.
 - Controls and display: `@dash-bored/button`, `@dash-bored/markdown`, and
   `@dash-bored/status`.
-- Charts: `@dash-bored/chart` for static YAML data and
-  `@dash-bored/live-chart` for polling JSON data.
+- Charts: `@dash-bored/chart` for static YAML data or a bounded source, with
+  `@dash-bored/live-chart` retained as a compatibility form for endpoint data.
 - Host-backed: `@dash-bored/command`, `@dash-bored/conditional`,
   `@dash-bored/env`, `@dash-bored/todo-list`, and
   `@dash-bored/webview`.
@@ -527,6 +527,12 @@ project trust because the component requests both `filesystem:read` and
 `filesystem:write`; comments, blank lines, and unrecognized lines remain in
 place when editing through the key-value view.
 
+A status can continue to use a hand-written `state`, or read a bounded source
+that emits `{ state: unknown | healthy | warning | error, detail? }`. A source
+that observes a supervised process derives the state from its phase and exit
+code. Both forms keep schema-v3 dashboards readable while migration is in
+progress.
+
 `@dash-bored/todo-list` stores its `todos` array directly in the component's
 dashboard YAML props. Each item contains only `description`, `done`, and
 `tags`; the component provides status sorting, tag filtering, add/remove
@@ -534,11 +540,13 @@ actions, and inline description/tag editing. Interactions update the normal
 dashboard draft, so Save or Cancel remains the persistence boundary.
 
 Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
-static line or bar data from YAML, while `@dash-bored/live-chart` polls an HTTP
-JSON endpoint using `network:http`. Its endpoint can be absolute HTTP(S) or an
+static line or bar data from YAML or reads the same shape from a bounded source
+(shell, file, HTTP, supervised process, or inline). Source shape errors are
+shown on the chart. The schema-v3 `@dash-bored/live-chart` form remains
+compatible with HTTP endpoint dashboards and delegates polling and rendering to
+the shared chart source view. Its endpoint may be absolute HTTP(S) or an
 app-relative path such as `/metrics/chart.json`; it also supports an optional
-dot-separated `dataPath` and pauses polling when its containing tab is hidden. Both keep
-rendering the last valid live result when a refresh fails.
+dot-separated `dataPath`. Source polling pauses while its panel is hidden.
 
 `@dash-bored/conditional` accepts one tiled child and a bounded shell `command`.
 The child is projected when the command exits successfully; set `invert: true`

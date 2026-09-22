@@ -1,10 +1,18 @@
 # dash-bored - Architecture: Component system
 
-The built-in catalog includes inline display and managed-container components,
-including `@dash-bored/chart` for YAML-defined static line or bar data and
-`@dash-bored/live-chart` for polling a JSON chart model through the
-`network:http` capability. These chart components share a dependency-free SVG
-renderer and keep the last valid live result when a refresh fails.
+The built-in catalog includes inline display and managed-container components.
+`@dash-bored/status` accepts a source model `{ state, detail? }` or a supervised
+process snapshot, deriving healthy/warning/error from its phase and exit code.
+Its original `label` plus hand-written `state` contract remains valid for
+schema-v3 dashboards during migration. `@dash-bored/chart` accepts a bounded
+source that emits `{ labels, series }` as well as its existing static YAML
+model. Both views show a source-shape diagnostic and keep the last valid value
+when a refresh fails. They share the Markdown source engine, pause polling
+while hidden, and declare a manual `refresh` action. `@dash-bored/live-chart`
+remains as a schema-v3 adapter for endpoint/dataPath dashboards; it delegates
+fetching, polling, refresh, and rendering to the source-bound chart view until
+the WP9 migration removes that authored form. All chart views share a
+dependency-free SVG renderer.
 It also includes `@dash-bored/conditional`, a generic shell-backed visibility
 boundary for keeping setup or recovery actions relevant without special-casing
 their component IDs.
@@ -133,13 +141,18 @@ series:
     values: [18, 24, 21, 29]
 ```
 
-`@dash-bored/chart` receives that model through its required `labels` and
-`series` props. `@dash-bored/live-chart` receives it from an HTTP JSON response.
-Its `endpoint` may be absolute HTTP(S) or an app-relative path such as
-`/metrics/chart.json`, and may optionally select a nested model with a
-dot-separated `dataPath`; it accepts `type: line|bar`,
-`pollIntervalMs: 1000..300000`, and `maxPoints: 2..200`. Live polling stops
-while the containing tab is hidden.
+`@dash-bored/chart` receives that model from its `source` prop or its static
+`labels` and `series` props. A source must return a string `labels` array and a
+`series` array with string labels and numeric or null values. A shape mismatch
+is displayed on the component. Status sources return `{ state, detail? }`; a
+source that points at a supervised process derives its state from the process
+phase and exit code. All source-backed views use the shared bounded source
+engine, pause polling while hidden, and expose a declared manual `refresh`
+action. The schema-v3 `@dash-bored/live-chart` adapter maps its HTTP endpoint,
+optional dot-separated `dataPath`, and `pollIntervalMs: 1000..300000` to the
+chart source view until WP9 migration. Its endpoint may be absolute HTTP(S) or
+an app-relative path such as `/metrics/chart.json`; `maxPoints` remains
+2..200.
 
 Generic tree validation runs before component-specific props and children are
 validated. The requested project permission set is the union of permissions

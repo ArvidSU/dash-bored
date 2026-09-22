@@ -29,6 +29,25 @@ const chartSeriesSchema = objectSchema(
   },
   ["label", "values"],
 );
+const dashboardSourceSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    shell: string,
+    file: string,
+    http: { type: "string", pattern: "^https?://" },
+    process: string,
+    inline: {},
+    every: { type: "integer", minimum: 1000, maximum: 300000 },
+    timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
+    cwd: { type: "string", minLength: 1 },
+    env: { type: "object", additionalProperties: { type: "string" } },
+  },
+  oneOf: [
+    { required: ["shell"] }, { required: ["file"] }, { required: ["http"] },
+    { required: ["process"] }, { required: ["inline"] },
+  ],
+};
 const chartCommonProperties = {
   title: { type: "string" },
   type: { enum: ["line", "bar"] },
@@ -184,26 +203,36 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/status",
     name: "Status",
-    description: "Displays a labeled status indicator.",
+    description: "Displays a labeled state, with optional bounded sources emitting { state, detail? } or a supervised process snapshot.",
     entry: "builtin:status",
-    propsSchema: objectSchema(
-      {
+    propsSchema: {
+      ...objectSchema({
         label: string,
         state: { enum: ["unknown", "healthy", "warning", "error"] },
         detail: { type: "string" },
-      },
-      ["label", "state"],
-    ),
+        source: dashboardSourceSchema,
+      }),
+      oneOf: [{ required: ["label", "state"] }, { required: ["label", "source"] }],
+    },
+    permissionsByProp: {
+      "source.shell": ["process:execute"],
+      "source.file": ["filesystem:read"],
+      "source.http": ["network:http"],
+      "source.process": ["process:observe"],
+    },
+    actions: [{ id: "refresh", label: "Refresh status", description: "Reload the configured status source." }],
+    references: { "source.process": { resource: "process" } },
   },
   {
     schemaVersion: 2,
     id: "@dash-bored/chart",
     name: "Chart",
-    description: "Plots static line or bar data declared in dashboard YAML.",
+    description: "Plots line or bar data from YAML or a bounded source emitting { labels: string[], series: [{ label, values }] }.",
     entry: "builtin:chart",
-    propsSchema: objectSchema(
-      {
+    propsSchema: {
+      ...objectSchema({
         ...chartCommonProperties,
+        source: dashboardSourceSchema,
         labels: {
           type: "array",
           minItems: 1,
@@ -216,9 +245,17 @@ const manifests: ComponentManifest[] = [
           maxItems: 12,
           items: chartSeriesSchema,
         },
-      },
-      ["labels", "series"],
-    ),
+      }),
+      oneOf: [{ required: ["source"] }, { required: ["labels", "series"] }],
+    },
+    permissionsByProp: {
+      "source.shell": ["process:execute"],
+      "source.file": ["filesystem:read"],
+      "source.http": ["network:http"],
+      "source.process": ["process:observe"],
+    },
+    actions: [{ id: "refresh", label: "Refresh chart", description: "Reload the configured chart source." }],
+    references: { "source.process": { resource: "process" } },
   },
   {
     schemaVersion: 2,
@@ -236,6 +273,7 @@ const manifests: ComponentManifest[] = [
       ["endpoint"],
     ),
     permissions: ["network:http"],
+    actions: [{ id: "refresh", label: "Refresh chart", description: "Reload the live chart endpoint." }],
   },
   {
     schemaVersion: 2,

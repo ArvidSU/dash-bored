@@ -1,11 +1,17 @@
+import { useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import "./chart.css";
 import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
+import type { DashboardSource } from "../../lib/source";
+import { useDashboardSource } from "../../lib/use-dashboard-source";
+import { parseSourceChart } from "../../lib/view-shapes";
+import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
 import {
   CHART_COLORS,
   limitChartData,
   parseChartData,
+  readChartDataPath,
   type ChartData,
   type ChartSeries,
   type ChartValue,
@@ -256,17 +262,52 @@ export function ChartPanel({
   );
 }
 
-export default function Chart({ props }: ComponentRendererProps): ReactNode {
-  const rawData = parseChartData({ labels: props.labels, series: props.series });
-  const data = rawData
-    ? limitChartData(rawData, numberProp(props, "maxPoints", 60))
-    : null;
+export default function Chart({ props, host }: ComponentRendererProps): ReactNode {
+  const source = props.source && typeof props.source === "object" && !Array.isArray(props.source)
+    ? props.source as DashboardSource : null;
+  const [refresh, setRefresh] = useState(0);
+  const panelVisible = useContext(ComponentVisibilityContext);
+  const unavailable = source?.shell && !host.shell ? "process:execute"
+    : source?.file && !host.filesystem ? "filesystem:read"
+      : source?.http && !host.http ? "network:http"
+        : source?.process && !host.processes ? "process:observe" : undefined;
+  const sourceState = useDashboardSource(unavailable ? null : source, host, refresh);
+
+  useEffect(() => host.actions.register({
+    id: "refresh",
+    label: "Refresh chart",
+    enabled: source !== null && unavailable === undefined,
+    disabledReason: !source ? "This chart uses static YAML data." : unavailable ? `Trust this project to grant ${unavailable}.` : undefined,
+    run: () => setRefresh((value) => value + 1),
+  }), [host.actions, source !== null, unavailable]);
+
+  const sourceValue = source && typeof props.dataPath === "string"
+    ? readChartDataPath(sourceState.value, props.dataPath)
+    : sourceState.value;
+  const rawData = source
+    ? sourceValue === undefined ? null : parseSourceChart(sourceValue)
+    : parseChartData({ labels: props.labels, series: props.series });
+  const data = rawData ? limitChartData(rawData, numberProp(props, "maxPoints", 60)) : null;
+  const shapeError = source && sourceState.value !== undefined && rawData === null
+    ? `Source shape: expected { labels: string[], series: [{ label: string, values: (number | null)[] }] }${typeof props.dataPath === "string" && props.dataPath ? ` at ${props.dataPath}` : ""}.`
+    : undefined;
+  const error = unavailable
+    ? `Trust this project to read the source (${unavailable}).`
+    : sourceState.error ?? shapeError;
+  const status = source
+    ? !panelVisible ? "Paused while hidden"
+      : source.every ? `Refreshes every ${Math.round(source.every / 1000)}s` : "Source"
+    : chartType(props);
   return (
     <ChartPanel
       data={data}
-      status={chartType(props)}
-      title={chartTitle(props, "Chart")}
+      error={error}
+      loading={source !== null && sourceState.loading}
+      onRefresh={source && !unavailable ? () => setRefresh((value) => value + 1) : undefined}
+      status={status}
+      title={chartTitle(props, source ? "Chart source" : "Chart")}
       type={chartType(props)}
+      updatedAt={sourceState.updatedAt ?? null}
     />
   );
 }

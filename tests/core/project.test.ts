@@ -84,6 +84,34 @@ describe("project paths and YAML", () => {
     expect(result.tree?.manifest?.permissions).toEqual(["process:execute"]);
   });
 
+  test("accepts source-bound status and chart views with scoped capabilities", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      ...defaultConfig,
+      root: {
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "status", component: "@dash-bored/status", props: { label: "QA", source: { process: "run-qa" } } },
+          { id: "chart", component: "@dash-bored/chart", props: { source: { shell: "bun run metrics" } } },
+          { id: "run-qa", component: "@dash-bored/command", props: { label: "Run QA", command: "bun test" } },
+        ]),
+      },
+    });
+    const result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    expect(result.permissionsByNode.get("status")).toEqual(new Set(["process:observe"]));
+    expect(result.permissionsByNode.get("chart")).toEqual(new Set(["process:execute"]));
+
+    await createProject(root, {
+      ...defaultConfig,
+      root: { component: "@dash-bored/status", props: { label: "Broken", source: { process: "missing" } } },
+    });
+    const invalid = await loadProjectDefinition(root);
+    expect(invalid.ok).toBeFalse();
+    expect(invalid.diagnostics.some((item) => item.code === "COMPONENT_RESOURCE_REFERENCE_UNKNOWN")).toBeTrue();
+  });
+
   test("resolves a Markdown process source only to a declared supervised node", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
