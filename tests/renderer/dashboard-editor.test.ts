@@ -18,6 +18,7 @@ import {
   pathKey,
   removeNode,
   replaceRoot,
+  switchablePanelsNode,
   tiledChildEdges,
   updateChildMetadata,
   updateDashboardMetadata,
@@ -90,6 +91,29 @@ function config(): DashboardConfig {
 }
 
 describe("dashboard editor tree operations", () => {
+  test("switchable panel pattern reserves unique IDs and targets its own selection", () => {
+    const existing = config();
+    const first = switchablePanelsNode(existing);
+    const occupied: DashboardConfig = {
+      ...existing,
+      root: { ...existing.root, children: { node: first } },
+    };
+    const second = switchablePanelsNode(occupied);
+    expect(second.id).not.toBe(first.id);
+    if (!second.children || Array.isArray(second.children) || !("axis" in second.children)) throw new Error("expected split");
+    const bar = second.children.first;
+    const selection = second.children.second;
+    if (!("node" in bar) || !("node" in selection)) throw new Error("expected nodes");
+    const selectable = selection.node.children;
+    if (!Array.isArray(selectable)) throw new Error("expected managed children");
+    expect(selectable).toHaveLength(2);
+    if (!selectable[0]?.node.id) throw new Error("expected first panel ID");
+    expect((selection.node.props as { defaultChild: string }).defaultChild).toBe(selectable[0].node.id);
+    expect((bar.node.props as { items: Array<{ action: string }> }).items.map((item) => item.action)).toEqual(
+      selectable.map((edge) => `select:${selection.node.id}/${edge.node.id}`),
+    );
+  });
+
   test("inserts tiled children in all axes and preserves nested split ratios", () => {
     const added = insertNode(config(), {
       parentPath: [],

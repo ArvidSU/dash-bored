@@ -104,43 +104,57 @@ schemaVersion: 3
 name: Example
 root:
   id: cockpit
-  component: "@dash-bored/tabs"
+  component: "@dash-bored/group"
   children:
-    - metadata: { label: Overview }
+    axis: vertical
+    first:
       node:
-        id: overview
-        component: "@dash-bored/card"
+        id: section-actions
+        component: "@dash-bored/button"
         props:
-          title: Where things stand
-          description: Current state first, then the next step.
-        children:
-          axis: horizontal
-          ratio: 0.6
-          first:
-            node: { id: readme, component: "@dash-bored/markdown", props: { path: README.md } }
-          second:
-            node:
-              id: next-up
-              component: "@dash-bored/todo-list"
-              props:
-                todos:
-                  - { description: Ship the retry fix, done: false, tags: [release] }
-    - metadata: { label: Develop }
+          variant: tabs
+          items:
+            - { name: Overview, action: "select:sections/overview" }
+            - { name: Develop, action: "select:sections/develop" }
+    second:
       node:
-        id: develop
-        component: "@dash-bored/card"
-        props: { title: Run and test }
+        id: sections
+        component: "@dash-bored/selection"
+        props: { defaultChild: overview }
         children:
-          axis: vertical
-          first:
-            node: { id: dev-server, component: "@dash-bored/command", props: { label: Start dev server, command: npm run dev } }
-          second:
-            node: { id: tests, component: "@dash-bored/command", props: { label: Run tests, command: npm test } }
+          - metadata: { label: Overview }
+            node:
+              id: overview
+              component: "@dash-bored/group"
+              props: { title: Where things stand }
+              children:
+                axis: horizontal
+                first:
+                  node: { id: readme, component: "@dash-bored/markdown", props: { path: README.md } }
+                second:
+                  node:
+                    id: next-up
+                    component: "@dash-bored/todo-list"
+                    props:
+                      todos:
+                        - { id: ship-retry-fix, description: Ship the retry fix, done: false, tags: [release] }
+          - metadata: { label: Develop }
+            node:
+              id: develop
+              component: "@dash-bored/group"
+              props: { title: Run and test }
+              children:
+                axis: vertical
+                first:
+                  node: { id: dev-server, component: "@dash-bored/command", props: { label: Start dev server, command: npm run dev } }
+                second:
+                  node: { id: tests, component: "@dash-bored/command", props: { label: Run tests, command: npm test } }
 ```
 
 Composition rules:
 
-- Tab labels live on the edge (`metadata: { label }`), not in props.
+- Managed-child labels live on the edge (`metadata: { label }`). A
+  `select:<container-id>/<child-id>` action switches a selection container.
 - Tiled children are one `{ node }` edge or a split: `axis`, `first`,
   `second`. Nest splits for more than two. Horizontal splits may set `ratio`
   (0.1–0.9, default 0.5 — omit it when equal); vertical splits never do.

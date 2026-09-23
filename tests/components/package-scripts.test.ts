@@ -7,9 +7,9 @@ import {
   packageWorkingDirectory,
   parsePackageScripts,
   stripAnsi,
-} from "../../.dash-bored/components/package-scripts/package-scripts";
+} from "../../.dash-bored/scripts/lib/package-scripts";
 
-describe("package scripts component", () => {
+describe("package scripts source helper", () => {
   test("parses and sorts string-valued package scripts", () => {
     expect(parsePackageScripts(JSON.stringify({
       name: "example",

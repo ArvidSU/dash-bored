@@ -1,6 +1,10 @@
 # dash-bored - Architecture: Component system
 
 The built-in catalog includes inline display and managed-container components.
+`@dash-bored/group` supports optional `title` and `description` props. When
+present, they frame the same tiled child surface previously provided by card;
+without them the group remains transparent. Schema-v3 card remains available
+until the contract migration.
 `@dash-bored/status` accepts a source model `{ state, detail? }` or a supervised
 process snapshot, deriving healthy/warning/error from its phase and exit code.
 Its original `label` plus hand-written `state` contract remains valid for
@@ -22,6 +26,9 @@ background throttling. Pause retains remaining time; Reset restarts the current
 phase; completion waits for an explicit next-session start. State is local to
 the mounted instance and resets on unmount or duration changes; it does not
 write session state to YAML or issue background notifications.
+The project dashboard now exercises the same timer behavior through the
+`./components/focus-timer` example local component. The built-in remains
+available to schema-v3 dashboards until migration.
 Core composition branches are YAML topology and do not appear in the component
 catalog.
 

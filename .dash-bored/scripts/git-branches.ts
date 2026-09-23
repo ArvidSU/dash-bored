@@ -1,5 +1,5 @@
-import { gitBranchesCommand, parseGitBranchesOutput } from "../components/git-branches/git-branches";
-import type { GitBranch, GitBranchesSnapshot } from "../components/git-branches/git-branches";
+import { gitBranchesCommand, parseGitBranchesOutput } from "./lib/git-branches";
+import type { GitBranch, GitBranchesSnapshot } from "./lib/git-branches";
 
 export interface BranchListItem {
   id: string;

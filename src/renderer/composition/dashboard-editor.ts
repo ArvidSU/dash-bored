@@ -491,6 +491,52 @@ export function generateNodeId(config: DashboardConfig, manifest: ComponentManif
   return candidate;
 }
 
+/** Starter layout made from existing atoms, with references assigned by stable ID. */
+export function switchablePanelsNode(config: DashboardConfig): ComponentNode {
+  const ids = new Set<string>();
+  collectIds(config.root, ids);
+  const reserve = (base: string): string => {
+    let candidate = base;
+    let suffix = 2;
+    while (ids.has(candidate)) candidate = `${base}-${suffix++}`;
+    ids.add(candidate);
+    return candidate;
+  };
+  const groupId = reserve("switchable-panels");
+  const barId = reserve("switchable-tabs");
+  const selectionId = reserve("switchable-content");
+  const firstId = reserve("first-panel");
+  const secondId = reserve("second-panel");
+  return {
+    id: groupId,
+    component: "@dash-bored/group",
+    children: {
+      axis: "vertical",
+      first: { node: {
+        id: barId,
+        component: "@dash-bored/button",
+        props: {
+          variant: "tabs",
+          label: "Panels",
+          items: [
+            { name: "First", action: `select:${selectionId}/${firstId}` },
+            { name: "Second", action: `select:${selectionId}/${secondId}` },
+          ],
+        },
+      } },
+      second: { node: {
+        id: selectionId,
+        component: "@dash-bored/selection",
+        props: { defaultChild: firstId },
+        children: [
+          { metadata: { label: "First" }, node: { id: firstId, component: "@dash-bored/markdown", props: { content: "# First panel\n\nReplace this content." } } },
+          { metadata: { label: "Second" }, node: { id: secondId, component: "@dash-bored/markdown", props: { content: "# Second panel\n\nReplace this content." } } },
+        ],
+      } },
+    },
+  };
+}
+
 export function createNode(
   config: DashboardConfig,
   item: ComponentCatalogItem,

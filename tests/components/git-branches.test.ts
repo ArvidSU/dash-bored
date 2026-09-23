@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   gitBranchesCommand,
   parseGitBranchesOutput,
-} from "../../.dash-bored/components/git-branches/git-branches";
+} from "../../.dash-bored/scripts/lib/git-branches";
 
-describe("git branches component", () => {
+describe("git branches source helper", () => {
   test("parses branch workload and preserves branches without upstreams", () => {
     const snapshot = parseGitBranchesOutput([
       "meta\tmain\tmain\tdirty",

@@ -96,17 +96,14 @@ calling that component instance's already-shaped host APIs. Manifests may
 declare `actions` with stable IDs, labels, descriptions, and optional JSON
 Schema `args`; declaring the field opts the component into checking runtime
 registrations against that list. Omit the field to retain the legacy dynamic
-registration contract. This keeps `package-scripts`, whose IDs come from
-`package.json`, working during migration. An undeclared registration becomes a
+registration contract for older local components. An undeclared registration becomes a
 component action diagnostic and is not added to the registry.
 
-The dogfood `package-scripts` component demonstrates dynamic action discovery:
-it reads a configured `package.json`, registers one action for each
-string-valued `scripts` entry, and invokes the selected package runner through
-`host.shell.run` from the manifest's containing directory. It defaults to the
-`packageManager` field when that field names Bun, npm, pnpm, or Yarn, while an
-explicit runner prop can override it. These are short bounded shell actions.
-Long-running workflows use the generic process resource model described below.
+The dogfood package-script catalog now demonstrates declared actions: a
+project script emits stable-ID list items from `package.json`, and each Run
+button invokes the declared action on a static command node. Item values pass
+through bounded `DASH_ITEM_*` environment variables at process start. The
+process resource model below supplies the authoritative exit snapshot.
 
 Capability behavior is bounded:
 

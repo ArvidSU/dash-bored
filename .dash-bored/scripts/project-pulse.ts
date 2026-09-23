@@ -1,4 +1,4 @@
-import { parsePackageScripts } from "../components/package-scripts/package-scripts";
+import { parsePackageScripts } from "./lib/package-scripts";
 
 export interface PulseStatus {
   state: "healthy";

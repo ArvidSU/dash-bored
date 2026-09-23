@@ -64,6 +64,7 @@ export interface CompositionFlyoutProps {
   catalog: readonly ComponentCatalogItem[];
   onClose: () => void;
   onInsert: (entry: ComponentCatalogItem) => void;
+  onInsertSwitchablePanels?: () => void;
   onRemoveDrop?: (path: NodePath) => void;
   onBuildWithAgent?: (description: string) => void;
   onDragStateChange?: (entry: ComponentCatalogItem | null) => void;
@@ -139,6 +140,7 @@ export function CompositionFlyout({
   catalog,
   onClose,
   onInsert,
+  onInsertSwitchablePanels,
   onRemoveDrop,
   onBuildWithAgent,
   onDragStateChange,
@@ -602,6 +604,15 @@ export function CompositionFlyout({
       )}
     >
       {dashboardAppearance}
+      {onInsertSwitchablePanels && (!query.trim() || "switchable panels tabs selection".includes(query.trim().toLowerCase())) ? (
+        <section aria-label="Component patterns" style={{ display: "grid", gap: "0.4rem" }}>
+          <h2 style={{ margin: 0, fontSize: "1rem" }}>Patterns</h2>
+          <button className="button button--secondary" type="button" disabled={loading} onClick={onInsertSwitchablePanels}>
+            Switchable panels
+          </button>
+          <small>Insert a selection container with two starter panels and a tab action bar at the selected target.</small>
+        </section>
+      ) : null}
       <ul aria-label="Component catalog" style={{ display: "grid", gap: "0.75rem", margin: 0, padding: 0, listStyle: "none" }}>
         {filteredInternalCatalog.map(renderCatalogCard)}
       </ul>

@@ -48,6 +48,8 @@ import {
 } from "../composition/DashboardEditor";
 import {
   nodeAtPath,
+  insertNode,
+  switchablePanelsNode,
   nodePathFromSourcePath,
   nodePathById,
   removeNode,
@@ -1239,6 +1241,35 @@ export function App(): ReactNode {
     void openCompositionDialog(target, entry.reference);
   }
 
+  async function handleInsertSwitchablePanels(): Promise<void> {
+    if (!compositionSourceIsReady()) return;
+    const target = compositionTarget ?? defaultCompositionTarget();
+    if (!target || isRootCompositionTarget(target)) {
+      setActionError("Choose a non-root insertion target for switchable panels.");
+      return;
+    }
+    const session = await ensureCurrentDashboardEdit();
+    if (!session) return;
+    const planned = planCompositionOperation({
+      config: session.draft,
+      catalog: session.componentCatalog,
+      payload: { type: "component", reference: "@dash-bored/group" },
+      target,
+    });
+    if (planned.status !== "planned") {
+      setActionError(planned.reason);
+      return;
+    }
+    try {
+      const next = insertNode(session.draft, target, switchablePanelsNode(session.draft), session.componentCatalog);
+      setEditSession((current) => current && current.configPath === session.configPath ? { ...current, draft: next } : current);
+      compositionInteraction.closeLibrary();
+      compositionInteraction.clearTarget();
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
+  }
+
   async function handleCompositionAgent(description: string): Promise<void> {
     if (!compositionSourceIsReady()) return;
     let target = compositionTarget ?? defaultCompositionTarget();
@@ -1910,6 +1941,7 @@ export function App(): ReactNode {
         catalog={compositionCatalog}
         onClose={compositionInteraction.closeLibrary}
         onInsert={handleCompositionInsert}
+        onInsertSwitchablePanels={() => void handleInsertSwitchablePanels()}
         onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).result.message}
         onRemoveDrop={(path) => void removeCompositionNode(path)}
         onBuildWithAgent={(description) => void handleCompositionAgent(description)}

@@ -149,10 +149,10 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/group",
     name: "Group",
-    description: "Provides a neutral composition boundary for tiled dashboard content.",
+    description: "Provides a tiled composition boundary with optional title and description.",
     entry: "builtin:group",
     renderMode: "layout",
-    propsSchema: objectSchema({}),
+    propsSchema: objectSchema({ title: { type: "string" }, description: { type: "string" } }),
     children: {
       min: 0,
       presentation: { type: "tiled", axes: "both" },
@@ -392,7 +392,13 @@ const manifests: ComponentManifest[] = [
     entry: "builtin:todo-list",
     propsSchema: objectSchema({
       todos: { type: "array", maxItems: 500, items: todoItemSchema },
+      itemActions: {
+        type: "array",
+        maxItems: 12,
+        items: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
+      },
     }),
+    references: { "itemActions.*.action": { resource: "action" } },
   },
   {
     schemaVersion: 2,

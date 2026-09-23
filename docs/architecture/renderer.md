@@ -126,6 +126,8 @@ examples, not privileged component types:
   list; IDs are retained in each dashboard draft write. It sorts open items
   first, filters by tag, and supports adding,
   removing, and inline editing items without reloading the component. Its
+  `itemActions` use the shared item-template resolver and action executor;
+  invoking an agent prompt never toggles completion. Its
   interactions use the normal draft Save/Cancel boundary.
 - `@dash-bored/webview` embeds a sandboxed application page. Native child
   webviews are initialized only while their tab is visible and are explicitly

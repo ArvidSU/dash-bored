@@ -16,6 +16,7 @@ import {
   todoTags,
 } from "../../lib/todo";
 import type { TodoItem } from "../../lib/todo";
+import { parseListItemActions, resolveListItemAction } from "../../lib/list-data";
 
 interface TodoListProps {
   props: Record<string, unknown>;
@@ -52,6 +53,7 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
   const [saving, setSaving] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editValue, setEditValue] = useState("");
+  const configuredActions = useMemo(() => parseListItemActions(props.itemActions), [props.itemActions]);
   const editActionRef = useRef<"idle" | "committing" | "cancelled">("idle");
 
   useEffect(() => {
@@ -181,6 +183,9 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
           <p>{error}</p>
         </div>
       ) : null}
+      {configuredActions.diagnostics.length ? <ul role="alert" aria-label="Todo action configuration errors">
+        {configuredActions.diagnostics.map((message, index) => <li key={index}>{message}</li>)}
+      </ul> : null}
 
       {!error ? (
         visibleItems.length ? (
@@ -230,6 +235,25 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
                     )}
                   </div>
                   <div className="todo__item-side">
+                    {configuredActions.actions.map((configuredAction) => {
+                      const resolved = resolveListItemAction(configuredAction, {
+                        ...item,
+                        title: item.description,
+                        state: item.done ? "done" : "open",
+                      });
+                      const invocationKey = `${item.id}:${configuredAction.name}`;
+                      const action = resolved.invocation ? host.actions.resolve(resolved.invocation.run, invocationKey) : undefined;
+                      const disabledReason = resolved.error ?? (action && !action.enabled ? action.disabledReason ?? "This action is unavailable." : undefined);
+                      return <div className="todo__item-action" key={configuredAction.name}>
+                        <button type="button" disabled={!resolved.invocation || Boolean(disabledReason) || Boolean(action?.running)} title={disabledReason}
+                          onClick={() => { if (resolved.invocation) host.actions.invoke(resolved.invocation.run, resolved.invocation.with, undefined, invocationKey); }}>
+                          {configuredAction.name}{action?.running ? " · Running" : ""}
+                        </button>
+                        {action?.invocation?.status === "failed" ? <small role="alert">{action.invocation.message ?? "Action failed."}</small> : null}
+                        {action?.invocation?.outcome === "started" ? <small role="status">Started</small> : null}
+                        {resolved.error ? <small role="alert">{resolved.error}</small> : null}
+                      </div>;
+                    })}
                     {editingTags ? (
                       <input
                         className="todo__edit-input todo__edit-input--tags"

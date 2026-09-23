@@ -74,11 +74,14 @@ Permissions: none.
 
 ## @dash-bored/group
 
-Group — Provides a neutral composition boundary for tiled dashboard content.
+Group — Provides a tiled composition boundary with optional title and description.
 
 Props:
 
-None.
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `title` | string | no |  |
+| `description` | string | no |  |
 
 Children: tiled presentation (axes: `both`), minimum 0.
 
@@ -309,6 +312,7 @@ Props:
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `todos` | array of object | no | <= 500 items; object with keys: `id` string, `description` (required) string, `done` (required) boolean, `tags` (required) array of string |
+| `itemActions` | array of object | no | <= 12 items; object with keys: `name` (required) string, `action` (required) any |
 
 Children: none (leaf component).
 

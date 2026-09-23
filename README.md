@@ -472,10 +472,10 @@ props:
   variant: tabs
   label: Project sections
   items:
-    - name: Todos
-      action: focus:yaml-todo
-    - name: Project pulse
-      action: focus:project-pulse
+    - name: Overview
+      action: select:project-sections/overview
+    - name: Development
+      action: select:project-sections/development
 ```
 
 Variants are `buttons`, `segmented`, and `tabs`. A tab-styled bar uses tablist
@@ -532,16 +532,17 @@ separate invocation feedback for each item. A process snapshot reports its
 later exit.
 
 `@dash-bored/group` is an ordinary transparent component boundary with
-`renderMode: layout`: it accepts
-the core-tiled child surface and projects those children without becoming a
-layout engine. Use it when a multi-component panel needs a component boundary;
-card is not required. Split topology and resize behavior remain app-owned.
+`renderMode: layout`: it accepts the core-tiled child surface and projects
+those children without becoming a layout engine. Optional `title` and
+`description` frame the group. Split topology and resize behavior remain
+app-owned.
 
 `@dash-bored/selection` projects one managed child. Give its children stable
 IDs and labels in edge metadata; optional `props.defaultChild` names the child
 shown before a saved local selection exists. `select:<container-id>/<child-id>`
 actions can drive a button bar with `variant: tabs`. Use focus for global pages
-and selection for nested panels.
+and selection for nested panels. The component library's **Switchable panels**
+pattern inserts two starter panels and a tab bar with stable ID references.
 
 Core-owned horizontal split branches use a drag and keyboard separator while
 retaining a checked-in default:
@@ -589,7 +590,9 @@ progress.
 dashboard YAML props. Items have stable `id` strings, descriptions, boolean
 completion state, and tags. Legacy items receive IDs when the user next edits
 the list; add, remove, toggle, and inline edits use the normal dashboard draft
-Save/Cancel boundary.
+Save/Cancel boundary. `itemActions` use the same whole-value item templates and
+per-item feedback as source lists; an agent action can use
+`prompt: "${item.description}"` without changing todo completion state.
 
 Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
 static line or bar data from YAML or reads the same shape from a bounded source
@@ -785,7 +788,7 @@ Declare each stable local action in `actions`. The palette and Settings can
 show its metadata before this component mounts, and dashboard validation can
 check references to its ID. When `actions` is present, runtime registrations
 must use a declared ID. Omitting it retains legacy dynamic registration for
-components that discover actions at runtime, such as `package-scripts`.
+older local components that discover actions at runtime.
 
 `renderMode` defaults to `surface`. Declare `layout` when the component is an
 organizational boundary whose height follows its descendants rather than an
@@ -893,12 +896,12 @@ and its declared capability on every host request. A reload that adds a
 requested permission requires a new trust decision; the same or a smaller
 permission set preserves the existing decision.
 
-The repository's dogfood dashboard includes a `package-scripts` component. It
-reads a configured `package.json`, detects its `packageManager` when present,
-and registers one action per string-valued script. Each action runs from the
-directory containing that manifest through `host.shell.run`; the component also
-shows direct buttons and the bounded result of the most recent run. Use the
-optional `runner` prop when a project needs to override its manifest metadata.
+The repository's dogfood dashboard uses `.dash-bored/scripts/package-scripts.ts`
+as a source for `@dash-bored/list`. The script reads `package.json`, detects
+its `packageManager`, and emits one stable-ID item per string-valued script.
+The list's declared Run action passes the selected name and runner to a
+`@dash-bored/command` through bounded `DASH_ITEM_*` environment variables.
+The command surface and item button show process and invocation results.
 
 Local components are trusted project code running together in one renderer,
 not a hostile-code sandbox. Their per-node permissions shape the provided API

@@ -1,4 +1,4 @@
-import { packageRunner, parsePackageScripts } from "../components/package-scripts/package-scripts";
+import { packageRunner, parsePackageScripts } from "./lib/package-scripts";
 
 export interface PackageScriptListItem {
   id: string;

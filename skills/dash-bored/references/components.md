@@ -410,32 +410,45 @@ interface ComponentChildHandle {
 }
 ```
 
-For ordinary tabs, use `@dash-bored/tabs`; labels belong on edges:
+For switchable panels, pair a tab-styled action bar with
+`@dash-bored/selection`. Labels belong on the managed-child edges:
 
 ```yaml
 schemaVersion: 3
 name: Service dashboard
 root:
-  component: "@dash-bored/tabs"
-  id: service-tabs
-  props:
-    defaultTab: 0
+  component: "@dash-bored/group"
+  id: service-layout
   children:
-    - metadata:
-        label: Overview
+    axis: vertical
+    first:
       node:
-        component: "@dash-bored/status"
-        id: service-state
+        component: "@dash-bored/button"
+        id: service-tabs
         props:
-          label: Service
-          state: unknown
-    - metadata:
-        label: Tasks
+          variant: tabs
+          items:
+            - { name: Overview, action: "select:service-panels/service-state" }
+            - { name: Tasks, action: "select:service-panels/service-tasks" }
+    second:
       node:
-        component: "@dash-bored/todo-list"
-        id: service-tasks
-        props:
-          todos: []
+        component: "@dash-bored/selection"
+        id: service-panels
+        props: { defaultChild: service-state }
+        children:
+          - metadata: { label: Overview }
+            node:
+              component: "@dash-bored/status"
+              id: service-state
+              props:
+                label: Service
+                source: { inline: { state: unknown } }
+          - metadata: { label: Tasks }
+            node:
+              component: "@dash-bored/todo-list"
+              id: service-tasks
+              props:
+                todos: []
 ```
 
 A custom managed container declares `children.presentation: { type: managed }`
