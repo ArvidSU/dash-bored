@@ -240,6 +240,11 @@ Resources:
 
 - `process`: command from `command`, working directory from `cwd`, environment from `env`, interactive PTY.
 
+Actions:
+
+- `run` — Run command with item values: Runs this command as a bounded action with DASH_ITEM_* environment values.
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":{"type":["string","number","boolean"]}}`.
+
 ## @dash-bored/env
 
 Environment editor — Edits a project-local .env file as key-value pairs or raw text.
@@ -255,6 +260,29 @@ Children: none (leaf component).
 Permissions: `filesystem:read`, `filesystem:write`.
 
 
+## @dash-bored/list
+
+Source list — Renders stable-ID items from a bounded source, with tags, status, and refresh.
+
+Props:
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `title` | string | no |  |
+| `source` | object | yes | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
+| `filterByTags` | boolean | no |  |
+| `sort` | `open-first` \| `source-order` | no |  |
+| `itemActions` | array of object | no | <= 12 items; object with keys: `name` (required) string, `action` (required) any |
+
+Children: none (leaf component).
+
+Permissions: when configured: `source.shell` requires `process:execute`; `source.file` requires `filesystem:read`; `source.http` requires `network:http`; `source.process` requires `process:observe`.
+
+
+Actions:
+
+- `refresh` — Refresh list
+
 ## @dash-bored/todo-list
 
 YAML todo list — Keeps a small todo list in this component's dashboard YAML props.
@@ -263,7 +291,7 @@ Props:
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `todos` | array of object | no | <= 500 items; object with keys: `description` (required) string, `done` (required) boolean, `tags` (required) array of string |
+| `todos` | array of object | no | <= 500 items; object with keys: `id` string, `description` (required) string, `done` (required) boolean, `tags` (required) array of string |
 
 Children: none (leaf component).
 

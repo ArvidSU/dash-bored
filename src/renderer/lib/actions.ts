@@ -175,6 +175,9 @@ function validateComponentAction(action: ComponentAction): ComponentAction {
     throw new Error("Component actions must provide a run function.");
   }
   validateChoices(action.choices);
+  if (action.invocationOutcome !== undefined && !["started", "completed", "prepared"].includes(action.invocationOutcome)) {
+    throw new Error("Component action invocation outcome is invalid.");
+  }
   if (action.enabled !== undefined && typeof action.enabled !== "boolean") {
     throw new Error("Component action enabled values must be booleans.");
   }
@@ -279,6 +282,8 @@ export class ActionRegistry {
             },
           }),
         ...(action.choices === undefined ? {} : { choices: action.choices }),
+        ...(action.invocationOutcome === undefined ? {} : { invocationOutcome: action.invocationOutcome }),
+        ...(action.process === undefined ? {} : { process: action.process }),
         run: action.run,
       },
     });

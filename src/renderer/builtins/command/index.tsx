@@ -31,6 +31,31 @@ export default function Command({
   const label = stringProp(props, ["label", "title"], "Run command");
   const command = stringProp(props, ["command"]);
 
+  useEffect(() => componentHost.actions.register({
+    id: "run",
+    label: `Run ${label}`,
+    description: "Start the configured command with selected item values in DASH_ITEM_* environment variables.",
+    enabled: Boolean(processApi?.start) && !running,
+    disabledReason: !processApi?.start ? "Trust this project to run the command." : running ? "This command is already running." : undefined,
+    invocationOutcome: "started",
+    process,
+    run: async (_selections, args = {}) => {
+      if (!processApi?.start) throw new Error("The command is unavailable.");
+      const itemEnvironment: Record<string, string> = {};
+      for (const [field, value] of Object.entries(args)) {
+        if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(field) || (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean")) {
+          throw new Error(`Unsupported item action argument: ${field}`);
+        }
+        const key = `DASH_ITEM_${field.toUpperCase()}`;
+        if (key in itemEnvironment) throw new Error(`Duplicate item environment name: ${key}`);
+        itemEnvironment[key] = String(value);
+      }
+      setTerminalVisible(true);
+      const started = await processApi.start(itemEnvironment);
+      if (started.phase === "failed") throw new Error("The command could not start. Inspect its process output.");
+    },
+  }), [componentHost.actions, label, processApi?.start, process, running]);
+
   useEffect(() => {
     if (running) setTerminalVisible(true);
   }, [running]);

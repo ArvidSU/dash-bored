@@ -512,10 +512,24 @@ component: "@dash-bored/list"
 props:
   title: Package scripts
   source:
-    shell: bun run dash-bored -- scripts --json
+    shell: bun run .dash-bored/scripts/package-scripts.ts
     cwd: .
     timeoutMs: 5000
+  itemActions:
+    - name: Run
+      action:
+        run: component:package-script-runner:run
+        with:
+          name: "${item.name}"
+          runner: "${item.runner}"
 ```
+
+The referenced `@dash-bored/command` node can use the fixed command
+`"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"`. Item templates occupy whole,
+typed argument values; the host passes them as bounded `DASH_ITEM_*`
+environment variables when it starts the supervised process. The list keeps
+separate invocation feedback for each item. A process snapshot reports its
+later exit.
 
 `@dash-bored/group` is an ordinary transparent component boundary with
 `renderMode: layout`: it accepts

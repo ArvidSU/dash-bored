@@ -120,7 +120,8 @@ export default function List({ props, host }: ComponentRendererProps): ReactNode
           {configuredActions.actions.length ? <div className="source-list__item-actions" aria-label={`Actions for ${item.title}`}>
             {configuredActions.actions.map((configuredAction) => {
               const resolved = resolveListItemAction(configuredAction, item);
-              const action = resolved.invocation ? host.actions.resolve(resolved.invocation.run) : undefined;
+              const invocationKey = `${item.id}:${configuredAction.name}`;
+              const action = resolved.invocation ? host.actions.resolve(resolved.invocation.run, invocationKey) : undefined;
               const disabledReason = resolved.error ?? (action && !action.enabled ? action.disabledReason ?? "This action is unavailable." : undefined);
               return <div className="source-list__item-action" key={configuredAction.name}>
                 <button
@@ -129,11 +130,14 @@ export default function List({ props, host }: ComponentRendererProps): ReactNode
                   disabled={!resolved.invocation || Boolean(disabledReason) || Boolean(action?.running)}
                   title={disabledReason}
                   onClick={() => {
-                    if (resolved.invocation) host.actions.invoke(resolved.invocation.run, resolved.invocation.with);
+                    if (resolved.invocation) host.actions.invoke(resolved.invocation.run, resolved.invocation.with, undefined, invocationKey);
                   }}
                 >
                   {configuredAction.name}{action?.running ? " · Running" : ""}
                 </button>
+                {action?.invocation?.status === "failed" ? <small role="alert">{action.invocation.message ?? "Action failed."}</small> : null}
+                {action?.invocation?.outcome === "started" ? <small role="status">Started</small> : null}
+                {action?.process?.phase === "exited" && action.invocation ? <small role="status">{action.process.exitCode === 0 ? "Finished" : `Failed: exit ${action.process.exitCode}`}</small> : null}
                 {resolved.error ? <small role="alert">{resolved.error}</small> : null}
               </div>;
             })}

@@ -99,10 +99,15 @@ examples, not privileged component types:
   `done` fields have fixed types. Invalid entries remain visible as shape
   diagnostics. Tag filtering is exact, and the default stable sort places
   explicitly completed states after open items. The declared `refresh` action
-  requests a new read; polling stops while the list is hidden.
+  requests a new read; polling stops while the list is hidden. `itemActions`
+  resolves whole-value `${item.field}` arguments per stable item ID and uses
+  the shared executor. Missing fields and unsupported values are visible
+  errors, and command actions receive those values as `DASH_ITEM_*` environment
+  variables at process start.
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
-  terminal session.
+  terminal session. Its declared `run` action starts the command with bounded
+  item environment values; the later exit remains a separate process snapshot.
 - `@dash-bored/conditional` runs a bounded shell condition while its panel is
   visible and projects one tiled child on success, with optional inversion for
   "show until done" setup actions. It starts visible and fails open when a check

@@ -503,6 +503,8 @@ export interface ComponentAction {
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
   choices?: readonly ComponentActionChoice[];
+  invocationOutcome?: "started" | "completed" | "prepared";
+  process?: ProcessSnapshot;
   run(selections?: ComponentActionSelections, args?: Record<string, unknown>, callerNodeId?: string): void | Promise<void>;
 }
 
