@@ -245,10 +245,10 @@ agent-process updates do not reopen a drawer the user dismissed, while a newly
 activated task still opens it automatically. Closing the panel only changes
 renderer visibility and never stops the attached agent process.
 The library's drag fold-away and node-removal trash mode stay library-only.
-The generated starter uses the packaged `@dash-bored/setup-agent` component.
-Its generic dashboard host action passes the node ID to the main process, which
-revalidates the active trusted owning config and launches the app-owned agent
-harness. The harness publishes one generated `DASH_BORED_AGENT_PROMPT`, keeps
+The generated starter uses a button with a reviewed `agent:prompt` action.
+The action passes the node ID to the main process, which revalidates the active
+trusted owning config and launches the app-owned agent harness. The harness
+publishes one generated `DASH_BORED_AGENT_PROMPT`, keeps
 the finite agent process and its output in Agent work, and leaves validation and
 repair status visible after the starter node is removed by the agent.
 

@@ -81,7 +81,9 @@ describe("initializeProject", () => {
     expect(skillVisibility.component).toBe("@dash-bored/conditional");
     expect(skillVisibility.props.command).toBe('"$DASH_BORED_TOOL" install-skill . --check');
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
-    expect(agentCommand.component).toBe("@dash-bored/setup-agent");
+    expect(agentCommand.component).toBe("@dash-bored/button");
+    expect(agentCommand.props.action.run).toBe("agent:prompt");
+    expect(agentCommand.props.action.with.prompt).toContain("Set up the dash-bored dashboard");
     expect(agentCommand.props.env).toBeUndefined();
     expect(agentCommand.props.command).toBeUndefined();
     expect(environment).toContain('DASH_BORED_AGENT="codex exec"');

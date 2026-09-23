@@ -289,8 +289,11 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     ),
     {
       id: "setup-dashboard-with-agent",
-      component: "@dash-bored/setup-agent",
-      props: {},
+      component: "@dash-bored/button",
+      props: {
+        name: "Set up this dashboard",
+        action: { run: "agent:prompt", with: { prompt: starterAgentPrompt(projectName) } },
+      },
     },
   ];
   const rootNodes: ComponentNode[] = [

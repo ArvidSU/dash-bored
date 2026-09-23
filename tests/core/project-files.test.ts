@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { access, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { stringify } from "yaml";
+import { parse, stringify } from "yaml";
 import { ensureProjectFiles, inspectProject, resolveProjectLocation } from "../../src/core";
 import {
   defaultConfig,
@@ -32,6 +32,11 @@ describe("ensureProjectFiles", () => {
     const environment = await readFile(join(root, ".dash-bored", ".env"), "utf8");
     expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
     expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
+    const config = parse(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8"));
+    const authored = JSON.stringify(config);
+    expect(authored).not.toContain("@dash-bored/setup-agent");
+    expect(authored).toContain('"run":"agent:prompt"');
+    expect(authored).toContain("Set up the dash-bored dashboard");
     expect((await inspectProject(root)).ok).toBeTrue();
   });
 

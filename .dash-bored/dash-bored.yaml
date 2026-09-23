@@ -223,7 +223,7 @@ root:
                                 tags:
                                   - atoms
                               - id: todo-atoms-schema-migration
-                                description: "Complete atoms WP9: add source-bound edge visibility, replace setup-agent with a reviewed prompt while retaining single repair validation, and ship the schema-v4 migration for retired builtins and positional references."
+                                description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
                                 done: false
                                 tags:
                                   - atoms
@@ -720,7 +720,13 @@ root:
                         second:
                           node:
                             id: configure-with-agent
-                            component: "@dash-bored/setup-agent"
+                            component: "@dash-bored/button"
+                            props:
+                              name: Configure with agent
+                              action:
+                                run: agent:prompt
+                                with:
+                                  prompt: "Inspect this project and propose a scoped dashboard improvement. Use the dash-bored skill and validate any saved dashboard changes."
           - metadata:
               label: Dogfood
             node:

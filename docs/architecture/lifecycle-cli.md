@@ -87,8 +87,8 @@ source equals the link target and that target is a bundled
   `--project <path>` selects another project root. Initialization creates the
   required files and empty component directory, uses the bundle name in a valid
   guided dashboard with an editable bundle-local `.env` file, a
-  first-class setup-agent component that invokes the configured app-owned
-  dashboard-agent harness with the app-wide `DASH_BORED_AGENT` override when
+  `agent:prompt` button that opens a reviewed starter prompt in the configured
+  app-owned agent harness with the app-wide `DASH_BORED_AGENT` override when
   set, and conditional commands that install the packaged skill globally or
   into the project through `"$DASH_BORED_TOOL"`. The
   starter presets a bundle-local `icon` (`./assets/icon.svg`, a silent generic
