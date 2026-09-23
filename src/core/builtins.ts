@@ -65,10 +65,30 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/button",
     name: "Action button",
-    description: "Invokes a command-palette action and reflects its current availability, active state, and progress.",
+    description: "Invokes one action or a compact bar of actions, with availability and invocation feedback.",
     entry: "builtin:button",
-    propsSchema: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
-    references: { action: { resource: "action" } },
+    propsSchema: {
+      ...objectSchema({
+        name: string,
+        action: actionInvocationSchema,
+        label: string,
+        variant: { enum: ["buttons", "segmented", "tabs"] },
+        items: {
+          type: "array",
+          minItems: 1,
+          maxItems: 12,
+          items: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
+        },
+      }),
+      anyOf: [
+        { required: ["name", "action"], not: { required: ["items"] } },
+        { required: ["items"], not: { anyOf: [{ required: ["name"] }, { required: ["action"] }] } },
+      ],
+    },
+    references: {
+      action: { resource: "action" },
+      "items.*.action": { resource: "action" },
+    },
   },
   {
     schemaVersion: 2,

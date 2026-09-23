@@ -351,6 +351,17 @@ describe("action search and execution", () => {
     expect(await first).toEqual({ status: "completed" });
   });
 
+  test("records outcomes for the invoking control without copying them to another control", async () => {
+    const run = action("process:qa", { invocationOutcome: "started", run: () => undefined });
+    const executor = new ActionExecutor((id) => id === run.id ? run : undefined);
+    expect(await executor.run(run.id, {}, {}, "button", "button:run-qa")).toEqual({ status: "completed" });
+    expect(executor.getInvocationState("button:run-qa")).toMatchObject({
+      status: "completed",
+      outcome: "started",
+    });
+    expect(executor.getInvocationState("list:item-2:run-qa")).toBeUndefined();
+  });
+
   test("passes completed choice selections to the action", async () => {
     let received: unknown;
     const actions = new Map<string, PaletteAction>([

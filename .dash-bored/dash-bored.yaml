@@ -174,40 +174,28 @@ root:
                 children:
                   axis: vertical
                   first:
-                    axis: horizontal
-                    first:
-                      node:
-                        id: focus-todos-button
-                        component: "@dash-bored/button"
-                        props:
-                          name: Focus todos
-                          action: focus:yaml-todo
-                    second:
-                      node:
-                        id: focus-project-pulse-button
-                        component: "@dash-bored/button"
-                        props:
-                          name: Focus project pulse
-                          action: focus:project-pulse
+                    node:
+                      id: overview-navigation-actions
+                      component: "@dash-bored/button"
+                      props:
+                        variant: buttons
+                        items:
+                          - name: Todos
+                            action: focus:yaml-todo
+                          - name: Project pulse
+                            action: focus:project-pulse
+                          - name: Refresh pulse
+                            action: component:project-pulse:refresh-project-pulse
                   second:
-                    axis: horizontal
-                    first:
-                      node:
-                        id: refresh-project-pulse-button
-                        component: "@dash-bored/button"
-                        props:
-                          name: Refresh project pulse
-                          action: component:project-pulse:refresh-project-pulse
-                    second:
-                      node:
-                        id: review-todos-agent-button
-                        component: "@dash-bored/button"
-                        props:
-                          name: Review open todos with agent
-                          action:
-                            run: agent:prompt
-                            with:
-                              prompt: "Review the open todos in this dashboard. Recommend one scoped next action without editing files or changing todo completion state."
+                    node:
+                      id: review-todos-agent-button
+                      component: "@dash-bored/button"
+                      props:
+                        name: Review open todos with agent
+                        action:
+                          run: agent:prompt
+                          with:
+                            prompt: "Review the open todos in this dashboard. Recommend one scoped next action without editing files or changing todo completion state."
             second:
               axis: vertical
               first:

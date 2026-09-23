@@ -509,6 +509,8 @@ export function buildProcessActions(
       group: "Project commands",
       source: node.id,
       enabled,
+      process,
+      invocationOutcome: running ? "completed" : "started",
       ...(disabledReason ? { disabledReason } : {}),
       run: () => (running ? callbacks.stop(node.id) : callbacks.runQuickAction(node.id)),
     };

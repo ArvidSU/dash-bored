@@ -460,16 +460,29 @@ These shipped components are examples of the public component contracts, not
 privileged types. Local components can declare the same child contracts,
 process resources, references, and permissions.
 
-`@dash-bored/button` takes exactly `name` and `action`. It invokes the same
-action used by the command palette and shortcuts, including trust,
-confirmation, choices, running-state, and availability behavior:
+`@dash-bored/button` accepts one `name`/`action` pair or a compact `items`
+array. Item actions use the same executor as the command palette, including
+trust, confirmation, choices, availability, and bounded last-result feedback:
 
 ```yaml
 component: "@dash-bored/button"
 props:
-  name: Focus todos
-  action: focus:yaml-todo
+  variant: tabs
+  label: Project sections
+  items:
+    - name: Todos
+      action: focus:yaml-todo
+    - name: Project pulse
+      action: focus:project-pulse
 ```
+
+Variants are `buttons`, `segmented`, and `tabs`. A tab-styled bar uses tablist
+keyboard and accessibility semantics only when every item selects a child in
+the same managed container. Active selection stays owned by that container.
+Process-start feedback means the start request succeeded; the supervised process
+snapshot supplies the later exit status and remains the source of truth. Agent
+prompt actions report that the prompt is ready for review, while launch and task
+validation remain separate outcomes.
 
 Action references name nodes by their explicit stable ID, so moving a node does
 not change the button. The editor's target picker assigns an ID when needed.

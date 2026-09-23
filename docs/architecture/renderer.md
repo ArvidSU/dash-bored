@@ -71,9 +71,11 @@ examples, not privileged component types:
 
 - Core tile branches compose layout; components such as cards may declare
   children presentation but do not own topology or resizing.
-- `@dash-bored/button` resolves and invokes one action through the shared
-  executor. It reflects active Focus actions, running work, interaction steps,
-  and unavailable reasons without adding permissions.
+- `@dash-bored/button` resolves and invokes one action or an `items` action bar
+  through the shared executor. It reflects active navigation, running work,
+  interaction steps, unavailable reasons, and the last bounded invocation
+  result. Invocation state is keyed per control; process snapshots remain the
+  authority for supervised process completion.
 - Action references may be argument-free strings or `{ run, with }`
   invocations. Typed arguments and any remaining palette choices share the same
   action executor. `agent:prompt` opens the existing agent composer prefilled

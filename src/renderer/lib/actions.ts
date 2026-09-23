@@ -4,7 +4,9 @@ import type {
   ComponentActionChoice,
   ComponentActionOption,
   ComponentActionSelections,
+  ActionInvocationState,
   Diagnostic,
+  ProcessSnapshot,
 } from "../../shared/contracts";
 import { componentActionReference } from "../../shared/action-reference";
 import { agentActionRefusal, type AgentActionDescriptor } from "../../shared/agent-control";
@@ -25,6 +27,8 @@ export interface PaletteAction {
   disabledReason?: string;
   confirmation?: ComponentActionConfirmation;
   choices?: readonly ComponentActionChoice[];
+  process?: ProcessSnapshot;
+  invocationOutcome?: "started" | "completed" | "prepared";
   run(selections?: ComponentActionSelections, args?: Record<string, unknown>, callerNodeId?: string): void | Promise<void>;
 }
 
@@ -444,6 +448,7 @@ export class ActionExecutor {
   private readonly listeners = new Set<Listener>();
   private readonly running = new Set<string>();
   private snapshot: ReadonlySet<string> = new Set();
+  private readonly invocationStates = new Map<string, ActionInvocationState>();
 
   constructor(resolve: (id: string) => PaletteAction | undefined) {
     this.resolve = resolve;
@@ -456,7 +461,11 @@ export class ActionExecutor {
 
   readonly getSnapshot = (): ReadonlySet<string> => this.snapshot;
 
-  async run(id: string, selections: ComponentActionSelections = {}, args: Record<string, unknown> = {}, callerNodeId?: string): Promise<ActionRunResult> {
+  getInvocationState(invocationKey: string): ActionInvocationState | undefined {
+    return this.invocationStates.get(invocationKey);
+  }
+
+  async run(id: string, selections: ComponentActionSelections = {}, args: Record<string, unknown> = {}, callerNodeId?: string, invocationKey = id): Promise<ActionRunResult> {
     const action = this.resolve(id);
     if (!action) {
       return {
@@ -473,17 +482,44 @@ export class ActionExecutor {
     const canonicalId = action.id;
     if (this.running.has(canonicalId)) return { status: "running" };
 
+    const startedAt = new Date().toISOString();
+    this.setInvocation(invocationKey, { status: "running", startedAt });
     this.running.add(canonicalId);
     this.emit();
     try {
       await action.run(selections, args, callerNodeId);
+      const outcome = id === "agent:prompt" ? "prepared" : action.invocationOutcome ?? "completed";
+      this.setInvocation(invocationKey, {
+        status: "completed",
+        outcome,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        ...(outcome === "prepared" ? { message: "Prompt ready for review." } : outcome === "started" ? { message: "Process start requested." } : {}),
+      });
       return { status: "completed" };
     } catch (error) {
+      this.setInvocation(invocationKey, {
+        status: "failed",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        message: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+      });
       return { status: "failed", error };
     } finally {
       this.running.delete(canonicalId);
       this.emit();
     }
+  }
+
+  private setInvocation(key: string, value: ActionInvocationState): void {
+    this.invocationStates.delete(key);
+    this.invocationStates.set(key, value);
+    while (this.invocationStates.size > 200) {
+      const oldest = this.invocationStates.keys().next().value;
+      if (oldest === undefined) break;
+      this.invocationStates.delete(oldest);
+    }
+    this.emit();
   }
 
   private emit(): void {

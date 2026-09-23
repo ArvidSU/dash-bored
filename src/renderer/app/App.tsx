@@ -131,6 +131,7 @@ export function App(): ReactNode {
   const [paletteInvocationArgs, setPaletteInvocationArgs] = useState<Record<string, unknown>>({});
   const [paletteInvocationActionId, setPaletteInvocationActionId] = useState<string | null>(null);
   const [paletteCallerNodeId, setPaletteCallerNodeId] = useState<string | undefined>(undefined);
+  const [paletteInvocationKey, setPaletteInvocationKey] = useState<string | undefined>(undefined);
   const [agentPromptDraft, setAgentPromptDraft] = useState("");
   const compositionInteraction = useCompositionInteractionController();
   const {
@@ -224,7 +225,7 @@ export function App(): ReactNode {
   const runningActionIdsRef = useRef<ReadonlySet<string>>(runningActionIds);
   runningActionIdsRef.current = runningActionIds;
   const actionController = useMemo(() => ({
-    resolve(reference: string) {
+    resolve(reference: string, invocationKey?: string) {
       const action = actionsByIdRef.current.get(reference);
       if (!action) return {
         id: reference,
@@ -234,6 +235,9 @@ export function App(): ReactNode {
         running: false,
         active: false,
         requiresInteraction: false,
+        ...(actionExecutor.getInvocationState(invocationKey ?? reference)
+          ? { invocation: actionExecutor.getInvocationState(invocationKey ?? reference) }
+          : {}),
       };
       return {
         id: action.id,
@@ -243,12 +247,16 @@ export function App(): ReactNode {
         running: runningActionIdsRef.current.has(action.id),
         active: action.active === true,
         requiresInteraction: Boolean(action.choices?.length || action.confirmation),
+        ...(action.process ? { process: action.process } : {}),
+        ...(actionExecutor.getInvocationState(invocationKey ?? action.id)
+          ? { invocation: actionExecutor.getInvocationState(invocationKey ?? action.id) }
+          : {}),
       };
     },
-    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string) {
-      requestAction(reference, args, callerNodeId);
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string) {
+      requestAction(reference, args, callerNodeId, invocationKey);
     },
-  }), []);
+  }), [actionExecutor]);
 
   useEffect(() => () => {
     if (compositionPointerFrame.current !== null) {
@@ -1568,7 +1576,7 @@ export function App(): ReactNode {
     },
   }), [actionExecutor]);
 
-  function requestAction(reference: string, args: Record<string, unknown> = {}, callerNodeId?: string): void {
+  function requestAction(reference: string, args: Record<string, unknown> = {}, callerNodeId?: string, invocationKey?: string): void {
     const invocation = actionInvocation(reference);
     if (!invocation) return;
     const actionArgs = { ...invocation.with, ...args };
@@ -1577,9 +1585,10 @@ export function App(): ReactNode {
       setPaletteInvocationArgs(actionArgs);
       setPaletteInvocationActionId(action.id);
       setPaletteCallerNodeId(callerNodeId);
+      setPaletteInvocationKey(invocationKey);
     }
     if (invocation.run === "agent:prompt") {
-      if (action) void actionExecutor.run(invocation.run, {}, actionArgs, callerNodeId);
+      if (action) void actionExecutor.run(invocation.run, {}, actionArgs, callerNodeId, invocationKey ?? action.id);
       return;
     }
     if (action?.choices?.length || action?.confirmation) {
@@ -1587,7 +1596,7 @@ export function App(): ReactNode {
       setPaletteOpen(true);
       return;
     }
-    void executePaletteAction(invocation.run, undefined, actionArgs, callerNodeId);
+    void executePaletteAction(invocation.run, undefined, actionArgs, callerNodeId, invocationKey ?? action?.id);
   }
 
   async function executePaletteAction(
@@ -1595,6 +1604,7 @@ export function App(): ReactNode {
     selections?: Readonly<Record<string, string>>,
     args: Record<string, unknown> = paletteInvocationActionId === id ? paletteInvocationArgs : {},
     callerNodeId?: string,
+    invocationKey?: string,
   ): Promise<void> {
     setActionError(null);
     const action = actionsByIdRef.current.get(id);
@@ -1602,7 +1612,7 @@ export function App(): ReactNode {
       setActionError("This action is no longer available.");
       return;
     }
-    const result = await actionExecutor.run(id, selections, args, callerNodeId);
+    const result = await actionExecutor.run(id, selections, args, callerNodeId, invocationKey ?? id);
     if (result.status === "failed") setActionError(errorMessage(result.error));
     else if (result.status === "unavailable") setActionError(result.reason);
     else if (result.status === "running") {
@@ -1874,6 +1884,7 @@ export function App(): ReactNode {
           selections,
           paletteInvocationActionId === id ? paletteInvocationArgs : {},
           paletteInvocationActionId === id ? paletteCallerNodeId : undefined,
+          paletteInvocationActionId === id ? paletteInvocationKey : id,
         )}
         onToggleFavorite={toggleFavoriteAction}
       />

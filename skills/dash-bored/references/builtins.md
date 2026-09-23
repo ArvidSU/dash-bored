@@ -9,14 +9,17 @@ component's JSON Schema `propsSchema`.
 
 ## @dash-bored/button
 
-Action button — Invokes a command-palette action and reflects its current availability, active state, and progress.
+Action button — Invokes one action or a compact bar of actions, with availability and invocation feedback.
 
 Props:
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `name` | string | yes | non-empty |
-| `action` | any | yes |  |
+| `name` | string | no | non-empty |
+| `action` | any | no |  |
+| `label` | string | no | non-empty |
+| `variant` | `buttons` \| `segmented` \| `tabs` | no |  |
+| `items` | array of object | no | 1–12 items; object with keys: `name` (required) string, `action` (required) any |
 
 Children: none (leaf component).
 

@@ -28,8 +28,8 @@ export interface NodeRendererProps {
   actionRegistry: ActionRegistry;
   actionScope: string;
   actionController: {
-    resolve(reference: string): ResolvedComponentAction;
-    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string): void;
+    resolve(reference: string, invocationKey?: string): ResolvedComponentAction;
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string): void;
   };
   updateBatch: ComponentUpdateBatch | null;
   collapsedNodeIds: ReadonlySet<string>;

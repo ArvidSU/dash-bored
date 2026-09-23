@@ -191,7 +191,7 @@ const manifestSchema = {
     },
     references: {
       type: "object",
-      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_.-]*$" },
+      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_.*-]*$" },
       additionalProperties: {
         type: "object",
         additionalProperties: false,

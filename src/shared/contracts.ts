@@ -517,6 +517,18 @@ export interface ResolvedComponentAction {
   running: boolean;
   active: boolean;
   requiresInteraction: boolean;
+  /** Latest bounded invocation outcome for one control that invoked this action. */
+  invocation?: ActionInvocationState;
+  /** Authoritative supervised-process snapshot when this action controls a process. */
+  process?: ProcessSnapshot;
+}
+
+export interface ActionInvocationState {
+  status: "running" | "completed" | "failed";
+  outcome?: "started" | "completed" | "prepared";
+  startedAt: string;
+  finishedAt?: string;
+  message?: string;
 }
 
 export interface ComponentEnvironmentSnapshot {
@@ -540,8 +552,8 @@ export interface LocalComponentHost {
   };
   actions: {
     register(action: ComponentAction): () => void;
-    resolve(reference: string): ResolvedComponentAction;
-    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string): void;
+    resolve(reference: string, invocationKey?: string): ResolvedComponentAction;
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string): void;
   };
   filesystem?: {
     readText(path: string): Promise<string>;

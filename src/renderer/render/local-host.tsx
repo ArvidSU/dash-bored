@@ -11,8 +11,8 @@ export function createLocalHost(
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
   onUpdateProps: (props: Record<string, unknown>) => Promise<void>,
   actionController: {
-    resolve(reference: string): ResolvedComponentAction;
-    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string): void;
+    resolve(reference: string, invocationKey?: string): ResolvedComponentAction;
+    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string): void;
   },
   environment?: ComponentEnvironmentSnapshot,
 ): LocalComponentHost {
@@ -42,8 +42,13 @@ export function createLocalHost(
       register(action) {
         return actionRegistry.register(actionOwner, action);
       },
-      resolve: actionController.resolve,
-      invoke: (reference, args) => actionController.invoke(reference, args, node.id),
+      resolve: (reference, invocationKey) => actionController.resolve(reference, invocationKey ? `${node.id}:${invocationKey}` : undefined),
+      invoke: (reference, args, callerNodeId, invocationKey) => actionController.invoke(
+        reference,
+        args,
+        callerNodeId ?? node.id,
+        invocationKey ? `${node.id}:${invocationKey}` : undefined,
+      ),
     },
   };
 
