@@ -160,6 +160,24 @@ const manifests: ComponentManifest[] = [
   },
   {
     schemaVersion: 2,
+    id: "@dash-bored/selection",
+    name: "Selection container",
+    description: "Shows one managed child at a time using core-owned selection actions and persisted state.",
+    entry: "builtin:selection",
+    renderMode: "layout",
+    propsSchema: objectSchema({
+      defaultChild: string,
+      label: string,
+    }),
+    children: {
+      min: 1,
+      presentation: { type: "managed" },
+      metadataSchema: objectSchema({ label: string }, ["label"]),
+      select: "single",
+    },
+  },
+  {
+    schemaVersion: 2,
     id: "@dash-bored/conditional",
     name: "Conditional visibility",
     description: "Recovery visibility for one tiled child based on a bounded shell check. Starts visible and fails open before trust or on host errors; unsuitable for asserting healthy status.",

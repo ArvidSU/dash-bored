@@ -85,6 +85,23 @@ Children: tiled presentation (axes: `both`), minimum 0.
 Permissions: none.
 
 
+## @dash-bored/selection
+
+Selection container — Shows one managed child at a time using core-owned selection actions and persisted state.
+
+Props:
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `defaultChild` | string | no | non-empty |
+| `label` | string | no | non-empty |
+
+Children: managed presentation, minimum 1.
+Edge metadata: object with keys: `label` (required) string.
+
+Permissions: none.
+
+
 ## @dash-bored/conditional
 
 Conditional visibility — Recovery visibility for one tiled child based on a bounded shell check. Starts visible and fails open before trust or on host errors; unsuitable for asserting healthy status.

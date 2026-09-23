@@ -794,6 +794,14 @@ export async function resolveComponentTree(
         }));
       }
     }
+    if (typeof props.defaultChild === "string" && definition?.select === "single"
+      && !configuredEdges.some((edge) => edge.node.id === props.defaultChild)) {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_DEFAULT_CHILD_MISSING",
+        message: `${manifest.name} defaultChild ${props.defaultChild} is not a direct child node ID.`,
+        path: `${nodePath}.props.defaultChild`,
+      }));
+    }
     if (definition === undefined && configuredChildren !== undefined) {
       diagnostics.push(diagnostic({
         code: "COMPONENT_CHILDREN_UNSUPPORTED",

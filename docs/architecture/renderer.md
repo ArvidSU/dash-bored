@@ -71,6 +71,10 @@ examples, not privileged component types:
 
 - Core tile branches compose layout; components such as cards may declare
   children presentation but do not own topology or resizing.
+- `@dash-bored/selection` is a generic managed-child layout boundary. Core
+  persists its selected child and exposes `select:<container>/<child>` actions;
+  `props.defaultChild` selects a direct child when no local choice exists.
+  Selection is local to a panel, while focus is dashboard-wide navigation.
 - `@dash-bored/button` resolves and invokes one action or an `items` action bar
   through the shared executor. It reflects active navigation, running work,
   interaction steps, unavailable reasons, and the last bounded invocation

@@ -10,6 +10,7 @@ const LazyFocusTimer = lazy(() => import("./focus-timer"));
 const LazyButton = lazy(() => import("./button"));
 const LazyTabs = lazy(() => import("./tabs"));
 const LazyGroup = lazy(() => import("./group"));
+const LazySelection = lazy(() => import("./selection"));
 const LazyConditional = lazy(() => import("./conditional"));
 const LazyCard = lazy(() => import("./card"));
 const LazyChart = lazy(() => import("./chart"));
@@ -41,6 +42,7 @@ const PACKAGED_COMPONENTS: Readonly<Record<string, PackagedComponent>> = Object.
   "@dash-bored/button": lazyBuiltin(LazyButton),
   "@dash-bored/focus-timer": lazyBuiltin(LazyFocusTimer),
   "@dash-bored/group": lazyBuiltin(LazyGroup),
+  "@dash-bored/selection": lazyBuiltin(LazySelection),
   "@dash-bored/conditional": lazyBuiltin(LazyConditional),
   "@dash-bored/tabs": lazyBuiltin(LazyTabs),
   "@dash-bored/card": lazyBuiltin(LazyCard),

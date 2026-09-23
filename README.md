@@ -446,8 +446,8 @@ in YAML.
 
 The initial built-ins are:
 
-- Composition: `@dash-bored/group` for transparent child-surface projection,
-  plus core-owned tiled branches and managed child presentation.
+- Composition: `@dash-bored/group` for transparent tiled children and
+  `@dash-bored/selection` for one core-selected managed child.
 - Controls and display: `@dash-bored/button`, `@dash-bored/markdown`, and
   `@dash-bored/status`.
 - Lists: `@dash-bored/list` for bounded source data with stable item IDs,
@@ -536,6 +536,12 @@ later exit.
 the core-tiled child surface and projects those children without becoming a
 layout engine. Use it when a multi-component panel needs a component boundary;
 card is not required. Split topology and resize behavior remain app-owned.
+
+`@dash-bored/selection` projects one managed child. Give its children stable
+IDs and labels in edge metadata; optional `props.defaultChild` names the child
+shown before a saved local selection exists. `select:<container-id>/<child-id>`
+actions can drive a button bar with `variant: tabs`. Use focus for global pages
+and selection for nested panels.
 
 Core-owned horizontal split branches use a drag and keyboard separator while
 retaining a checked-in default:

@@ -18,7 +18,9 @@ export function buildSelectionActions(
   visit(snapshot.tree, (container) => {
     const definition = container.manifest?.children;
     if (definition?.select !== "single" || !Array.isArray(container.children)) return;
-    const selected = selections[container.id] ?? definition.defaultChild ?? container.children[0]?.node.id;
+    const selected = selections[container.id]
+      ?? (typeof container.props.defaultChild === "string" ? container.props.defaultChild : undefined)
+      ?? definition.defaultChild ?? container.children[0]?.node.id;
     for (const edge of container.children) {
       const child = edge.node;
       const label = nodeLabel(child, false);

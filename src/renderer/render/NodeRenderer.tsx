@@ -132,7 +132,8 @@ export function NodeRenderer({
         splitRatioOverrides,
         onSplitRatioChange,
         selectedChildId: node.manifest?.children?.select === "single"
-          ? childSelections[node.id] ?? node.manifest.children.defaultChild ?? (Array.isArray(node.children) ? node.children[0]?.node.id : undefined)
+          ? childSelections[node.id] ?? (typeof node.props.defaultChild === "string" ? node.props.defaultChild : undefined)
+            ?? node.manifest.children.defaultChild ?? (Array.isArray(node.children) ? node.children[0]?.node.id : undefined)
           : undefined,
         renderNode: (child) => (
           <NodeRenderer

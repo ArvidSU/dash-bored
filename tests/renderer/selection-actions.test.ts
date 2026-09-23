@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ProjectSnapshot, ResolvedComponentNode } from "../../src/shared/contracts";
 import { buildRevealActions, buildSelectionActions } from "../../src/renderer/lib/selection-actions";
+import { getBuiltinManifest } from "../../src/core/builtins";
 
 const child: ResolvedComponentNode = { id: "overview", component: "@dash-bored/status", props: { title: "Overview" }, source: "builtin" };
 const other: ResolvedComponentNode = { id: "details", component: "@dash-bored/markdown", props: { title: "Details" }, source: "builtin" };
@@ -16,6 +17,17 @@ describe("selection and reveal actions", () => {
     const actions = buildSelectionActions(snapshot, {}, () => {});
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
       ["select:panels/overview", true], ["select:panels/details", false],
+    ]);
+  });
+
+  test("ships a generic selection container and honors its YAML default child", () => {
+    expect(getBuiltinManifest("@dash-bored/selection")?.children).toMatchObject({
+      presentation: { type: "managed" }, select: "single",
+    });
+    const configured = { ...container, props: { defaultChild: "details" } };
+    const actions = buildSelectionActions({ ...snapshot, tree: configured }, {}, () => {});
+    expect(actions.map(({ id, active }) => [id, active])).toEqual([
+      ["select:panels/overview", false], ["select:panels/details", true],
     ]);
   });
 
