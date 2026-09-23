@@ -1,90 +1,495 @@
 schemaVersion: 3
-name: dash-bored feature sandbox
+name: dash-bored atoms lab
 root:
-  id: dogfood-stack
+  id: lab
   component: "@dash-bored/group"
   children:
     axis: vertical
     first:
       node:
-        id: dogfood-project-vision
+        id: lab-intro
         component: "@dash-bored/markdown"
         props:
-          path: docs/IDEA.md
+          content: |
+            **Atoms lab** — a linked standalone bundle (`.dash-bored/dogfood/`) that exercises
+            every source kind, view, action verb, and failure mode with harmless fixtures from
+            `.dash-bored/dogfood/scripts/lab.ts`. Nothing here edits project files; *Flip signal*
+            writes only the gitignored `lab/signal.json`.
     second:
       axis: vertical
       first:
         node:
-          id: dogfood-runtime-controls-card
-          component: "@dash-bored/group"
-          children:
-            node:
-              id: dogfood-runtime-controls
-              component: "@dash-bored/markdown"
-              props:
-                content: |
-                  Right-click any component, or open its three-dot menu, to
-                  collapse or expand it. Collapsed components keep a compact
-                  name and expand action; their rendered body is temporarily
-                  unmounted so nested polling and embedded surfaces stay out
-                  of the way. Focus expands a component before making it the
-                  temporary dashboard root.
+          id: lab-sections-bar
+          component: "@dash-bored/button"
+          persistOnFocus: true
+          props:
+            variant: segmented
+            items:
+              - name: Sources
+                action: select:lab-sections/lab-sources
+              - name: Act → observe
+                action: select:lab-sections/lab-act
+              - name: Item actions
+                action: select:lab-sections/lab-items
+              - name: Failure modes
+                action: select:lab-sections/lab-failures
+              - name: Controls
+                action: select:lab-sections/lab-controls
+              - name: Legacy aliases
+                action: select:lab-sections/lab-legacy
       second:
-        axis: vertical
-        first:
-          node:
-            id: dogfood-static-chart
-            component: "@dash-bored/chart"
-            props:
-              title: Weekly workflow throughput
-              type: bar
-              labels:
-                - Mon
-                - Tue
-                - Wed
-                - Thu
-                - Fri
-              series:
-                - label: Checks passed
-                  color: "#70e2a0"
-                  values:
-                    - 18
-                    - 24
-                    - 21
-                    - 29
-                    - 34
-                - label: Checks skipped
-                  color: "#f4c66b"
-                  values:
-                    - 4
-                    - 3
-                    - 5
-                    - 2
-                    - 1
-        second:
-          axis: vertical
-          first:
-            node:
-              id: dogfood-live-chart
-              component: "@dash-bored/live-chart"
-              props:
-                title: Renderer activity sample
-                endpoint: /dash-bored-chart-fixture.json
-                pollIntervalMs: 4000
-                maxPoints: 30
-          second:
-            axis: vertical
-            first:
+        node:
+          id: lab-sections
+          component: "@dash-bored/selection"
+          props:
+            defaultChild: lab-sources
+          children:
+            - metadata:
+                label: Sources
               node:
-                id: dogfood-status
-                component: "@dash-bored/status"
+                id: lab-sources
+                component: "@dash-bored/group"
                 props:
-                  label: Config-link boundary
-                  state: healthy
-                  detail: This content is loaded from .dash-bored/dogfood/dash-bored.yaml.
-            second:
+                  title: One view per source kind
+                  description: inline, shell (JSON and text), file, and http. Polling pauses while this panel is hidden.
+                children:
+                  axis: vertical
+                  first:
+                    axis: horizontal
+                    ratio: 0.4
+                    first:
+                      node:
+                        id: lab-inline-status
+                        component: "@dash-bored/status"
+                        props:
+                          label: Inline source
+                          source:
+                            inline:
+                              state: healthy
+                              detail: Literal { state, detail } in YAML.
+                    second:
+                      node:
+                        id: lab-file-list
+                        component: "@dash-bored/list"
+                        props:
+                          title: File source
+                          sort: source-order
+                          source:
+                            file: .dash-bored/dogfood/lab/items.json
+                  second:
+                    axis: vertical
+                    first:
+                      node:
+                        id: lab-wave
+                        component: "@dash-bored/chart"
+                        props:
+                          title: Shell JSON source · every 2s
+                          type: line
+                          source:
+                            shell: bun run .dash-bored/dogfood/scripts/lab.ts wave
+                            cwd: .
+                            every: 2000
+                    second:
+                      axis: horizontal
+                      first:
+                        node:
+                          id: lab-shell-markdown
+                          component: "@dash-bored/markdown"
+                          props:
+                            title: Shell text source
+                            source:
+                              shell: bun run .dash-bored/dogfood/scripts/lab.ts markdown
+                              cwd: .
+                              every: 5000
+                              env:
+                                DASH_LAB_GREETING: hello from source.env
+                      second:
+                        node:
+                          id: lab-http-markdown
+                          component: "@dash-bored/markdown"
+                          props:
+                            title: HTTP source (GitHub tags JSON)
+                            source:
+                              http: https://api.github.com/repos/ArvidSU/dash-bored/tags?per_page=3
+                              timeoutMs: 8000
+            - metadata:
+                label: Act → observe
               node:
-                id: dogfood-env
-                component: "@dash-bored/env"
+                id: lab-act
+                component: "@dash-bored/group"
                 props:
-                  path: .env.worktree
+                  title: Act → observe
+                  description: Buttons start supervised processes; status tiles observe the process snapshot or the file they write.
+                children:
+                  axis: vertical
+                  first:
+                    node:
+                      id: lab-act-bar
+                      component: "@dash-bored/button"
+                      props:
+                        variant: buttons
+                        items:
+                          - name: Flip signal
+                            action: process:lab-flip
+                          - name: Countdown (exit 0)
+                            action: process:lab-countdown
+                          - name: Failing run (exit 1)
+                            action: process:lab-fail-command
+                          - name: Refresh signal
+                            action: component:lab-signal-status:refresh
+                  second:
+                    axis: vertical
+                    first:
+                      axis: horizontal
+                      first:
+                        node:
+                          id: lab-signal-status
+                          component: "@dash-bored/status"
+                          props:
+                            label: Signal (shell source · every 2s)
+                            source:
+                              shell: bun run .dash-bored/dogfood/scripts/lab.ts signal
+                              cwd: .
+                              every: 2000
+                      second:
+                        axis: horizontal
+                        first:
+                          node:
+                            id: lab-countdown-status
+                            component: "@dash-bored/status"
+                            props:
+                              label: Countdown process
+                              source:
+                                process: lab-countdown
+                        second:
+                          node:
+                            id: lab-fail-status
+                            component: "@dash-bored/status"
+                            props:
+                              label: Failing process
+                              source:
+                                process: lab-fail-command
+                    second:
+                      axis: horizontal
+                      first:
+                        node:
+                          id: lab-flip
+                          component: "@dash-bored/command"
+                          props:
+                            label: Flip signal
+                            command: bun run .dash-bored/dogfood/scripts/lab.ts flip
+                            cwd: .
+                      second:
+                        axis: horizontal
+                        first:
+                          node:
+                            id: lab-countdown
+                            component: "@dash-bored/command"
+                            props:
+                              label: Countdown then exit 0
+                              command: bun run .dash-bored/dogfood/scripts/lab.ts countdown
+                              cwd: .
+                        second:
+                          node:
+                            id: lab-fail-command
+                            component: "@dash-bored/command"
+                            props:
+                              label: Countdown then exit 1
+                              command: bun run .dash-bored/dogfood/scripts/lab.ts countdown
+                              cwd: .
+                              env:
+                                DASH_LAB_SECONDS: "2"
+                                DASH_LAB_EXIT_CODE: "1"
+            - metadata:
+                label: Item actions
+              node:
+                id: lab-items
+                component: "@dash-bored/group"
+                props:
+                  title: Per-item actions
+                  description: Item fields reach the command only as DASH_ITEM_* variables. Delta lacks a count to exercise the missing-field path.
+                children:
+                  axis: horizontal
+                  ratio: 0.55
+                  first:
+                    node:
+                      id: lab-item-list
+                      component: "@dash-bored/list"
+                      props:
+                        title: Shell list source
+                        source:
+                          shell: bun run .dash-bored/dogfood/scripts/lab.ts items
+                          cwd: .
+                        itemActions:
+                          - name: Echo
+                            action:
+                              run: component:lab-item-echo:run
+                              with:
+                                name: "${item.name}"
+                                count: "${item.count}"
+                          - name: Reveal failures
+                            action: reveal:lab-duplicate-ids
+                  second:
+                    node:
+                      id: lab-item-echo
+                      component: "@dash-bored/command"
+                      props:
+                        label: Echo item values
+                        command: printf 'DASH_ITEM_NAME=%s DASH_ITEM_COUNT=%s\n' "$DASH_ITEM_NAME" "$DASH_ITEM_COUNT"
+                        cwd: .
+            - metadata:
+                label: Failure modes
+              node:
+                id: lab-failures
+                component: "@dash-bored/group"
+                props:
+                  title: Failure modes
+                  description: Each view should show a readable, localized error while the rest of the dashboard keeps working.
+                children:
+                  axis: vertical
+                  first:
+                    axis: horizontal
+                    first:
+                      node:
+                        id: lab-fail-source
+                        component: "@dash-bored/status"
+                        props:
+                          label: Non-zero exit with stderr
+                          source:
+                            shell: bun run .dash-bored/dogfood/scripts/lab.ts fail
+                            cwd: .
+                    second:
+                      axis: horizontal
+                      first:
+                        node:
+                          id: lab-bad-shape
+                          component: "@dash-bored/status"
+                          props:
+                            label: Wrong JSON shape
+                            source:
+                              shell: bun run .dash-bored/dogfood/scripts/lab.ts bad-shape
+                              cwd: .
+                      second:
+                        node:
+                          id: lab-timeout
+                          component: "@dash-bored/status"
+                          props:
+                            label: Timeout (1s limit, 5s script)
+                            source:
+                              shell: bun run .dash-bored/dogfood/scripts/lab.ts slow
+                              cwd: .
+                              timeoutMs: 1000
+                  second:
+                    axis: horizontal
+                    first:
+                      node:
+                        id: lab-duplicate-ids
+                        component: "@dash-bored/list"
+                        props:
+                          title: Duplicate and missing item IDs
+                          source:
+                            shell: bun run .dash-bored/dogfood/scripts/lab.ts duplicate-ids
+                            cwd: .
+                    second:
+                      node:
+                        id: lab-missing-file
+                        component: "@dash-bored/markdown"
+                        props:
+                          title: Missing file source
+                          source:
+                            file: .dash-bored/dogfood/lab/does-not-exist.md
+            - metadata:
+                label: Controls
+              node:
+                id: lab-controls
+                component: "@dash-bored/group"
+                props:
+                  title: Action verbs and bar variants
+                  description: app, focus, reveal, select, component, and agent:prompt references from buttons.
+                children:
+                  axis: vertical
+                  first:
+                    node:
+                      id: lab-verb-bar
+                      component: "@dash-bored/button"
+                      props:
+                        variant: buttons
+                        items:
+                          - name: Toggle sidebar
+                            action: app:toggle-sidebar
+                          - name: Focus the wave chart
+                            action: focus:lab-wave
+                          - name: Reveal timeout failure
+                            action: reveal:lab-timeout
+                          - name: Refresh wave
+                            action: component:lab-wave:refresh
+                          - name: Open settings
+                            action: app:show-settings
+                  second:
+                    axis: vertical
+                    first:
+                      node:
+                        id: lab-agent-button
+                        component: "@dash-bored/button"
+                        props:
+                          name: Ask agent to explain the lab (read-only)
+                          action:
+                            run: agent:prompt
+                            with:
+                              prompt: "Read .dash-bored/dogfood/dash-bored.yaml and summarize which dash-bored atoms it exercises and which it misses. Do not edit files."
+                    second:
+                      axis: vertical
+                      first:
+                        node:
+                          id: lab-nested-bar
+                          component: "@dash-bored/button"
+                          props:
+                            variant: tabs
+                            items:
+                              - name: Nested one
+                                action: select:lab-nested/lab-nested-one
+                              - name: Nested two
+                                action: select:lab-nested/lab-nested-two
+                              - name: Nested three
+                                action: select:lab-nested/lab-nested-three
+                      second:
+                        node:
+                          id: lab-nested
+                          component: "@dash-bored/selection"
+                          props:
+                            defaultChild: lab-nested-one
+                          children:
+                            - metadata:
+                                label: Nested one
+                              node:
+                                id: lab-nested-one
+                                component: "@dash-bored/markdown"
+                                props:
+                                  content: "**Nested one.** A selection inside a selection: switch here, change lab section, come back — the choice persists."
+                            - metadata:
+                                label: Nested two
+                              node:
+                                id: lab-nested-two
+                                component: "@dash-bored/status"
+                                props:
+                                  label: Nested two
+                                  source:
+                                    inline:
+                                      state: warning
+                                      detail: Selected through a tab-variant action bar with tablist semantics.
+                            - metadata:
+                                label: Nested three
+                              node:
+                                id: lab-nested-three
+                                component: "@dash-bored/chart"
+                                props:
+                                  title: Inline chart data
+                                  type: bar
+                                  source:
+                                    inline:
+                                      labels: [one, two, three]
+                                      series:
+                                        - label: Values
+                                          values: [3, 1, 2]
+            - metadata:
+                label: Legacy aliases
+              node:
+                id: lab-legacy
+                component: "@dash-bored/group"
+                props:
+                  title: Schema-v3 builtins awaiting WP9 retirement
+                  description: Keep these rendering until the v4 migration turns them into aliases.
+                children:
+                  axis: vertical
+                  first:
+                    axis: horizontal
+                    first:
+                      node:
+                        id: lab-legacy-live-chart
+                        component: "@dash-bored/live-chart"
+                        props:
+                          title: live-chart (renderer fixture endpoint)
+                          endpoint: /dash-bored-chart-fixture.json
+                          pollIntervalMs: 4000
+                          maxPoints: 30
+                    second:
+                      node:
+                        id: lab-legacy-static-chart
+                        component: "@dash-bored/chart"
+                        props:
+                          title: chart with static labels/series
+                          type: bar
+                          labels: [Mon, Tue, Wed, Thu, Fri]
+                          series:
+                            - label: Checks passed
+                              color: "#70e2a0"
+                              values: [18, 24, 21, 29, 34]
+                            - label: Checks skipped
+                              color: "#f4c66b"
+                              values: [4, 3, 5, 2, 1]
+                  second:
+                    axis: vertical
+                    first:
+                      axis: horizontal
+                      first:
+                        node:
+                          id: lab-legacy-card
+                          component: "@dash-bored/card"
+                          props:
+                            title: card
+                          children:
+                            axis: vertical
+                            first:
+                              node:
+                                id: lab-legacy-hand-status
+                                component: "@dash-bored/status"
+                                props:
+                                  label: Hand-written status state
+                                  state: healthy
+                                  detail: Becomes an inline source in the v4 migration.
+                            second:
+                              node:
+                                id: lab-legacy-conditional
+                                component: "@dash-bored/conditional"
+                                props:
+                                  command: "true"
+                                  pollIntervalMs: 10000
+                                children:
+                                  node:
+                                    id: lab-legacy-conditional-child
+                                    component: "@dash-bored/markdown"
+                                    props:
+                                      content: "conditional: visible because `true` exits 0."
+                      second:
+                        node:
+                          id: lab-legacy-todo-list
+                          component: "@dash-bored/todo-list"
+                          props:
+                            todos:
+                              - id: lab-legacy-todo-1
+                                description: Legacy todo-list still toggles and saves through the draft boundary.
+                                done: false
+                                tags: [legacy]
+                              - id: lab-legacy-todo-2
+                                description: A completed legacy todo.
+                                done: true
+                                tags: [legacy]
+                    second:
+                      node:
+                        id: lab-legacy-tabs
+                        component: "@dash-bored/tabs"
+                        children:
+                          - metadata:
+                              label: tabs · first
+                            node:
+                              id: lab-legacy-tab-one
+                              component: "@dash-bored/markdown"
+                              props:
+                                content: "`@dash-bored/tabs` keeps local tab state until it becomes a Switchable panels alias."
+                          - metadata:
+                              label: tabs · second
+                            node:
+                              id: lab-legacy-tab-two
+                              component: "@dash-bored/env"
+                              props:
+                                path: .dash-bored/dogfood/.env

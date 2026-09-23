@@ -16,378 +16,448 @@ root:
         props:
           variant: tabs
           items:
-                  - name: Focus
-                    action: select:project-sections/project-focus-timer
-                  - name: Themes
-                    action: select:project-sections/theme-reference
-                  - name: Overview
-                    action: select:project-sections/overview
-                  - name: Development
-                    action: select:project-sections/development
-                  - name: Release
-                    action: select:project-sections/release
-                  - name: Onboarding QA
-                    action: select:project-sections/onboarding-qa-guide
-                  - name: Documentation
-                    action: select:project-sections/documentation
-                  - name: Agent setup
-                    action: select:project-sections/agent-setup
-                  - name: Dogfood
-                    action: select:project-sections/dogfood-dashboard
-                  - name: Updates
-                    action: select:project-sections/update-workflow
+            - name: Cockpit
+              action: select:project-sections/cockpit
+            - name: Changes
+              action: select:project-sections/changes
+            - name: Develop
+              action: select:project-sections/development
+            - name: Roadmap
+              action: select:project-sections/roadmap
+            - name: Release
+              action: select:project-sections/release
+            - name: Agent
+              action: select:project-sections/agent-setup
+            - name: Docs
+              action: select:project-sections/documentation
+            - name: Lab
+              action: select:project-sections/dogfood-dashboard
+            - name: Focus
+              action: select:project-sections/project-focus-timer
+            - name: Themes
+              action: select:project-sections/theme-reference
     second:
       node:
         id: project-sections
         component: "@dash-bored/selection"
         props:
-          defaultChild: project-focus-timer
+          defaultChild: cockpit
         children:
+          # ── Cockpit: health at a glance, the daily actions, and the todo list ──
           - metadata:
-              label: Focus
+              label: Cockpit
             node:
-              id: project-focus-timer
-              component: ./components/focus-timer
-              props:
-                title: Make something worth shipping
-                focusMinutes: 25
-                breakMinutes: 5
-          - metadata:
-              label: Themes
-            node:
-              id: theme-reference
-              component: ./components/theme-reference
-          - metadata:
-              label: Overview
-            node:
-              id: overview
+              id: cockpit
               component: "@dash-bored/group"
-              persistOnFocus: true
               children:
                 axis: vertical
                 first:
-                  axis: vertical
+                  axis: horizontal
+                  ratio: 0.25
                   first:
                     node:
-                      id: yaml-todo-card
-                      component: "@dash-bored/group"
-                      children:
-                        node:
-                          id: yaml-todo
-                          component: "@dash-bored/list"
-                          props:
-                            itemActions:
-                              - name: Remediate with agent
-                                action:
-                                  run: agent:prompt
-                                  with:
-                                    prompt: "${item.description}"
-                            todos:
-                              - id: todo-001
-                                description: "Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path."
-                                done: true
-                                tags:
-                                  - atom-roadmap
-                              - id: todo-002
-                                description: "Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today)."
-                                done: true
-                                tags:
-                                  - agent-tools
-                              - id: todo-003
-                                description: "Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3."
-                                done: true
-                                tags:
-                                  - atoms
-                              - id: todo-004
-                                description: "Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly."
-                                done: false
-                                tags:
-                                  - agent-tools
-                              - id: todo-005
-                                description: "Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window."
-                                done: false
-                                tags:
-                                  - agent-tools
-                              - id: todo-006
-                                description: "Windows and Linux agent tooling: a non-POSIX skill launcher and a window-capture backend for app screenshot (macOS only today)."
-                                done: false
-                                tags:
-                                  - agent-tools
-                              - id: todo-007
-                                description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
-                                done: false
-                                tags:
-                                  - tooling
-                              - id: todo-008
-                                description: Add a better agent interface with user feedback and control
-                                done: true
-                                tags:
-                                  - improvement
-                              - id: todo-009
-                                description: Keyboard shortcut editor, in settings, tied in with command pallet actions
-                                done: true
-                                tags:
-                                  - feature
-                              - id: todo-010
-                                description: Theme and styling as component?
-                                done: true
-                                tags:
-                                  - feature
-                              - id: todo-011
-                                description: Individually collapsable components in sidebar tree view
-                                done: true
-                                tags:
-                                  - feature
-                              - id: todo-012
-                                description: Components moveable from tree view
-                                done: true
-                                tags:
-                                  - feature
-                              - id: todo-013
-                                description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
-                                done: true
-                                tags:
-                                  - Improvement
-                              - id: todo-014
-                                description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
-                                done: true
-                                tags:
-                                  - feature
-                                  - component
-                              - id: todo-015
-                                description: unify agent work and component library look
-                                done: true
-                                tags:
-                                  - improvement
-                              - id: todo-016
-                                description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
-                                done: false
-                                tags:
-                                  - distribution
-                                  - updates
-                              - id: todo-017
-                                description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
-                                done: true
-                                tags:
-                                  - verification
-                                  - updates
-                              - id: todo-018
-                                description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
-                                done: true
-                                tags:
-                                  - verification
-                                  - release
-                              - id: todo-019
-                                description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
-                                done: false
-                                tags:
-                                  - feature
-                              - id: todo-020
-                                description: Agent work modal not showing diff
-                                done: false
-                                tags:
-                                  - bug
-                              - id: todo-021
-                                description: Remove Agent work modal redundant "Recent agent output” dropdown
-                                done: false
-                                tags:
-                                  - chore
-                              - id: todo-022
-                                description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
-                                done: false
-                                tags:
-                                  - improvement
-                              - id: todo-023
-                                description: Drag and dropping component between, or creating new, tabs needs support
-                                done: false
-                                tags:
-                                  - chore
-                              - id: todo-024
-                                description: "Drag targeting: let edge distance escalate to ancestor boundaries so a drop can tile beside a whole split pane or at the dashboard edge, not only beside the deepest hovered node's siblings."
-                                done: false
-                                tags:
-                                  - improvement
-                              - id: todo-025
-                                description: Auto-scroll scroll containers when a composition drag nears their edge.
-                                done: false
-                                tags:
-                                  - improvement
-                              - id: todo-026
-                                description: Retire the native HTML5 drag handlers in ComponentFrame and keep composition drags pointer-only.
-                                done: false
-                                tags:
-                                  - chore
-                              - id: todo-atoms-schema-migration
-                                description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
-                                done: false
-                                tags:
-                                  - atoms
-                  second:
-                    node:
-                      id: overview-intro
-                      component: "@dash-bored/markdown"
+                      id: workspace-status
+                      component: "@dash-bored/status"
                       props:
-                        content: |
-                          # dash-bored
-
-                          A local-first project cockpit for composing project workflows from
-                          small components. Use this dashboard to run the normal development
-                          loop, inspect the project contract, and exercise the runtime itself.
-
-                          Press **Command-K** to find app, command, and local-component
-                          actions from one place. You can also search for any dashboard
-                          node and focus it while the Overview navigation stays available.
+                        label: Working tree
+                        source:
+                          shell: bun run .dash-bored/scripts/workspace-status.ts
+                          cwd: .
+                          every: 10000
+                  second:
+                    axis: horizontal
+                    ratio: 0.3333
+                    first:
+                      node:
+                        id: dashboard-health
+                        component: "@dash-bored/status"
+                        props:
+                          label: Dashboard config
+                          source:
+                            shell: bun run .dash-bored/scripts/dashboard-health.ts
+                            cwd: .
+                            every: 30000
+                            timeoutMs: 20000
+                    second:
+                      axis: horizontal
+                      first:
+                        node:
+                          id: qa-status
+                          component: "@dash-bored/status"
+                          props:
+                            label: Last QA run
+                            source:
+                              process: run-qa
+                      second:
+                        node:
+                          id: todo-status
+                          component: "@dash-bored/status"
+                          props:
+                            label: Todos
+                            source:
+                              shell: bun run .dash-bored/scripts/todo-stats.ts status
+                              cwd: .
+                              every: 15000
                 second:
                   axis: vertical
                   first:
                     node:
-                      id: command-palette-navigation-card
-                      component: "@dash-bored/group"
+                      id: cockpit-actions
+                      component: "@dash-bored/button"
                       persistOnFocus: true
-                      children:
-                        axis: vertical
-                        first:
-                          node:
-                            id: overview-navigation-actions
-                            component: "@dash-bored/button"
-                            props:
-                              variant: buttons
-                              items:
-                                - name: Todos
-                                  action: focus:yaml-todo
-                                - name: Project pulse
-                                  action: focus:project-pulse
-                                - name: Refresh pulse
-                                  action: component:project-pulse-status:refresh
-                                - name: Run QA
-                                  action: component:run-qa:run
-                        second:
-                          node:
-                            id: review-todos-agent-button
-                            component: "@dash-bored/button"
-                            props:
-                              name: Review open todos with agent
+                      props:
+                        variant: buttons
+                        items:
+                          - name: Run QA
+                            action: process:run-qa
+                          - name: Validate dashboard
+                            action: process:validate-dashboard
+                          - name: Start dev environment
+                            action: process:start-development
+                          - name: Review changes
+                            action: select:project-sections/changes
+                          - name: Package scripts
+                            action: reveal:package-script-catalog
+                          - name: Triage todos with agent
+                            action:
+                              run: agent:prompt
+                              with:
+                                prompt: "Review the open todos in node yaml-todo of .dash-bored/dash-bored.yaml. Recommend one scoped next action with rationale; do not edit files or change todo completion state."
+                  second:
+                    axis: horizontal
+                    ratio: 0.58
+                    first:
+                      node:
+                        id: yaml-todo
+                        component: "@dash-bored/list"
+                        props:
+                          title: Todos
+                          itemActions:
+                            - name: Remediate with agent
                               action:
                                 run: agent:prompt
                                 with:
-                                  prompt: "Review the open todos in this dashboard. Recommend one scoped next action without editing files or changing todo completion state."
-                  second:
-                    axis: vertical
-                    first:
+                                  prompt: "${item.description}"
+                          todos:
+                            - id: todo-001
+                              description: "Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path."
+                              done: true
+                              tags:
+                                - atom-roadmap
+                            - id: todo-002
+                              description: "Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today)."
+                              done: true
+                              tags:
+                                - agent-tools
+                            - id: todo-003
+                              description: "Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3."
+                              done: true
+                              tags:
+                                - atoms
+                            - id: todo-004
+                              description: "Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly."
+                              done: false
+                              tags:
+                                - agent-tools
+                            - id: todo-005
+                              description: "Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window."
+                              done: false
+                              tags:
+                                - agent-tools
+                            - id: todo-006
+                              description: "Windows and Linux agent tooling: a non-POSIX skill launcher and a window-capture backend for app screenshot (macOS only today)."
+                              done: false
+                              tags:
+                                - agent-tools
+                            - id: todo-007
+                              description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
+                              done: false
+                              tags:
+                                - tooling
+                            - id: todo-008
+                              description: Add a better agent interface with user feedback and control
+                              done: true
+                              tags:
+                                - improvement
+                            - id: todo-009
+                              description: Keyboard shortcut editor, in settings, tied in with command pallet actions
+                              done: true
+                              tags:
+                                - feature
+                            - id: todo-010
+                              description: Theme and styling as component?
+                              done: true
+                              tags:
+                                - feature
+                            - id: todo-011
+                              description: Individually collapsable components in sidebar tree view
+                              done: true
+                              tags:
+                                - feature
+                            - id: todo-012
+                              description: Components moveable from tree view
+                              done: true
+                              tags:
+                                - feature
+                            - id: todo-013
+                              description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
+                              done: true
+                              tags:
+                                - Improvement
+                            - id: todo-014
+                              description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
+                              done: true
+                              tags:
+                                - feature
+                                - component
+                            - id: todo-015
+                              description: unify agent work and component library look
+                              done: true
+                              tags:
+                                - improvement
+                            - id: todo-016
+                              description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
+                              done: false
+                              tags:
+                                - distribution
+                                - updates
+                            - id: todo-017
+                              description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
+                              done: true
+                              tags:
+                                - verification
+                                - updates
+                            - id: todo-018
+                              description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
+                              done: true
+                              tags:
+                                - verification
+                                - release
+                            - id: todo-019
+                              description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
+                              done: false
+                              tags:
+                                - feature
+                            - id: todo-020
+                              description: Agent work modal not showing diff
+                              done: false
+                              tags:
+                                - bug
+                            - id: todo-021
+                              description: Remove Agent work modal redundant "Recent agent output” dropdown
+                              done: false
+                              tags:
+                                - chore
+                            - id: todo-022
+                              description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
+                              done: false
+                              tags:
+                                - improvement
+                            - id: todo-023
+                              description: Drag and dropping component between, or creating new, tabs needs support
+                              done: false
+                              tags:
+                                - chore
+                            - id: todo-024
+                              description: "Drag targeting: let edge distance escalate to ancestor boundaries so a drop can tile beside a whole split pane or at the dashboard edge, not only beside the deepest hovered node's siblings."
+                              done: false
+                              tags:
+                                - improvement
+                            - id: todo-025
+                              description: Auto-scroll scroll containers when a composition drag nears their edge.
+                              done: false
+                              tags:
+                                - improvement
+                            - id: todo-026
+                              description: Retire the native HTML5 drag handlers in ComponentFrame and keep composition drags pointer-only.
+                              done: false
+                              tags:
+                                - chore
+                            - id: todo-atoms-schema-migration
+                              description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
+                              done: false
+                              tags:
+                                - atoms
+                    second:
                       node:
-                        id: overview-layout
+                        id: checks
                         component: "@dash-bored/group"
+                        props:
+                          title: Checks
+                          description: The status tiles above observe these supervised processes.
                         children:
-                          axis: horizontal
+                          axis: vertical
                           first:
                             node:
-                              id: project-pulse-card
-                              component: "@dash-bored/group"
-                              children:
-                                node:
-                                  id: project-pulse
-                                  component: "@dash-bored/group"
-                                  children:
-                                    axis: vertical
-                                    first:
-                                      node:
-                                        id: project-pulse-status
-                                        component: "@dash-bored/status"
-                                        props:
-                                          label: Project pulse
-                                          source:
-                                            shell: bun run .dash-bored/scripts/project-pulse.ts status
-                                            cwd: .
-                                            every: 30000
-                                    second:
-                                      node:
-                                        id: project-pulse-chart
-                                        component: "@dash-bored/chart"
-                                        props:
-                                          title: Package scripts by category
-                                          type: bar
-                                          source:
-                                            shell: bun run .dash-bored/scripts/project-pulse.ts chart
-                                            cwd: .
-                                            every: 30000
-                          second:
-                            node:
-                              id: dashboard-capabilities-card
-                              component: "@dash-bored/group"
+                              id: run-qa
+                              component: "@dash-bored/command"
                               props:
-                                title: Dashboard capabilities
-                                description: Trust gates the project-owned runtime features below.
-                              children:
-                                axis: vertical
-                                first:
-                                  node:
-                                    id: status-config
-                                    component: "@dash-bored/status"
-                                    props:
-                                      label: YAML configuration
-                                      source:
-                                        inline:
-                                          state: healthy
-                                          detail: Project-owned and validated on each reload.
-                                second:
+                                label: Run QA (reuse prepared Hutch)
+                                command: bun run qa:fast
+                                cwd: .
+                          second:
+                            axis: vertical
+                            first:
+                              node:
+                                id: validate-dashboard
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Validate dashboard configuration
+                                  command: bun run dash-bored -- validate .
+                                  cwd: .
+                            second:
+                              node:
+                                id: project-pulse
+                                component: "@dash-bored/group"
+                                children:
                                   axis: vertical
                                   first:
                                     node:
-                                      id: status-local-components
+                                      id: project-pulse-status
                                       component: "@dash-bored/status"
                                       props:
-                                        label: Local components
+                                        label: Project pulse
                                         source:
-                                          process: run-qa
+                                          shell: bun run .dash-bored/scripts/project-pulse.ts status
+                                          cwd: .
+                                          every: 30000
                                   second:
                                     node:
-                                      id: status-trust
-                                      component: "@dash-bored/status"
+                                      id: git-activity
+                                      component: "@dash-bored/chart"
                                       props:
-                                        label: Host capabilities
+                                        title: Commits per day · last 14 days, all branches
+                                        type: line
                                         source:
-                                          inline:
-                                            state: warning
-                                            detail: File reads, Markdown edits, and commands require an explicit project trust decision.
+                                          shell: bun run .dash-bored/scripts/git-log.ts activity
+                                          cwd: .
+                                          every: 60000
+          # ── Changes: working tree, history, and branches with read-only git runners ──
+          - metadata:
+              label: Changes
+            node:
+              id: changes
+              component: "@dash-bored/group"
+              children:
+                axis: vertical
+                first:
+                  node:
+                    id: changes-actions
+                    component: "@dash-bored/button"
+                    props:
+                      variant: buttons
+                      items:
+                        - name: Refresh working tree
+                          action: component:git-changes:refresh
+                        - name: Refresh history
+                          action: component:recent-commits:refresh
+                        - name: Draft commit message with agent
+                          action:
+                            run: agent:prompt
+                            with:
+                              prompt: "Draft a conventional commit message for the currently staged changes in this repository (git diff --cached). Show the message only; do not stage, commit, or edit files."
+                        - name: Review branch with agent
+                          action:
+                            run: agent:prompt
+                            with:
+                              prompt: "Review the commits on the current branch that are not on main. Summarize the change set and list correctness risks; do not edit files."
+                second:
+                  axis: vertical
+                  first:
+                    axis: horizontal
+                    ratio: 0.45
+                    first:
+                      node:
+                        id: git-changes
+                        component: "@dash-bored/list"
+                        props:
+                          title: Working tree
+                          sort: source-order
+                          source:
+                            shell: bun run .dash-bored/scripts/git-changes.ts
+                            cwd: .
+                            every: 10000
+                          itemActions:
+                            - name: Diff
+                              action:
+                                run: component:git-diff-runner:run
+                                with:
+                                  path: "${item.path}"
+                            - name: Review with agent
+                              action:
+                                run: agent:prompt
+                                with:
+                                  prompt: "${item.prompt}"
                     second:
-                      axis: vertical
+                      node:
+                        id: git-diff-runner
+                        component: "@dash-bored/command"
+                        props:
+                          label: Diff selected file
+                          command: 'if git ls-files --error-unmatch -- "$DASH_ITEM_PATH" >/dev/null 2>&1; then git --no-pager diff --color=always HEAD -- "$DASH_ITEM_PATH"; else git --no-pager diff --color=always --no-index -- /dev/null "$DASH_ITEM_PATH" || test $? -eq 1; fi'
+                          cwd: .
+                  second:
+                    axis: vertical
+                    first:
+                      axis: horizontal
+                      ratio: 0.45
                       first:
                         node:
-                          id: git-branches-card
-                          component: "@dash-bored/group"
-                          children:
-                            node:
-                              id: git-branches
-                              component: "@dash-bored/list"
-                              props:
-                                title: Git branches
-                                source:
-                                  shell: bun run .dash-bored/scripts/git-branches.ts
-                                  cwd: .
-                                  every: 30000
-                                  env:
-                                    DASH_BORED_BASE_BRANCH: main
+                          id: recent-commits
+                          component: "@dash-bored/list"
+                          props:
+                            title: Recent commits
+                            sort: source-order
+                            source:
+                              shell: bun run .dash-bored/scripts/git-log.ts list
+                              cwd: .
+                              every: 30000
+                            itemActions:
+                              - name: Show
+                                action:
+                                  run: component:git-show-runner:run
+                                  with:
+                                    sha: "${item.sha}"
                       second:
                         node:
-                          id: dashboard-lifecycle-card
-                          component: "@dash-bored/group"
-                          children:
-                            node:
-                              id: dashboard-lifecycle
-                              component: "@dash-bored/markdown"
-                              props:
-                                content: |
-                                  ### Dashboard lifecycle
-
-                                  The expanded sidebar exposes a keyboard-accessible trash action.
-                                  Removal only forgets the dashboard by default. Before optional
-                                  cleanup, dash-bored previews direct and transitive config links;
-                                  incomplete analysis keeps file removal disabled.
-
-                                  If selected, only this project's app-owned `.dash-bored/` directory
-                                  moves to the OS Trash. Source project files are never targeted.
+                          id: git-show-runner
+                          component: "@dash-bored/command"
+                          props:
+                            label: Show selected commit
+                            command: git --no-pager show --stat --patch --color=always "$DASH_ITEM_SHA"
+                            cwd: .
+                    second:
+                      axis: horizontal
+                      ratio: 0.45
+                      first:
+                        node:
+                          id: git-branches
+                          component: "@dash-bored/list"
+                          props:
+                            title: Branches
+                            source:
+                              shell: bun run .dash-bored/scripts/git-branches.ts
+                              cwd: .
+                              every: 30000
+                              env:
+                                DASH_BORED_BASE_BRANCH: main
+                            itemActions:
+                              - name: Log
+                                action:
+                                  run: component:git-branch-log:run
+                                  with:
+                                    name: "${item.name}"
+                      second:
+                        node:
+                          id: git-branch-log
+                          component: "@dash-bored/command"
+                          props:
+                            label: Log selected branch against main
+                            command: git --no-pager log --color=always --graph --oneline --decorate -30 "$DASH_ITEM_NAME" --not main --
+                            cwd: .
+          # ── Develop: the dev loop, package scripts, and the renderer fixture ──
           - metadata:
-              label: Development
+              label: Develop
             node:
               id: development
               component: "@dash-bored/group"
@@ -399,119 +469,198 @@ root:
                     component: "@dash-bored/markdown"
                     props:
                       content: |
-                        ## Development loop
-
-                        Start the desktop development environment when you need live renderer
-                        and main-process updates. Run QA before handing changes off. Commands
-                        never run automatically; each is an explicit, trusted action. For UI changes, run **ui:fixture** and inspect the normal and narrow renderer before the separate native desktop check.
+                        **Development loop.** Start the desktop environment for live renderer and main-process
+                        updates; prefer the `:fast` checks while a watcher holds the Electrobun lock. For UI
+                        changes, start **UI fixture** and inspect it below at normal and narrow widths before the
+                        native desktop check.
                 second:
                   axis: vertical
                   first:
                     node:
-                      id: development-layout
+                      id: development-controls
                       component: "@dash-bored/group"
+                      props:
+                        title: Dev commands
                       children:
+                        axis: horizontal
+                        ratio: 0.3333
+                        first:
+                          axis: vertical
+                          first:
+                            node:
+                              id: start-development
+                              component: "@dash-bored/command"
+                              props:
+                                label: Start development environment
+                                command: bun run dev
+                                cwd: .
+                          second:
+                            node:
+                              id: ui-fixture
+                              component: "@dash-bored/command"
+                              props:
+                                label: Serve UI fixture (renderer only)
+                                command: bun run ui:fixture
+                                cwd: .
+                        second:
+                          axis: horizontal
+                          first:
+                            axis: vertical
+                            first:
+                              node:
+                                id: typecheck-fast
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Typecheck (fast)
+                                  command: bun run typecheck:fast
+                                  cwd: .
+                            second:
+                              node:
+                                id: build-renderer-fast
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Build renderer (fast)
+                                  command: bun run build:renderer:fast
+                                  cwd: .
+                          second:
+                            axis: vertical
+                            first:
+                              node:
+                                id: test-suite
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Full test suite
+                                  command: bun run test
+                                  cwd: .
+                            second:
+                              node:
+                                id: renderer-ui-test
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Renderer interaction suite
+                                  command: bun run test:renderer-ui
+                                  cwd: .
+                  second:
+                    axis: vertical
+                    first:
+                      axis: horizontal
+                      ratio: 0.5
+                      first:
                         node:
-                          id: development-controls
+                          id: package-scripts
                           component: "@dash-bored/group"
+                          props:
+                            title: Package scripts
+                            description: Run passes the script name and runner as DASH_ITEM_* values.
                           children:
                             axis: vertical
                             first:
                               node:
-                                id: start-development
+                                id: package-script-catalog
+                                component: "@dash-bored/list"
+                                props:
+                                  title: Package scripts
+                                  source:
+                                    shell: bun run .dash-bored/scripts/package-scripts.ts
+                                    cwd: .
+                                    every: 30000
+                                  sort: source-order
+                                  itemActions:
+                                    - name: Run
+                                      action:
+                                        run: component:package-script-runner:run
+                                        with:
+                                          name: "${item.name}"
+                                          runner: "${item.runner}"
+                            second:
+                              node:
+                                id: package-script-runner
                                 component: "@dash-bored/command"
                                 props:
-                                  label: Start development environment
-                                  command: bun run dev
+                                  label: Run selected package script
+                                  command: '"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"'
                                   cwd: .
-                            second:
-                              axis: vertical
-                              first:
-                                node:
-                                  id: docker-connectivity
-                                  component: "@dash-bored/command"
-                                  props:
-                                    label: Check Docker connectivity
-                                    command: docker version --format 'Docker {{.Client.Version}} → server {{.Server.Version}} ({{.Server.Os}}/{{.Server.Arch}})'
-                                    cwd: .
-                              second:
-                                axis: vertical
-                                first:
-                                  node:
-                                    id: run-qa
-                                    component: "@dash-bored/command"
-                                    props:
-                                      label: Run QA (reuse prepared Hutch)
-                                      command: bun run qa:fast
-                                      cwd: .
-                                second:
-                                  node:
-                                    id: validate-dashboard
-                                    component: "@dash-bored/command"
-                                    props:
-                                      label: Validate dashboard configuration
-                                      command: bun run dash-bored -- validate .
-                                      cwd: .
-                  second:
-                    axis: vertical
-                    first:
+                      second:
+                        axis: vertical
+                        first:
+                          node:
+                            id: project-pulse-chart
+                            component: "@dash-bored/chart"
+                            props:
+                              title: Package scripts by category
+                              type: bar
+                              source:
+                                shell: bun run .dash-bored/scripts/project-pulse.ts chart
+                                cwd: .
+                                every: 30000
+                        second:
+                          node:
+                            id: worktree-environment
+                            component: "@dash-bored/env"
+                            props:
+                              path: .env.worktree
+                    second:
                       node:
                         id: renderer-preview
                         component: "@dash-bored/webview"
                         props:
-                          url: https://www.google.com
-                    second:
-                      axis: vertical
-                      first:
-                        node:
-                          id: package-scripts-card
-                          component: "@dash-bored/group"
-                          children:
-                            node:
-                              id: package-scripts
-                              component: "@dash-bored/group"
-                              children:
-                                axis: vertical
-                                first:
-                                  node:
-                                    id: package-script-catalog
-                                    component: "@dash-bored/list"
-                                    props:
-                                      title: Package scripts
-                                      source:
-                                        shell: bun run .dash-bored/scripts/package-scripts.ts
-                                        cwd: .
-                                        every: 30000
-                                      sort: source-order
-                                      itemActions:
-                                        - name: Run
-                                          action:
-                                            run: component:package-script-runner:run
-                                            with:
-                                              name: "${item.name}"
-                                              runner: "${item.runner}"
-                                second:
-                                  node:
-                                    id: package-script-runner
-                                    component: "@dash-bored/command"
-                                    props:
-                                      label: Run selected package script
-                                      command: '"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"'
-                                      cwd: .
-                      second:
-                        node:
-                          id: source-proof-card
-                          component: "@dash-bored/group"
-                          children:
-                            node:
-                              id: source-proof
-                              component: "@dash-bored/markdown"
-                              props:
-                                title: Project script source proof
-                                source:
-                                  shell: bun run scripts/dashboard-source-proof.ts
-                                  cwd: .
-                                  every: 30000
+                          url: http://127.0.0.1:5488/ui-harness.html
+          # ── Roadmap: atoms work packages and where the todo backlog sits ──
+          - metadata:
+              label: Roadmap
+            node:
+              id: roadmap
+              component: "@dash-bored/group"
+              children:
+                axis: horizontal
+                ratio: 0.55
+                first:
+                  node:
+                    id: roadmap-packages
+                    component: "@dash-bored/list"
+                    props:
+                      title: Atoms roadmap · implementation status
+                      sort: source-order
+                      source:
+                        shell: bun run .dash-bored/scripts/roadmap.ts
+                        cwd: .
+                        every: 60000
+                      itemActions:
+                        - name: Continue with agent
+                          action:
+                            run: agent:prompt
+                            with:
+                              prompt: "${item.prompt}"
+                        - name: Read roadmap
+                          action: reveal:roadmap-markdown
+                second:
+                  axis: vertical
+                  first:
+                    node:
+                      id: todo-chart
+                      component: "@dash-bored/chart"
+                      props:
+                        title: Todos by tag
+                        type: bar
+                        source:
+                          shell: bun run .dash-bored/scripts/todo-stats.ts chart
+                          cwd: .
+                          every: 30000
+                  second:
+                    node:
+                      id: roadmap-todos
+                      component: "@dash-bored/button"
+                      props:
+                        variant: buttons
+                        items:
+                          - name: Jump to todos
+                            action: reveal:yaml-todo
+                          - name: Plan the next work package with agent
+                            action:
+                              run: agent:prompt
+                              with:
+                                prompt: "Read docs/IDEA.md and docs/roadmap/atoms.md. Propose the smallest next work package that moves WP9 forward, with acceptance checks. Do not edit files."
+          # ── Release: prerelease pipeline, published releases, and updates ──
           - metadata:
               label: Release
             node:
@@ -525,69 +674,192 @@ root:
                     component: "@dash-bored/markdown"
                     props:
                       content: |
-                        ## Unsigned macOS prerelease
-
-                        Releases currently target Apple Silicon on macOS 14 or newer.
-                        Run the checks in order before pushing a tag that exactly matches
-                        `v<package.json version>`. GitHub Actions repeats these checks and
-                        creates a draft prerelease for explicit publication.
+                        **Unsigned macOS prerelease** for Apple Silicon on macOS 14+. Run the checks in order before
+                        pushing a tag that exactly matches `v<package.json version>`; GitHub Actions repeats them and
+                        creates a draft prerelease for explicit publication. Settings → Updates handles release notes,
+                        dashboard migration, and the verified installer.
                 second:
                   axis: vertical
                   first:
-                    node:
-                      id: release-layout
-                      component: "@dash-bored/group"
-                      children:
+                    axis: horizontal
+                    ratio: 0.5
+                    first:
+                      node:
+                        id: release-controls
+                        component: "@dash-bored/group"
+                        props:
+                          title: Release pipeline
+                        children:
+                          axis: vertical
+                          first:
+                            node:
+                              id: run-release-qa
+                              component: "@dash-bored/command"
+                              props:
+                                label: 1 · Run release QA
+                                command: bun run qa && bun run dash-bored -- validate .
+                                cwd: .
+                          second:
+                            axis: vertical
+                            first:
+                              node:
+                                id: build-macos-release
+                                component: "@dash-bored/command"
+                                props:
+                                  label: 2 · Build clean macOS prerelease
+                                  command: bun run build:release
+                                  cwd: .
+                            second:
+                              node:
+                                id: prepare-macos-release
+                                component: "@dash-bored/command"
+                                props:
+                                  label: 3 · Verify and stage release assets
+                                  command: bun run release:prepare
+                                  cwd: .
+                    second:
+                      axis: vertical
+                      first:
                         node:
-                          id: release-controls
+                          id: github-releases
+                          component: "@dash-bored/list"
+                          props:
+                            title: Published GitHub releases
+                            sort: source-order
+                            source:
+                              shell: bun run .dash-bored/scripts/releases.ts
+                              cwd: .
+                              every: 300000
+                              timeoutMs: 10000
+                      second:
+                        node:
+                          id: update-workflow
                           component: "@dash-bored/group"
+                          props:
+                            title: Updates and migrations
+                            description: Canary is available; Beta and Stable come later. Nothing below installs anything.
                           children:
                             axis: vertical
                             first:
                               node:
-                                id: run-release-qa
+                                id: update-check
+                                component: "@dash-bored/button"
+                                props:
+                                  name: Open Settings to check canary releases
+                                  action: app:show-settings
+                            second:
+                              node:
+                                id: migration-inspect
                                 component: "@dash-bored/command"
                                 props:
-                                  label: Run release QA
-                                  command: bun run qa && bun run dash-bored -- validate .
+                                  label: Inspect dashboard migration requirements
+                                  command: bun run dash-bored -- migrate inspect .
                                   cwd: .
-                            second:
-                              axis: vertical
-                              first:
-                                node:
-                                  id: build-macos-release
-                                  component: "@dash-bored/command"
-                                  props:
-                                    label: Build clean macOS prerelease
-                                    command: bun run build:release
-                                    cwd: .
-                              second:
-                                node:
-                                  id: prepare-macos-release
-                                  component: "@dash-bored/command"
-                                  props:
-                                    label: Verify and stage release assets
-                                    command: bun run release:prepare
-                                    cwd: .
                   second:
                     node:
-                      id: release-workflow-card
-                      component: "@dash-bored/group"
-                      children:
-                        node:
-                          id: release-workflow-markdown
-                          component: "@dash-bored/markdown"
-                          props:
-                            path: .github/workflows/release.yml
+                      id: release-workflow-markdown
+                      component: "@dash-bored/markdown"
+                      props:
+                        path: .github/workflows/release.yml
+          # ── Agent: the setup flow new projects get, plus agent tooling checks ──
           - metadata:
-              label: Onboarding QA
+              label: Agent
             node:
-              id: onboarding-qa-guide
-              component: "@dash-bored/markdown"
+              id: agent-setup
+              component: "@dash-bored/group"
               props:
-                path: docs/release-qa.md
+                title: Configure with an agent
+                description: Exercise the same self-contained setup flow generated for new projects.
+              children:
+                axis: vertical
+                first:
+                  node:
+                    id: agent-setup-guide
+                    component: "@dash-bored/markdown"
+                    props:
+                      content: |
+                        Choose the CLI coding agent in Settings, install the version-matched dash-bored skill
+                        globally or for this repository, then ask the agent to improve this cockpit. The skill ships
+                        the agent tools; the app passes its bundled tool as `DASH_BORED_TOOL`. App settings override
+                        the bundle environment below. Install tiles hide themselves once the skill is current.
+                second:
+                  axis: horizontal
+                  ratio: 0.5
+                  first:
+                    axis: vertical
+                    first:
+                      node:
+                        id: agent-environment
+                        component: "@dash-bored/env"
+                        props:
+                          path: .dash-bored/.env
+                    second:
+                      node:
+                        id: configure-with-agent
+                        component: "@dash-bored/button"
+                        props:
+                          name: Configure with agent
+                          action:
+                            run: agent:prompt
+                            with:
+                              prompt: "Inspect this project and propose a scoped dashboard improvement. Use the dash-bored skill and validate any saved dashboard changes."
+                  second:
+                    axis: vertical
+                    first:
+                      node:
+                        id: capture-agent-view
+                        component: "@dash-bored/command"
+                        props:
+                          label: Capture the app window as an agent sees it
+                          command: '"$DASH_BORED_TOOL" app screenshot --output "${TMPDIR:-/tmp}/dash-bored-agent-view.png" && open "${TMPDIR:-/tmp}/dash-bored-agent-view.png"'
+                          cwd: .
+                    second:
+                      axis: vertical
+                      first:
+                        node:
+                          id: list-agent-actions
+                          component: "@dash-bored/command"
+                          props:
+                            label: List actions an agent can run in this app
+                            command: '"$DASH_BORED_TOOL" app actions'
+                            cwd: .
+                      second:
+                        axis: vertical
+                        first:
+                          node:
+                            id: show-install-agent-skill-global
+                            component: "@dash-bored/conditional"
+                            props:
+                              command: '"$DASH_BORED_TOOL" install-skill --global --check'
+                              invert: true
+                              pollIntervalMs: 2000
+                            children:
+                              node:
+                                id: install-agent-skill-global
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Install or update dash-bored skill globally
+                                  command: '"$DASH_BORED_TOOL" install-skill --global'
+                                  cwd: .
+                        second:
+                          node:
+                            id: show-install-agent-skill
+                            component: "@dash-bored/conditional"
+                            props:
+                              command: '"$DASH_BORED_TOOL" install-skill . --check'
+                              invert: true
+                              pollIntervalMs: 2000
+                            children:
+                              node:
+                                id: install-agent-skill
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Install or update portable dash-bored skill for this project
+                                  command: '"$DASH_BORED_TOOL" install-skill .'
+                                  cwd: .
+          # ── Docs: project documents, editable in place ──
           - metadata:
-              label: Documentation
+              label: Docs
             node:
               id: documentation
               component: "@dash-bored/group"
@@ -597,6 +869,7 @@ root:
                   node:
                     id: documentation-tabs
                     component: "@dash-bored/button"
+                    persistOnFocus: true
                     props:
                       variant: tabs
                       items:
@@ -606,6 +879,18 @@ root:
                           action: select:documentation-panels/idea-markdown
                         - name: Architecture
                           action: select:documentation-panels/architecture-markdown
+                        - name: Atoms roadmap
+                          action: select:documentation-panels/roadmap-markdown
+                        - name: Components
+                          action: select:documentation-panels/components-markdown
+                        - name: Renderer
+                          action: select:documentation-panels/renderer-markdown
+                        - name: Runtime
+                          action: select:documentation-panels/runtime-markdown
+                        - name: Security
+                          action: select:documentation-panels/security-markdown
+                        - name: Release QA
+                          action: select:documentation-panels/onboarding-qa-guide
                 second:
                   node:
                     id: documentation-panels
@@ -634,130 +919,65 @@ root:
                           component: "@dash-bored/markdown"
                           props:
                             path: ARCHITECTURE.md
-          - metadata:
-              label: Agent setup
-            node:
-              id: agent-setup
-              component: "@dash-bored/group"
-              props:
-                title: Configure with an agent
-                description: Exercise the same self-contained setup flow generated for new projects.
-              children:
-                axis: vertical
-                first:
-                  node:
-                    id: agent-setup-guide
-                    component: "@dash-bored/markdown"
-                    props:
-                      content: |
-                        Choose the CLI coding agent in Settings, install the version-matched
-                        dash-bored skill globally or just for this repository, then ask the
-                        agent to inspect this repository and improve its development cockpit.
-                        The skill ships the agent tools; the app passes its bundled tool to
-                        these commands and agents as `DASH_BORED_TOOL`. Capture the window
-                        below to see exactly what an agent's `app screenshot` returns.
-                        App settings override the bundle environment; the environment panel
-                        shows the effective agent command and where it comes from.
-                second:
-                  axis: vertical
-                  first:
-                    node:
-                      id: agent-environment
-                      component: "@dash-bored/env"
-                      props:
-                        path: .dash-bored/.env
-                  second:
-                    axis: vertical
-                    first:
-                      node:
-                        id: capture-agent-view
-                        component: "@dash-bored/command"
-                        props:
-                          label: Capture the app window as an agent sees it
-                          command: '"$DASH_BORED_TOOL" app screenshot --output "${TMPDIR:-/tmp}/dash-bored-agent-view.png" && open "${TMPDIR:-/tmp}/dash-bored-agent-view.png"'
-                          cwd: .
-                    second:
-                      axis: vertical
-                      first:
+                      - metadata:
+                          label: Atoms roadmap
                         node:
-                          id: show-install-agent-skill-global
-                          component: "@dash-bored/conditional"
+                          id: roadmap-markdown
+                          component: "@dash-bored/markdown"
                           props:
-                            command: '"$DASH_BORED_TOOL" install-skill --global --check'
-                            invert: true
-                            pollIntervalMs: 2000
-                          children:
-                            node:
-                              id: install-agent-skill-global
-                              component: "@dash-bored/command"
-                              props:
-                                label: Install or update dash-bored skill globally
-                                command: '"$DASH_BORED_TOOL" install-skill --global'
-                                cwd: .
-                      second:
-                        axis: vertical
-                        first:
-                          node:
-                            id: show-install-agent-skill
-                            component: "@dash-bored/conditional"
-                            props:
-                              command: '"$DASH_BORED_TOOL" install-skill . --check'
-                              invert: true
-                              pollIntervalMs: 2000
-                            children:
-                              node:
-                                id: install-agent-skill
-                                component: "@dash-bored/command"
-                                props:
-                                  label: Install or update portable dash-bored skill for this project
-                                  command: '"$DASH_BORED_TOOL" install-skill .'
-                                  cwd: .
-                        second:
-                          node:
-                            id: configure-with-agent
-                            component: "@dash-bored/button"
-                            props:
-                              name: Configure with agent
-                              action:
-                                run: agent:prompt
-                                with:
-                                  prompt: "Inspect this project and propose a scoped dashboard improvement. Use the dash-bored skill and validate any saved dashboard changes."
+                            path: docs/roadmap/atoms.md
+                      - metadata:
+                          label: Components
+                        node:
+                          id: components-markdown
+                          component: "@dash-bored/markdown"
+                          props:
+                            path: docs/architecture/components.md
+                      - metadata:
+                          label: Renderer
+                        node:
+                          id: renderer-markdown
+                          component: "@dash-bored/markdown"
+                          props:
+                            path: docs/architecture/renderer.md
+                      - metadata:
+                          label: Runtime
+                        node:
+                          id: runtime-markdown
+                          component: "@dash-bored/markdown"
+                          props:
+                            path: docs/architecture/runtime.md
+                      - metadata:
+                          label: Security
+                        node:
+                          id: security-markdown
+                          component: "@dash-bored/markdown"
+                          props:
+                            path: docs/architecture/security.md
+                      - metadata:
+                          label: Release QA
+                        node:
+                          id: onboarding-qa-guide
+                          component: "@dash-bored/markdown"
+                          props:
+                            path: docs/release-qa.md
+          # ── Lab: linked atoms-lab bundle for smoke testing every atom ──
           - metadata:
-              label: Dogfood
+              label: Lab
             node:
               id: dogfood-dashboard
               component: ./dogfood
           - metadata:
-              label: Updates
+              label: Focus
             node:
-              id: update-workflow
-              component: "@dash-bored/group"
-              children:
-                axis: vertical
-                first:
-                  node:
-                    id: update-guidance
-                    component: "@dash-bored/markdown"
-                    props:
-                      content: |-
-                        ## Updates and migrations
-
-                        Use Application Settings → Updates for release notes, selected dashboard migration, and the verified installer. Canary is available; Beta and Stable are coming later. Downloads are explicit. Save drafts and finish running work before installation.
-
-                        The commands below inspect published releases and this dashboard without installing anything.
-                second:
-                  axis: horizontal
-                  first:
-                    node:
-                      id: update-check
-                      component: "@dash-bored/button"
-                      props:
-                        name: Open Settings to check canary releases
-                        action: app:show-settings
-                  second:
-                    node:
-                      id: migration-inspect
-                      component: "@dash-bored/command"
-                      props:
-                        label: Inspect dashboard migration requirements
-                        command: bun run dash-bored -- migrate inspect .
+              id: project-focus-timer
+              component: ./components/focus-timer
+              props:
+                title: Make something worth shipping
+                focusMinutes: 25
+                breakMinutes: 5
+          - metadata:
+              label: Themes
+            node:
+              id: theme-reference
+              component: ./components/theme-reference

@@ -10,3 +10,4 @@ release/
 coverage/
 *.tsbuildinfo
 .DS_Store
+.dash-bored/dogfood/lab/signal.json

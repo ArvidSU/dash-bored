@@ -1,0 +1,4 @@
+[
+  { "id": "file:one", "title": "Read from a committed JSON file", "detail": "source.file: .dash-bored/dogfood/lab/items.json", "tags": ["file-source"] },
+  { "id": "file:two", "title": "Edit this file and press Refresh", "detail": "File sources re-read on refresh or on their interval.", "tags": ["file-source", "manual"] }
+]

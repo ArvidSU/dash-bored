@@ -77,8 +77,7 @@ examples, not privileged component types:
   Selection is local to a panel, while focus is dashboard-wide navigation.
 - `@dash-bored/button` resolves and invokes one action or an `items` action bar
   through the shared executor. It reflects active navigation, running work,
-  interaction steps, unavailable reasons, and the last bounded invocation
-  result. Invocation state is keyed per control; process snapshots remain the
+  interaction steps, and unavailable reasons. Process snapshots remain the
   authority for supervised process completion.
 - Action references may be argument-free strings or `{ run, with }`
   invocations. Typed arguments and any remaining palette choices share the same

@@ -47,19 +47,6 @@
   border-bottom-color: var(--accent);
 }
 
-.action-button__result {
-  color: var(--text-muted);
-  display: block;
-  font-size: 0.78rem;
-  line-height: 1.35;
-  margin: 0.25rem 0.15rem 0;
-  overflow-wrap: anywhere;
-}
-
-.action-button__result--error {
-  color: var(--danger, #d05555);
-}
-
 .action-button__control {
   align-items: center;
   background: color-mix(in srgb, var(--surface-raised) 88%, transparent);

@@ -24,23 +24,6 @@ function selectionContainer(reference: string): string | undefined {
   return match?.[1];
 }
 
-function actionStatusLabel(
-  action: ReturnType<ComponentRendererProps["host"]["actions"]["resolve"]>,
-): string | undefined {
-  if (action.invocation?.status === "running") return "Running";
-  if (action.invocation?.status === "failed") return `Failed: ${action.invocation.message ?? "Action failed."}`;
-  if (action.invocation?.outcome === "prepared") return "Prompt ready for review";
-  if (action.process?.phase === "running" || action.process?.phase === "stopping") {
-    return action.process.phase === "stopping" ? "Stopping" : "Running";
-  }
-  if (action.process?.phase === "failed") return "Process failed";
-  if (action.process?.phase === "exited" && action.process.exitCode !== null) {
-    return action.process.exitCode === 0 ? "Finished" : `Failed: exit ${action.process.exitCode}`;
-  }
-  if (action.invocation?.outcome === "started") return "Started";
-  return undefined;
-}
-
 export default function ActionButton({ props, host }: ComponentRendererProps): ReactNode {
   const items = itemsFromProps(props);
   const requestedVariant = props.variant;
@@ -85,7 +68,6 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
             ? undefined
             : action.disabledReason ?? "This action is unavailable.";
         const disabled = disabledReason !== undefined && !(tablist && action.active);
-        const status = actionStatusLabel(action);
         const itemId = `${id}-item-${index}`;
         return (
           <div className="action-button__item" key={`${item.name}:${index}`}>
@@ -114,7 +96,6 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
               {action.running ? <span className="action-button__spinner" aria-hidden="true" /> : null}
             </button>
             {disabledReason && disabled ? <span className="visually-hidden" id={`${itemId}-reason`} role="status">{disabledReason}</span> : null}
-            {status ? <span className={`action-button__result${action.invocation?.status === "failed" || action.process?.phase === "failed" || (action.process?.phase === "exited" && action.process.exitCode !== 0) ? " action-button__result--error" : ""}`} role="status">{status}</span> : null}
           </div>
         );
       })}
