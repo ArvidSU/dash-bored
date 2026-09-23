@@ -21,6 +21,7 @@ import { parseListItemActions, resolveListItemAction } from "../../lib/list-data
 interface TodoListProps {
   props: Record<string, unknown>;
   host: LocalComponentHost;
+  refreshAction?: boolean;
 }
 
 type EditField = "description" | "tags";
@@ -38,7 +39,7 @@ function tagsFromInput(value: string): string[] {
   return [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))];
 }
 
-export function TodoList({ props, host }: TodoListProps): ReactNode {
+export function TodoList({ props, host, refreshAction = false }: TodoListProps): ReactNode {
   const configuredItemsKey = JSON.stringify(props.todos);
   const configuredItems = useMemo(
     () => migrateTodoItems(props.todos).items,
@@ -55,6 +56,17 @@ export function TodoList({ props, host }: TodoListProps): ReactNode {
   const [editValue, setEditValue] = useState("");
   const configuredActions = useMemo(() => parseListItemActions(props.itemActions), [props.itemActions]);
   const editActionRef = useRef<"idle" | "committing" | "cancelled">("idle");
+
+  useEffect(() => {
+    if (!refreshAction) return;
+    return host.actions.register({
+      id: "refresh",
+      label: "Refresh list",
+      enabled: false,
+      disabledReason: "Editable YAML items are already current.",
+      run: () => undefined,
+    });
+  }, [host.actions, refreshAction]);
 
   useEffect(() => {
     if (!saving) setItems(configuredItems);

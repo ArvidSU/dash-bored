@@ -17,6 +17,7 @@ const todoItemSchema = objectSchema(
   },
   ["description", "done", "tags"],
 );
+const editableListTodoSchema = { ...todoItemSchema, required: ["id", "description", "done", "tags"] };
 const sourceSchema = {
   type: "object",
   additionalProperties: false,
@@ -358,20 +359,24 @@ const manifests: ComponentManifest[] = [
   {
     schemaVersion: 2,
     id: "@dash-bored/list",
-    name: "Source list",
-    description: "Renders stable-ID items from a bounded source, with tags, status, and refresh.",
+    name: "List",
+    description: "Renders stable-ID items from a bounded source or editable YAML todos.",
     entry: "builtin:list",
-    propsSchema: objectSchema({
-      title: { type: "string" },
-      source: sourceSchema,
-      filterByTags: { type: "boolean", default: true },
-      sort: { enum: ["open-first", "source-order"], default: "open-first" },
-      itemActions: {
-        type: "array",
-        maxItems: 12,
-        items: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
-      },
-    }, ["source"]),
+    propsSchema: {
+      ...objectSchema({
+        title: { type: "string" },
+        source: sourceSchema,
+        todos: { type: "array", maxItems: 500, items: editableListTodoSchema },
+        filterByTags: { type: "boolean", default: true },
+        sort: { enum: ["open-first", "source-order"], default: "open-first" },
+        itemActions: {
+          type: "array",
+          maxItems: 12,
+          items: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
+        },
+      }),
+      oneOf: [{ required: ["source"] }, { required: ["todos"] }],
+    },
     actions: [{ id: "refresh", label: "Refresh list" }],
     permissionsByProp: {
       "source.shell": ["process:execute"],

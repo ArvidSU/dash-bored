@@ -108,6 +108,10 @@ examples, not privileged component types:
   the shared executor. Missing fields and unsupported values are visible
   errors, and command actions receive those values as `DASH_ITEM_*` environment
   variables at process start.
+- `@dash-bored/list` also accepts a `todos` array as its own editable YAML
+  source. This mode uses the same stable item IDs and action templates while
+  retaining draft-backed add, remove, toggle, and inline editing. `source` and
+  `todos` are mutually exclusive.
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
   terminal session. Its declared `run` action starts the command with bounded

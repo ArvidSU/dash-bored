@@ -6,10 +6,18 @@ import { CapabilityGate, stringProp } from "../shared";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
 import { listTags, parseDashboardList, parseListItemActions, resolveListItemAction, sortListItems, filterListItems } from "../../lib/list-data";
 import { readDashboardSource, type DashboardSource } from "../../lib/source";
+import { TodoList } from "../todo-list";
 
 type SourceState = { value?: unknown; error?: string; loading: boolean };
 
-export default function List({ props, host }: ComponentRendererProps): ReactNode {
+export default function List(input: ComponentRendererProps): ReactNode {
+  if (Object.prototype.hasOwnProperty.call(input.props, "todos")) {
+    return <TodoList props={input.props} host={input.host} refreshAction />;
+  }
+  return <SourceList {...input} />;
+}
+
+function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   const visible = useContext(ComponentVisibilityContext);
   const source = props.source && typeof props.source === "object" ? props.source as DashboardSource : undefined;
   const sourceKey = JSON.stringify(source);

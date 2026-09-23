@@ -21,12 +21,12 @@ case as it lands, then complete the full replacement in WP10.
 | Package | Status | Evidence and remaining work |
 |---|---|---|
 | WP1–WP5 | Implemented additively | Stable ID references, declared and parameterized actions, bounded sources, and source-bound views validate in the project dashboard. Schema-v3 compatibility forms remain until WP9. |
-| WP6 | In progress | Source lists, per-item actions, stable todo IDs, and todo remediation are working. The editable YAML todo presentation still has its own renderer; unify it with the shared list view while preserving draft edits. |
+| WP6 | Implemented additively | Source lists and editable YAML todo lists use `@dash-bored/list`; per-item actions target stable IDs. The schema-v3 `todo-list` form remains available until WP9 migration. |
 | WP7–WP8 | Implemented additively | One action bar replaces the navigation buttons; root and documentation sections use selection containers and tab bars. The library inserts a Switchable panels pattern. |
 | WP9 | In progress | `group` accepts title and description, the focus timer is a local example, and starter setup uses a reviewed `agent:prompt` button with the shared validation supervisor. Source-bound edge visibility and the schema-v4 migration remain. |
 | WP10 | Implemented | Branches, package scripts, and project pulse now use YAML plus scripts. The script list's Run action passes item values to a command and exposes invocation and process results. |
 
-The remaining WP6 and WP9 work is tracked in `yaml-todo` so the additive
+The remaining WP9 work is tracked in `yaml-todo` so the additive
 implementation stays usable while the migration is completed.
 
 ## Target atom set

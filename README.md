@@ -531,6 +531,12 @@ environment variables when it starts the supervised process. The list keeps
 separate invocation feedback for each item. A process snapshot reports its
 later exit.
 
+For editable YAML todos, set `todos` instead of `source` on the same list atom.
+Each todo needs a stable `id`, `description`, `done`, and `tags`; the editor
+keeps add, remove, toggle, and inline edits within the dashboard draft's
+Save/Cancel boundary. `itemActions` work in either mode. The older
+`@dash-bored/todo-list` reference remains available for schema-v3 dashboards.
+
 `@dash-bored/group` is an ordinary transparent component boundary with
 `renderMode: layout`: it accepts the core-tiled child surface and projects
 those children without becoming a layout engine. Optional `title` and

@@ -74,7 +74,7 @@ root:
                       children:
                         node:
                           id: yaml-todo
-                          component: "@dash-bored/todo-list"
+                          component: "@dash-bored/list"
                           props:
                             itemActions:
                               - name: Remediate with agent
@@ -217,11 +217,6 @@ root:
                                 done: false
                                 tags:
                                   - chore
-                              - id: todo-atoms-list-unification
-                                description: "Complete atoms WP6: render editable YAML todos through the shared list view while retaining the draft Save/Cancel boundary and stable item IDs."
-                                done: false
-                                tags:
-                                  - atoms
                               - id: todo-atoms-schema-migration
                                 description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
                                 done: false

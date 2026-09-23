@@ -282,17 +282,20 @@ Permissions: `filesystem:read`, `filesystem:write`.
 
 ## @dash-bored/list
 
-Source list — Renders stable-ID items from a bounded source, with tags, status, and refresh.
+List — Renders stable-ID items from a bounded source or editable YAML todos.
 
 Props:
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `title` | string | no |  |
-| `source` | object | yes | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
+| `source` | object | see note | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
+| `todos` | array of object | see note | <= 500 items; object with keys: `id` (required) string, `description` (required) string, `done` (required) boolean, `tags` (required) array of string |
 | `filterByTags` | boolean | no |  |
 | `sort` | `open-first` \| `source-order` | no |  |
 | `itemActions` | array of object | no | <= 12 items; object with keys: `name` (required) string, `action` (required) any |
+
+Exactly one of `source` or `todos` is required.
 
 Children: none (leaf component).
 
