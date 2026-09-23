@@ -9,12 +9,17 @@ import { inspectMigration } from '../../src/updates/migrations';
 import { atomicJson, getUpdateSettings, validateUpdateSettings, withUpdateLock } from '../../src/updates/storage';
 import { downloadArtifact } from '../../src/updates/artifacts';
 import type { PublishedRelease, ReleaseMetadata, UpdateReceipt } from '../../src/shared/updates';
-import { APP_NAME } from '../../src/shared/app-metadata';
+import { APP_NAME, APP_VERSION } from '../../src/shared/app-metadata';
 import { DASH_BORED_SKILL_FILES } from '../../src/cli/skill-payload';
 
 const directories: string[] = [];
 afterEach(async () => { for (const dir of directories.splice(0)) await rm(dir, { recursive: true, force: true }); });
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+function nextPatchVersion(version = APP_VERSION): string {
+  const [major, minor, patch] = version.split('.').map(Number);
+  if (major === undefined || minor === undefined || patch === undefined) throw new Error(`Invalid app version: ${version}`);
+  return `${major}.${minor}.${patch + 1}`;
+}
 function metadata(version = '0.3.0', migrate = false): ReleaseMetadata {
   return { format: 1, product: 'dash-bored', version, channel: 'canary', platform: 'macos', arch: 'arm64', dashboardContract: migrate ? 3 : 2, minimumContract: 2,
     recipes: migrate ? [{ id: 'contract-three', from: 2, to: 3, title: 'Third contract', instructions: 'Upgrade the dashboard contract.' }] : [],
@@ -127,13 +132,13 @@ describe('migration detection and durable journey', () => {
     await entered.promise; await expect(withUpdateLock(dir, async () => {})).rejects.toThrow('lock'); releaseLock(); await operation;
   });
   test('installation failures leave verified staging recoverable', async () => {
-    const { dir, config } = await fixture(); const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [config], fetcher: fetcher(metadata('0.3.3')), install: async () => { throw new Error('installer unavailable'); } });
+    const { dir, config } = await fixture(); const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [config], fetcher: fetcher(metadata(nextPatchVersion())), install: async () => { throw new Error('installer unavailable'); } });
     await c.action({ type: 'prepare', choice: 'update-only', selected: [] }); await expect(c.action({ type: 'install' })).rejects.toThrow('installer unavailable');
     expect((await c.receipt())?.installation).toBe('ready');
   });
   test('invalid receipt and unselected dashboard never authorize edits', async () => {
     const { dir, config } = await fixture(); expect(() => parseReceipt({ ...receipt(config), choice: 'yes' })).toThrow();
-    const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [], fetcher: fetcher(metadata('0.3.3')) });
+    const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [], fetcher: fetcher(metadata(nextPatchVersion())) });
     await expect(c.action({ type: 'prepare', choice: 'update-and-migrate', selected: [config] })).rejects.toThrow('not available');
   });
 });
