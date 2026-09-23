@@ -4,7 +4,7 @@ import "./list.css";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
-import { listTags, parseDashboardList, sortListItems, filterListItems } from "../../lib/list-data";
+import { listTags, parseDashboardList, parseListItemActions, resolveListItemAction, sortListItems, filterListItems } from "../../lib/list-data";
 import { readDashboardSource, type DashboardSource } from "../../lib/source";
 
 type SourceState = { value?: unknown; error?: string; loading: boolean };
@@ -71,6 +71,7 @@ export default function List({ props, host }: ComponentRendererProps): ReactNode
     () => state.value === undefined ? { items: [], diagnostics: [] } : parseDashboardList(state.value),
     [state.value],
   );
+  const configuredActions = useMemo(() => parseListItemActions(props.itemActions), [props.itemActions]);
   const tags = useMemo(() => listTags(parsed.items), [parsed.items]);
   useEffect(() => {
     if (filterTag !== "" && !tags.includes(filterTag)) setFilterTag("");
@@ -105,12 +106,38 @@ export default function List({ props, host }: ComponentRendererProps): ReactNode
         {diagnostic.index === undefined ? "Source" : `Item ${diagnostic.index + 1}`}: {diagnostic.message}
       </li>)}
     </ul> : null}
+    {configuredActions.diagnostics.length ? <ul className="source-list__diagnostics" role="alert" aria-label="List action configuration errors">
+      {configuredActions.diagnostics.map((message, index) => <li key={index}>{message}</li>)}
+    </ul> : null}
     {displayed.length ? <ul className="source-list__items" aria-label="Items">
       {displayed.map((item) => <li key={item.id} className={item.done || ["done", "completed", "closed"].includes(item.state?.toLowerCase() ?? "") ? "source-list__item source-list__item--closed" : "source-list__item"}>
         <div className="source-list__item-text"><strong>{item.title}</strong>{typeof item.detail === "string" ? <span>{item.detail}</span> : null}</div>
-        <div className="source-list__item-meta">
-          {typeof item.state === "string" ? <span className="source-list__state">{item.state}</span> : null}
-          {item.tags?.map((tag) => <span className="source-list__tag" key={tag}>{tag}</span>)}
+        <div className="source-list__item-trailing">
+          <div className="source-list__item-meta">
+            {typeof item.state === "string" ? <span className="source-list__state">{item.state}</span> : null}
+            {item.tags?.map((tag, index) => <span className="source-list__tag" key={`${tag}-${index}`}>{tag}</span>)}
+          </div>
+          {configuredActions.actions.length ? <div className="source-list__item-actions" aria-label={`Actions for ${item.title}`}>
+            {configuredActions.actions.map((configuredAction) => {
+              const resolved = resolveListItemAction(configuredAction, item);
+              const action = resolved.invocation ? host.actions.resolve(resolved.invocation.run) : undefined;
+              const disabledReason = resolved.error ?? (action && !action.enabled ? action.disabledReason ?? "This action is unavailable." : undefined);
+              return <div className="source-list__item-action" key={configuredAction.name}>
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  disabled={!resolved.invocation || Boolean(disabledReason) || Boolean(action?.running)}
+                  title={disabledReason}
+                  onClick={() => {
+                    if (resolved.invocation) host.actions.invoke(resolved.invocation.run, resolved.invocation.with);
+                  }}
+                >
+                  {configuredAction.name}{action?.running ? " · Running" : ""}
+                </button>
+                {resolved.error ? <small role="alert">{resolved.error}</small> : null}
+              </div>;
+            })}
+          </div> : null}
         </div>
       </li>)}
     </ul> : state.value !== undefined && parsed.diagnostics.length === 0 ? <p className="source-list__empty">No matching items.</p> : null}

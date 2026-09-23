@@ -11,7 +11,8 @@
 .source-list__header,
 .source-list__controls,
 .source-list__controls label,
-.source-list__item-meta {
+.source-list__item-meta,
+.source-list__item-trailing {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -80,6 +81,31 @@
   flex: 0 0 auto;
 }
 
+.source-list__item-trailing {
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.source-list__item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.source-list__item-action {
+  display: grid;
+  justify-items: end;
+  gap: 0.15rem;
+}
+
+.source-list__item-action > small {
+  max-width: 18rem;
+  color: var(--negative);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
 .source-list__state,
 .source-list__tag {
   padding: 0.15rem 0.4rem;
@@ -102,5 +128,9 @@
 
 @media (max-width: 760px) {
   .source-list__item { flex-direction: column; }
-  .source-list__item-meta { justify-content: flex-start; }
+  .source-list__item-trailing { justify-content: flex-start; }
+  .source-list__item-meta,
+  .source-list__item-actions { justify-content: flex-start; }
+  .source-list__item-action { justify-items: start; }
+  .source-list__item-action > small { text-align: left; }
 }

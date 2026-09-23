@@ -23,7 +23,7 @@ import {
 import { resolveLegacyActionReference } from "./action-reference-migration";
 import { validateDeclaredComponentActionReferences } from "./component-action-references";
 import { actionInvocation } from "../shared/action-invocation";
-import { validateActionArguments } from "./action-arguments";
+import { validateActionArgumentTemplates, validateActionArguments } from "./action-arguments";
 import { getBuiltinManifest, listBuiltinManifests } from "./builtins";
 import { diagnostic, errorMessage } from "./diagnostics";
 import {
@@ -986,6 +986,7 @@ export async function resolveComponentTree(
         for (const { parent, key, path: referencePath } of locations) {
         const rawReference = parent[key];
         const diagnosticPath = `${node.id}.props.${referencePath}`;
+        const allowsItemTemplates = propName.includes(".*.");
         const invocation = actionInvocation(rawReference);
         if (reference.resource === "action") {
           if (!invocation) {
@@ -997,16 +998,24 @@ export async function resolveComponentTree(
             continue;
           }
           const targetId = invocation.run;
+          if (allowsItemTemplates && targetId.includes("${item.")) {
+            diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
+              message: "Item templates are only allowed in action argument values, not in the action reference.",
+              path: diagnosticPath,
+            }));
+            continue;
+          }
           if (targetId === "agent:prompt") {
-            const error = validateActionArguments(
-              {
+            const promptSchema = {
                 type: "object",
                 additionalProperties: false,
                 properties: { prompt: { type: "string", minLength: 1, maxLength: 12000 } },
                 required: ["prompt"],
-              },
-              invocation.with,
-            );
+              };
+            const error = allowsItemTemplates
+              ? validateActionArgumentTemplates(promptSchema, invocation.with)
+              : validateActionArguments(promptSchema, invocation.with);
             if (error) diagnostics.push(diagnostic({
               code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
               message: `agent:prompt arguments are invalid: ${error}`,
@@ -1072,7 +1081,9 @@ export async function resolveComponentTree(
             const target = allNodes.find((candidate) => candidate.id === targetNodeId);
             const definition = target?.manifest?.actions?.find((action) => action.id === componentReference.actionId);
             if (definition) {
-              const error = validateActionArguments(definition.args, invocation.with);
+              const error = allowsItemTemplates
+                ? validateActionArgumentTemplates(definition.args, invocation.with)
+                : validateActionArguments(definition.args, invocation.with);
               if (error) diagnostics.push(diagnostic({
                 code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
                 message: `Arguments for ${definition.label} are invalid: ${error}`,

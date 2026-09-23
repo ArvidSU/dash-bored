@@ -306,7 +306,7 @@ const manifests: ComponentManifest[] = [
     propsSchema: objectSchema(
       {
         label: string,
-        command: string,
+        command: { ...string, not: { pattern: "\\$\\{item\\." } },
         cwd: { type: "string", minLength: 1 },
         env: { type: "object", additionalProperties: { type: "string" } },
       },
@@ -320,6 +320,12 @@ const manifests: ComponentManifest[] = [
         envProp: "env",
       },
     },
+    actions: [{
+      id: "run",
+      label: "Run command with item values",
+      description: "Runs this command as a bounded action with DASH_ITEM_* environment values.",
+      args: { type: "object", additionalProperties: { type: ["string", "number", "boolean"] } },
+    }],
     permissions: ["process:execute"],
   },
   {
@@ -342,6 +348,11 @@ const manifests: ComponentManifest[] = [
       source: sourceSchema,
       filterByTags: { type: "boolean", default: true },
       sort: { enum: ["open-first", "source-order"], default: "open-first" },
+      itemActions: {
+        type: "array",
+        maxItems: 12,
+        items: objectSchema({ name: string, action: actionInvocationSchema }, ["name", "action"]),
+      },
     }, ["source"]),
     actions: [{ id: "refresh", label: "Refresh list" }],
     permissionsByProp: {
@@ -350,7 +361,10 @@ const manifests: ComponentManifest[] = [
       "source.http": ["network:http"],
       "source.process": ["process:observe"],
     },
-    references: { "source.process": { resource: "process" } },
+    references: {
+      "source.process": { resource: "process" },
+      "itemActions.*.action": { resource: "action" },
+    },
   },
   {
     schemaVersion: 2,

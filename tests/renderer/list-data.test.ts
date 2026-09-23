@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { filterListItems, parseDashboardList, sortListItems } from "../../src/renderer/lib/list-data";
+import { filterListItems, parseDashboardList, parseListItemActions, resolveListItemAction, sortListItems } from "../../src/renderer/lib/list-data";
 
 describe("source list shape and presentation", () => {
   test("requires source-owned non-empty unique string IDs and titles", () => {
@@ -39,6 +39,36 @@ describe("source list shape and presentation", () => {
     ]);
     expect(sortListItems(items, "source-order").map((item) => item.id)).toEqual([
       "closed-1", "open-1", "closed-2", "open-2",
+    ]);
+  });
+
+  test("resolves typed whole-value item templates and reports missing or embedded fields", () => {
+    const parsed = parseDashboardList([{ id: "pkg:build", title: "Build", command: "bun run build", order: 2 }]);
+    const item = parsed.items[0]!;
+    const action = parseListItemActions([{
+      name: "Run",
+      action: { run: "component:runner:run", with: { script: "${item.command}", ordinal: "${item.order}", fixed: true } },
+    }]);
+    expect(action.diagnostics).toEqual([]);
+    expect(resolveListItemAction(action.actions[0]!, item)).toEqual({
+      invocation: { run: "component:runner:run", with: { script: "bun run build", ordinal: 2, fixed: true } },
+    });
+    expect(resolveListItemAction({ ...action.actions[0]!, action: { ...action.actions[0]!.action, with: { absent: "${item.missing}" } } }, item).error)
+      .toContain("item.missing is missing");
+    expect(resolveListItemAction({ ...action.actions[0]!, action: { ...action.actions[0]!.action, with: { embedded: "run ${item.command}" } } }, item).error)
+      .toContain("full value");
+  });
+
+  test("reports invalid and duplicate item action names", () => {
+    const result = parseListItemActions([
+      { name: "Run", action: "process:script" },
+      { name: "Run", action: "process:script" },
+      { name: "Missing action" },
+    ]);
+    expect(result.actions).toHaveLength(2);
+    expect(result.diagnostics).toEqual([
+      'Action name "Run" is duplicated.',
+      "Action 3 needs a valid action reference.",
     ]);
   });
 });
