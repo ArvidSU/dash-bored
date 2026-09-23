@@ -57,6 +57,8 @@ interface ManagedProcess {
   startedAt: string | null;
   startedAtMs: number | null;
   durationMs: number | null;
+  /** DASH_ITEM_* names given to the current interactive shell by an item-scoped start. */
+  itemEnvironmentKeys: string[];
 }
 
 function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
@@ -137,6 +139,7 @@ export class ProcessManager {
       startedAt: null,
       startedAtMs: null,
       durationMs: null,
+      itemEnvironmentKeys: [],
     };
   }
 
@@ -310,6 +313,7 @@ export class ProcessManager {
         processState.definition.env,
       );
       Object.assign(environment, itemEnvironment);
+      processState.itemEnvironmentKeys = Object.keys(itemEnvironment);
       if (processState.definition.interactive) {
         const shell = processState.definition.interactiveShell ?? (process.platform === "win32"
           ? ["cmd.exe"]
@@ -381,7 +385,12 @@ export class ProcessManager {
       throw new CoreError("PROCESS_NOT_INTERACTIVE", `Process ${id} does not provide an interactive terminal.`);
     }
     if (processState.subprocess === null) return this.startWithOptions(id);
-    return this.write(id, `${processState.definition.command}\n`);
+    // A plain quick action must not inherit values from an earlier item-scoped start
+    // of this persistent shell. Names are validated DASH_ITEM_* identifiers.
+    const keys = processState.itemEnvironmentKeys;
+    processState.itemEnvironmentKeys = [];
+    const clear = keys.length === 0 ? "" : `unset ${keys.join(" ")}\n`;
+    return this.write(id, `${clear}${processState.definition.command}\n`);
   }
 
   async write(id: string, input: string): Promise<ProcessSnapshot> {

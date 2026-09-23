@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { ComponentEnvironmentSnapshot, ProcessSnapshot, ResolvedComponentAction, ResolvedComponentNode } from "../../shared/contracts";
 import type { ComponentHeightOverrides } from "../lib/component-height";
 import { componentRendersSurface } from "../lib/component-height";
+import { selectedChildId } from "../lib/component-view-state";
 import type { SplitRatioOverrides } from "./split-layout";
 import type { LayoutBranch } from "../lib/component-children";
 import { changedComponentIds, updateStaggerMs } from "../lib/component-updates";
@@ -131,10 +132,7 @@ export function NodeRenderer({
         node,
         splitRatioOverrides,
         onSplitRatioChange,
-        selectedChildId: node.manifest?.children?.select === "single"
-          ? childSelections[node.id] ?? (typeof node.props.defaultChild === "string" ? node.props.defaultChild : undefined)
-            ?? node.manifest.children.defaultChild ?? (Array.isArray(node.children) ? node.children[0]?.node.id : undefined)
-          : undefined,
+        selectedChildId: selectedChildId(node, childSelections),
         renderNode: (child) => (
           <NodeRenderer
             key={child.id}

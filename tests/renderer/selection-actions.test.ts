@@ -7,7 +7,7 @@ const child: ResolvedComponentNode = { id: "overview", component: "@dash-bored/s
 const other: ResolvedComponentNode = { id: "details", component: "@dash-bored/markdown", props: { title: "Details" }, source: "builtin" };
 const container: ResolvedComponentNode = {
   id: "panels", component: "@dash-bored/group", props: {}, source: "builtin",
-  manifest: { schemaVersion: 2, id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single", defaultChild: "overview" } },
+  manifest: { schemaVersion: 2, id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single" } },
   children: [{ node: child }, { node: other }],
 };
 const snapshot = { tree: container } as ProjectSnapshot;
@@ -32,9 +32,9 @@ describe("selection and reveal actions", () => {
   });
 
   test("reveal actions address every node by stable ID", () => {
-    const actions = buildRevealActions(snapshot, "overview", () => {});
+    const actions = buildRevealActions(snapshot, () => {});
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
-      ["reveal:panels", false], ["reveal:overview", true], ["reveal:details", false],
+      ["reveal:panels", undefined], ["reveal:overview", undefined], ["reveal:details", undefined],
     ]);
   });
 });

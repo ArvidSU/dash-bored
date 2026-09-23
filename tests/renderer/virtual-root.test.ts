@@ -4,6 +4,7 @@ import {
   findVirtualRootPath,
   nodeLabel,
   resolveVirtualRoot,
+  revealFocusTarget,
   virtualRootStorageKey,
 } from "../../src/renderer/lib/virtual-root";
 
@@ -142,5 +143,15 @@ describe("virtual dashboard roots", () => {
     expect(virtualRootStorageKey("/projects/one")).not.toBe(
       virtualRootStorageKey("/projects/two"),
     );
+  });
+
+  test("reveal widens focus only when the focused projection hides the node", () => {
+    const sibling: ResolvedComponentNode = { id: "notes", component: "@dash-bored/markdown", props: {}, source: "builtin" };
+    const inner: ResolvedComponentNode = { id: "inner", component: "@dash-bored/group", props: {}, source: "builtin", children: { axis: "vertical", first: { node: leaf }, second: { node: sibling } } };
+    const wide: ResolvedComponentNode = { id: "root", component: "@dash-bored/group", props: {}, source: "builtin", children: { axis: "vertical", first: { node: inner }, second: { node: { id: "other", component: "@dash-bored/markdown", props: {}, source: "builtin" } } } };
+    expect(revealFocusTarget(wide, null, "only-button")).toBeNull();
+    expect(revealFocusTarget(wide, "inner", "only-button")).toBeNull();
+    expect(revealFocusTarget(wide, "only-button", "notes")).toBe("inner");
+    expect(revealFocusTarget(wide, "only-button", "other")).toBe("root");
   });
 });

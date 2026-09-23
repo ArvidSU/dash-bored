@@ -136,6 +136,13 @@ export async function resolveConfigReferencePath(
   return realpath(configPath);
 }
 
+const AGENT_PROMPT_ARGS_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  properties: { prompt: { type: "string", minLength: 1, maxLength: 12000 } },
+  required: ["prompt"],
+};
+
 function referenceLocations(
   root: Record<string, unknown>,
   path: string,
@@ -779,21 +786,6 @@ export async function resolveComponentTree(
         path: `${nodePath}.children`,
       }));
     }
-    if (definition?.defaultChild !== undefined) {
-      if (definition.select !== "single" || definition.presentation.type !== "managed") {
-        diagnostics.push(diagnostic({
-          code: "COMPONENT_DEFAULT_CHILD_INVALID",
-          message: `${manifest.name} defaultChild requires single selection on managed children.`,
-          path: `${nodePath}.children.defaultChild`,
-        }));
-      } else if (!configuredEdges.some((edge) => edge.node.id === definition.defaultChild)) {
-        diagnostics.push(diagnostic({
-          code: "COMPONENT_DEFAULT_CHILD_MISSING",
-          message: `${manifest.name} defaultChild ${definition.defaultChild} is not a child node ID.`,
-          path: `${nodePath}.children.defaultChild`,
-        }));
-      }
-    }
     if (typeof props.defaultChild === "string" && definition?.select === "single"
       && !configuredEdges.some((edge) => edge.node.id === props.defaultChild)) {
       diagnostics.push(diagnostic({
@@ -1015,15 +1007,9 @@ export async function resolveComponentTree(
             continue;
           }
           if (targetId === "agent:prompt") {
-            const promptSchema = {
-                type: "object",
-                additionalProperties: false,
-                properties: { prompt: { type: "string", minLength: 1, maxLength: 12000 } },
-                required: ["prompt"],
-              };
             const error = allowsItemTemplates
-              ? validateActionArgumentTemplates(promptSchema, invocation.with)
-              : validateActionArguments(promptSchema, invocation.with);
+              ? validateActionArgumentTemplates(AGENT_PROMPT_ARGS_SCHEMA, invocation.with)
+              : validateActionArguments(AGENT_PROMPT_ARGS_SCHEMA, invocation.with);
             if (error) diagnostics.push(diagnostic({
               code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
               message: `agent:prompt arguments are invalid: ${error}`,

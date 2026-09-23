@@ -88,10 +88,8 @@ export interface ComponentChildrenDefinition {
   max?: number;
   presentation: ComponentChildPresentation;
   metadataSchema?: Record<string, unknown>;
-  /** Renderer-owned single selection for managed children. */
+  /** Renderer-owned single selection for managed children; instances pick a default with `props.defaultChild`. */
   select?: "single";
-  /** Child node ID selected when no local selection has been saved. */
-  defaultChild?: string;
 }
 
 export interface ComponentProcessResourceDefinition {

@@ -82,9 +82,12 @@ examples, not privileged component types:
   authority for supervised process completion.
 - Action references may be argument-free strings or `{ run, with }`
   invocations. Typed arguments and any remaining palette choices share the same
-  action executor. `agent:prompt` opens the existing agent composer prefilled
-  from YAML; the composer shows the resolved command and prompt and waits for an
-  explicit Send.
+  action executor. `agent:prompt` is how the app knows what the agent is doing:
+  every launch goes through the existing agent composer and the Agent activity
+  surface. From YAML the composer is prefilled and targets the invoking node;
+  from the palette or a shortcut it opens empty on the current focus target.
+  The composer shows the resolved command and prompt and waits for an explicit
+  Send.
 - `@dash-bored/markdown`, `@dash-bored/status`, and `@dash-bored/chart` display
   project information from inline configuration or bounded sources. Status
   sources expose a state/detail model or derive state from supervised process
@@ -183,8 +186,9 @@ renderer persists one selected direct child ID per container and dashboard;
 unselected child handles remain available to the owning component but do not
 mount their rendered subtree. Core supplies `select:<container>/<child>` palette
 actions with active state. `reveal:<node>` expands its ancestors, selects the
-path through every switching ancestor, focuses the target, and scrolls it into
-view. Focus is global navigation for top-level pages; selection is local
+path through every switching ancestor, and scrolls it into view. It changes
+focus only when the current focus projection hides the node, widening focus to
+the closest common ancestor of the current target and the node. Focus is global navigation for top-level pages; selection is local
 presentation for nested panels. Reveal connects the two when navigation targets
 a nested node.
 

@@ -5,10 +5,17 @@ import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
 import { listTags, parseDashboardList, parseListItemActions, resolveListItemAction, sortListItems, filterListItems } from "../../lib/list-data";
-import { readDashboardSource, type DashboardSource } from "../../lib/source";
+import type { DashboardSource } from "../../lib/source";
+import { useDashboardSource } from "../../lib/use-dashboard-source";
 import { TodoList } from "../todo-list";
 
-type SourceState = { value?: unknown; error?: string; loading: boolean };
+/** The shared process snapshot belongs to this item only if its invocation started that run. */
+function invocationStartedProcess(action: ReturnType<ComponentRendererProps["host"]["actions"]["resolve"]>): boolean {
+  const { invocation, process } = action;
+  if (!invocation?.finishedAt || !process?.startedAt) return false;
+  const processStartedAt = Date.parse(process.startedAt);
+  return Date.parse(invocation.startedAt) <= processStartedAt && processStartedAt <= Date.parse(invocation.finishedAt);
+}
 
 export default function List(input: ComponentRendererProps): ReactNode {
   if (Object.prototype.hasOwnProperty.call(input.props, "todos")) {
@@ -20,15 +27,11 @@ export default function List(input: ComponentRendererProps): ReactNode {
 function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   const visible = useContext(ComponentVisibilityContext);
   const source = props.source && typeof props.source === "object" ? props.source as DashboardSource : undefined;
-  const sourceKey = JSON.stringify(source);
-  const every = typeof source?.every === "number" ? Math.max(1000, Math.min(300000, source.every)) : undefined;
   const title = stringProp(props, ["title"], "List");
   const filterByTags = props.filterByTags !== false;
   const sortMode = props.sort === "source-order" ? "source-order" : "open-first";
   const [refresh, setRefresh] = useState(0);
   const [filterTag, setFilterTag] = useState("");
-  const [state, setState] = useState<SourceState>({ loading: true });
-  const processSnapshot = source?.process ? host.processes?.get(source.process) : undefined;
   const permission = source?.shell ? "process:execute"
     : source?.http ? "network:http"
       : source?.process ? "process:observe"
@@ -48,32 +51,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
     run: () => setRefresh((current) => current + 1),
   }), [canRead, host.actions, permission, source, title]);
 
-  useEffect(() => {
-    if (!visible || !source || !canRead) return;
-    let cancelled = false;
-    let timer: number | undefined;
-    const load = async (): Promise<void> => {
-      setState((old) => ({ ...old, loading: true, error: undefined }));
-      try {
-        const value = await readDashboardSource(source, host);
-        if (!cancelled) setState({ value, loading: false });
-      } catch (cause) {
-        if (!cancelled) setState((old) => ({
-          ...old,
-          loading: false,
-          error: cause instanceof Error ? cause.message : String(cause),
-        }));
-      } finally {
-        if (!cancelled && every !== undefined) timer = window.setTimeout(() => void load(), every);
-      }
-    };
-    void load();
-    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
-  }, [canRead, every, host, refresh, sourceKey, visible]);
-
-  useEffect(() => {
-    if (source?.process && processSnapshot !== undefined) setState({ value: processSnapshot, loading: false });
-  }, [processSnapshot, source?.process]);
+  const state = useDashboardSource(source && canRead ? source : null, host, refresh);
 
   const parsed = useMemo(
     () => state.value === undefined ? { items: [], diagnostics: [] } : parseDashboardList(state.value),
@@ -130,6 +108,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
               const resolved = resolveListItemAction(configuredAction, item);
               const invocationKey = `${item.id}:${configuredAction.name}`;
               const action = resolved.invocation ? host.actions.resolve(resolved.invocation.run, invocationKey) : undefined;
+              const ownsProcessRun = action ? invocationStartedProcess(action) : false;
               const disabledReason = resolved.error ?? (action && !action.enabled ? action.disabledReason ?? "This action is unavailable." : undefined);
               return <div className="source-list__item-action" key={configuredAction.name}>
                 <button
@@ -144,8 +123,9 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
                   {configuredAction.name}{action?.running ? " · Running" : ""}
                 </button>
                 {action?.invocation?.status === "failed" ? <small role="alert">{action.invocation.message ?? "Action failed."}</small> : null}
-                {action?.invocation?.outcome === "started" ? <small role="status">Started</small> : null}
-                {action?.process?.phase === "exited" && action.invocation ? <small role="status">{action.process.exitCode === 0 ? "Finished" : `Failed: exit ${action.process.exitCode}`}</small> : null}
+                {ownsProcessRun && action?.process?.phase === "exited"
+                  ? <small role="status">{action.process.exitCode === 0 ? "Finished" : `Failed: exit ${action.process.exitCode}`}</small>
+                  : ownsProcessRun && action?.invocation?.outcome === "started" ? <small role="status">Started</small> : null}
                 {resolved.error ? <small role="alert">{resolved.error}</small> : null}
               </div>;
             })}

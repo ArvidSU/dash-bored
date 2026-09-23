@@ -110,6 +110,31 @@ function projectLayout(
   return { ...layout, first, second };
 }
 
+function projectionContains(node: ResolvedComponentNode, nodeId: string): boolean {
+  return node.id === nodeId || childNodes(node).some((child) => projectionContains(child, nodeId));
+}
+
+/**
+ * Focus target needed to reveal a node: null when the current focus projection
+ * already contains it, otherwise the closest common ancestor of the current
+ * target and the node, so focus widens only as far as needed.
+ */
+export function revealFocusTarget(
+  root: ResolvedComponentNode,
+  focusedNodeId: string | null,
+  nodeId: string,
+): string | null {
+  const nodePath = findVirtualRootPath(root, nodeId);
+  if (!nodePath || projectionContains(resolveVirtualRoot(root, focusedNodeId).node, nodeId)) return null;
+  const focusedPath = findVirtualRootPath(root, focusedNodeId ?? root.id) ?? [];
+  let common = root.id;
+  for (let index = 0; index < Math.min(nodePath.length, focusedPath.length); index += 1) {
+    if (nodePath[index]!.id !== focusedPath[index]!.id) break;
+    common = nodePath[index]!.id;
+  }
+  return common;
+}
+
 export function virtualRootStorageKey(projectRoot: string): string {
   return `dash-bored:virtual-root:${projectRoot}`;
 }

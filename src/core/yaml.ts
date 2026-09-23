@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
+import { compileActionArgsSchema } from "./action-arguments";
 import { parseDocument, stringify } from "yaml";
 import type {
   ComponentManifest,
@@ -169,7 +170,6 @@ const manifestSchema = {
         },
         metadataSchema: { type: "object" },
         select: { const: "single" },
-        defaultChild: { type: "string", minLength: 1, maxLength: 128 },
       },
     },
     resources: {
@@ -443,7 +443,7 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
     actionIds.add(action.id);
     if (action.args === undefined) continue;
     try {
-      ajv.compile(action.args);
+      compileActionArgsSchema(action.args);
     } catch (error) {
       return {
         value: null,

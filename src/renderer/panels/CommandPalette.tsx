@@ -114,6 +114,12 @@ export function CommandPalette({
       setChoiceIndex(firstMissing < 0 ? action.choices.length - 1 : firstMissing);
       setChoices(matched);
       if (firstMissing < 0) {
+        if (action.confirmation) {
+          // Past the last choice, matching the manual path, so confirmation renders.
+          setChoiceIndex(action.choices.length);
+          setConfirmationId(action.id);
+          return;
+        }
         dismiss();
         onExecute(action.id, matched);
         return;

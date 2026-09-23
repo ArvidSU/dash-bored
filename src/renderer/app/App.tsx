@@ -992,9 +992,13 @@ export function App(): ReactNode {
         { ...appSettings, theme, themeMode },
         "Default theme and appearance updated.",
       ),
+      // Every agent launch goes through the reviewed composer and the agent-work
+      // surface, so the app can show what the agent is doing. Without a configured
+      // caller (palette, shortcut) the composer targets the current focus.
       requestAgentPrompt: (args, callerNodeId) => {
-        const prompt = args.prompt;
-        const target = callerNodeId && snapshot?.tree ? findResolvedNode(snapshot.tree, callerNodeId) : null;
+        const prompt = args.prompt ?? "";
+        const targetId = callerNodeId ?? virtualRoot?.target.id ?? snapshot?.tree?.id;
+        const target = targetId && snapshot?.tree ? findResolvedNode(snapshot.tree, targetId) : null;
         if (typeof prompt !== "string" || !target) {
           setActionError("The configured agent prompt target is no longer available.");
           return;
@@ -1017,6 +1021,7 @@ export function App(): ReactNode {
     updateSplitRatio,
     updateComponentHeight,
     focusComponent,
+    revealComponent,
     selectChild,
     forgetDashboard,
   } = useDashboardViewState(dashboardPath, snapshot?.tree);
@@ -1562,9 +1567,15 @@ export function App(): ReactNode {
     },
   );
   const selectionActions = buildSelectionActions(snapshot, activeChildSelections, selectChild);
-  const revealActions = buildRevealActions(snapshot, virtualRoot?.target.id ?? null, (nodeId) => {
+  // Reveal is presentation, not navigation: it never changes the focused target.
+  const revealActions = buildRevealActions(snapshot, (nodeId) => {
     setActiveView("dashboard");
-    focusComponent(nodeId);
+    revealComponent(nodeId);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
+        .find((element) => element.dataset.nodeId === nodeId)
+        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    }));
   });
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, componentActions);
   const allActions = [...applicationActions, ...nodeFocusActions, ...selectionActions, ...revealActions, ...declaredComponentActions, ...componentActions];
@@ -1612,17 +1623,16 @@ export function App(): ReactNode {
     if (!invocation) return;
     const actionArgs = { ...invocation.with, ...args };
     const action = actionsByIdRef.current.get(invocation.run);
-    if (action) {
-      setPaletteInvocationArgs(actionArgs);
-      setPaletteInvocationActionId(action.id);
-      setPaletteCallerNodeId(callerNodeId);
-      setPaletteInvocationKey(invocationKey);
-    }
     if (invocation.run === "agent:prompt") {
       if (action) void actionExecutor.run(invocation.run, {}, actionArgs, callerNodeId, invocationKey ?? action.id);
       return;
     }
     if (action?.choices?.length || action?.confirmation) {
+      // Invocation context lives only for this palette interaction.
+      setPaletteInvocationArgs(actionArgs);
+      setPaletteInvocationActionId(action.id);
+      setPaletteCallerNodeId(callerNodeId);
+      setPaletteInvocationKey(invocationKey);
       setPaletteInitialActionId(action.id);
       setPaletteOpen(true);
       return;
@@ -1633,7 +1643,7 @@ export function App(): ReactNode {
   async function executePaletteAction(
     id: string,
     selections?: Readonly<Record<string, string>>,
-    args: Record<string, unknown> = paletteInvocationActionId === id ? paletteInvocationArgs : {},
+    args: Record<string, unknown> = {},
     callerNodeId?: string,
     invocationKey?: string,
   ): Promise<void> {
@@ -1908,7 +1918,14 @@ export function App(): ReactNode {
         actionShortcuts={appSettings.actionShortcuts}
         favoritesDisabled={pendingAction !== null}
         initialActionId={paletteInitialActionId}
-        onDismiss={() => { setPaletteInitialActionId(null); setPaletteOpen(false); }}
+        onDismiss={() => {
+          setPaletteInitialActionId(null);
+          setPaletteInvocationActionId(null);
+          setPaletteInvocationArgs({});
+          setPaletteCallerNodeId(undefined);
+          setPaletteInvocationKey(undefined);
+          setPaletteOpen(false);
+        }}
         initialSelections={paletteInvocationActionId === paletteInitialActionId ? paletteInvocationArgs as Readonly<Record<string, string>> : {}}
         onExecute={(id, selections) => void executePaletteAction(
           id,

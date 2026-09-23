@@ -1,11 +1,31 @@
-import Ajv from "ajv";
+import Ajv, { type ValidateFunction } from "ajv";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
+const MAX_COMPILED_SCHEMAS = 256;
+const compiledSchemas = new Map<string, ValidateFunction>();
+
+/**
+ * Compile an action argument schema once per distinct content. Ajv caches by
+ * object identity, and every config load parses fresh schema objects.
+ */
+export function compileActionArgsSchema(argsSchema: Record<string, unknown>): ValidateFunction {
+  const key = JSON.stringify(argsSchema);
+  const cached = compiledSchemas.get(key);
+  if (cached) return cached;
+  const validate = ajv.compile(argsSchema);
+  ajv.removeSchema(argsSchema);
+  if (compiledSchemas.size >= MAX_COMPILED_SCHEMAS) {
+    const oldest = compiledSchemas.keys().next().value;
+    if (oldest !== undefined) compiledSchemas.delete(oldest);
+  }
+  compiledSchemas.set(key, validate);
+  return validate;
+}
 
 export function validateActionArguments(argsSchema: Record<string, unknown> | undefined, args: Record<string, unknown>): string | undefined {
   if (!argsSchema) return Object.keys(args).length ? "This action does not accept arguments." : undefined;
   try {
-    const validate = ajv.compile(argsSchema);
+    const validate = compileActionArgsSchema(argsSchema);
     if (validate(args)) return undefined;
     return ajv.errorsText(validate.errors, { separator: "; " });
   } catch (error) {

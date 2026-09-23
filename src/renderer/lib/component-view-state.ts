@@ -25,6 +25,17 @@ export function serializeChildSelections(selections: ChildSelections): string {
   return JSON.stringify(Object.fromEntries(Object.entries(selections).sort(([left], [right]) => left.localeCompare(right)).slice(0, MAX_SELECTED_CHILDREN)));
 }
 
+/** The visible child of a single-select container: saved choice, then `props.defaultChild`, then the first child. */
+export function selectedChildId(
+  node: ResolvedComponentNode,
+  selections: ChildSelections,
+): string | undefined {
+  if (node.manifest?.children?.select !== "single" || !Array.isArray(node.children)) return undefined;
+  return selections[node.id]
+    ?? (typeof node.props.defaultChild === "string" ? node.props.defaultChild : undefined)
+    ?? node.children[0]?.node.id;
+}
+
 export function pruneChildSelections(selections: ChildSelections, node: ResolvedComponentNode): Record<string, string> {
   const result: Record<string, string> = {};
   function visit(current: ResolvedComponentNode): void {

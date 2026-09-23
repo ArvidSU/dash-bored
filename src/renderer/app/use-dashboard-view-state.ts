@@ -27,7 +27,7 @@ import {
   splitRatioOverridesStorageKey,
   type SplitRatioOverrides,
 } from "../render/split-layout";
-import { findVirtualRootPath, resolveVirtualRoot, virtualRootStorageKey } from "../lib/virtual-root";
+import { findVirtualRootPath, resolveVirtualRoot, revealFocusTarget, virtualRootStorageKey } from "../lib/virtual-root";
 import {
   EMPTY_COLLAPSED_COMPONENT_IDS,
   EMPTY_COMPONENT_HEIGHT_OVERRIDES,
@@ -54,6 +54,7 @@ export function useDashboardViewState(
   updateSplitRatio: (branchKey: string, defaultRatio: number, ratio: number | null) => void;
   updateComponentHeight: (nodeId: string, height: number | null) => void;
   focusComponent: (nodeId: string) => void;
+  revealComponent: (nodeId: string) => void;
   selectChild: (containerId: string, childId: string) => void;
   forgetDashboard: (configPath: string) => void;
 } {
@@ -254,15 +255,8 @@ export function useDashboardViewState(
       if (![...expandedIds].some((id) => current.has(id))) return current;
       return new Set([...current].filter((id) => !expandedIds.has(id)));
     });
-    for (let index = 0; index < (path?.length ?? 0) - 1; index += 1) {
-      const ancestor = path![index]!.node;
-      if (ancestor.manifest?.children?.select === "single" && Array.isArray(ancestor.children)) {
-        const childId = path![index + 1]!.id;
-        setChildSelections((current) => current[ancestor.id] === childId
-          ? current
-          : { ...current, [ancestor.id]: childId });
-      }
-    }
+    // Child selection is set by focusComponent and persisted separately, so a
+    // tree reload must not override a later manual selection.
   }, [collapsedDashboardPath, dashboardPath, storedVirtualRoot, tree]);
   function storeVirtualRoot(targetDashboardPath: string, nodeId: string): void {
     setVirtualRoots((current) => ({ ...current, [targetDashboardPath]: nodeId }));
@@ -377,12 +371,19 @@ export function useDashboardViewState(
     }
   }
 
-  function focusComponent(nodeId: string): void {
+  /** Make a node visible, widening focus only when the current projection hides it. */
+  function revealComponent(nodeId: string): void {
     if (!dashboardPath) return;
-    const focused = tree ? resolveVirtualRoot(tree, nodeId) : null;
+    const focusTarget = tree ? revealFocusTarget(tree, storedVirtualRoot ?? null, nodeId) : null;
+    if (focusTarget !== null) focusComponent(focusTarget);
+    expandAndSelectPath(nodeId);
+  }
+
+  /** Expand the node's path and select it in every switching ancestor. */
+  function expandAndSelectPath(nodeId: string): void {
+    if (!dashboardPath) return;
     const path = tree ? findVirtualRootPath(tree, nodeId) : null;
     for (const crumb of path ?? []) expandComponent(dashboardPath, crumb.id);
-    for (const id of focused?.retainedAncestorIds ?? []) expandComponent(dashboardPath, id);
     for (let index = 0; index < (path?.length ?? 0) - 1; index += 1) {
       const ancestor = path![index]!.node;
       const definition = ancestor.manifest?.children;
@@ -390,6 +391,13 @@ export function useDashboardViewState(
       const directChildId = path![index + 1]!.id;
       selectChild(ancestor.id, directChildId);
     }
+  }
+
+  function focusComponent(nodeId: string): void {
+    if (!dashboardPath) return;
+    const focused = tree ? resolveVirtualRoot(tree, nodeId) : null;
+    expandAndSelectPath(nodeId);
+    for (const id of focused?.retainedAncestorIds ?? []) expandComponent(dashboardPath, id);
     storeVirtualRoot(dashboardPath, nodeId);
   }
 
@@ -405,6 +413,7 @@ export function useDashboardViewState(
     updateSplitRatio,
     updateComponentHeight,
     focusComponent,
+    revealComponent,
     selectChild,
     forgetDashboard,
   };

@@ -126,11 +126,12 @@ and maximum cardinality plus either app-owned tiled axes or managed
 presentation. Managed presentation uses generic child handles and read-only
 descriptors plus edge metadata. Supported permission names are:
 
-Managed children may add `select: single` and an optional `defaultChild` node
-ID. Selection is renderer-owned, persisted per dashboard, and does not enter a
-draft or dashboard YAML. Without an explicit saved selection, the default child
-is used; otherwise the first child is selected. `defaultChild` must identify a
-direct child. Tiled children cannot use selection.
+Managed children may add `select: single`. Selection is renderer-owned,
+persisted per dashboard, and does not enter a draft or dashboard YAML. Without
+an explicit saved selection, the instance's optional `props.defaultChild` node
+ID is used; otherwise the first child is selected. `defaultChild` is instance
+data, never manifest data, and must identify a direct child. Tiled children
+cannot use selection.
 
 - `filesystem:read`
 - `filesystem:write`

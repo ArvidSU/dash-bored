@@ -1,6 +1,7 @@
 import type { ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import type { PaletteAction } from "./actions";
 import { childNodes } from "./component-children";
+import { selectedChildId } from "./component-view-state";
 import { nodeLabel } from "./virtual-root";
 
 function visit(node: ResolvedComponentNode, callback: (node: ResolvedComponentNode) => void): void {
@@ -18,9 +19,7 @@ export function buildSelectionActions(
   visit(snapshot.tree, (container) => {
     const definition = container.manifest?.children;
     if (definition?.select !== "single" || !Array.isArray(container.children)) return;
-    const selected = selections[container.id]
-      ?? (typeof container.props.defaultChild === "string" ? container.props.defaultChild : undefined)
-      ?? definition.defaultChild ?? container.children[0]?.node.id;
+    const selected = selectedChildId(container, selections);
     for (const edge of container.children) {
       const child = edge.node;
       const label = nodeLabel(child, false);
@@ -45,7 +44,6 @@ export function buildSelectionActions(
 
 export function buildRevealActions(
   snapshot: ProjectSnapshot | null,
-  revealedNodeId: string | null,
   revealNode: (nodeId: string) => void,
 ): PaletteAction[] {
   if (!snapshot?.tree) return [];
@@ -60,7 +58,6 @@ export function buildRevealActions(
       keywords: ["reveal", "show", node.id, node.component, label],
       group: "Dashboard presentation",
       source: node.id,
-      active: revealedNodeId === node.id,
       enabled: true,
       run: () => revealNode(node.id),
     });

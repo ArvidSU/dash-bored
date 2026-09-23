@@ -220,9 +220,9 @@ export function buildApplicationActions(
   const actions: PaletteAction[] = [
     appAction({
       id: "agent:prompt",
-      label: "Run configured agent prompt",
-      description: "Review and send a configured prompt to the app-wide agent.",
-      keywords: ["agent", "prompt", "send"],
+      label: "Send prompt to agent",
+      description: "Review and send a prompt to the app-wide agent and follow its work in Agent activity.",
+      keywords: ["agent", "prompt", "send", "activity"],
       group: "Agent work",
       enabled: pendingAction === null && Boolean(snapshot?.trusted),
       ...(pendingReason ? { disabledReason: pendingReason } : {}),

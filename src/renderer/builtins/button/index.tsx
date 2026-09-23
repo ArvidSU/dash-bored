@@ -38,7 +38,6 @@ function actionStatusLabel(
     return action.process.exitCode === 0 ? "Finished" : `Failed: exit ${action.process.exitCode}`;
   }
   if (action.invocation?.outcome === "started") return "Started";
-  if (action.invocation?.status === "completed" && !action.active) return "Completed";
   return undefined;
 }
 
