@@ -156,6 +156,10 @@ The main process publishes a complete `ProjectSnapshot` at startup and after
 each accepted change. It also publishes individual process snapshots while a
 command is running. The renderer treats those snapshots as authoritative; it
 does not read project files or spawn commands directly.
+An item action may pass at most 32 bounded `DASH_ITEM_*` string overrides when
+starting a supervised command. The main process validates those names and
+values and adds them to that launch's environment; it never substitutes item
+data into the configured shell command.
 
 Within the renderer, `app/App.tsx` is the application coordinator: it owns the
 authoritative snapshot subscription, draft lifecycle, and composition wiring.

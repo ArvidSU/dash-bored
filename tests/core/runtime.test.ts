@@ -58,6 +58,18 @@ afterEach(async () => {
 });
 
 describe("ProcessManager", () => {
+  test("passes item values only through bounded DASH_ITEM environment variables", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root });
+    managers.push(manager);
+    await manager.reconcile([{ id: "item", command: "printf '%s' \"$DASH_ITEM_NAME\"" }]);
+    await expect(manager.start("item", { PATH: "override" })).rejects.toMatchObject({ code: "PROCESS_ITEM_ENV_INVALID" });
+    await manager.start("item", { DASH_ITEM_NAME: "one; two" });
+    await waitFor(() => manager.get("item")?.phase === "exited");
+    expect(manager.get("item")?.logs.some((entry) => entry.stream === "stdout" && entry.text.includes("one; two"))).toBeTrue();
+  });
+
   test("streams bounded output and retains an exited snapshot", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

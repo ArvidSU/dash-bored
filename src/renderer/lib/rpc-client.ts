@@ -77,7 +77,7 @@ export interface DashboardHost {
   validateDashboardDraft(config: DashboardConfig, configPath?: string): Promise<DashboardDraftValidation>;
   validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
   saveDashboardConfig(config: DashboardConfig, expectedConfigRevision: string, configPath?: string): Promise<ProjectSnapshot>;
-  startProcess(nodeId: string): Promise<ProcessSnapshot>;
+  startProcess(nodeId: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot>;
   openProcessTerminal(nodeId: string): Promise<ProcessSnapshot>;
   runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot>;
   writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot>;
@@ -341,9 +341,9 @@ const liveHost: DashboardHost = {
     );
   },
 
-  async startProcess(nodeId: string): Promise<ProcessSnapshot> {
+  async startProcess(nodeId: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
     ensureTransport();
-    const process = await rpc.request.startProcess({ nodeId });
+    const process = await rpc.request.startProcess({ nodeId, itemEnvironment });
     emit({ type: "process", process });
     return process;
   },

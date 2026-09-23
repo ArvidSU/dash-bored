@@ -617,10 +617,10 @@ export class ProjectRuntime {
     return cloneSnapshot(this.snapshot);
   }
 
-  async startProcess(nodeId: string): Promise<ProcessSnapshot> {
+  async startProcess(nodeId: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
     this.capabilities.assertAllowed(nodeId, "process:execute");
     if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.start(nodeId);
+    return this.processManager.start(nodeId, itemEnvironment);
   }
 
   async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {

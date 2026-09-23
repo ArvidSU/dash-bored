@@ -90,8 +90,8 @@ export function createLocalHost(
       },
       ...(permissions.has("process:execute")
         ? {
-            start() {
-              return host.startProcess(node.id);
+            start(itemEnvironment) {
+              return host.startProcess(node.id, itemEnvironment);
             },
             open() {
               return host.openProcessTerminal(node.id);

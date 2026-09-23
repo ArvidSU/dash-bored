@@ -585,7 +585,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       validateComponentProps: ({ reference, props }) => runtime.validateComponentProps(reference, props),
       saveDashboardConfig: ({ config, expectedConfigRevision, configPath }) =>
         runtime.saveDashboardConfig(config, expectedConfigRevision, configPath).then(withInstalledToolDiagnostics),
-      startProcess: ({ nodeId }) => runtime.startProcess(nodeId),
+      startProcess: ({ nodeId, itemEnvironment }) => runtime.startProcess(nodeId, itemEnvironment),
       openProcessTerminal: ({ nodeId }) => runtime.openProcessTerminal(nodeId),
       runProcessQuickAction: ({ nodeId }) => runtime.runProcessQuickAction(nodeId),
       writeProcessTerminal: ({ nodeId, input }) => runtime.writeProcessTerminal(nodeId, input),

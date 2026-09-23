@@ -6,6 +6,20 @@ import { resolveEnvironment, type PublishedEnvironment } from "./environment";
 const DEFAULT_MAX_LOG_BYTES = 512 * 1024;
 const DEFAULT_MAX_LOG_ENTRIES = 2_000;
 const DEFAULT_STOP_GRACE_MS = 2_000;
+const ITEM_ENV_NAME = /^DASH_ITEM_[A-Z][A-Z0-9_]*$/;
+
+function validateItemEnvironment(value: Record<string, string> | undefined): Record<string, string> {
+  if (value === undefined) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new CoreError("PROCESS_ITEM_ENV_INVALID", "Item environment must be a string map.");
+  }
+  const entries = Object.entries(value);
+  if (entries.length > 32 || entries.some(([key, entry]) =>
+    !ITEM_ENV_NAME.test(key) || typeof entry !== "string" || entry.length > 2048 || entry.includes("\0"))) {
+    throw new CoreError("PROCESS_ITEM_ENV_INVALID", "Item environment accepts at most 32 DASH_ITEM_* string values of up to 2048 characters.");
+  }
+  return Object.fromEntries(entries);
+}
 
 export interface ProcessDefinition {
   id: string;
@@ -257,13 +271,13 @@ export class ProcessManager {
     return [...this.processes.values()].map((processState) => this.snapshot(processState));
   }
 
-  async start(id: string): Promise<ProcessSnapshot> {
-    return this.startWithOptions(id);
+  async start(id: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
+    return this.startWithOptions(id, { itemEnvironment });
   }
 
   private async startWithOptions(
     id: string,
-    options: { runQuickAction?: boolean } = {},
+    options: { runQuickAction?: boolean; itemEnvironment?: Record<string, string> } = {},
   ): Promise<ProcessSnapshot> {
     if (this.closed) throw new CoreError("PROCESS_MANAGER_CLOSED", "The process manager is closed.");
     const processState = this.processes.get(id);
@@ -274,6 +288,7 @@ export class ProcessManager {
     if (processState.definition.command.trim() === "" || processState.definition.command.length > 32_768) {
       throw new CoreError("PROCESS_COMMAND_INVALID", "Process command must be non-empty and at most 32768 characters.");
     }
+    const itemEnvironment = validateItemEnvironment(options.itemEnvironment);
 
     const projectRoot = processState.definition.projectRoot ?? this.projectRoot;
     const cwd =
@@ -294,6 +309,7 @@ export class ProcessManager {
         this.getPublishedEnvironment(),
         processState.definition.env,
       );
+      Object.assign(environment, itemEnvironment);
       if (processState.definition.interactive) {
         const shell = processState.definition.interactiveShell ?? (process.platform === "win32"
           ? ["cmd.exe"]

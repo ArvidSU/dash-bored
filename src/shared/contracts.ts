@@ -565,7 +565,7 @@ export interface LocalComponentHost {
     /** Allows a host-owned process surface to attach to an existing process without rerunning it. */
     attachOnly?: boolean;
     get(nodeId?: string): ProcessSnapshot | undefined;
-    start?(): Promise<ProcessSnapshot>;
+    start?(itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot>;
     /** Starts the shell without running its configured quick action. */
     open?(): Promise<ProcessSnapshot>;
     /** Runs the configured quick action in the existing shell. */
