@@ -303,7 +303,7 @@ root:
                                 - skill
                             - id: todo-creation-prompt-sources
                               description: "Align the structural editor's natural-language creation prompt with IDEA.md: it tells agents to build a project-local component, while IDEA prefers a source script feeding an existing view."
-                              done: false
+                              done: true
                               tags:
                                 - agent
                                 - skill

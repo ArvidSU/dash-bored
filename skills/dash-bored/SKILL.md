@@ -37,7 +37,7 @@ app, where the tool is `"$DASH_BORED_TOOL"`.
 | --- | --- |
 | Build or set up a dashboard, or replace the starter | The full workflow below |
 | Change a node "from its component context menu" (the prompt names a target component) | Change that node and only what the request needs; read the owning YAML and the files the request mentions, not the whole project. Then steps 3–7 |
-| Add a component at a YAML insertion path from the structural editor | Insert exactly there; if a node already occupies that edge, split the edge and keep the existing node. Prefer a source script feeding a built-in view (step 4) when one answers the description, and say so in the report |
+| Add a component at a YAML insertion path from the structural editor | Make exactly the edit its `Placement:` line states. Prefer a built-in view fed by a source script (step 4), and say so in the report; write a local component only when no view can present it |
 | Fix listed diagnostics | Fix each at its file and path, then steps 5–7 |
 | After an app update, or an old `schemaVersion` | [references/migrations.md](references/migrations.md) |
 

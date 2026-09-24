@@ -685,7 +685,10 @@ dropper-style interaction.
 Configure edits component props through `propsSchema`. New managed edges expose
 their parent's generic `children.metadataSchema`; edge metadata moves with the
 child. If search finds no suitable catalog entry, the flyout retains the
-**Build with agent** path.
+**Build with agent** path. Its prompt, visible in the Agent work drawer, asks
+the agent to prefer a built-in view fed by a small source script over new
+component code, and states exactly where and how the new node joins the
+chosen insertion position.
 
 Opening or closing a clean flyout does not create a draft. The first insertion,
 move, removal, replacement, metadata edit, or horizontal separator resize creates a

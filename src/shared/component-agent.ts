@@ -16,10 +16,42 @@ export interface ComponentAgentContext {
   componentReference: string;
 }
 
+/**
+ * A validated insertion target restated as the YAML edit the structural editor
+ * would make, so an agent can reproduce it without inferring split semantics.
+ */
+export interface DashboardInsertion {
+  /** YAML path of the new child edge once inserted. */
+  path: string;
+  /** YAML path of the node whose `children` receives the edge. */
+  parentPath: string;
+  parent: NodeSummary;
+  placement:
+    | { type: "managed"; index: number; childCount: number }
+    | { type: "empty" }
+    | {
+        type: "split";
+        /** YAML path of the existing edge that becomes the split. */
+        edgePath: string;
+        existing: NodeSummary;
+        axis: "horizontal" | "vertical";
+        position: "first" | "second";
+        /** Written only for a non-default horizontal ratio, as the editor does. */
+        ratio?: number;
+      };
+  /** Edge metadata the editor would write for the new edge. */
+  metadata?: Record<string, unknown>;
+}
+
+export interface NodeSummary {
+  id?: string;
+  component: string;
+}
+
 export interface ComponentCreationAgentContext {
   projectRoot: string;
   configPath: string;
-  insertionPath: string;
+  insertion: DashboardInsertion;
 }
 
 export interface DiagnosticsAgentContext {
@@ -143,14 +175,36 @@ function configuredCardinalityIsValid(
   return count >= definition.min && (definition.max === undefined || count <= definition.max);
 }
 
+function nodeSummary(node: ComponentNode): NodeSummary {
+  return node.id === undefined ? { component: node.component } : { id: node.id, component: node.component };
+}
+
+/** Mirrors the editor's split-ratio normalization: three decimals, 0.5 omitted. */
+function writtenSplitRatio(
+  axis: "horizontal" | "vertical",
+  ratio: number | undefined,
+): number | undefined {
+  if (axis !== "horizontal" || ratio === undefined) return undefined;
+  const rounded = Math.round(ratio * 1_000) / 1_000;
+  return rounded === 0.5 ? undefined : rounded;
+}
+
+function insertionMetadata(
+  metadata: Record<string, unknown> | undefined,
+): Pick<DashboardInsertion, "metadata"> {
+  return metadata !== null && typeof metadata === "object" && Object.keys(metadata).length > 0
+    ? { metadata: structuredClone(metadata) }
+    : {};
+}
+
 /**
  * Resolves a fresh editor insertion target against the current config and catalog.
  * Returns null when any locator, manifest contract, or capacity assumption is stale.
  */
-export function resolveDashboardInsertionPath(
+export function resolveDashboardInsertion(
   source: DashboardConfigSource,
   target: DashboardInsertionTarget,
-): string | null {
+): DashboardInsertion | null {
   if (
     target === null ||
     typeof target !== "object" ||
@@ -197,11 +251,17 @@ export function resolveDashboardInsertionPath(
   }
 
   const placement = target.placement;
+  const parentPath = dashboardParentPath(target);
+  const common = { parentPath, parent: nodeSummary(parent), ...insertionMetadata(placement.metadata) };
   if (placement.type === "managed") {
     if (definition.presentation.type !== "managed" || !validIndex(placement.index)) return null;
     const length = Array.isArray(parent.children) ? parent.children.length : 0;
     if (placement.index > length) return null;
-    return dashboardInsertionPath(target, "split");
+    return {
+      path: dashboardInsertionPath(target, "split"),
+      ...common,
+      placement: { type: "managed", index: placement.index, childCount: length },
+    };
   }
   if (
     placement.type !== "tiled" ||
@@ -216,12 +276,64 @@ export function resolveDashboardInsertionPath(
   ) return null;
 
   if (parent.children === undefined) {
-    return placement.path.length === 0 ? dashboardInsertionPath(target, "empty") : null;
+    return placement.path.length === 0
+      ? { path: dashboardInsertionPath(target, "empty"), ...common, placement: { type: "empty" } }
+      : null;
   }
   if (Array.isArray(parent.children)) return null;
-  return childAtLayoutPath(parent.children, placement.path) === null
-    ? null
-    : dashboardInsertionPath(target, "split");
+  const existing = childAtLayoutPath(parent.children, placement.path);
+  if (existing === null) return null;
+  const ratio = writtenSplitRatio(placement.axis, placement.ratio);
+  return {
+    path: dashboardInsertionPath(target, "split"),
+    ...common,
+    placement: {
+      type: "split",
+      edgePath: `${parentPath}.children${placement.path.map((branch) => `.${branch}`).join("")}`,
+      existing: nodeSummary(existing),
+      axis: placement.axis,
+      position: placement.position,
+      ...(ratio === undefined ? {} : { ratio }),
+    },
+  };
+}
+
+function describeNode(node: NodeSummary): string {
+  return node.id === undefined ? `the ${node.component} node` : `node \`${node.id}\` (${node.component})`;
+}
+
+/** States the exact YAML edit the structural editor would make for this insertion. */
+export function describeDashboardInsertion(insertion: DashboardInsertion): string {
+  const { placement } = insertion;
+  const parent = `${describeNode(insertion.parent)} at ${insertion.parentPath}`;
+  const newEdge = insertion.metadata === undefined
+    ? "{ node: <new node> }"
+    : `{ metadata: ${JSON.stringify(insertion.metadata)}, node: <new node> }`;
+  const metadataNote = insertion.metadata === undefined
+    ? ""
+    : " Replace placeholder metadata values with a fitting name.";
+  let edit: string;
+  if (placement.type === "managed") {
+    edit = placement.childCount === 0
+      ? `${parent} has no children yet; set its \`children\` to a list holding only the new edge \`${newEdge}\`.`
+      : placement.index === placement.childCount
+        ? `Append the new edge \`${newEdge}\` to the \`children\` list of ${parent}, after its ${placement.childCount} current item${placement.childCount === 1 ? "" : "s"}.`
+        : `Insert the new edge \`${newEdge}\` into the \`children\` list of ${parent} at index ${placement.index}, before the item now at that index.`;
+  } else if (placement.type === "empty") {
+    edit = `${parent} has no children yet; set its \`children\` to the single edge \`${newEdge}\`, with no split.`;
+  } else {
+    const side = placement.axis === "horizontal"
+      ? (placement.position === "first" ? "left of" : "right of")
+      : (placement.position === "first" ? "above" : "below");
+    const existing = "<existing edge, unchanged>";
+    const [first, second] = placement.position === "first" ? [newEdge, existing] : [existing, newEdge];
+    const ratio = placement.ratio === undefined ? "" : `ratio: ${placement.ratio}, `;
+    const ratioNote = placement.ratio !== undefined
+      ? ""
+      : placement.axis === "horizontal" ? " Omit `ratio` (equal widths)." : " Vertical splits have no `ratio`.";
+    edit = `Split the tile of ${describeNode(placement.existing)} so the new node sits ${side} it: replace the edge at ${placement.edgePath} with \`{ axis: ${placement.axis}, ${ratio}first: ${first}, second: ${second} }\`.${ratioNote}`;
+  }
+  return `${edit.charAt(0).toUpperCase()}${edit.slice(1)}${metadataNote}`;
 }
 
 export function buildComponentAgentPrompt(
@@ -249,10 +361,11 @@ export function buildComponentCreationAgentPrompt(
   return [
     "You are adding a component to a dash-bored dashboard from its structural editor.",
     "Use the installed dash-bored skill when available. Inspect the project and its instructions before editing, preserve unrelated changes, and validate the result.",
-    "No component in the dashboard catalog matched the user's description. Build a project-local component for this dashboard, then add its component node at the exact YAML insertion path below.",
+    "The editor's catalog text search found no component for the user's description, but a built-in view (status, list, chart, or markdown) fed by a small source script often still fits, with item actions or agent:prompt for follow-up work. Prefer that; build a small project-local component only when no view can present it. Either way, add the new node exactly as the placement below says.",
     `Project root: ${context.projectRoot}`,
     `Owning dashboard config: ${context.configPath}`,
-    `YAML insertion path: ${context.insertionPath}`,
+    `YAML insertion path: ${context.insertion.path}`,
+    `Placement: ${describeDashboardInsertion(context.insertion)}`,
     "",
     "User component description:",
     userPrompt.trim(),

@@ -390,9 +390,19 @@ description. If no catalog entry matches non-empty text, the results contain
 one explicit agent action using the user's description. Selecting it closes the composition UI (with the
 normal discard confirmation for an already-dirty draft), asks the main process to
 revalidate the target against the authoritative reachable config, and launches
-the configured agent. The prompt tells the agent to use the installed
-dash-bored skill when available, build a project-local component for the owning
-dashboard, and insert its node at an exact YAML topology path. The prompt remains one
+the configured agent. The catalog search only matches text, so the prompt tells
+the agent to use the installed dash-bored skill when available, to prefer a
+built-in view fed by a small source script (with item actions or `agent:prompt`
+for follow-up work), and to build a project-local component only when no view
+can present the description. The main process restates the revalidated target
+as the exact edit the structural editor's `insertNode` would make: the YAML path
+of the new edge plus one placement sentence. A managed placement names the
+parent's `children` list and the index (or append, or a new one-item list); an
+empty tiled parent receives a single `{ node }` edge with no split; an occupied
+tile names the edge to replace with `{ axis, first, second }`, which side holds
+the new edge, that the existing edge stays unchanged on the other side, and the
+written `ratio` (omitted for 0.5 and for vertical splits). Non-empty edge
+metadata from the editor is included as a starting value. The prompt remains one
 environment-backed shell argument under the same launch boundary as Change
 with agent.
 

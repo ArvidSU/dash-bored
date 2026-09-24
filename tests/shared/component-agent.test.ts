@@ -5,18 +5,26 @@ import {
   buildDiagnosticsAgentPrompt,
   componentPath,
   dashboardInsertionPath,
+  describeDashboardInsertion,
   findResolvedNode,
-  resolveDashboardInsertionPath,
+  resolveDashboardInsertion,
 } from "../../src/shared/component-agent";
 import type {
   ComponentCatalogItem,
   ComponentNode,
   DashboardConfigSource,
+  DashboardInsertionTarget,
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
 import { componentAgentInvocation } from "../../src/main/component-agent";
+import { insertNode } from "../../src/renderer/composition/dashboard-editor";
 
 const leaf = (node: ComponentNode) => ({ node });
+
+const resolveDashboardInsertionPath = (
+  source: DashboardConfigSource,
+  target: DashboardInsertionTarget,
+): string | null => resolveDashboardInsertion(source, target)?.path ?? null;
 
 function catalogItem(
   reference: string,
@@ -49,6 +57,19 @@ function configSource(
     configRevision: "revision",
     componentCatalog,
   };
+}
+
+/** Reads a YAML locator such as `root.children.first.node.children[1]`. */
+function atYamlPath(config: DashboardConfigSource["config"], path: string): unknown {
+  let current: unknown = { root: config.root };
+  for (const segment of path.split(".")) {
+    const indexed = segment.match(/^(\w+)\[(\d+)\]$/);
+    const record = current as Record<string, unknown> | undefined;
+    current = indexed
+      ? (record?.[indexed[1]!] as unknown[] | undefined)?.[Number(indexed[2])]
+      : record?.[segment];
+  }
+  return current;
 }
 
 function tree(): ResolvedComponentNode {
@@ -120,24 +141,39 @@ describe("component agent context", () => {
     expect(prompt).toContain("- ERROR COMPONENT_UNAVAILABLE: Component ./components/missing is unavailable. (root.component)");
   });
 
-  test("tells an agent to build an unmatched component at the exact YAML insertion path", () => {
-    const insertionPath = dashboardInsertionPath({
-      parentPath: [{ type: "tiled", path: ["second"] }],
-      placement: { type: "managed", index: 0 },
-    }, "split");
+  test("prefers a source-backed built-in view and states the exact placement", () => {
     const prompt = buildComponentCreationAgentPrompt({
       projectRoot: "/project",
       configPath: "/project/.dash-bored/dash-bored.yaml",
-      insertionPath,
+      insertion: {
+        path: dashboardInsertionPath({
+          parentPath: [],
+          placement: { type: "tiled", path: [], axis: "vertical", position: "second" },
+        }, "split"),
+        parentPath: "root",
+        parent: { id: "cockpit", component: "@dash-bored/group" },
+        placement: {
+          type: "split",
+          edgePath: "root.children",
+          existing: { id: "status", component: "@dash-bored/status" },
+          axis: "vertical",
+          position: "second",
+        },
+      },
     }, "  Show deployment health by region.  ");
 
-    expect(insertionPath).toBe(
-      "root.children.second.node.children[0]",
-    );
     expect(prompt).toContain("Use the installed dash-bored skill when available.");
-    expect(prompt).toContain("Build a project-local component for this dashboard");
+    expect(prompt).not.toContain("No component in the dashboard catalog matched");
     expect(prompt).toContain(
-      "YAML insertion path: root.children.second.node.children[0]",
+      "a built-in view (status, list, chart, or markdown) fed by a small source script often still fits",
+    );
+    expect(prompt).toContain("build a small project-local component only when no view can present it");
+    expect(prompt).toContain("YAML insertion path: root.children.second");
+    expect(prompt).toContain(
+      "Placement: Split the tile of node `status` (@dash-bored/status) so the new node sits below it: "
+        + "replace the edge at root.children with "
+        + "`{ axis: vertical, first: <existing edge, unchanged>, second: { node: <new node> } }`. "
+        + "Vertical splits have no `ratio`.",
     );
     expect(prompt).toEndWith("User component description:\nShow deployment health by region.");
   });
@@ -289,6 +325,103 @@ describe("dashboard insertion target validation", () => {
         position: "first",
       },
     })).toBeNull();
+  });
+
+  test("states each placement as the edit the structural editor makes", () => {
+    const newNode: ComponentNode = { id: "deploy-health", component: "text" };
+    const cases: Array<{
+      root: ComponentNode;
+      target: DashboardInsertionTarget;
+      placement: string;
+      check: (config: DashboardConfigSource["config"]) => void;
+    }> = [
+      {
+        root: nestedRoot(),
+        target: {
+          parentPath: [{ type: "tiled", path: ["second"] }],
+          placement: { type: "tiled", path: [], axis: "horizontal", position: "first", ratio: 0.4 },
+        },
+        placement: "Split the tile of the text node so the new node sits left of it: replace the edge at "
+          + "root.children.second.node.children with `{ axis: horizontal, ratio: 0.4, "
+          + "first: { node: <new node> }, second: <existing edge, unchanged> }`.",
+        check: (config) => {
+          expect(atYamlPath(config, "root.children.second.node.children")).toMatchObject({
+            axis: "horizontal",
+            ratio: 0.4,
+            second: { node: { component: "text" } },
+          });
+        },
+      },
+      {
+        root: nestedRoot(),
+        target: {
+          parentPath: [{ type: "tiled", path: ["second"] }],
+          placement: { type: "tiled", path: [], axis: "horizontal", position: "second", ratio: 0.5 },
+        },
+        placement: "Split the tile of the text node so the new node sits right of it: replace the edge at "
+          + "root.children.second.node.children with `{ axis: horizontal, "
+          + "first: <existing edge, unchanged>, second: { node: <new node> } }`. Omit `ratio` (equal widths).",
+        check: (config) => {
+          expect(atYamlPath(config, "root.children.second.node.children.ratio")).toBeUndefined();
+        },
+      },
+      {
+        root: { component: "group" },
+        target: {
+          parentPath: [],
+          placement: { type: "tiled", path: [], axis: "vertical", position: "first" },
+        },
+        placement: "The group node at root has no children yet; set its `children` to the single edge "
+          + "`{ node: <new node> }`, with no split.",
+        check: (config) => {
+          expect(atYamlPath(config, "root.children")).toEqual({ node: newNode });
+        },
+      },
+      {
+        root: nestedRoot(),
+        target: {
+          parentPath: [{ type: "tiled", path: ["first"] }],
+          placement: { type: "managed", index: 0, metadata: { label: "Item 1" } },
+        },
+        placement: "Insert the new edge `{ metadata: {\"label\":\"Item 1\"}, node: <new node> }` into the "
+          + "`children` list of the tabs node at root.children.first.node at index 0, before the item now at "
+          + "that index. Replace placeholder metadata values with a fitting name.",
+        check: (config) => {
+          expect(atYamlPath(config, "root.children.first.node.children[1].metadata")).toEqual({ label: "One" });
+        },
+      },
+      {
+        root: nestedRoot(),
+        target: {
+          parentPath: [{ type: "tiled", path: ["first"] }],
+          placement: { type: "managed", index: 1, metadata: {} },
+        },
+        placement: "Append the new edge `{ node: <new node> }` to the `children` list of the tabs node at "
+          + "root.children.first.node, after its 1 current item.",
+        check: (config) => {
+          expect(atYamlPath(config, "root.children.first.node.children[0].metadata")).toEqual({ label: "One" });
+        },
+      },
+      {
+        root: { component: "full" },
+        target: { parentPath: [], placement: { type: "managed", index: 0 } },
+        placement: "The full node at root has no children yet; set its `children` to a list holding only "
+          + "the new edge `{ node: <new node> }`.",
+        check: (config) => {
+          expect(atYamlPath(config, "root.children")).toHaveLength(1);
+        },
+      },
+    ];
+
+    for (const { root, target, placement, check } of cases) {
+      const source = configSource(root, catalog);
+      const insertion = resolveDashboardInsertion(source, target);
+      expect(insertion).not.toBeNull();
+      expect(describeDashboardInsertion(insertion!)).toBe(placement);
+      const edited = insertNode(source.config, target, newNode, catalog);
+      expect((atYamlPath(edited, insertion!.path) as { node: ComponentNode }).node).toEqual(newNode);
+      check(edited);
+    }
   });
 
   test("rejects full parents and unavailable manifest contracts", () => {

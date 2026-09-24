@@ -30,7 +30,8 @@ import {
   buildDiagnosticsAgentPrompt,
   componentPath,
   findResolvedNode,
-  resolveDashboardInsertionPath,
+  resolveDashboardInsertion,
+  type DashboardInsertion,
 } from "../shared/component-agent";
 import type { DashboardRPC } from "../shared/rpc";
 import { keyboardShortcutAccelerator } from "../shared/keyboard-shortcut";
@@ -400,17 +401,17 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
   });
 }
 
-function validatedInsertionPath(
+function validatedInsertion(
   source: DashboardConfigSource,
   target: DashboardInsertionTarget,
-): string {
+): DashboardInsertion {
   const invalid = (): never => {
     throw new CoreError(
       "COMPONENT_INSERTION_TARGET_INVALID",
       "That component insertion point is no longer present. Reopen the dashboard editor and try again.",
     );
   };
-  return resolveDashboardInsertionPath(source, target) ?? invalid();
+  return resolveDashboardInsertion(source, target) ?? invalid();
 }
 
 async function runComponentCreationAgent(
@@ -420,14 +421,14 @@ async function runComponentCreationAgent(
 ) {
   const source = await runtime.getDashboardConfigSource(configPath);
   const sourceLocation = await resolveProjectLocation(source.configPath);
-  const insertionPath = validatedInsertionPath(source, target);
-  const locator = `${source.configPath}#${insertionPath}`;
+  const insertion = validatedInsertion(source, target);
+  const locator = `${source.configPath}#${insertion.path}`;
   const settings = await appSettingsStore.get();
   const command = await resolveAgentCommand(source.configPath, settings);
   const prompt = buildComponentCreationAgentPrompt({
     projectRoot: sourceLocation.projectRoot,
     configPath: source.configPath,
-    insertionPath,
+    insertion,
   }, userPrompt);
   return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
     location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
