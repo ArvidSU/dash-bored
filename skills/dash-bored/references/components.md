@@ -1,7 +1,8 @@
 # Component authoring reference
 
-Use this reference when the catalog from `dash-bored inspect .` does not cover
-a project-specific need. Packaged and local components use the same manifest,
+Use this reference when neither the catalog from `dash-bored inspect .` nor a
+source script feeding a built-in view ([sources.md](sources.md)) covers a
+project-specific need. Packaged and local components use the same manifest,
 render props, child handles, and permission-shaped host contract; this document
 defines the local component contract.
 
@@ -33,9 +34,11 @@ own split topology or resize behavior. A card is not required for grouping.
 ## Conditional visibility
 
 `@dash-bored/conditional` is a transparent layout boundary for setup and
-recovery actions. It accepts exactly one tiled child and projects that child
-when a bounded shell command exits successfully. Use `invert: true` to show
-the child until the condition succeeds:
+recovery actions; a later migration replaces it with source-bound visibility
+on the edge, so use it only for "show until done" setup steps. It accepts
+exactly one tiled child and projects that child when a bounded shell command
+exits successfully. Use `invert: true` to show the child until the condition
+succeeds:
 
 ```yaml
 component: "@dash-bored/conditional"
@@ -98,7 +101,10 @@ Create local code inside the standalone bundle that owns the dashboard:
 └── styles.css
 ```
 
-Reference the directory as `./components/service-health`. A minimal manifest is:
+Reference the directory as `./components/service-health`. Leave `renderMode`
+out: it defaults to `surface`, a panel with its own height; `layout` is only
+for an organizational container whose height must follow its descendants. A
+minimal manifest is:
 
 ```yaml
 schemaVersion: 2
@@ -197,42 +203,63 @@ Declare only capabilities the implementation uses:
 All file paths and command working directories remain contained by the project
 root associated with the component instance.
 
-## Built-in charts
+## Built-in views
 
-Use `@dash-bored/chart` when the values belong in the dashboard YAML:
+`@dash-bored/status`, `list`, `chart`, and `markdown` read one bounded
+`source`; [sources.md](sources.md) has their data shapes, tested scripts, and
+the app's shell environment. A local component that only fetches and displays
+data is usually a source script plus one of these views.
+
+Keep chart values in YAML only when they are fixed facts:
 
 ```yaml
 component: "@dash-bored/chart"
 props:
-  title: Weekly throughput
+  title: Release scope
   type: bar
-  labels: [Mon, Tue, Wed, Thu]
+  labels: [Q1, Q2, Q3, Q4]
   series:
-    - label: Checks passed
-      values: [18, 24, 21, 29]
+    - label: Planned features
+      values: [4, 6, 5, 7]
 ```
 
-Use `@dash-bored/live-chart` for an HTTP JSON endpoint. Its `endpoint` may be
-an absolute HTTP(S) URL or an app-relative path such as `/metrics/chart.json`.
-It accepts the same `labels` and `series` model, an optional dot-separated
-`dataPath`, and a `pollIntervalMs` between 1000 and 300000. It requires `network:http`; the
-renderer keeps the most recent valid chart when a refresh fails and stops
-polling while the containing tab is hidden.
-
-Use `@dash-bored/todo-list` for a small project-owned YAML todo list:
+For values that change, give the chart a `source` that returns
+`{ labels, series }`, such as an HTTP endpoint that already has that shape:
 
 ```yaml
-component: "@dash-bored/todo-list"
+component: "@dash-bored/chart"
+id: request-rate
 props:
+  title: Requests per minute
+  type: line
+  source:
+    http: http://127.0.0.1:3000/metrics/chart.json
+    every: 30000
+```
+
+`@dash-bored/live-chart` is the older form of the same view; do not add new
+ones.
+
+For a small todo list that the user edits in the app, give
+`@dash-bored/list` its own `todos`. Every item needs a stable `id`:
+
+```yaml
+component: "@dash-bored/list"
+id: next-up
+props:
+  title: Next up
   todos:
-    - description: Verify the service health endpoint
+    - id: verify-health-endpoint
+      description: Verify the service health endpoint
       done: false
       tags: [operations]
 ```
 
-Todos live in node props, not a separate file. The YAML data model is deliberately limited to `description`, boolean `done`,
-and `tags`. The built-in provides status sorting, tag filtering, add/remove,
-and inline description and tag editing.
+Todos live in node props, not a separate file. Each item has exactly
+`id`, `description`, boolean `done`, and `tags`. The list provides status
+sorting, tag filtering, add/remove, and inline editing through the app's
+draft Save/Cancel. `@dash-bored/todo-list` is the older form; do not add new
+ones.
 
 ## TSX contract
 
@@ -309,12 +336,13 @@ runtime exports.
 
 ## Validation loop
 
-1. Run `dash-bored inspect .` and reuse a built-in if it already fits.
-2. When the catalog does not fit the project need, add a small local manifest and implementation.
+1. Run `dash-bored inspect . --summary` and reuse a built-in view, fed by a
+   source script where needed, if it already fits.
+2. When nothing fits the project need, add a small local manifest and implementation.
 3. Add the local component node to the owning `dash-bored.yaml`.
-4. Run `dash-bored validate .`; this validates and compiles local code.
-5. Run `dash-bored inspect .` again. Confirm the catalog entry is available,
-   its permissions are expected, and the resolved tree uses it.
+4. Run `dash-bored validate . --json`; this validates and compiles local code.
+5. Run `dash-bored inspect . --summary` again. Confirm the catalog entry is
+   available, its permissions are expected, and the resolved tree uses it.
 6. When the app is running and trusted, run
    `dash-bored app screenshot --focus <node-id>` and check the rendered result.
 
@@ -442,10 +470,12 @@ root:
               id: service-state
               props:
                 label: Service
-                source: { inline: { state: unknown } }
+                source:
+                  shell: curl -fsS --max-time 3 http://127.0.0.1:3000/health >/dev/null && echo '{"state":"healthy"}'
+                  every: 15000
           - metadata: { label: Tasks }
             node:
-              component: "@dash-bored/todo-list"
+              component: "@dash-bored/list"
               id: service-tasks
               props:
                 todos: []
@@ -484,6 +514,12 @@ app tokens from a component. Theme packages are separate from component nodes; s
 region for large output rather than fixed tile dimensions.
 
 ## Worked example: poll git status
+
+This example shows local-component mechanics (a bounded shell call, a
+declared action, polling, cleanup, and failure handling) on a familiar
+command. For a real Git panel, prefer a `list` or `status` fed by a source
+script ([sources.md](sources.md)); write a component like this only when the
+panel needs behavior no view provides.
 
 This component provides a bounded read-only Git observer, Refresh in both the
 panel and command palette, and an explicit Pause polling control. It needs

@@ -278,6 +278,40 @@ root:
                               done: false
                               tags:
                                 - atoms
+                            - id: todo-command-quick-action-exit
+                              description: "A @dash-bored/command keeps its interactive shell open after the quick action finishes, so status tiles with source.process (such as qa-status) report running instead of the last exit code, and a command's run item action stays disabled after its first use until Stop. Track quick-action completion separately from the shell, or offer a non-interactive run mode; then drop the caveat from the skill's sources reference."
+                              done: false
+                              tags:
+                                - atoms
+                                - bug
+                            - id: todo-agent-tool-source-check
+                              description: "Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app."
+                              done: false
+                              tags:
+                                - agent-tool
+                                - skill
+                            - id: todo-validate-text-diagnostics
+                              description: "Include each diagnostic's path in validate's text output, and give ${item.*} inside command text a specific message instead of the schema's 'must NOT be valid'."
+                              done: false
+                              tags:
+                                - agent-tool
+                            - id: todo-catalog-retiring-builtins
+                              description: "Mark retiring builtins (card, tabs, todo-list, live-chart, conditional, setup-agent, focus-timer) in inspect --summary and the generated builtins reference so agents stop picking them from the catalog; the skill currently lists them by hand."
+                              done: false
+                              tags:
+                                - agent-tool
+                                - skill
+                            - id: todo-creation-prompt-sources
+                              description: "Align the structural editor's natural-language creation prompt with IDEA.md: it tells agents to build a project-local component, while IDEA prefers a source script feeding an existing view."
+                              done: false
+                              tags:
+                                - agent
+                                - skill
+                            - id: todo-skill-trigger-evals
+                              description: "Run trigger evals for the skill description with near-miss queries (starting services, deploying, app dashboards in user code); past sessions showed it firing on unrelated ops tasks in projects with .dash-bored/."
+                              done: false
+                              tags:
+                                - skill
                     second:
                       node:
                         id: checks

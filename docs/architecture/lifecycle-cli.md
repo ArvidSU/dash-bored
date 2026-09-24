@@ -113,6 +113,9 @@ source equals the link target and that target is a bundled
   local-component reference are text assets embedded in the standalone
   executable. Detailed app-state guidance lives in the separately embedded
   `references/app-runtime.md` so routine dashboard authoring need not load it.
+  `references/sources.md` carries the source contract, view shapes, the
+  app's source shell environment, and tested source-script examples; the
+  skill loads it when a panel shows observed data.
   The generated per-component built-in reference
   (`references/builtins.md`, rendered by `bun run generate:components` from
   `BUILTIN_COMPONENTS`) is embedded the same way; see
