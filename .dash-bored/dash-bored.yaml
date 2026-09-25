@@ -312,6 +312,18 @@ root:
                               done: false
                               tags:
                                 - skill
+                            - id: todo-eval-skill-suite
+                              description: "Grow the WIP skill A/B eval in scripts/eval/skill/ into a repeatable suite: scripted headless agent runs, isolation and the compiled tool (likely inside release-qa's Docker harness), repeats with token/time capture, and JSON deltas. The Todo list in scripts/eval/README.md has the steps."
+                              done: false
+                              tags:
+                                - skill
+                                - eval
+                            - id: todo-starter-prompt-sources
+                              description: "Resolve the starter setup prompt's conflict with IDEA.md: starterAgentPrompt says to build a project-local component 'by default' when nothing in the catalog fits and never mentions source scripts, while IDEA prefers a source script feeding an existing view. The prompt was deliberately reviewed, so decide before changing it."
+                              done: false
+                              tags:
+                                - agent
+                                - skill
                     second:
                       node:
                         id: checks

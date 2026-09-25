@@ -117,6 +117,7 @@ watcher is stopped before relying on fast checks.
 | Completed code change | `bun run qa:fast` (includes the browser interaction suite and agent-tool build) |
 | Dashboard YAML | `bun run dash-bored -- validate .` |
 | Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
+| Agent skill guidance | `bun test tests/core/component-authoring.test.ts`; for behavior changes, the work-in-progress [skill A/B eval](./scripts/eval/README.md) |
 | Documentation only | Check links and `git diff --check`; no full build needed |
 
 Run focused checks while iterating and the relevant full check once the change

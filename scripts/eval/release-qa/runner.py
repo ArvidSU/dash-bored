@@ -14,7 +14,7 @@ import tempfile
 import time
 import uuid
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def save(path, value):

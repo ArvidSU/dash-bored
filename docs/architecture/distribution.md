@@ -74,7 +74,7 @@ consistent with the product principles in [Product vision](../IDEA.md).
 
 ## Release onboarding evidence
 
-The opt-in `scripts/release-qa/` harness compiles pinned source revisions into
+The opt-in `scripts/eval/release-qa/` harness compiles pinned source revisions into
 Linux agent-tool test images. Fresh non-root containers exercise skill installs
 and the skill launcher,
 the candidate app startup tool-refresh function, project initialization and an

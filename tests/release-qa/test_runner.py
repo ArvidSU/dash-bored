@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 
-spec = importlib.util.spec_from_file_location("release_qa", Path(__file__).parents[2] / "scripts/release-qa/runner.py")
+spec = importlib.util.spec_from_file_location("release_qa", Path(__file__).parents[2] / "scripts/eval/release-qa/runner.py")
 qa = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qa)
 
