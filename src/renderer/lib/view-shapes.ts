@@ -1,3 +1,5 @@
+import type { ProcessSnapshot } from "../../shared/contracts";
+import { processRun, processRunFailed } from "../../shared/process-state";
 import { parseChartData, type ChartData } from "./chart-data";
 
 export type StatusValue = { state: "unknown" | "healthy" | "warning" | "error"; detail?: string };
@@ -13,14 +15,26 @@ export function parseStatusValue(value: unknown): StatusValue | null {
     if (value.detail !== undefined && typeof value.detail !== "string") return null;
     return { state: value.state as StatusValue["state"], ...(typeof value.detail === "string" ? { detail: value.detail } : {}) };
   }
-  if (value.phase === "idle" || value.phase === "running" || value.phase === "stopping" || value.phase === "exited" || value.phase === "failed") {
-    const state: StatusValue["state"] = value.phase === "idle" ? "unknown"
-      : value.phase === "running" || value.phase === "stopping" ? "warning"
-        : value.exitCode === 0 ? "healthy" : "error";
-    const detail = typeof value.exitCode === "number" ? `Exit code ${value.exitCode}` : `Process ${String(value.phase)}`;
-    return { state, detail };
+  if (isProcessPhase(value.phase)) {
+    // A supervised process snapshot: observe its latest run, never the
+    // lifetime of an interactive terminal that stays open between runs.
+    const run = processRun(value as unknown as ProcessSnapshot);
+    if (run === undefined) {
+      return { state: "unknown", detail: value.phase === "idle" ? "Not run yet" : "Terminal open; not run yet" };
+    }
+    if (run.phase === "running" || run.phase === "stopping") {
+      return { state: "warning", detail: run.phase === "running" ? "Running" : "Stopping" };
+    }
+    const detail = run.signal !== null ? `Stopped by ${run.signal}`
+      : typeof run.exitCode === "number" ? `Exit code ${run.exitCode}`
+        : run.phase === "failed" ? "Failed to start" : "Process exited";
+    return { state: processRunFailed(run) ? "error" : "healthy", detail };
   }
   return null;
+}
+
+function isProcessPhase(value: unknown): value is ProcessSnapshot["phase"] {
+  return value === "idle" || value === "running" || value === "stopping" || value === "exited" || value === "failed";
 }
 
 export function parseSourceChart(value: unknown): ChartData | null {

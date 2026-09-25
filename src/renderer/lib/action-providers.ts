@@ -9,6 +9,7 @@ import type {
 import type { ThemeCatalogItem, ThemeMode } from "../../shared/themes";
 import type { PaletteAction } from "./actions";
 import { componentActionReference } from "../../shared/action-reference";
+import { isProcessLive, isProcessRunActive } from "../../shared/process-state";
 import { childNodes } from "./component-children";
 
 export type AppView = "dashboard" | "settings";
@@ -483,10 +484,14 @@ export function buildProcessActions(
   const processes = new Map(
     snapshot.processes.map((process) => [process.id, process] as const),
   );
-  return processResourceNodes(snapshot.tree).map((node) => {
+  return processResourceNodes(snapshot.tree).flatMap((node) => {
     const process: ProcessSnapshot | undefined = processes.get(node.id);
-    const running = process?.phase === "running" || process?.phase === "stopping";
+    // A run of the command and the interactive terminal around it are distinct:
+    // a finished run can start again while its terminal stays open.
+    const runActive = isProcessRunActive(process);
+    const live = isProcessLive(process);
     const stopping = process?.phase === "stopping";
+    const interactive = process?.interactive === true || node.manifest?.resources?.process?.interactive === true;
     const label =
       typeof node.props.label === "string"
         ? node.props.label
@@ -495,24 +500,37 @@ export function buildProcessActions(
           : node.id;
     const command =
       typeof node.props.command === "string" ? node.props.command : undefined;
-    const enabled = snapshot.trusted && !stopping && pendingAction === null;
-    const disabledReason = !snapshot.trusted
-      ? "Trust this project before running configured commands."
-      : stopping
-        ? "This process is stopping."
-        : blockedReason(pendingAction);
-    return {
+    const trustReason = !snapshot.trusted ? "Trust this project before running configured commands." : undefined;
+    const stoppingReason = stopping ? "This process is stopping." : undefined;
+    const runDisabledReason = trustReason ?? stoppingReason
+      ?? (runActive ? "This command is already running." : blockedReason(pendingAction));
+    const runAction: PaletteAction = {
       id: `process:${encodeURIComponent(node.id)}`,
-      label: `${running ? "Close terminal" : "Run"} ${label}`,
+      label: `Run ${label}`,
       ...(command ? { description: command } : {}),
       keywords: [node.id, "process", "command", command ?? ""],
       group: "Project commands",
       source: node.id,
-      enabled,
+      enabled: runDisabledReason === undefined,
       process,
-      invocationOutcome: running ? "completed" : "started",
-      ...(disabledReason ? { disabledReason } : {}),
-      run: () => (running ? callbacks.stop(node.id) : callbacks.runQuickAction(node.id)),
+      invocationOutcome: "started",
+      ...(runDisabledReason ? { disabledReason: runDisabledReason } : {}),
+      run: () => callbacks.runQuickAction(node.id),
     };
+    if (!live) return [runAction];
+    const closeDisabledReason = trustReason ?? stoppingReason ?? blockedReason(pendingAction);
+    const closeAction: PaletteAction = {
+      id: `process-close:${encodeURIComponent(node.id)}`,
+      label: `${interactive ? "Close terminal" : "Stop"} ${label}`,
+      description: interactive ? "End the terminal and its process tree." : "Stop the running process and its process tree.",
+      keywords: [node.id, "process", "stop", "close", "terminal", command ?? ""],
+      group: "Project commands",
+      source: node.id,
+      enabled: closeDisabledReason === undefined,
+      invocationOutcome: "completed",
+      ...(closeDisabledReason ? { disabledReason: closeDisabledReason } : {}),
+      run: () => callbacks.stop(node.id),
+    };
+    return [runAction, closeAction];
   });
 }

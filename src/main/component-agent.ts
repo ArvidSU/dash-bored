@@ -179,13 +179,12 @@ export class DashboardAgentHarness {
       const id = `component-agent-${randomUUID()}`;
       const definition: ProcessDefinition = {
         id,
-        // Agent work has a finite lifetime even though it uses a PTY. Replace
-        // the interactive shell so the task finishes when the configured CLI
-        // finishes; ordinary command terminals remain persistent.
-        command: process.platform === "win32"
-          ? `${componentAgentInvocation(options.command)}\nexit\n`
-          : `exec /bin/sh -c '${componentAgentInvocation(options.command).replaceAll("'", "'\\''")}'`,
+        // Agent work has a finite lifetime even though it uses a PTY: the task
+        // finishes when the configured CLI's run finishes instead of continuing
+        // in a resting shell like ordinary command terminals.
+        command: componentAgentInvocation(options.command),
         interactive: true,
+        closeAfterRun: true,
         // Do not source an arbitrary login shell: it may replace the PATH that
         // agent preflight just verified. The agent command itself still runs in
         // a PTY and retains its literal configured shell syntax.

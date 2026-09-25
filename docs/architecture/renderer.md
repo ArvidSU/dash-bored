@@ -77,8 +77,9 @@ examples, not privileged component types:
   Selection is local to a panel, while focus is dashboard-wide navigation.
 - `@dash-bored/button` resolves and invokes one action or an `items` action bar
   through the shared executor. It reflects active navigation, running work,
-  interaction steps, and unavailable reasons. Process snapshots remain the
-  authority for supervised process completion.
+  interaction steps, and unavailable reasons; a process action stays running
+  until its supervised run ends. Process snapshots remain the authority for
+  supervised process completion.
 - Action references may be argument-free strings or `{ run, with }`
   invocations. Typed arguments and any remaining palette choices share the same
   action executor. `agent:prompt` is how the app knows what the agent is doing:
@@ -116,8 +117,12 @@ examples, not privileged component types:
   `todos` are mutually exclusive.
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
-  terminal session. Its declared `run` action starts the command with bounded
-  item environment values; the later exit remains a separate process snapshot.
+  terminal session with the latest run's outcome (`running`, `exit 0`,
+  `exit 2`, a signal). Its declared `run` action starts one run with bounded
+  item environment values and is unavailable only while a run is active, so a
+  finished command runs again, with new values, while the terminal stays open.
+  The run's later exit is the process snapshot's `run` record, not the
+  terminal's lifetime.
 - `@dash-bored/conditional` runs a bounded shell condition while its panel is
   visible and projects one tiled child on success, with optional inversion for
   "show until done" setup actions. It starts visible and fails open when a check
@@ -444,8 +449,10 @@ command palette merges three providers:
   state;
 - focus actions for every node in the currently selected dashboard, using the
   same focused projection as the inline Focus controls;
-- start/stop actions derived from every resolved process resource and its
-  authoritative process snapshot;
+- run actions (`process:<node-id>`) derived from every resolved process
+  resource and its authoritative process snapshot, disabled only while a run
+  is active, plus a separate close/stop action while the terminal or process
+  is live;
 - manifest-declared component actions for mounted and unmounted nodes, plus
   registrations from mounted, trusted local component instances.
 

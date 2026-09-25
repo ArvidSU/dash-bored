@@ -6,7 +6,9 @@ present, they frame the same tiled child surface previously provided by card;
 without them the group remains transparent. Schema-v3 card remains available
 until the contract migration.
 `@dash-bored/status` accepts a source model `{ state, detail? }` or a supervised
-process snapshot, deriving healthy/warning/error from its phase and exit code.
+process snapshot, deriving warning (running) and healthy/error (exit code or
+signal) from its latest run; an interactive terminal that stays open between
+runs does not count as running.
 Its original `label` plus hand-written `state` contract remains valid for
 schema-v3 dashboards during migration. `@dash-bored/chart` accepts a bounded
 source that emits `{ labels, series }` as well as its existing static YAML

@@ -546,14 +546,37 @@ describe("application action providers", () => {
         },
       ],
     });
-    const running = buildProcessActions(runningSnapshot, null, {
-      runQuickAction: () => undefined,
-      stop: () => undefined,
-    });
-    expect(running[0]).toMatchObject({
-      label: "Close terminal Development server",
-      enabled: true,
-    });
+    const calls: string[] = [];
+    const callbacks = {
+      runQuickAction: (nodeId: string) => { calls.push(`run:${nodeId}`); },
+      stop: (nodeId: string) => { calls.push(`stop:${nodeId}`); },
+    };
+    const running = buildProcessActions(runningSnapshot, null, callbacks);
+    expect(running.map((item) => item.label)).toEqual(["Run Development server", "Stop Development server"]);
+    expect(running[0]).toMatchObject({ enabled: false, disabledReason: "This command is already running." });
+    expect(running[1]).toMatchObject({ id: "process-close:server", enabled: true });
+
+    // An open interactive terminal whose run finished runs again; closing stays separate.
+    const resting = buildProcessActions({
+      ...runningSnapshot,
+      processes: [{
+        ...runningSnapshot.processes[0]!,
+        interactive: true,
+        run: { phase: "exited", exitCode: 1, signal: null, startedAt: "2026-09-24T10:00:00.000Z", durationMs: 4 },
+      }],
+    }, null, callbacks);
+    expect(resting.map((item) => item.label)).toEqual(["Run Development server", "Close terminal Development server"]);
+    expect(resting[0]).toMatchObject({ id: "process:server", enabled: true, invocationOutcome: "started" });
+    void resting[0]!.run();
+    void resting[1]!.run();
+    expect(calls).toEqual(["run:server", "stop:server"]);
+
+    const idle = buildProcessActions(
+      { ...runningSnapshot, processes: [{ ...runningSnapshot.processes[0]!, phase: "exited", pid: null, exitCode: 0 }] },
+      null,
+      callbacks,
+    );
+    expect(idle.map((item) => item.label)).toEqual(["Run Development server"]);
 
     const stopping = buildProcessActions(
       {
@@ -561,13 +584,10 @@ describe("application action providers", () => {
         processes: [{ ...runningSnapshot.processes[0]!, phase: "stopping" }],
       },
       null,
-      { runQuickAction: () => undefined, stop: () => undefined },
+      callbacks,
     );
-    expect(stopping[0]).toMatchObject({
-      label: "Close terminal Development server",
-      enabled: false,
-      disabledReason: "This process is stopping.",
-    });
+    expect(stopping.map((item) => item.label)).toEqual(["Run Development server", "Stop Development server"]);
+    expect(stopping.every((item) => !item.enabled && item.disabledReason === "This process is stopping.")).toBeTrue();
   });
 
   test("derives focus actions for every node in the active dashboard", () => {

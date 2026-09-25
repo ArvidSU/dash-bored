@@ -2,6 +2,7 @@ import { useId } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { ComponentRendererProps } from "../types";
 import { actionInvocation } from "../../../shared/action-invocation";
+import { isProcessRunActive } from "../../../shared/process-state";
 import "./button.css";
 
 interface ButtonItem {
@@ -62,7 +63,9 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
       aria-label={tablist && typeof props.label === "string" ? props.label : undefined}
     >
       {resolved.map(({ item, invocation, reference, action }, index) => {
-        const disabledReason = action.running
+        // A process action stays running until its supervised run ends, not just its start request.
+        const running = action.running || isProcessRunActive(action.process);
+        const disabledReason = running
           ? `${action.label} is already running.`
           : action.enabled
             ? undefined
@@ -84,7 +87,7 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
               aria-describedby={disabledReason && disabled ? `${itemId}-reason` : undefined}
               title={disabledReason}
               data-active={action.active || undefined}
-              data-running={action.running || undefined}
+              data-running={running || undefined}
               onClick={() => {
                 if (!action.active || !tablist) {
                   host.actions.invoke(reference, invocation?.with, undefined, item.name);
@@ -93,7 +96,7 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
               onKeyDown={(event) => selectWithKeyboard(event, index)}
             >
               <span>{item.name}</span>
-              {action.running ? <span className="action-button__spinner" aria-hidden="true" /> : null}
+              {running ? <span className="action-button__spinner" aria-hidden="true" /> : null}
             </button>
             {disabledReason && disabled ? <span className="visually-hidden" id={`${itemId}-reason`} role="status">{disabledReason}</span> : null}
           </div>

@@ -7,6 +7,7 @@ import type {
   ComponentChildLayout,
   ComponentNode,
   DashboardConfig,
+  ProcessSnapshot,
   ProjectSnapshot,
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
@@ -51,6 +52,24 @@ function resolvedChildren(node: ResolvedComponentNode | null | undefined): Resol
   return nodes;
 }
 
+function outputText(snapshot: ProcessSnapshot | null | undefined): string {
+  return (snapshot?.logs ?? []).filter((entry) => entry.stream !== "system").map((entry) => entry.text).join("");
+}
+
+/** A resting shell is replaced only once idle; retry while it finishes a typed command or respawns. */
+async function startWhenIdle(start: () => Promise<ProcessSnapshot>): Promise<ProcessSnapshot> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    try {
+      return await start();
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== "PROCESS_TERMINAL_BUSY" || Date.now() > deadline) throw error;
+      await Bun.sleep(100);
+    }
+  }
+}
+
 afterEach(async () => {
   await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
   await Promise.all(managers.splice(0).map((manager) => manager.close()));
@@ -81,6 +100,7 @@ describe("ProcessManager", () => {
     await waitFor(() => manager.get("hello")?.phase === "exited");
     const snapshot = manager.get("hello");
     expect(snapshot?.exitCode).toBe(0);
+    expect(snapshot?.run).toMatchObject({ phase: "exited", exitCode: 0, signal: null, startedAt: snapshot?.startedAt });
     expect(snapshot?.startedAt).toBeString();
     expect(snapshot?.durationMs).toBeNumber();
     expect(snapshot?.durationMs).toBeGreaterThanOrEqual(0);
@@ -107,29 +127,188 @@ describe("ProcessManager", () => {
     expect(manager.get("server")?.phase).toBe("idle");
   });
 
-  test("keeps an interactive PTY shell alive for a quick action and subsequent commands", async () => {
+  test("records a quick action's exit while the interactive terminal stays open for typed commands", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const manager = new ProcessManager({ projectRoot: root, stopGraceMs: 100 });
     managers.push(manager);
+    // Output differs from the command text, so the echoed command header never counts as output.
     await manager.reconcile([
-      { id: "shell", command: "printf 'quick-action\\n'", interactive: true },
+      { id: "shell", command: "printf 'quick-%s\\n' action", interactive: true },
     ]);
 
     await manager.start("shell");
-    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("quick-action")) === true, 15_000);
-    expect(manager.get("shell")?.phase).toBe("running");
+    await waitFor(() => manager.get("shell")?.run?.phase === "exited", 15_000);
+    const first = manager.get("shell")!;
+    expect(first).toMatchObject({ phase: "running", interactive: true, exitCode: null, run: { phase: "exited", exitCode: 0, signal: null } });
+    expect(first.pid).toBeNumber();
+    expect(first.run?.durationMs).toBeNumber();
+    expect(outputText(first)).toContain("quick-action");
     await expect(manager.resize("shell", 10, 3)).rejects.toMatchObject({ code: "PROCESS_TERMINAL_SIZE_INVALID" });
     await expect(manager.resize("shell", 120, 32)).resolves.toMatchObject({ phase: "running" });
 
-    await manager.write("shell", "printf 'next-command\\n'\n");
-    await waitFor(() => manager.get("shell")?.logs.some((entry) => entry.text.includes("next-command")) === true, 15_000);
-    await manager.runQuickAction("shell");
-    await waitFor(() => manager.get("shell")?.logs.filter((entry) => entry.text.includes("quick-action")).length === 2, 15_000);
+    await manager.write("shell", "printf 'next-%s\\n' command\n");
+    await waitFor(() => outputText(manager.get("shell")).includes("next-command"), 15_000);
+    expect(manager.get("shell")?.run).toMatchObject({ phase: "exited", exitCode: 0, startedAt: first.run!.startedAt });
+
+    await startWhenIdle(() => manager.runQuickAction("shell"));
+    await waitFor(() => {
+      const run = manager.get("shell")?.run;
+      return run?.phase === "exited" && run.startedAt !== first.run!.startedAt;
+    }, 15_000);
+    expect(outputText(manager.get("shell")).split("quick-action").length - 1).toBe(2);
+    expect(manager.get("shell")).toMatchObject({ phase: "running", run: { exitCode: 0 } });
 
     const stopped = await manager.stop("shell");
     expect(stopped.phase).toBe("exited");
+    expect(stopped.run).toMatchObject({ phase: "exited", exitCode: 0 });
   }, 45_000);
+
+  test("reports failing runs and reruns with fresh item values without closing the terminal", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root, stopGraceMs: 100 });
+    managers.push(manager);
+    await manager.reconcile([{
+      id: "runner",
+      command: "printf 'item=%s|\\n' \"$DASH_ITEM_NAME\"; exit \"${DASH_ITEM_CODE:-0}\"",
+      interactive: true,
+      interactiveShell: ["/bin/sh", "-i"],
+      env: { ENV: "/dev/null" },
+    }]);
+
+    const started = await manager.start("runner", { DASH_ITEM_NAME: "first", DASH_ITEM_CODE: "3" });
+    expect(started.run?.phase).toBe("running");
+    await expect(manager.start("runner")).rejects.toMatchObject({ code: "PROCESS_ALREADY_RUNNING" });
+    await waitFor(() => manager.get("runner")?.run?.phase === "exited", 15_000);
+    const failed = manager.get("runner")!;
+    expect(failed).toMatchObject({ phase: "running", run: { exitCode: 3, signal: null } });
+    expect(outputText(failed)).toContain("item=first|");
+    expect(failed.logs.some((entry) => entry.stream === "system" && entry.text.includes("Command exited with code 3."))).toBeTrue();
+
+    await startWhenIdle(() => manager.start("runner", { DASH_ITEM_NAME: "second" }));
+    await waitFor(() => {
+      const run = manager.get("runner")?.run;
+      return run?.phase === "exited" && run.startedAt !== failed.run!.startedAt;
+    }, 15_000);
+    const second = manager.get("runner")!;
+    expect(second).toMatchObject({ phase: "running", run: { exitCode: 0 } });
+    expect(outputText(second)).toContain("item=second|");
+
+    // The resting shell and plain quick actions never inherit a run's item values.
+    await manager.write("runner", "printf 'rest=%s|\\n' \"${DASH_ITEM_NAME:-none}\"\n");
+    await waitFor(() => outputText(manager.get("runner")).includes("rest=none|"), 15_000);
+    await startWhenIdle(() => manager.runQuickAction("runner"));
+    await waitFor(() => {
+      const run = manager.get("runner")?.run;
+      return run?.phase === "exited" && run.startedAt !== second.run!.startedAt;
+    }, 15_000);
+    expect(outputText(manager.get("runner"))).toContain("item=|");
+    expect(manager.get("runner")?.run?.exitCode).toBe(0);
+  }, 45_000);
+
+  test("keeps typed commands out of run state and refuses to replace a busy resting shell", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root, stopGraceMs: 100 });
+    managers.push(manager);
+    await manager.reconcile([{
+      id: "typed",
+      command: "printf 'quick-%s\\n' done",
+      interactive: true,
+      interactiveShell: ["/bin/sh", "-i"],
+      env: { ENV: "/dev/null" },
+    }]);
+
+    await manager.start("typed");
+    await waitFor(() => manager.get("typed")?.run?.phase === "exited", 15_000);
+    const run = manager.get("typed")!.run!;
+    await manager.write("typed", "false; printf 'typed-%s\\n' failed\n");
+    await waitFor(() => outputText(manager.get("typed")).includes("typed-failed"), 15_000);
+    expect(manager.get("typed")?.run).toEqual(run);
+
+    await manager.write("typed", "sleep 30\n");
+    await Bun.sleep(500);
+    await expect(manager.start("typed")).rejects.toMatchObject({ code: "PROCESS_TERMINAL_BUSY" });
+    expect(manager.get("typed")).toMatchObject({ phase: "running", run });
+
+    await manager.write("typed", "\x03");
+    await startWhenIdle(() => manager.start("typed"));
+    await waitFor(() => {
+      const next = manager.get("typed")?.run;
+      return next?.phase === "exited" && next.startedAt !== run.startedAt;
+    }, 15_000);
+    expect(manager.get("typed")?.run?.exitCode).toBe(0);
+  }, 45_000);
+
+  test("records an interrupted run and ends the terminal on stop", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root, stopGraceMs: 200 });
+    managers.push(manager);
+    await manager.reconcile([{
+      id: "slow",
+      command: "printf 'waiting\\n'; sleep 30",
+      interactive: true,
+      interactiveShell: ["/bin/sh", "-i"],
+      env: { ENV: "/dev/null" },
+    }]);
+
+    await manager.start("slow");
+    await waitFor(() => outputText(manager.get("slow")).includes("waiting"), 15_000);
+    await manager.write("slow", "\x03");
+    await waitFor(() => manager.get("slow")?.run?.phase === "exited", 15_000);
+    const interrupted = manager.get("slow")!;
+    expect(interrupted.phase).toBe("running");
+    expect(interrupted.run?.signal === "SIGINT" || interrupted.run?.exitCode === 130).toBeTrue();
+
+    await startWhenIdle(() => manager.start("slow"));
+    await waitFor(() => manager.get("slow")?.run?.phase === "running", 15_000);
+    const stopped = await manager.stop("slow");
+    expect(stopped.phase).toBe("exited");
+    expect(stopped.pid).toBeNull();
+    expect(stopped.run?.phase).toBe("exited");
+    expect(stopped.run?.exitCode === 0 && stopped.run.signal === null).toBeFalse();
+  }, 45_000);
+
+  test("keeps a run's trailing output ahead of its exit line", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root });
+    managers.push(manager);
+    await manager.reconcile([{
+      id: "loud",
+      command: "seq 1 20000; printf 'tail-%s\\n' marker",
+      interactive: true,
+      interactiveShell: ["/bin/sh", "-i"],
+      env: { ENV: "/dev/null" },
+    }]);
+    await manager.start("loud");
+    await waitFor(() => manager.get("loud")?.run?.phase === "exited", 15_000);
+    const logs = manager.get("loud")!.logs;
+    const tail = logs.findIndex((entry) => entry.stream === "stdout" && entry.text.includes("tail-marker"));
+    const exitLine = logs.findIndex((entry) => entry.stream === "system" && entry.text.includes("Command exited with code 0."));
+    expect(tail).toBeGreaterThanOrEqual(0);
+    expect(exitLine).toBeGreaterThan(tail);
+  }, 20_000);
+
+  test("ends a close-after-run terminal with its command", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const manager = new ProcessManager({ projectRoot: root });
+    managers.push(manager);
+    await manager.reconcile([{
+      id: "finite",
+      command: "exit 4",
+      interactive: true,
+      closeAfterRun: true,
+      interactiveShell: ["/bin/sh", "-i"],
+      env: { ENV: "/dev/null" },
+    }]);
+    await manager.start("finite");
+    await waitFor(() => manager.get("finite")?.phase === "exited", 15_000);
+    expect(manager.get("finite")).toMatchObject({ exitCode: 4, pid: null, run: { phase: "exited", exitCode: 4 } });
+  }, 20_000);
 });
 
 describe("ProjectRuntime", () => {

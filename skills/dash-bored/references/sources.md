@@ -27,7 +27,7 @@ Exactly one kind, plus optional settings:
 | `shell` | A command run by `/bin/sh -lc` from the project root. On exit 0, stdout is parsed as JSON when it parses, otherwise used as text. A nonzero exit or timeout shows `error` with the last 500 characters of stderr and keeps the last good value. | `process:execute` |
 | `file` | A project-relative file, parsed as JSON when it parses. | `filesystem:read` |
 | `http` | An absolute `http(s)://` URL. A 2xx body is parsed like stdout; other statuses are errors. The body must already have the view's shape; otherwise fetch it from a `shell` script and transform it there. | `network:http` |
-| `process` | A `command` node's ID; reports its process phase and exit code. See the caveat below. | `process:observe` |
+| `process` | A `command` node's ID; reports its latest run's phase and exit code, not whether its terminal is open. See below. | `process:observe` |
 | `inline` | A literal value. Use it only for data that really is fixed. | none |
 | `every` | Poll interval in milliseconds, 1000–300000. Omitted: read once when shown, plus the panel's Refresh action (`component:<id>:refresh`). Polling pauses while the panel is hidden. | |
 | `timeoutMs` | 1–30000; default 10000. | |
@@ -213,19 +213,41 @@ props:
 Every todo needs `id`, `description`, `done`, and `tags`. `source` and
 `todos` are mutually exclusive.
 
-## Caveat: commands stay open
+## Process sources follow the latest run
 
-A `command` is a persistent interactive terminal. After its command finishes,
-the shell stays open and the process phase stays `running` until the user
-presses Stop. Consequently:
+A `command` keeps its terminal open between runs, but a `process` source,
+the command's `run` action, and a `process:<command-id>` button all follow
+the command's latest **run**:
 
-- `source: { process: <command-id> }` reports running (a `warning` status)
-  instead of the last exit code while the terminal is open.
-- A command's `run` action, and so every item action that targets it, is
-  disabled after the first use until the user stops that terminal.
-- A button with `process:<command-id>` toggles: while the terminal is open,
-  pressing it closes the terminal instead of running the command again.
+- A status view shows `unknown` before the first run, `warning` while it runs,
+  then `healthy` for exit 0 and `error` for any other exit or a signal
+  (including Ctrl-C). Make the command exit nonzero exactly when it failed.
+- A finished command runs again, with new `DASH_ITEM_*` values, without being
+  closed. Only one run per `command` node runs at a time: give item actions
+  that must run concurrently their own `command` nodes.
+- Each run starts from the YAML `cwd` and `env`; state typed into the
+  terminal (`cd`, `export`) does not carry into the next run.
 
-Design around it: use item actions on a command for occasional inspection,
-say in the panel description that Stop resets the runner, and do not build a
-"last run passed" tile on a command's process.
+```yaml
+id: tests
+component: "@dash-bored/group"
+props:
+  title: Tests
+children:
+  axis: vertical
+  first:
+    node:
+      id: tests-status
+      component: "@dash-bored/status"
+      props:
+        label: Last test run
+        source:
+          process: run-tests
+  second:
+    node:
+      id: run-tests
+      component: "@dash-bored/command"
+      props:
+        label: Run tests
+        command: bun test
+```

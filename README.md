@@ -529,8 +529,9 @@ The referenced `@dash-bored/command` node can use the fixed command
 `"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"`. Item templates occupy whole,
 typed argument values; the host passes them as bounded `DASH_ITEM_*`
 environment variables when it starts the supervised process. The list keeps
-separate invocation feedback for each item. A process snapshot reports its
-later exit.
+separate invocation feedback for each item. The process snapshot's latest run
+reports its later exit, and a finished command accepts the next item's run
+without being closed first.
 
 For editable YAML todos, set `todos` instead of `source` on the same list atom.
 Each todo needs a stable `id`, `description`, `done`, and `tags`; the editor
@@ -924,6 +925,13 @@ automatically: **Open terminal** creates its persistent PTY-backed shell and
 the configured YAML `command` is its remembered quick action. Use the command
 button to run that action again, or type directly into the terminal to run
 consecutive commands; **Close terminal** ends the shell and its process tree.
+Each quick-action run reports its own result: the command shows `running`
+and then its exit code, and a status view or button bound to the command
+follows that run rather than the open terminal. When a run finishes, the
+terminal returns to a fresh interactive shell, and the command, its palette
+action, and item actions can run again without closing it. Commands you type
+into that shell are not runs. While one of them is still running, starting a
+run is refused so that your work is not ended.
 
 ## Current boundaries
 

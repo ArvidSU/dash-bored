@@ -1,4 +1,6 @@
-import type { ProcessLogEntry, ProcessSnapshot } from "../shared/contracts";
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
+import type { ProcessLogEntry, ProcessRunSnapshot, ProcessSnapshot } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveContainedPath } from "./paths";
 import { resolveEnvironment, type PublishedEnvironment } from "./environment";
@@ -6,6 +8,11 @@ import { resolveEnvironment, type PublishedEnvironment } from "./environment";
 const DEFAULT_MAX_LOG_BYTES = 512 * 1024;
 const DEFAULT_MAX_LOG_ENTRIES = 2_000;
 const DEFAULT_STOP_GRACE_MS = 2_000;
+const DEFAULT_TERMINAL_COLS = 100;
+const DEFAULT_TERMINAL_ROWS = 24;
+const MAX_COMMAND_HEADER_LENGTH = 200;
+/** Upper bound for trailing PTY output after a session's process exits (a background job may hold it open). */
+const PTY_DRAIN_MS = 250;
 const ITEM_ENV_NAME = /^DASH_ITEM_[A-Z][A-Z0-9_]*$/;
 
 function validateItemEnvironment(value: Record<string, string> | undefined): Record<string, string> {
@@ -25,8 +32,13 @@ export interface ProcessDefinition {
   id: string;
   command: string;
   interactive?: boolean;
-  /** Optional fixed terminal shell for host-owned interactive processes. */
+  /**
+   * Optional fixed terminal shell for host-owned interactive processes. The
+   * resting shell runs it as given; each run appends `-c <command>`.
+   */
   interactiveShell?: string[];
+  /** Interactive only: end the terminal with its run instead of continuing in a resting shell. */
+  closeAfterRun?: boolean;
   projectRoot?: string;
   /** Owning bundle, independent of the command's working directory. */
   configPath?: string;
@@ -43,11 +55,41 @@ export interface ProcessManagerOptions {
   getPublishedEnvironment?: PublishedEnvironment;
 }
 
+/**
+ * One PTY-backed program inside an interactive terminal: either a single run
+ * of the configured command, or the resting interactive shell that follows it.
+ */
+interface TerminalSession {
+  kind: "run" | "shell";
+  subprocess: Bun.Subprocess;
+  terminal: Bun.Terminal;
+  decoder: TextDecoder;
+  /** Set when the manager ends this resting shell so a new run can take over the terminal. */
+  replacing: boolean;
+  /** The user has typed into this session, so a resting shell may be running their command. */
+  inputWritten: boolean;
+  /** Resolves when the PTY reports end of output. */
+  eof: Promise<void>;
+  completion: Promise<void>;
+}
+
+interface RunState {
+  phase: ProcessRunSnapshot["phase"];
+  exitCode: number | null;
+  signal: string | null;
+  startedAt: string;
+  startedAtMs: number;
+  durationMs: number | null;
+}
+
 interface ManagedProcess {
   definition: ProcessDefinition;
+  /** Lifetime of the supervised process, or of the whole interactive terminal. */
   phase: ProcessSnapshot["phase"];
+  /** Non-interactive child process. */
   subprocess: Bun.Subprocess | null;
-  terminal: Bun.Terminal | null;
+  /** Interactive terminal: the active run, or the resting shell after it. */
+  session: TerminalSession | null;
   exitCode: number | null;
   signal: string | null;
   logs: ProcessLogEntry[];
@@ -57,8 +99,14 @@ interface ManagedProcess {
   startedAt: string | null;
   startedAtMs: number | null;
   durationMs: number | null;
-  /** DASH_ITEM_* names given to the current interactive shell by an item-scoped start. */
-  itemEnvironmentKeys: string[];
+  /** Latest execution of the configured command, retained across terminal restarts. */
+  run: RunState | null;
+  cols: number;
+  rows: number;
+  /** A start is resolving its environment or replacing the resting shell. */
+  starting: boolean;
+  /** Incremented by stop so an in-flight start cannot spawn after it. */
+  generation: number;
 }
 
 function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
@@ -67,6 +115,7 @@ function cloneDefinition(definition: ProcessDefinition): ProcessDefinition {
     command: definition.command,
     ...(definition.interactive === true ? { interactive: true } : {}),
     ...(definition.interactiveShell === undefined ? {} : { interactiveShell: [...definition.interactiveShell] }),
+    ...(definition.closeAfterRun === true ? { closeAfterRun: true } : {}),
     ...(definition.projectRoot === undefined ? {} : { projectRoot: definition.projectRoot }),
     ...(definition.configPath === undefined ? {} : { configPath: definition.configPath }),
     ...(definition.cwd === undefined ? {} : { cwd: definition.cwd }),
@@ -79,6 +128,7 @@ function definitionKey(definition: ProcessDefinition): string {
     command: definition.command,
     interactive: definition.interactive === true,
     interactiveShell: definition.interactiveShell ?? null,
+    closeAfterRun: definition.closeAfterRun === true,
     projectRoot: definition.projectRoot ?? null,
     configPath: definition.configPath ?? null,
     cwd: definition.cwd ?? null,
@@ -86,8 +136,32 @@ function definitionKey(definition: ProcessDefinition): string {
   });
 }
 
+function terminalShell(definition: ProcessDefinition): string[] {
+  if (definition.interactiveShell !== undefined) return [...definition.interactiveShell];
+  return process.platform === "win32" ? ["cmd.exe"] : [process.env.SHELL || "/bin/sh", "-i"];
+}
+
+/**
+ * A run executes the command once in the terminal's shell. POSIX shells keep
+ * `-i` so the command sees the same interactive startup files as typed input.
+ */
+function runCommandLine(shell: readonly string[], command: string): string[] {
+  const program = basename(shell[0] ?? "").toLowerCase();
+  if (process.platform === "win32" && (program === "cmd" || program === "cmd.exe")) {
+    return [...shell, "/d", "/s", "/c", command];
+  }
+  return [...shell, "-c", command];
+}
+
+function commandHeader(command: string): string {
+  const lines = command.trim().split(/\r?\n/);
+  const first = lines[0] ?? "";
+  const shortened = first.length > MAX_COMMAND_HEADER_LENGTH ? `${first.slice(0, MAX_COMMAND_HEADER_LENGTH)}…` : first;
+  return `$ ${shortened}${lines.length > 1 && first.length <= MAX_COMMAND_HEADER_LENGTH ? " …" : ""}`;
+}
+
 async function killTree(subprocess: Bun.Subprocess, signal: NodeJS.Signals): Promise<void> {
-  if (subprocess.exitCode !== null) return;
+  if (subprocess.exitCode !== null || subprocess.signalCode !== null) return;
   if (process.platform === "win32") {
     const cmd = ["taskkill", "/PID", String(subprocess.pid), "/T"];
     if (signal === "SIGKILL") cmd.push("/F");
@@ -103,6 +177,71 @@ async function killTree(subprocess: Bun.Subprocess, signal: NodeJS.Signals): Pro
       // The subprocess may have exited between checks.
     }
   }
+}
+
+/** Foreground process group of the terminal whose session leader is `pid`. */
+async function foregroundProcessGroup(pid: number): Promise<number | null> {
+  if (process.platform === "win32") return null;
+  try {
+    if (process.platform === "linux") {
+      const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+      const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+      const tpgid = Number(fields[5]);
+      return Number.isInteger(tpgid) ? tpgid : null;
+    }
+    const ps = Bun.spawn({
+      cmd: [process.platform === "darwin" ? "/bin/ps" : "ps", "-o", "tpgid=", "-p", String(pid)],
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const [text, exitCode] = await Promise.all([new Response(ps.stdout).text(), ps.exited]);
+    if (exitCode !== 0) return null;
+    const tpgid = Number.parseInt(text.trim(), 10);
+    return Number.isInteger(tpgid) ? tpgid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A resting shell nobody typed into is idle. Otherwise it leads its own
+ * session, so another foreground process group means the user started a
+ * command in it. An unknown answer (including Windows) counts as busy so a new
+ * run never ends work the user started.
+ */
+async function restingShellIsBusy(session: TerminalSession): Promise<boolean> {
+  if (!session.inputWritten) return false;
+  const { subprocess } = session;
+  const tpgid = await foregroundProcessGroup(subprocess.pid);
+  if (subprocess.exitCode !== null || subprocess.signalCode !== null) return false;
+  if (tpgid === null) return true;
+  return tpgid > 0 && tpgid !== subprocess.pid;
+}
+
+/**
+ * End a PTY session like closing its terminal window: signal the job in the
+ * terminal's foreground (an interactive shell may give it its own process
+ * group) and then the session's own process tree.
+ */
+async function killSession(session: TerminalSession, signal: NodeJS.Signals): Promise<void> {
+  const { subprocess } = session;
+  if (subprocess.exitCode !== null || subprocess.signalCode !== null) return;
+  if (process.platform !== "win32") {
+    const tpgid = await foregroundProcessGroup(subprocess.pid);
+    if (tpgid !== null && tpgid > 0 && tpgid !== subprocess.pid) {
+      try {
+        process.kill(-tpgid, signal);
+      } catch {
+        // The foreground job may have exited between checks.
+      }
+    }
+  }
+  await killTree(subprocess, signal);
+}
+
+function runActive(processState: ManagedProcess): boolean {
+  return processState.run?.phase === "running" || processState.run?.phase === "stopping";
 }
 
 export class ProcessManager {
@@ -129,7 +268,7 @@ export class ProcessManager {
       definition: cloneDefinition(definition),
       phase: "idle",
       subprocess: null,
-      terminal: null,
+      session: null,
       exitCode: null,
       signal: null,
       logs: [],
@@ -139,20 +278,36 @@ export class ProcessManager {
       startedAt: null,
       startedAtMs: null,
       durationMs: null,
-      itemEnvironmentKeys: [],
+      run: null,
+      cols: DEFAULT_TERMINAL_COLS,
+      rows: DEFAULT_TERMINAL_ROWS,
+      starting: false,
+      generation: 0,
     };
   }
 
   private snapshot(processState: ManagedProcess): ProcessSnapshot {
+    const live = processState.session?.subprocess ?? processState.subprocess;
+    const run = processState.run;
     return {
       id: processState.definition.id,
       phase: processState.phase,
-      pid: processState.subprocess?.exitCode === null ? processState.subprocess.pid : null,
+      pid: live !== null && live.exitCode === null && live.signalCode === null ? live.pid : null,
       exitCode: processState.exitCode,
       signal: processState.signal,
       logs: processState.logs.map((entry) => ({ ...entry })),
+      ...(processState.definition.interactive === true ? { interactive: true } : {}),
       ...(processState.startedAt === null ? {} : { startedAt: processState.startedAt }),
       ...(processState.durationMs === null ? {} : { durationMs: processState.durationMs }),
+      ...(run === null ? {} : {
+        run: {
+          phase: run.phase,
+          exitCode: run.exitCode,
+          signal: run.signal,
+          startedAt: run.startedAt,
+          ...(run.durationMs === null ? {} : { durationMs: run.durationMs }),
+        },
+      }),
     };
   }
 
@@ -192,6 +347,13 @@ export class ProcessManager {
     this.emit(processState);
   }
 
+  /** A system line that starts and ends on its own terminal row. */
+  private terminalLine(processState: ManagedProcess, text: string): void {
+    const previous = processState.logs.at(-1)?.text;
+    const lineBreak = previous !== undefined && !previous.endsWith("\n") ? "\r\n" : "";
+    this.append(processState, "system", `${lineBreak}${text}\r\n`);
+  }
+
   private async pump(
     processState: ManagedProcess,
     subprocess: Bun.Subprocess,
@@ -220,12 +382,18 @@ export class ProcessManager {
       if (processState.subprocess !== subprocess) return;
       const exitResult = results[2];
       const exitCode = exitResult?.status === "fulfilled" ? exitResult.value : subprocess.exitCode;
+      const now = Date.now();
       processState.exitCode = subprocess.signalCode === null ? exitCode : null;
       processState.signal = subprocess.signalCode;
       processState.phase = exitResult?.status === "rejected" ? "failed" : "exited";
-      processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
+      processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, now - processState.startedAtMs);
+      if (processState.run !== null) {
+        processState.run.phase = processState.phase;
+        processState.run.exitCode = processState.exitCode;
+        processState.run.signal = processState.signal;
+        processState.run.durationMs = Math.max(0, now - processState.run.startedAtMs);
+      }
       processState.subprocess = null;
-      processState.terminal = null;
       processState.completion = null;
       if (exitResult?.status === "rejected") {
         this.append(processState, "system", `Process wait failed: ${errorMessage(exitResult.reason)}`);
@@ -274,204 +442,466 @@ export class ProcessManager {
     return [...this.processes.values()].map((processState) => this.snapshot(processState));
   }
 
-  async start(id: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
-    return this.startWithOptions(id, { itemEnvironment });
-  }
-
-  private async startWithOptions(
-    id: string,
-    options: { runQuickAction?: boolean; itemEnvironment?: Record<string, string> } = {},
-  ): Promise<ProcessSnapshot> {
+  private require(id: string): ManagedProcess {
     if (this.closed) throw new CoreError("PROCESS_MANAGER_CLOSED", "The process manager is closed.");
     const processState = this.processes.get(id);
     if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
-    if (processState.subprocess !== null) {
-      throw new CoreError("PROCESS_ALREADY_RUNNING", `Command ${id} is already running.`);
-    }
+    return processState;
+  }
+
+  private assertCommand(processState: ManagedProcess): void {
     if (processState.definition.command.trim() === "" || processState.definition.command.length > 32_768) {
       throw new CoreError("PROCESS_COMMAND_INVALID", "Process command must be non-empty and at most 32768 characters.");
     }
-    const itemEnvironment = validateItemEnvironment(options.itemEnvironment);
+  }
 
+  private resolveCwd(processState: ManagedProcess): Promise<string> {
     const projectRoot = processState.definition.projectRoot ?? this.projectRoot;
-    const cwd =
-      processState.definition.cwd === undefined
-        ? projectRoot
-        : await resolveContainedPath(projectRoot, processState.definition.cwd, { kind: "directory" });
-    processState.logs = [];
-    processState.logBytes = 0;
-    processState.exitCode = null;
-    processState.signal = null;
-    processState.startedAt = null;
-    processState.startedAtMs = null;
-    processState.durationMs = null;
+    return processState.definition.cwd === undefined
+      ? Promise.resolve(projectRoot)
+      : resolveContainedPath(projectRoot, processState.definition.cwd, { kind: "directory" });
+  }
 
-    try {
-      const environment = await resolveEnvironment(
-        processState.definition.configPath,
-        this.getPublishedEnvironment(),
-        processState.definition.env,
-      );
-      Object.assign(environment, itemEnvironment);
-      processState.itemEnvironmentKeys = Object.keys(itemEnvironment);
-      if (processState.definition.interactive) {
-        const shell = processState.definition.interactiveShell ?? (process.platform === "win32"
-          ? ["cmd.exe"]
-          : [process.env.SHELL || "/bin/sh", "-i"]);
-        const decoder = new TextDecoder();
-        const subprocess = Bun.spawn({
-          cmd: shell,
-          cwd,
-          env: { ...environment, TERM: "xterm-256color" },
-          detached: process.platform !== "win32",
-          terminal: {
-            cols: 100,
-            rows: 24,
-            name: "xterm-256color",
-            data: (_terminal, data) => {
-              if (processState.subprocess === subprocess) {
-                this.append(processState, "stdout", decoder.decode(data, { stream: true }));
-              }
-            },
-          },
-        });
-        const terminal = subprocess.terminal;
-        if (!terminal) throw new CoreError("PROCESS_TERMINAL_UNAVAILABLE", "The PTY terminal could not be created.");
-        processState.subprocess = subprocess;
-        processState.terminal = terminal;
-        processState.phase = "running";
-        processState.startedAtMs = Date.now();
-        processState.startedAt = new Date(processState.startedAtMs).toISOString();
-        this.append(processState, "system", `Started interactive terminal ${subprocess.pid}.`);
-        processState.completion = this.monitorTerminal(processState, subprocess, terminal, decoder);
-        if (options.runQuickAction !== false) terminal.write(`${processState.definition.command}\n`);
-        return this.emit(processState);
-      }
+  private resolveBaseEnvironment(processState: ManagedProcess): Promise<Record<string, string>> {
+    return resolveEnvironment(
+      processState.definition.configPath,
+      this.getPublishedEnvironment(),
+      processState.definition.env,
+    );
+  }
 
-      const shell = process.platform === "win32" ? ["cmd.exe", "/d", "/s", "/c"] : ["/bin/sh", "-lc"];
-      const subprocess = Bun.spawn({
-        cmd: [...shell, processState.definition.command],
-        cwd,
-        env: environment,
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-        detached: process.platform !== "win32",
-      });
-      processState.subprocess = subprocess;
-      processState.phase = "running";
-      processState.startedAtMs = Date.now();
-      processState.startedAt = new Date(processState.startedAtMs).toISOString();
-      this.append(processState, "system", `Started process ${subprocess.pid}.`);
-      processState.completion = this.monitor(processState, subprocess);
-      return this.emit(processState);
-    } catch (error) {
-      processState.phase = "failed";
-      processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
-      this.append(processState, "system", `Failed to start: ${errorMessage(error)}`);
-      return this.emit(processState);
-    }
+  /**
+   * Runs the configured command once. A non-interactive process runs it as its
+   * whole lifetime; an interactive terminal runs it as a PTY session and then
+   * continues in a resting shell. Item values reach only this run's environment.
+   */
+  async start(id: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
+    const processState = this.require(id);
+    return processState.definition.interactive
+      ? this.startRun(processState, itemEnvironment)
+      : this.startProcess(processState, itemEnvironment);
   }
 
   /** Start a persistent terminal session without running its configured quick action. */
   async open(id: string): Promise<ProcessSnapshot> {
-    return this.startWithOptions(id, { runQuickAction: false });
+    const processState = this.require(id);
+    if (!processState.definition.interactive) return this.startProcess(processState, undefined);
+    return this.openTerminal(processState);
   }
 
+  /** Run the configured quick action again without item values, in the same terminal when one is open. */
   async runQuickAction(id: string): Promise<ProcessSnapshot> {
-    const processState = this.processes.get(id);
-    if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
-    if (!processState.definition.interactive) {
-      throw new CoreError("PROCESS_NOT_INTERACTIVE", `Process ${id} does not provide an interactive terminal.`);
+    return this.start(id);
+  }
+
+  private assertCanStart(processState: ManagedProcess): void {
+    const id = processState.definition.id;
+    if (processState.starting || processState.phase === "stopping" || runActive(processState)) {
+      throw new CoreError("PROCESS_ALREADY_RUNNING", `Command ${id} is already running.`);
     }
-    if (processState.subprocess === null) return this.startWithOptions(id);
-    // A plain quick action must not inherit values from an earlier item-scoped start
-    // of this persistent shell. Names are validated DASH_ITEM_* identifiers.
-    const keys = processState.itemEnvironmentKeys;
-    processState.itemEnvironmentKeys = [];
-    const clear = keys.length === 0 ? "" : `unset ${keys.join(" ")}\n`;
-    return this.write(id, `${clear}${processState.definition.command}\n`);
+  }
+
+  private async startProcess(
+    processState: ManagedProcess,
+    itemEnvironmentInput: Record<string, string> | undefined,
+  ): Promise<ProcessSnapshot> {
+    const id = processState.definition.id;
+    if (processState.subprocess !== null) {
+      throw new CoreError("PROCESS_ALREADY_RUNNING", `Command ${id} is already running.`);
+    }
+    this.assertCanStart(processState);
+    this.assertCommand(processState);
+    const itemEnvironment = validateItemEnvironment(itemEnvironmentInput);
+    processState.starting = true;
+    const generation = processState.generation;
+    try {
+      const cwd = await this.resolveCwd(processState);
+      processState.logs = [];
+      processState.logBytes = 0;
+      processState.exitCode = null;
+      processState.signal = null;
+      processState.startedAt = null;
+      processState.startedAtMs = null;
+      processState.durationMs = null;
+      try {
+        const environment = await this.resolveBaseEnvironment(processState);
+        if (generation !== processState.generation || this.closed) return this.snapshot(processState);
+        const shell = process.platform === "win32" ? ["cmd.exe", "/d", "/s", "/c"] : ["/bin/sh", "-lc"];
+        const subprocess = Bun.spawn({
+          cmd: [...shell, processState.definition.command],
+          cwd,
+          env: { ...environment, ...itemEnvironment },
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+          detached: process.platform !== "win32",
+        });
+        processState.subprocess = subprocess;
+        processState.phase = "running";
+        processState.startedAtMs = Date.now();
+        processState.startedAt = new Date(processState.startedAtMs).toISOString();
+        processState.run = {
+          phase: "running",
+          exitCode: null,
+          signal: null,
+          startedAt: processState.startedAt,
+          startedAtMs: processState.startedAtMs,
+          durationMs: null,
+        };
+        this.append(processState, "system", `Started process ${subprocess.pid}.`);
+        processState.completion = this.monitor(processState, subprocess);
+        return this.emit(processState);
+      } catch (error) {
+        processState.phase = "failed";
+        processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
+        processState.run = this.failedRun();
+        this.append(processState, "system", `Failed to start: ${errorMessage(error)}`);
+        return this.emit(processState);
+      }
+    } finally {
+      processState.starting = false;
+    }
+  }
+
+  private failedRun(): RunState {
+    const now = Date.now();
+    return {
+      phase: "failed",
+      exitCode: null,
+      signal: null,
+      startedAt: new Date(now).toISOString(),
+      startedAtMs: now,
+      durationMs: 0,
+    };
+  }
+
+  /** Reset per-terminal state for a terminal that is not currently open. */
+  private beginTerminal(processState: ManagedProcess): void {
+    processState.logs = [];
+    processState.logBytes = 0;
+    processState.exitCode = null;
+    processState.signal = null;
+    processState.durationMs = null;
+    processState.phase = "running";
+    processState.startedAtMs = Date.now();
+    processState.startedAt = new Date(processState.startedAtMs).toISOString();
+  }
+
+  /** End the whole interactive terminal with the last session's result. */
+  private endTerminal(
+    processState: ManagedProcess,
+    phase: "exited" | "failed",
+    exitCode: number | null,
+    signal: string | null,
+  ): void {
+    processState.phase = phase;
+    processState.exitCode = exitCode;
+    processState.signal = signal;
+    processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
+  }
+
+  private async openTerminal(processState: ManagedProcess): Promise<ProcessSnapshot> {
+    const id = processState.definition.id;
+    if (processState.session !== null) {
+      throw new CoreError("PROCESS_ALREADY_RUNNING", `Command ${id} is already running.`);
+    }
+    this.assertCanStart(processState);
+    this.assertCommand(processState);
+    processState.starting = true;
+    const generation = processState.generation;
+    try {
+      const cwd = await this.resolveCwd(processState);
+      let environment: Record<string, string>;
+      try {
+        environment = await this.resolveBaseEnvironment(processState);
+      } catch (error) {
+        this.beginTerminal(processState);
+        this.endTerminal(processState, "failed", null, null);
+        this.append(processState, "system", `Failed to start: ${errorMessage(error)}`);
+        return this.emit(processState);
+      }
+      if (generation !== processState.generation || this.closed) return this.snapshot(processState);
+      this.beginTerminal(processState);
+      try {
+        const session = this.spawnShell(processState, cwd, environment);
+        this.terminalLine(processState, `Started interactive terminal ${session.subprocess.pid}.`);
+      } catch (error) {
+        this.endTerminal(processState, "failed", null, null);
+        this.append(processState, "system", `Failed to start: ${errorMessage(error)}`);
+      }
+      return this.emit(processState);
+    } finally {
+      processState.starting = false;
+    }
+  }
+
+  private async startRun(
+    processState: ManagedProcess,
+    itemEnvironmentInput: Record<string, string> | undefined,
+  ): Promise<ProcessSnapshot> {
+    const id = processState.definition.id;
+    this.assertCanStart(processState);
+    this.assertCommand(processState);
+    const itemEnvironment = validateItemEnvironment(itemEnvironmentInput);
+    processState.starting = true;
+    const generation = processState.generation;
+    const cancelled = (): boolean => generation !== processState.generation || this.closed;
+    try {
+      const cwd = await this.resolveCwd(processState);
+      let environment: Record<string, string>;
+      try {
+        environment = await this.resolveBaseEnvironment(processState);
+      } catch (error) {
+        // An open resting shell stays usable; only this run failed.
+        processState.run = this.failedRun();
+        if (processState.session === null) {
+          this.beginTerminal(processState);
+          this.endTerminal(processState, "failed", null, null);
+        }
+        this.terminalLine(processState, `Failed to start: ${errorMessage(error)}`);
+        return this.emit(processState);
+      }
+      if (cancelled()) return this.snapshot(processState);
+
+      const resting = processState.session;
+      if (resting !== null) {
+        if (resting.kind === "run") {
+          throw new CoreError("PROCESS_ALREADY_RUNNING", `Command ${id} is already running.`);
+        }
+        if (await restingShellIsBusy(resting)) {
+          throw new CoreError(
+            "PROCESS_TERMINAL_BUSY",
+            `The ${id} terminal is running a command started in it. Finish or interrupt that command, or close the terminal, before running again.`,
+          );
+        }
+        if (cancelled()) return this.snapshot(processState);
+        await this.replaceRestingShell(processState, resting);
+        if (cancelled()) return this.snapshot(processState);
+      }
+      if (processState.session !== null) {
+        throw new CoreError("PROCESS_ALREADY_RUNNING", `Command ${id} is already running.`);
+      }
+      if (processState.phase !== "running") this.beginTerminal(processState);
+      return this.spawnRun(processState, cwd, environment, itemEnvironment);
+    } finally {
+      processState.starting = false;
+    }
+  }
+
+  private spawnSession(
+    processState: ManagedProcess,
+    kind: TerminalSession["kind"],
+    cmd: string[],
+    cwd: string,
+    environment: Record<string, string>,
+  ): TerminalSession {
+    const decoder = new TextDecoder();
+    let session: TerminalSession | null = null;
+    let markEof: () => void = () => undefined;
+    const eof = new Promise<void>((resolve) => { markEof = resolve; });
+    const subprocess = Bun.spawn({
+      cmd,
+      cwd,
+      env: { ...environment, TERM: "xterm-256color" },
+      detached: process.platform !== "win32",
+      terminal: {
+        cols: processState.cols,
+        rows: processState.rows,
+        name: "xterm-256color",
+        data: (_terminal, data) => {
+          if (session !== null && processState.session === session && !session.replacing) {
+            this.append(processState, "stdout", decoder.decode(data, { stream: true }));
+          }
+        },
+        exit: () => markEof(),
+      },
+    });
+    const terminal = subprocess.terminal;
+    if (!terminal) {
+      void killTree(subprocess, "SIGKILL");
+      throw new CoreError("PROCESS_TERMINAL_UNAVAILABLE", "The PTY terminal could not be created.");
+    }
+    session = { kind, subprocess, terminal, decoder, replacing: false, inputWritten: false, eof, completion: Promise.resolve() };
+    processState.session = session;
+    return session;
+  }
+
+  private spawnShell(processState: ManagedProcess, cwd: string, environment: Record<string, string>): TerminalSession {
+    const session = this.spawnSession(processState, "shell", terminalShell(processState.definition), cwd, environment);
+    session.completion = this.monitorSession(processState, session, cwd, environment);
+    return session;
+  }
+
+  private spawnRun(
+    processState: ManagedProcess,
+    cwd: string,
+    environment: Record<string, string>,
+    itemEnvironment: Record<string, string>,
+  ): ProcessSnapshot {
+    const command = runCommandLine(terminalShell(processState.definition), processState.definition.command);
+    let session: TerminalSession;
+    try {
+      session = this.spawnSession(processState, "run", command, cwd, { ...environment, ...itemEnvironment });
+    } catch (error) {
+      processState.run = this.failedRun();
+      this.endTerminal(processState, "failed", null, null);
+      this.terminalLine(processState, `Failed to start: ${errorMessage(error)}`);
+      return this.emit(processState);
+    }
+    const startedAtMs = Date.now();
+    processState.run = {
+      phase: "running",
+      exitCode: null,
+      signal: null,
+      startedAt: new Date(startedAtMs).toISOString(),
+      startedAtMs,
+      durationMs: null,
+    };
+    this.terminalLine(processState, commandHeader(processState.definition.command));
+    // The resting shell that follows a run never inherits this run's item values.
+    session.completion = this.monitorSession(processState, session, cwd, environment);
+    return this.emit(processState);
+  }
+
+  private async replaceRestingShell(processState: ManagedProcess, session: TerminalSession): Promise<void> {
+    session.replacing = true;
+    await killSession(session, "SIGHUP");
+    const forceTimer = setTimeout(() => void killSession(session, "SIGKILL"), this.stopGraceMs);
+    try {
+      await session.completion;
+    } finally {
+      clearTimeout(forceTimer);
+    }
+    if (processState.session === session) processState.session = null;
+  }
+
+  private monitorSession(
+    processState: ManagedProcess,
+    session: TerminalSession,
+    cwd: string,
+    environment: Record<string, string>,
+  ): Promise<void> {
+    // Keep a run's trailing output ahead of its exit line and the next prompt.
+    const drained = (): Promise<unknown> => Promise.race([session.eof, Bun.sleep(PTY_DRAIN_MS)]);
+    return session.subprocess.exited.then(
+      async (exitCode) => {
+        await drained();
+        this.finishSession(processState, session, exitCode, null, cwd, environment);
+      },
+      async (error: unknown) => {
+        await drained();
+        this.finishSession(processState, session, null, error, cwd, environment);
+      },
+    );
+  }
+
+  private finishSession(
+    processState: ManagedProcess,
+    session: TerminalSession,
+    exitCode: number | null,
+    error: unknown,
+    cwd: string,
+    environment: Record<string, string>,
+  ): void {
+    if (processState.session !== session) return;
+    const failed = error !== null;
+    const signal = session.subprocess.signalCode ?? null;
+    const code = failed || signal !== null ? null : exitCode;
+    if (!session.replacing) this.append(processState, "stdout", session.decoder.decode());
+    processState.session = null;
+    session.terminal.close();
+
+    if (session.kind === "shell") {
+      // A replaced resting shell hands the still-open terminal to the next run.
+      if (session.replacing && processState.phase === "running") return;
+      this.endTerminal(processState, failed ? "failed" : "exited", code, signal);
+      this.terminalLine(
+        processState,
+        failed
+          ? `Terminal wait failed: ${errorMessage(error)}`
+          : signal === null ? `Terminal exited with code ${String(code)}.` : `Terminal exited after ${signal}.`,
+      );
+      this.emit(processState);
+      return;
+    }
+
+    const run = processState.run;
+    if (run !== null) {
+      run.phase = failed ? "failed" : "exited";
+      run.exitCode = code;
+      run.signal = signal;
+      run.durationMs = Math.max(0, Date.now() - run.startedAtMs);
+    }
+    this.terminalLine(
+      processState,
+      failed
+        ? `Command wait failed: ${errorMessage(error)}`
+        : signal === null ? `Command exited with code ${String(code)}.` : `Command exited after ${signal}.`,
+    );
+    if (processState.phase === "running" && processState.definition.closeAfterRun !== true && !this.closed) {
+      try {
+        this.spawnShell(processState, cwd, environment);
+        this.emit(processState);
+        return;
+      } catch (spawnError) {
+        this.terminalLine(processState, `Failed to start terminal shell: ${errorMessage(spawnError)}`);
+      }
+    }
+    this.endTerminal(processState, failed ? "failed" : "exited", code, signal);
+    this.emit(processState);
+  }
+
+  private liveSession(processState: ManagedProcess): TerminalSession {
+    const session = processState.session;
+    if (!processState.definition.interactive || session === null || session.replacing) {
+      throw new CoreError("PROCESS_TERMINAL_NOT_RUNNING", `Interactive terminal ${processState.definition.id} is not running.`);
+    }
+    return session;
   }
 
   async write(id: string, input: string): Promise<ProcessSnapshot> {
-    const processState = this.processes.get(id);
-    if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
-    if (!processState.definition.interactive || processState.terminal === null || processState.subprocess === null) {
-      throw new CoreError("PROCESS_TERMINAL_NOT_RUNNING", `Interactive terminal ${id} is not running.`);
-    }
+    const processState = this.require(id);
+    const session = this.liveSession(processState);
     if (input.length === 0 || input.length > 32_768) {
       throw new CoreError("PROCESS_TERMINAL_INPUT_INVALID", "Terminal input must be between 1 and 32768 characters.");
     }
-    processState.terminal.write(input);
+    session.inputWritten = true;
+    session.terminal.write(input);
     return this.snapshot(processState);
   }
 
   async resize(id: string, cols: number, rows: number): Promise<ProcessSnapshot> {
-    const processState = this.processes.get(id);
-    if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
-    if (!processState.definition.interactive || processState.terminal === null || processState.subprocess === null) {
-      throw new CoreError("PROCESS_TERMINAL_NOT_RUNNING", `Interactive terminal ${id} is not running.`);
-    }
+    const processState = this.require(id);
+    const session = this.liveSession(processState);
     if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 20 || cols > 500 || rows < 4 || rows > 200) {
       throw new CoreError("PROCESS_TERMINAL_SIZE_INVALID", "Terminal size must be 20-500 columns and 4-200 rows.");
     }
-    processState.terminal.resize(cols, rows);
+    processState.cols = cols;
+    processState.rows = rows;
+    session.terminal.resize(cols, rows);
     return this.snapshot(processState);
-  }
-
-  private monitorTerminal(
-    processState: ManagedProcess,
-    subprocess: Bun.Subprocess,
-    terminal: Bun.Terminal,
-    decoder: TextDecoder,
-  ): Promise<void> {
-    return subprocess.exited.then(
-      (exitCode) => {
-        if (processState.subprocess !== subprocess) return;
-        this.append(processState, "stdout", decoder.decode());
-        processState.exitCode = subprocess.signalCode === null ? exitCode : null;
-        processState.signal = subprocess.signalCode;
-        processState.phase = "exited";
-        processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
-        processState.subprocess = null;
-        processState.terminal = null;
-        processState.completion = null;
-        terminal.close();
-        this.append(
-          processState,
-          "system",
-          subprocess.signalCode === null
-            ? `Terminal exited with code ${String(exitCode)}.`
-            : `Terminal exited after ${subprocess.signalCode}.`,
-        );
-        this.emit(processState);
-      },
-      (error) => {
-        if (processState.subprocess !== subprocess) return;
-        processState.phase = "failed";
-        processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, Date.now() - processState.startedAtMs);
-        processState.subprocess = null;
-        processState.terminal = null;
-        processState.completion = null;
-        terminal.close();
-        this.append(processState, "system", `Terminal wait failed: ${errorMessage(error)}`);
-        this.emit(processState);
-      },
-    );
   }
 
   async stop(id: string): Promise<ProcessSnapshot> {
     const processState = this.processes.get(id);
     if (processState === undefined) throw new CoreError("PROCESS_NOT_FOUND", `Unknown command node: ${id}`);
+    processState.generation += 1;
+    const session = processState.session;
     const subprocess = processState.subprocess;
-    if (subprocess === null) return this.snapshot(processState);
+    const completion = session?.completion ?? processState.completion;
+    if (session === null && subprocess === null) return this.snapshot(processState);
 
     processState.phase = "stopping";
+    if (processState.run?.phase === "running") processState.run.phase = "stopping";
     this.emit(processState);
-    await killTree(subprocess, "SIGTERM");
-    const forceTimer = setTimeout(() => void killTree(subprocess, "SIGKILL"), this.stopGraceMs);
+    // Closing an interactive terminal hangs it up like closing its window.
+    const end = (signal: NodeJS.Signals): Promise<void> => session !== null
+      ? killSession(session, signal)
+      : killTree(subprocess!, signal);
+    await end(session !== null ? "SIGHUP" : "SIGTERM");
+    const forceTimer = setTimeout(() => void end("SIGKILL"), this.stopGraceMs);
     try {
-      await processState.completion;
+      await completion;
     } finally {
       clearTimeout(forceTimer);
     }

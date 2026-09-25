@@ -299,10 +299,8 @@ End with a short summary in this shape:
   fail with `Command failed (exit 127)` (commands, which open the user's
   interactive `$SHELL`, do load them). Never hard-code a personal absolute
   path into shared YAML; report the missing tool instead.
-- **A `command` stays open after it finishes.** Its terminal keeps running
-  until the user presses Stop, so `source: { process: <command-id> }` reports
-  running, not the last exit code, and the command's `run` item action is
-  disabled after its first use. Don't promise a "last result" tile.
+- **One run at a time per `command`.** A `process` source reports its latest
+  run's exit code; its `run` action is disabled only while a run is active.
 - **Item templates are whole values.** `"${item.sha}"` works;
   `"commit ${item.sha}"` is rejected. A `command` receives each argument as
   `DASH_ITEM_<ARG>` (upper-cased): quote it (`"$DASH_ITEM_SHA"`) and never put

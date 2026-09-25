@@ -277,6 +277,23 @@ export interface ProcessLogEntry {
   text: string;
 }
 
+/** One execution of a process resource's configured command. */
+export interface ProcessRunSnapshot {
+  phase: Exclude<ProcessPhase, "idle">;
+  exitCode: number | null;
+  signal: string | null;
+  /** Wall-clock start of this run. */
+  startedAt: string;
+  /** Present once the run has finished. */
+  durationMs?: number;
+}
+
+/**
+ * A supervised process resource. For an interactive terminal the top-level
+ * phase, pid, exit, and timing describe the terminal (which outlives each run
+ * in a resting shell); `run` describes the latest execution of the command.
+ * For a non-interactive process the two coincide.
+ */
 export interface ProcessSnapshot {
   id: string;
   phase: ProcessPhase;
@@ -284,10 +301,14 @@ export interface ProcessSnapshot {
   exitCode: number | null;
   signal: string | null;
   logs: ProcessLogEntry[];
-  /** Wall-clock start of the latest supervised run, when one has started. */
+  /** True for a PTY-backed interactive terminal. */
+  interactive?: boolean;
+  /** Wall-clock start of the supervised process or terminal, when one has started. */
   startedAt?: string;
-  /** Duration of the latest completed supervised run in milliseconds. */
+  /** Duration of the supervised process or terminal once it has ended, in milliseconds. */
   durationMs?: number;
+  /** Latest run of the configured command; absent until one starts. */
+  run?: ProcessRunSnapshot;
 }
 
 export interface ProjectSnapshot {
@@ -565,10 +586,14 @@ export interface LocalComponentHost {
     /** Allows a host-owned process surface to attach to an existing process without rerunning it. */
     attachOnly?: boolean;
     get(nodeId?: string): ProcessSnapshot | undefined;
+    /**
+     * Runs the configured command once. In an open interactive terminal the
+     * run replaces the idle resting shell; item values reach only this run.
+     */
     start?(itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot>;
     /** Starts the shell without running its configured quick action. */
     open?(): Promise<ProcessSnapshot>;
-    /** Runs the configured quick action in the existing shell. */
+    /** Runs the configured quick action without item values. */
     runQuickAction?(): Promise<ProcessSnapshot>;
     write?(input: string): Promise<ProcessSnapshot>;
     resize?(cols: number, rows: number): Promise<ProcessSnapshot>;

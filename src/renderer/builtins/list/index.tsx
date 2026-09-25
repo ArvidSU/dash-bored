@@ -8,13 +8,18 @@ import { listTags, parseDashboardList, parseListItemActions, resolveListItemActi
 import type { DashboardSource } from "../../lib/source";
 import { useDashboardSource } from "../../lib/use-dashboard-source";
 import { TodoList } from "../todo-list";
+import { processRun, processRunFailed, processRunOutcome } from "../../../shared/process-state";
 
-/** The shared process snapshot belongs to this item only if its invocation started that run. */
-function invocationStartedProcess(action: ReturnType<ComponentRendererProps["host"]["actions"]["resolve"]>): boolean {
-  const { invocation, process } = action;
-  if (!invocation?.finishedAt || !process?.startedAt) return false;
-  const processStartedAt = Date.parse(process.startedAt);
-  return Date.parse(invocation.startedAt) <= processStartedAt && processStartedAt <= Date.parse(invocation.finishedAt);
+/**
+ * The shared process run belongs to this item only if its invocation started
+ * that run; a persistent terminal outlives many runs, so compare run starts.
+ */
+function invocationProcessRun(action: ReturnType<ComponentRendererProps["host"]["actions"]["resolve"]>) {
+  const { invocation } = action;
+  const run = processRun(action.process);
+  if (!invocation?.finishedAt || !run?.startedAt) return undefined;
+  const runStartedAt = Date.parse(run.startedAt);
+  return Date.parse(invocation.startedAt) <= runStartedAt && runStartedAt <= Date.parse(invocation.finishedAt) ? run : undefined;
 }
 
 export default function List(input: ComponentRendererProps): ReactNode {
@@ -108,7 +113,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
               const resolved = resolveListItemAction(configuredAction, item);
               const invocationKey = `${item.id}:${configuredAction.name}`;
               const action = resolved.invocation ? host.actions.resolve(resolved.invocation.run, invocationKey) : undefined;
-              const ownsProcessRun = action ? invocationStartedProcess(action) : false;
+              const ownedRun = action ? invocationProcessRun(action) : undefined;
               const disabledReason = resolved.error ?? (action && !action.enabled ? action.disabledReason ?? "This action is unavailable." : undefined);
               return <div className="source-list__item-action" key={configuredAction.name}>
                 <button
@@ -123,9 +128,10 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
                   {configuredAction.name}{action?.running ? " · Running" : ""}
                 </button>
                 {action?.invocation?.status === "failed" ? <small role="alert">{action.invocation.message ?? "Action failed."}</small> : null}
-                {ownsProcessRun && action?.process?.phase === "exited"
-                  ? <small role="status">{action.process.exitCode === 0 ? "Finished" : `Failed: exit ${action.process.exitCode}`}</small>
-                  : ownsProcessRun && action?.invocation?.outcome === "started" ? <small role="status">Started</small> : null}
+                {ownedRun && (ownedRun.phase === "running" || ownedRun.phase === "stopping")
+                  ? <small role="status">Running</small>
+                  : ownedRun ? <small role="status">{processRunFailed(ownedRun) ? `Failed: ${processRunOutcome(ownedRun)}` : "Finished"}</small>
+                    : null}
                 {resolved.error ? <small role="alert">{resolved.error}</small> : null}
               </div>;
             })}

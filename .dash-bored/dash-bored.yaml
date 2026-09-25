@@ -280,10 +280,22 @@ root:
                                 - atoms
                             - id: todo-command-quick-action-exit
                               description: "A @dash-bored/command keeps its interactive shell open after the quick action finishes, so status tiles with source.process (such as qa-status) report running instead of the last exit code, and a command's run item action stays disabled after its first use until Stop. Track quick-action completion separately from the shell, or offer a non-interactive run mode; then drop the caveat from the skill's sources reference."
-                              done: false
+                              done: true
                               tags:
                                 - atoms
                                 - bug
+                            - id: todo-command-run-fixture-coverage
+                              description: "The renderer UI fixture host (src/renderer/lib/ui-harness-host.ts) does not model a command's per-run `run` record, so test:renderer-ui cannot prove the Run, exit badge, Run-again loop, a process-bound status tile turning healthy or error, or an item action re-running without Close terminal. Model runs in the fixture and add that interaction test."
+                              done: false
+                              tags:
+                                - atoms
+                                - tests
+                            - id: todo-command-run-windows
+                              description: "Verify interactive command runs on Windows: each run is `cmd.exe /d /s /c <command>` in the PTY and the resting shell is `cmd.exe`. Its foreground job cannot be read, so once the user types into the resting shell a new run is refused (PROCESS_TERMINAL_BUSY) until the terminal is closed. Confirm quoting, Ctrl-C, and taskkill-based close, and find a safe busy check."
+                              done: false
+                              tags:
+                                - atoms
+                                - windows
                             - id: todo-agent-tool-source-check
                               description: "Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app."
                               done: false

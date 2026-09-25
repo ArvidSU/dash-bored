@@ -185,7 +185,7 @@ working directory and string-valued environment:
 resources:
   process:
     commandProp: command
-    interactive: true # optional: runs in a persistent PTY-backed shell
+    interactive: true # optional: runs in a persistent PTY-backed terminal
     cwdProp: cwd
     envProp: env
 permissions:
@@ -215,12 +215,35 @@ component. A command never runs
 just because a project was opened, trusted, or reloaded.
 
 The main process owns each subprocess and streams stdout/stderr into a bounded
-ring buffer. An `interactive: true` resource creates one persistent PTY-backed
-shell. Its configured command is a remembered quick action: starting or
-running that action writes it into the same shell, while terminal input, Ctrl-C,
-and subsequent commands remain bidirectional. The owning component receives
-raw terminal output and resizes the PTY as its visible surface changes. A node
-cannot have duplicate concurrent runs. Unchanged command nodes keep their
-terminal across a hot reload, while removed or materially changed command nodes
-are stopped. Trust revocation and application exit terminate the shell and its
-process tree.
+ring buffer. An `interactive: true` resource is one persistent PTY-backed
+terminal whose configured command is a remembered quick action. Each run of that
+command is its own PTY session, `$SHELL -i -c <command>` (`cmd.exe /d /s /c` on
+Windows), so the run's completion and exit status come from the operating
+system rather than from parsing terminal output, and command output cannot
+forge them. When a run ends, the same terminal continues in a resting
+interactive `$SHELL -i` for typed commands. Terminal input and Ctrl-C go to
+whichever session is in front: the run while it executes, then the resting
+shell. Commands typed into the resting shell are not runs and never change run
+state. Starting another run replaces an idle resting shell by hanging it up;
+a resting shell with a command of its own in the foreground (or whose state
+cannot be read, as on Windows after the user typed into it) refuses the run
+with `PROCESS_TERMINAL_BUSY` rather than end that work. Item values
+(`DASH_ITEM_*`) enter only the run they were given to; the resting shell and
+later plain quick actions never inherit them. The terminal keeps its size and
+one continuous output buffer across sessions; the host frames each run with a
+command header and exit line in the system stream. Shell state changed in the
+resting shell, such as `cd` or `export`, does not carry into the next run.
+Input typed while a run is finishing reaches that run, not the resting shell.
+
+`ProcessSnapshot.phase`, `pid`, `exitCode`, and timing describe the process or
+the whole interactive terminal; `run` records the latest run's phase, exit code
+or signal, start, and duration and survives closing the terminal. Views,
+status parsing, palette actions, and item feedback observe `run`. A node cannot
+have duplicate concurrent runs, while a finished run can start again without
+closing the terminal. Closing an interactive terminal hangs up the session in
+front and its foreground job, then force-kills after a grace period;
+non-interactive processes receive SIGTERM first. Host-owned agent work sets the
+internal `closeAfterRun` so its terminal ends with the agent's run. Unchanged
+command nodes keep their terminal across a hot reload, while removed or
+materially changed command nodes are stopped. Trust revocation and application
+exit terminate the terminal and its process tree.

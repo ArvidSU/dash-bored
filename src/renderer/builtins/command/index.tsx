@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./command.css";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
+import { isProcessLive, isProcessRunActive, processRun, processRunFailed, processRunOutcome } from "../../../shared/process-state";
 
 export default function Command({
   props,
@@ -14,14 +15,18 @@ export default function Command({
   const { tokens } = useTheme();
   const processApi = componentHost.processes;
   const process = processApi?.get();
-  const running = process?.phase === "running" || process?.phase === "stopping";
+  // The terminal stays open between runs; only an active run blocks another.
+  const live = isProcessLive(process);
+  const runActive = isProcessRunActive(process);
+  const stopping = process?.phase === "stopping";
+  const run = processRun(process);
   const attachOnly = processApi?.attachOnly === true;
   const canStart = !attachOnly && Boolean(processApi?.start);
   const canStop = Boolean(processApi?.stop);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [terminalVisible, setTerminalVisible] = useState(
-    attachOnly ? process !== undefined && process.phase !== "idle" : running,
+    attachOnly ? process !== undefined && process.phase !== "idle" : live,
   );
   const outputRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XtermTerminal | null>(null);
@@ -34,9 +39,11 @@ export default function Command({
   useEffect(() => componentHost.actions.register({
     id: "run",
     label: `Run ${label}`,
-    description: "Start the configured command with selected item values in DASH_ITEM_* environment variables.",
-    enabled: Boolean(processApi?.start) && !running,
-    disabledReason: !processApi?.start ? "Trust this project to run the command." : running ? "This command is already running." : undefined,
+    description: "Run the configured command with selected item values in DASH_ITEM_* environment variables.",
+    enabled: Boolean(processApi?.start) && !runActive && !stopping,
+    disabledReason: !processApi?.start ? "Trust this project to run the command."
+      : runActive ? "This command is already running."
+        : stopping ? "This terminal is closing." : undefined,
     invocationOutcome: "started",
     process,
     run: async (_selections, args = {}) => {
@@ -52,13 +59,15 @@ export default function Command({
       }
       setTerminalVisible(true);
       const started = await processApi.start(itemEnvironment);
-      if (started.phase === "failed") throw new Error("The command could not start. Inspect its process output.");
+      if (started.phase === "failed" || started.run?.phase === "failed") {
+        throw new Error("The command could not start. Inspect its process output.");
+      }
     },
-  }), [componentHost.actions, label, processApi?.start, process, running]);
+  }), [componentHost.actions, label, processApi?.start, process, runActive, stopping]);
 
   useEffect(() => {
-    if (running) setTerminalVisible(true);
-  }, [running]);
+    if (live) setTerminalVisible(true);
+  }, [live]);
 
   useEffect(() => {
     writeRef.current = processApi?.write;
@@ -202,12 +211,17 @@ export default function Command({
       <div className="command__content">
         <strong>{label}</strong>
         {command ? <code>{command}</code> : null}
-        {process && process.phase !== "idle" ? (
-          <span className={`phase phase--${process.phase}`}>{process.phase}</span>
-        ) : null}
+        {run ? (
+          <span
+            className={runActive ? "phase phase--running" : processRunFailed(run) ? "phase phase--failed" : "phase"}
+            title={runActive ? "The command is running." : "Result of the latest run."}
+          >
+            {processRunOutcome(run)}
+          </span>
+        ) : live ? <span className="phase">open</span> : null}
       </div>
       <div className="command__actions">
-        {canStart && !running ? (
+        {canStart && !live ? (
           <button className="button button--quiet button--small" type="button" disabled={pending} onClick={() => void openTerminal()}>
             Open terminal
           </button>
@@ -216,14 +230,15 @@ export default function Command({
           <button
             className="button button--primary"
             type="button"
-            disabled={pending || process?.phase === "stopping"}
+            disabled={pending || stopping || runActive}
+            title={runActive ? "The command is running. Press Ctrl-C in the terminal or close it to stop." : undefined}
             onClick={() => void runQuickAction()}
           >
-            {pending ? "Working…" : label}
+            {pending ? "Working…" : runActive ? "Running…" : label}
           </button>
         ) : null}
-        {running && canStop ? (
-          <button className="button button--danger" type="button" disabled={pending || process?.phase === "stopping"} onClick={() => void closeTerminal()}>
+        {live && canStop ? (
+          <button className="button button--danger" type="button" disabled={pending || stopping} onClick={() => void closeTerminal()}>
             Close terminal
           </button>
         ) : null}
