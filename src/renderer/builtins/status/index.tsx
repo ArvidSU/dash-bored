@@ -59,6 +59,7 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
   }
 
   const normalized = value.toLowerCase();
+  const refreshing = sourceState.loading && sourceState.value !== undefined;
   const tone = ["ok", "online", "healthy", "success", "ready"].includes(normalized)
     ? "positive"
     : ["warn", "warning", "pending", "starting"].includes(normalized)
@@ -68,12 +69,12 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
         : "neutral";
   return (
     <div className="status" aria-label={`${label}: ${value}`}>
-      <span className={`status__dot status__dot--${tone}`} aria-hidden="true" />
+      <span className={`status__dot status__dot--${tone}${refreshing ? " status__dot--refreshing" : ""}`} title={refreshing ? "Updating…" : undefined} aria-hidden="true" />
       <span className="status__label">{label}</span>
       <span className="status__value">{value}</span>
       {detail ? <span className="status__detail">{detail}</span> : null}
       {diagnostic ? <span className="status__diagnostic" role="alert">Source shape: {diagnostic}</span> : null}
-      {sourceState.loading && sourceState.value !== undefined ? <span className="status__refreshing" role="status">Updating…</span> : null}
+      {refreshing ? <span className="status__refreshing" role="status">Updating…</span> : null}
     </div>
   );
 }

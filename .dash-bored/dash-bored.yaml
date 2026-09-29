@@ -43,7 +43,6 @@ root:
         props:
           defaultChild: cockpit
         children:
-          # ── Cockpit: health at a glance, the daily actions, and the todo list ──
           - metadata:
               label: Cockpit
             node:
@@ -122,10 +121,9 @@ root:
                             action:
                               run: agent:prompt
                               with:
-                                prompt: "Review the open todos in node yaml-todo of .dash-bored/dash-bored.yaml. Recommend one scoped next action with rationale; do not edit files or change todo completion state."
+                                prompt: Review the open todos in node yaml-todo of .dash-bored/dash-bored.yaml. Recommend one scoped next action with rationale; do not edit files or change todo completion state.
                   second:
-                    axis: horizontal
-                    ratio: 0.58
+                    axis: vertical
                     first:
                       node:
                         id: yaml-todo
@@ -137,35 +135,30 @@ root:
                               action:
                                 run: agent:prompt
                                 with:
-                                  prompt: "${item.description}"
+                                  prompt: ${item.description}
                           todos:
                             - id: todo-001
-                              description: "Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path."
+                              description: Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path.
                               done: true
                               tags:
                                 - atom-roadmap
                             - id: todo-002
-                              description: "Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today)."
+                              description: Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today).
                               done: true
                               tags:
                                 - agent-tools
                             - id: todo-003
-                              description: "Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3."
+                              description: Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3.
                               done: true
                               tags:
                                 - atoms
                             - id: todo-004
-                              description: "Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly."
+                              description: Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly.
                               done: false
                               tags:
                                 - agent-tools
                             - id: todo-005
-                              description: "Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window."
-                              done: false
-                              tags:
-                                - agent-tools
-                            - id: todo-006
-                              description: "Windows and Linux agent tooling: a non-POSIX skill launcher and a window-capture backend for app screenshot (macOS only today)."
+                              description: Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window.
                               done: false
                               tags:
                                 - agent-tools
@@ -235,7 +228,7 @@ root:
                                 - release
                             - id: todo-019
                               description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
-                              done: false
+                              done: true
                               tags:
                                 - feature
                             - id: todo-020
@@ -279,13 +272,13 @@ root:
                               tags:
                                 - atoms
                             - id: todo-command-quick-action-exit
-                              description: "A @dash-bored/command keeps its interactive shell open after the quick action finishes, so status tiles with source.process (such as qa-status) report running instead of the last exit code, and a command's run item action stays disabled after its first use until Stop. Track quick-action completion separately from the shell, or offer a non-interactive run mode; then drop the caveat from the skill's sources reference."
+                              description: A @dash-bored/command keeps its interactive shell open after the quick action finishes, so status tiles with source.process (such as qa-status) report running instead of the last exit code, and a command's run item action stays disabled after its first use until Stop. Track quick-action completion separately from the shell, or offer a non-interactive run mode; then drop the caveat from the skill's sources reference.
                               done: true
                               tags:
                                 - atoms
                                 - bug
                             - id: todo-command-run-fixture-coverage
-                              description: "The renderer UI fixture host (src/renderer/lib/ui-harness-host.ts) does not model a command's per-run `run` record, so test:renderer-ui cannot prove the Run, exit badge, Run-again loop, a process-bound status tile turning healthy or error, or an item action re-running without Close terminal. Model runs in the fixture and add that interaction test."
+                              description: The renderer UI fixture host (src/renderer/lib/ui-harness-host.ts) does not model a command's per-run `run` record, so test:renderer-ui cannot prove the Run, exit badge, Run-again loop, a process-bound status tile turning healthy or error, or an item action re-running without Close terminal. Model runs in the fixture and add that interaction test.
                               done: false
                               tags:
                                 - atoms
@@ -297,18 +290,18 @@ root:
                                 - atoms
                                 - windows
                             - id: todo-agent-tool-source-check
-                              description: "Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app."
+                              description: Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app.
                               done: false
                               tags:
                                 - agent-tool
                                 - skill
                             - id: todo-validate-text-diagnostics
-                              description: "Include each diagnostic's path in validate's text output, and give ${item.*} inside command text a specific message instead of the schema's 'must NOT be valid'."
+                              description: Include each diagnostic's path in validate's text output, and give ${item.*} inside command text a specific message instead of the schema's 'must NOT be valid'.
                               done: false
                               tags:
                                 - agent-tool
                             - id: todo-catalog-retiring-builtins
-                              description: "Mark retiring builtins (card, tabs, todo-list, live-chart, conditional, setup-agent, focus-timer) in inspect --summary and the generated builtins reference so agents stop picking them from the catalog; the skill currently lists them by hand."
+                              description: Mark retiring builtins (card, tabs, todo-list, live-chart, conditional, setup-agent, focus-timer) in inspect --summary and the generated builtins reference so agents stop picking them from the catalog; the skill currently lists them by hand.
                               done: false
                               tags:
                                 - agent-tool
@@ -320,7 +313,7 @@ root:
                                 - agent
                                 - skill
                             - id: todo-skill-trigger-evals
-                              description: "Run trigger evals for the skill description with near-miss queries (starting services, deploying, app dashboards in user code); past sessions showed it firing on unrelated ops tasks in projects with .dash-bored/."
+                              description: Run trigger evals for the skill description with near-miss queries (starting services, deploying, app dashboards in user code); past sessions showed it firing on unrelated ops tasks in projects with .dash-bored/.
                               done: false
                               tags:
                                 - skill
@@ -390,7 +383,6 @@ root:
                                           shell: bun run .dash-bored/scripts/git-log.ts activity
                                           cwd: .
                                           every: 60000
-          # ── Changes: working tree, history, and branches with read-only git runners ──
           - metadata:
               label: Changes
             node:
@@ -413,12 +405,12 @@ root:
                           action:
                             run: agent:prompt
                             with:
-                              prompt: "Draft a conventional commit message for the currently staged changes in this repository (git diff --cached). Show the message only; do not stage, commit, or edit files."
+                              prompt: Draft a conventional commit message for the currently staged changes in this repository (git diff --cached). Show the message only; do not stage, commit, or edit files.
                         - name: Review branch with agent
                           action:
                             run: agent:prompt
                             with:
-                              prompt: "Review the commits on the current branch that are not on main. Summarize the change set and list correctness risks; do not edit files."
+                              prompt: Review the commits on the current branch that are not on main. Summarize the change set and list correctness risks; do not edit files.
                 second:
                   axis: vertical
                   first:
@@ -440,19 +432,19 @@ root:
                               action:
                                 run: component:git-diff-runner:run
                                 with:
-                                  path: "${item.path}"
+                                  path: ${item.path}
                             - name: Review with agent
                               action:
                                 run: agent:prompt
                                 with:
-                                  prompt: "${item.prompt}"
+                                  prompt: ${item.prompt}
                     second:
                       node:
                         id: git-diff-runner
                         component: "@dash-bored/command"
                         props:
                           label: Diff selected file
-                          command: 'if git ls-files --error-unmatch -- "$DASH_ITEM_PATH" >/dev/null 2>&1; then git --no-pager diff --color=always HEAD -- "$DASH_ITEM_PATH"; else git --no-pager diff --color=always --no-index -- /dev/null "$DASH_ITEM_PATH" || test $? -eq 1; fi'
+                          command: if git ls-files --error-unmatch -- "$DASH_ITEM_PATH" >/dev/null 2>&1; then git --no-pager diff --color=always HEAD -- "$DASH_ITEM_PATH"; else git --no-pager diff --color=always --no-index -- /dev/null "$DASH_ITEM_PATH" || test $? -eq 1; fi
                           cwd: .
                   second:
                     axis: vertical
@@ -475,7 +467,7 @@ root:
                                 action:
                                   run: component:git-show-runner:run
                                   with:
-                                    sha: "${item.sha}"
+                                    sha: ${item.sha}
                       second:
                         node:
                           id: git-show-runner
@@ -504,7 +496,7 @@ root:
                                 action:
                                   run: component:git-branch-log:run
                                   with:
-                                    name: "${item.name}"
+                                    name: ${item.name}
                       second:
                         node:
                           id: git-branch-log
@@ -513,7 +505,6 @@ root:
                             label: Log selected branch against main
                             command: git --no-pager log --color=always --graph --oneline --decorate -30 "$DASH_ITEM_NAME" --not main --
                             cwd: .
-          # ── Develop: the dev loop, package scripts, and the renderer fixture ──
           - metadata:
               label: Develop
             node:
@@ -628,8 +619,8 @@ root:
                                       action:
                                         run: component:package-script-runner:run
                                         with:
-                                          name: "${item.name}"
-                                          runner: "${item.runner}"
+                                          name: ${item.name}
+                                          runner: ${item.runner}
                             second:
                               node:
                                 id: package-script-runner
@@ -663,7 +654,6 @@ root:
                         component: "@dash-bored/webview"
                         props:
                           url: http://127.0.0.1:5488/ui-harness.html
-          # ── Roadmap: atoms work packages and where the todo backlog sits ──
           - metadata:
               label: Roadmap
             node:
@@ -688,7 +678,7 @@ root:
                           action:
                             run: agent:prompt
                             with:
-                              prompt: "${item.prompt}"
+                              prompt: ${item.prompt}
                         - name: Read roadmap
                           action: reveal:roadmap-markdown
                 second:
@@ -717,8 +707,7 @@ root:
                             action:
                               run: agent:prompt
                               with:
-                                prompt: "Read docs/IDEA.md and docs/roadmap/atoms.md. Propose the smallest next work package that moves WP9 forward, with acceptance checks. Do not edit files."
-          # ── Release: prerelease pipeline, published releases, and updates ──
+                                prompt: Read docs/IDEA.md and docs/roadmap/atoms.md. Propose the smallest next work package that moves WP9 forward, with acceptance checks. Do not edit files.
           - metadata:
               label: Release
             node:
@@ -819,7 +808,6 @@ root:
                       component: "@dash-bored/markdown"
                       props:
                         path: .github/workflows/release.yml
-          # ── Agent: the setup flow new projects get, plus agent tooling checks ──
           - metadata:
               label: Agent
             node:
@@ -860,7 +848,7 @@ root:
                           action:
                             run: agent:prompt
                             with:
-                              prompt: "Inspect this project and propose a scoped dashboard improvement. Use the dash-bored skill and validate any saved dashboard changes."
+                              prompt: Inspect this project and propose a scoped dashboard improvement. Use the dash-bored skill and validate any saved dashboard changes.
                   second:
                     axis: vertical
                     first:
@@ -915,7 +903,6 @@ root:
                                   label: Install or update portable dash-bored skill for this project
                                   command: '"$DASH_BORED_TOOL" install-skill .'
                                   cwd: .
-          # ── Docs: project documents, editable in place ──
           - metadata:
               label: Docs
             node:
@@ -1019,7 +1006,6 @@ root:
                           component: "@dash-bored/markdown"
                           props:
                             path: docs/release-qa.md
-          # ── Lab: linked atoms-lab bundle for smoke testing every atom ──
           - metadata:
               label: Lab
             node:

@@ -22,6 +22,7 @@
 .status__dot--positive { background: var(--positive); box-shadow: 0 0 0 3px color-mix(in srgb, var(--positive) 12%, transparent); }
 .status__dot--warning { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent); }
 .status__dot--negative { background: var(--negative); box-shadow: 0 0 0 3px color-mix(in srgb, var(--negative) 12%, transparent); }
+.status__dot--refreshing { opacity: 0.45; }
 
 .status__label {
   color: var(--text);
@@ -57,7 +58,11 @@
 }
 
 .status__refreshing {
-  grid-column: 2 / -1;
-  color: var(--faint);
-  font-size: 10px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

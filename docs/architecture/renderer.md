@@ -93,8 +93,11 @@ examples, not privileged component types:
   sources expose a state/detail model or derive state from supervised process
   snapshots; chart sources require `{ labels, series }` and surface shape
   diagnostics. Polling pauses while hidden, and source views expose a declared
-  refresh action. The legacy live-chart form delegates to the same chart source
-  renderer until dashboard migration. Markdown does not enable raw HTML.
+  refresh action. Status keeps the last observed value during refresh and
+  indicates the pending read on its existing dot, with a screen-reader
+  announcement; refresh feedback adds no grid row or height. The legacy
+  live-chart form delegates to the same chart source renderer until dashboard
+  migration. Markdown does not enable raw HTML.
   Markdown accepts inline `content`, a project-relative `path`, or a bounded
   `source`; preview is the default view, while Raw / edit exposes an explicit
   editor with Save/Cancel behavior. Inline
