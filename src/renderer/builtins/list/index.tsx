@@ -1,7 +1,8 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import "./list.css";
-import { StateGlyph, stateTone } from "../../lib/state-visual";
+import { StateGlyph, isClosedState, stateTone } from "../../lib/state-visual";
+import { useChangedItems } from "../../lib/observation-changes";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
@@ -64,6 +65,8 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
     [state.value],
   );
   const configuredActions = useMemo(() => parseListItemActions(props.itemActions), [props.itemActions]);
+  const observed = useChangedItems(state.value === undefined ? undefined : parsed.items, props.highlightChanges !== false);
+  const changedAt = observed.at?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const tags = useMemo(() => listTags(parsed.items), [parsed.items]);
   useEffect(() => {
     if (filterTag !== "" && !tags.includes(filterTag)) setFilterTag("");
@@ -92,7 +95,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
 
   return <section className="source-list" data-refreshing={state.loading && state.value !== undefined || undefined} aria-label={title}>
     <header className="source-list__header">
-      <div><strong>{title}</strong><span>{parsed.items.length} items</span></div>
+      <div><strong>{title}</strong><span>{parsed.items.length} items{observed.changes.size ? ` · ${observed.changes.size} changed at ${changedAt}` : ""}</span></div>
       <div className="source-list__controls">
         {filterByTags && tags.length > 0 ? <label>
           <span>Tag</span>
@@ -116,10 +119,15 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
       {configuredActions.diagnostics.map((message, index) => <li key={index}>{message}</li>)}
     </ul> : null}
     {displayed.length ? <ul className="source-list__items" aria-label="Items">
-      {displayed.map((item) => <li key={item.id} data-tone={stateTone(item.state, item.done)} className={item.done || ["done", "completed", "closed"].includes(item.state?.toLowerCase() ?? "") ? "source-list__item source-list__item--closed" : "source-list__item"}>
+      {displayed.map((item) => {
+        const change = observed.changes.get(item.id);
+        return <li key={item.id} data-item-id={item.id} data-tone={stateTone(item.state, item.done)} data-change={change}
+          data-flash={change && observed.flashing || undefined}
+          className={isClosedState(item.state, item.done) ? "source-list__item source-list__item--closed" : "source-list__item"}>
         <div className="source-list__item-leading"><span className="source-list__glyph"><StateGlyph tone={stateTone(item.state, item.done)} /></span><div className="source-list__item-text"><strong>{item.title}</strong>{typeof item.detail === "string" ? <span>{item.detail}</span> : null}</div></div>
         <div className="source-list__item-trailing">
           <div className="source-list__item-meta">
+            {change ? <span className="source-list__change" title={`${change === "new" ? "New" : "Changed"} in the update at ${changedAt}`}>{change === "new" ? "New" : "Changed"}</span> : null}
             {typeof item.state === "string" ? <span className="source-list__state">{item.state}</span> : null}
             {item.tags?.map((tag, index) => <span className="source-list__tag" key={`${tag}-${index}`}>{tag}</span>)}
           </div>
@@ -152,7 +160,8 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
             })}
           </div> : null}
         </div>
-      </li>)}
+      </li>;
+      })}
     </ul> : state.value !== undefined && parsed.diagnostics.length === 0 ? <p className="source-list__empty">No matching items.</p> : null}
     {!visible ? <small>Paused while hidden</small> : null}
   </section>;

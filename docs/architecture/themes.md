@@ -10,8 +10,10 @@ surface levels, and readable secondary text. Health, warnings, and failures
 retain their semantic colors rather than borrowing the navigation accent.
 The development dashboard uses `./themes/ocean`; `./themes/retro-industrial`
 remains an optional warm equipment-panel theme. Shared
-spacing, control-state, and border tokens remain renderer-owned so themes do
-not become layout overrides.
+spacing, type-scale (`--font-size-2xs` … `--font-size-xl`, 10–17 px),
+control-state, and border tokens remain renderer-owned in `styles.css` so
+themes do not become layout overrides; built-in components use the type-scale
+tokens instead of literal sizes.
 
 ## Package and selection contract
 

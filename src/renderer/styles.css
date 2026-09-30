@@ -16,6 +16,12 @@
   --control-height-sm: 30px;
   --control-height: 36px;
   --control-height-lg: 42px;
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 15px;
+  --font-size-xl: 17px;
   --panel-padding: 14px;
   --panel-gap: 10px;
   --control-bg: var(--surface);
@@ -673,11 +679,13 @@ img.sidebar__project-icon {
   white-space: nowrap;
 }
 
+/* A path keeps its case: monospace aids scanning without the eyebrow's uppercase. */
 .app-header__path {
   overflow: hidden;
   max-width: 36vw;
   color: var(--muted);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4441,6 +4449,15 @@ tr:last-child td {
 
 .updates-panel__check { font-size: 13px; }
 .updates-panel__check input { margin-right: 8px; }
+
+/* reveal:<node> with an item: focus plus a brief accent that does not move layout. */
+[data-item-id][data-revealed] {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+[data-item-id]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* Source reads signal activity in existing chrome, without adding a row. */
 .source-list[data-refreshing] > header,

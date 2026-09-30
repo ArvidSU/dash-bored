@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ProjectSnapshot, ResolvedComponentNode } from "../../src/shared/contracts";
-import { buildRevealActions, buildSelectionActions } from "../../src/renderer/lib/selection-actions";
+import { buildRevealActions, buildSelectionActions, revealItemArgument } from "../../src/renderer/lib/selection-actions";
 import { getBuiltinManifest } from "../../src/core/builtins";
 
 const child: ResolvedComponentNode = { id: "overview", component: "@dash-bored/status", props: { title: "Overview" }, source: "builtin" };
@@ -36,5 +36,16 @@ describe("selection and reveal actions", () => {
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
       ["reveal:panels", undefined], ["reveal:overview", undefined], ["reveal:details", undefined],
     ]);
+  });
+
+  test("reveal passes an optional item ID and refuses other arguments", async () => {
+    const calls: Array<[string, string | undefined]> = [];
+    const actions = buildRevealActions(snapshot, (nodeId, itemId) => { calls.push([nodeId, itemId]); });
+    const reveal = actions.find(({ id }) => id === "reveal:details")!;
+    await reveal.run(undefined, {});
+    await reveal.run(undefined, { item: "todo-7" });
+    expect(calls).toEqual([["details", undefined], ["details", "todo-7"]]);
+    expect(() => revealItemArgument({ item: "" })).toThrow("reveal accepts only");
+    expect(() => revealItemArgument({ item: "a", extra: 1 })).toThrow("reveal accepts only");
   });
 });

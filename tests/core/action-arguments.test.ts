@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { validateActionArguments } from "../../src/core/action-arguments";
 import { actionInvocation } from "../../src/shared/action-invocation";
 import { loadProjectDefinition } from "../../src/core";
+import type { DashboardConfig } from "../../src/shared/contracts";
 import { createProject, removeTemporaryDirectory, temporaryDirectory } from "./helpers";
 
 const temporaryProjects: string[] = [];
@@ -37,5 +38,23 @@ describe("parameterized action arguments", () => {
     } });
     const invalid = await loadProjectDefinition(root);
     expect(invalid.diagnostics.some((item) => item.code === "COMPONENT_ACTION_ARGUMENTS_INVALID")).toBeTrue();
+  });
+
+  test("reveal accepts only an item ID, including item templates in list actions", async () => {
+    const root = await temporaryDirectory();
+    temporaryProjects.push(root);
+    const dashboard = (withArgs: Record<string, unknown>): DashboardConfig => ({ schemaVersion: 3, name: "Reveal item", root: {
+      id: "root", component: "@dash-bored/group", children: { axis: "vertical",
+        first: { node: { id: "attention", component: "@dash-bored/list", props: { source: { inline: [] },
+          itemActions: [{ name: "Show", action: { run: "reveal:backlog", with: withArgs } }] } } },
+        second: { node: { id: "backlog", component: "@dash-bored/list", props: { todos: [] } } },
+      } } });
+    await createProject(root, dashboard({ item: "${item.id}" }));
+    const valid = await loadProjectDefinition(root);
+    expect(valid.diagnostics.filter((item) => item.code === "COMPONENT_ACTION_ARGUMENTS_INVALID")).toEqual([]);
+
+    await createProject(root, dashboard({ item: "todo-1", scroll: true }));
+    const invalid = await loadProjectDefinition(root);
+    expect(invalid.diagnostics.find((item) => item.code === "COMPONENT_ACTION_ARGUMENTS_INVALID")?.message).toContain("reveal arguments are invalid");
   });
 });

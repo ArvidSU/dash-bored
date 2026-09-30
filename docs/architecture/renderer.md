@@ -95,7 +95,13 @@ examples, not privileged component types:
   diagnostics. Polling pauses while hidden, and source views expose a declared
   refresh action. Status keeps the last observed value during refresh and
   indicates the pending read on its existing dot, with a screen-reader
-  announcement; refresh feedback adds no grid row or height. The legacy
+  announcement; refresh feedback adds no grid row or height. A status source
+  may add `trend` (2–60 numbers or `null` gaps, oldest first) and `segments`
+  (1–8 `{ label, value ≥ 0, state? }` parts of one whole); invalid glance data
+  is a shape diagnostic, never silently dropped. `density: compact` renders a
+  one-line row for dense layouts; the default tile's height follows its
+  content. Chart refresh keeps the plot, adds the shared header accent rule,
+  and states `Updating…` in the heading. The legacy
   live-chart form delegates to the same chart source renderer until dashboard
   migration. Markdown does not enable raw HTML.
   Markdown accepts inline `content`, a project-relative `path`, or a bounded
@@ -113,7 +119,11 @@ examples, not privileged component types:
   resolves whole-value `${item.field}` arguments per stable item ID and uses
   the shared executor. Missing fields and unsupported values are visible
   errors, and command actions receive those values as `DASH_ITEM_*` environment
-  variables at process start.
+  variables at process start. Each rendered item carries `data-item-id`.
+  Unless `highlightChanges: false`, items that are new or changed (by stable
+  ID and content) in the latest observation that differed from the previous
+  one carry a `New`/`Changed` badge and a short tint; identical polls keep the
+  markers and the first observation after mount is the baseline.
 - `@dash-bored/list` also accepts a `todos` array as its own editable YAML
   source. This mode uses the same stable item IDs and action templates while
   retaining draft-backed add, remove, toggle, and inline editing. `source` and
@@ -193,7 +203,12 @@ renderer persists one selected direct child ID per container and dashboard;
 unselected child handles remain available to the owning component but do not
 mount their rendered subtree. Core supplies `select:<container>/<child>` palette
 actions with active state. `reveal:<node>` expands its ancestors, selects the
-path through every switching ancestor, and scrolls it into view. It changes
+path through every switching ancestor, and scrolls it into view. An optional
+`{ item: <stable ID> }` argument (validated at load, with whole-value item
+templates allowed in `itemActions`) then scrolls to the element carrying that
+`data-item-id` inside the node, moves keyboard focus to it, and marks it with
+`data-revealed` for 2.4 s; if the item does not render within a few frames the
+invocation fails with a visible reason. It changes
 focus only when the current focus projection hides the node, widening focus to
 the closest common ancestor of the current target and the node. Focus is global navigation for top-level pages; selection is local
 presentation for nested panels. Reveal connects the two when navigation targets
@@ -579,6 +594,19 @@ and unknown or arbitrary states a neutral minus circle. State remains visible
 as text; glyphs are decorative. Semantic theme colors tint status borders,
 backgrounds, and state labels, while metadata uses the readable muted token.
 Status refresh dims the existing glyph without changing geometry.
+`stateTone` also maps generic work states: `bug`, `broken`, and `failing` are
+negative; `blocked`, `degraded`, and `stale` are warnings; `open` stays
+neutral. `isClosedState` shares the done/completed/closed set with the tone map.
+
+`lib/glance-visual.tsx` holds the generic glance atoms. `Sparkline` draws a
+decorative line and states direction (`rising`, `falling`, `steady`, comparing
+the newer half with the older half) as text and in its accessible name.
+`SegmentMeter` draws a decorative part-of-whole bar; its legend lists every
+part as text with a state glyph and percentage. `lib/observation-changes.ts`
+tracks changes between observations within one mount: status shows
+`Changed from <state> · <time>` in its label row (no new row) plus a 1.2 s
+ring, and source lists mark changed items as above. Change tracking is
+per-mount and in memory; it does not survive a remount or reload.
 
 Action bars show contract-derived verbs (process, agent, navigation, component
 refresh, or a neutral generic action), replacing the same icon slot with a spinner while running. Tabs use a
@@ -593,8 +621,11 @@ feedback use short transitions; polling does not replay mount animations.
 The global reduced-motion rule suppresses transitions and animations, and
 arrival animations are enabled only under `prefers-reduced-motion: no-preference`.
 
-The development cockpit dogfoods a bounded Overview (four live states,
-actions, recent activity, and five open items with bugs first). Work holds the
+The development cockpit dogfoods a bounded Overview (four live states, with
+backlog completion as a segment meter, actions, a commit-pulse trend, and five
+open items with bugs first, each revealing and focusing its backlog todo).
+The daily commit chart lives in Changes; a compact package-script pulse sits
+in Develop. Work holds the
 unchanged stable-ID editable backlog and supervised check commands; reveal
 navigation uses those IDs after the move. The attention source uses real todos
 found by ID, preserving source order within priority groups.

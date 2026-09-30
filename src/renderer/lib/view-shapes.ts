@@ -2,10 +2,41 @@ import type { ProcessSnapshot } from "../../shared/contracts";
 import { processRun, processRunFailed } from "../../shared/process-state";
 import { parseChartData, type ChartData } from "./chart-data";
 
-export type StatusValue = { state: "unknown" | "healthy" | "warning" | "error"; detail?: string };
+export type StatusSegment = { label: string; value: number; state?: string };
+export type StatusValue = {
+  state: "unknown" | "healthy" | "warning" | "error";
+  detail?: string;
+  /** Recent observations, oldest first; null marks a gap such as a failed read. */
+  trend?: Array<number | null>;
+  /** Parts of one whole, such as done and open work. */
+  segments?: StatusSegment[];
+};
+
+export const STATUS_TREND_MAX_POINTS = 60;
+export const STATUS_SEGMENTS_MAX = 8;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseTrend(value: unknown): Array<number | null> | null | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 2 || value.length > STATUS_TREND_MAX_POINTS) return null;
+  if (!value.every((point) => point === null || typeof point === "number" && Number.isFinite(point))) return null;
+  return value.some((point) => point !== null) ? value as Array<number | null> : null;
+}
+
+function parseSegments(value: unknown): StatusSegment[] | null | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0 || value.length > STATUS_SEGMENTS_MAX) return null;
+  const segments: StatusSegment[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry) || typeof entry.label !== "string" || !entry.label.trim()) return null;
+    if (typeof entry.value !== "number" || !Number.isFinite(entry.value) || entry.value < 0) return null;
+    if (entry.state !== undefined && typeof entry.state !== "string") return null;
+    segments.push({ label: entry.label, value: entry.value, ...(typeof entry.state === "string" ? { state: entry.state } : {}) });
+  }
+  return segments;
 }
 
 export function parseStatusValue(value: unknown): StatusValue | null {
@@ -13,7 +44,15 @@ export function parseStatusValue(value: unknown): StatusValue | null {
   const states = ["unknown", "healthy", "warning", "error"] as const;
   if (states.includes(value.state as StatusValue["state"])) {
     if (value.detail !== undefined && typeof value.detail !== "string") return null;
-    return { state: value.state as StatusValue["state"], ...(typeof value.detail === "string" ? { detail: value.detail } : {}) };
+    const trend = parseTrend(value.trend);
+    const segments = parseSegments(value.segments);
+    if (trend === null || segments === null) return null;
+    return {
+      state: value.state as StatusValue["state"],
+      ...(typeof value.detail === "string" ? { detail: value.detail } : {}),
+      ...(trend ? { trend } : {}),
+      ...(segments ? { segments } : {}),
+    };
   }
   if (isProcessPhase(value.phase)) {
     // A supervised process snapshot: observe its latest run, never the

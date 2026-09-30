@@ -15,14 +15,14 @@
 
 .card__header h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-lg);
   letter-spacing: -0.02em;
 }
 
 .card__header p {
   margin: 5px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1.45;
 }
 

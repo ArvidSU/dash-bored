@@ -42,9 +42,20 @@ export function buildSelectionActions(
   return actions;
 }
 
+/** Read the optional `item` argument of `reveal:<node>`; anything else is refused. */
+export function revealItemArgument(args: Record<string, unknown> | undefined): string | undefined {
+  const entries = Object.entries(args ?? {});
+  if (entries.length === 0) return undefined;
+  const item = args?.item;
+  if (entries.length !== 1 || typeof item !== "string" || !item.trim()) {
+    throw new Error("reveal accepts only { item: <non-empty stable item ID> }.");
+  }
+  return item;
+}
+
 export function buildRevealActions(
   snapshot: ProjectSnapshot | null,
-  revealNode: (nodeId: string) => void,
+  revealNode: (nodeId: string, itemId?: string) => void | Promise<void>,
 ): PaletteAction[] {
   if (!snapshot?.tree) return [];
   const actions: PaletteAction[] = [];
@@ -54,12 +65,12 @@ export function buildRevealActions(
       id: `reveal:${encodeURIComponent(node.id)}`,
       reference: `reveal:${encodeURIComponent(node.id)}`,
       label: `Reveal ${label}`,
-      description: `Expand and show ${label} in the active dashboard.`,
+      description: `Expand and show ${label} in the active dashboard; an item argument also highlights that item.`,
       keywords: ["reveal", "show", node.id, node.component, label],
       group: "Dashboard presentation",
       source: node.id,
       enabled: true,
-      run: () => revealNode(node.id),
+      run: (_selections, args) => revealNode(node.id, revealItemArgument(args)),
     });
   });
   return actions;

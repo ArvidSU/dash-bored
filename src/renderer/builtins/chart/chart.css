@@ -27,13 +27,13 @@
 
 .chart__heading strong {
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .chart__heading span,
 .chart__footer {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
 }
 
 .chart__svg {
@@ -132,4 +132,15 @@
 .chart__point, .chart__bar { transition: opacity 150ms ease; }
 .chart__point:hover, .chart__bar:hover { opacity: 0.65; }
 
-.chart__refresh-label--loading { opacity: 0.6; }
+/* Refresh keeps the plot and geometry: the header gains an accent rule and the
+ * refresh glyph turns while the read is pending (reduced motion stops it). */
+.chart__refresh { display: inline-flex; align-items: center; gap: 5px; }
+.chart__refresh svg { width: 13px; height: 13px; flex: 0 0 13px; }
+.chart[data-refreshing] > .chart__header { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+.chart[data-refreshing] .chart__heading span { color: var(--accent); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .chart[data-refreshing] .chart__refresh svg { animation: chart-refresh-turn 900ms linear infinite; }
+}
+
+@keyframes chart-refresh-turn { to { transform: rotate(360deg); } }

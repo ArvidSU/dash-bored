@@ -6,7 +6,9 @@ import { stringProp } from "../shared";
 import type { DashboardSource } from "../../lib/source";
 import { useDashboardSource } from "../../lib/use-dashboard-source";
 import { StateGlyph, stateTone } from "../../lib/state-visual";
-import { parseStatusValue } from "../../lib/view-shapes";
+import { parseStatusValue, type StatusSegment } from "../../lib/view-shapes";
+import { SegmentMeter, Sparkline } from "../../lib/glance-visual";
+import { useObservationChange } from "../../lib/observation-changes";
 
 function sourceUnavailable(source: DashboardSource | null, host: ComponentRendererProps["host"]): string | undefined {
   if (!source) return undefined;
@@ -36,6 +38,8 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
   let value = stringProp(props, ["state", "status", "value"], "unknown");
   let detail = stringProp(props, ["detail", "description"]);
   let diagnostic: string | undefined;
+  let trend: Array<number | null> | undefined;
+  let segments: StatusSegment[] | undefined;
   if (source) {
     if (unavailable) {
       value = "unknown";
@@ -48,10 +52,12 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
       if (parsed) {
         value = parsed.state;
         detail = parsed.detail ?? "";
+        trend = parsed.trend;
+        segments = parsed.segments;
       } else {
         value = "unknown";
         detail = "";
-        diagnostic = "Expected { state: unknown | healthy | warning | error, detail?: string } or a supervised process snapshot.";
+        diagnostic = "Expected { state: unknown | healthy | warning | error, detail?: string, trend?: (number | null)[2..60], segments?: [{ label, value ≥ 0, state? }][1..8] } or a supervised process snapshot.";
       }
     } else if (sourceState.loading) {
       value = "unknown";
@@ -60,13 +66,22 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
   }
 
   const refreshing = sourceState.loading && sourceState.value !== undefined;
+  const settled = source !== null && !unavailable && (sourceState.value !== undefined || sourceState.error !== undefined);
+  const { change, flashing } = useObservationChange(value, settled);
+  const compact = props.density === "compact";
   const tone = stateTone(value);
+  const changedAt = change?.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
-    <div className="status" data-tone={tone} aria-label={`${label}: ${value}`}>
+    <div className={compact ? "status status--compact" : "status"} data-tone={tone} data-changed={flashing || undefined} aria-label={`${label}: ${value}`}>
       <span className={`status__dot status__dot--${tone}${refreshing ? " status__dot--refreshing" : ""}`} title={refreshing ? "Updating…" : undefined} aria-hidden="true"><StateGlyph tone={tone} /></span>
       <span className="status__label">{label}</span>
+      {change ? <span className="status__changed" role="status" title={`Changed from ${change.from} at ${changedAt}`}>
+        <span>Changed</span><span className="status__changed-from"> from {change.from} · {changedAt}</span>
+      </span> : null}
       <span className="status__value">{value}</span>
-      {detail ? <span className="status__detail">{detail}</span> : null}
+      {trend ? <Sparkline values={trend} className="glance-sparkline status__trend" /> : null}
+      {detail ? <span className="status__detail" title={compact ? detail : undefined}>{detail}</span> : null}
+      {segments ? <div className="status__meter"><SegmentMeter segments={segments} label={`${label} breakdown`} /></div> : null}
       {diagnostic ? <span className="status__diagnostic" role="alert">Source shape: {diagnostic}</span> : null}
       {refreshing ? <span className="status__refreshing" role="status">Updating…</span> : null}
     </div>

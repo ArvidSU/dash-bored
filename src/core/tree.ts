@@ -17,6 +17,7 @@ import { CONFIG_FILE } from "../shared/contracts";
 import {
   parseActionReferenceNodeId,
   parseSelectionActionReference,
+  REVEAL_ACTION_ARGS_SCHEMA,
   parseComponentActionReference,
   remapActionReferenceNode,
 } from "../shared/action-reference";
@@ -1018,6 +1019,16 @@ export async function resolveComponentTree(
             continue;
           }
           const targetNodeId = parseActionReferenceNodeId(targetId);
+          if (targetId.startsWith("reveal:") && Object.keys(invocation.with).length > 0) {
+            const error = allowsItemTemplates
+              ? validateActionArgumentTemplates(REVEAL_ACTION_ARGS_SCHEMA, invocation.with)
+              : validateActionArguments(REVEAL_ACTION_ARGS_SCHEMA, invocation.with);
+            if (error) diagnostics.push(diagnostic({
+              code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
+              message: `reveal arguments are invalid: ${error}`,
+              path: `${diagnosticPath}.with`,
+            }));
+          }
           const selectionTarget = parseSelectionActionReference(targetId);
           if (selectionTarget) {
             const container = allNodes.find((candidate) => candidate.id === selectionTarget.containerId);

@@ -248,13 +248,14 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/status",
     name: "Status",
-    description: "Displays a labeled state, with optional bounded sources emitting { state, detail? } or a supervised process snapshot.",
+    description: "Displays a labeled state, with optional bounded sources emitting { state, detail?, trend?, segments? } or a supervised process snapshot. Source-backed states mark the last change seen while mounted.",
     entry: "builtin:status",
     propsSchema: {
       ...objectSchema({
         label: string,
         state: { enum: ["unknown", "healthy", "warning", "error"] },
         detail: { type: "string" },
+        density: { enum: ["comfortable", "compact"], default: "comfortable" },
         source: dashboardSourceSchema,
       }),
       oneOf: [{ required: ["label", "state"] }, { required: ["label", "source"] }],
@@ -365,7 +366,7 @@ const manifests: ComponentManifest[] = [
     schemaVersion: 2,
     id: "@dash-bored/list",
     name: "List",
-    description: "Renders stable-ID items from a bounded source or editable YAML todos.",
+    description: "Renders stable-ID items from a bounded source or editable YAML todos. Source items that are new or changed in the latest differing observation are marked.",
     entry: "builtin:list",
     propsSchema: {
       ...objectSchema({
@@ -374,6 +375,7 @@ const manifests: ComponentManifest[] = [
         todos: { type: "array", maxItems: 500, items: editableListTodoSchema },
         filterByTags: { type: "boolean", default: true },
         sort: { enum: ["open-first", "source-order"], default: "open-first" },
+        highlightChanges: { type: "boolean", default: true },
         itemActions: {
           type: "array",
           maxItems: 12,

@@ -6,6 +6,7 @@ import { stringProp } from "../shared";
 import type { DashboardSource } from "../../lib/source";
 import { useDashboardSource } from "../../lib/use-dashboard-source";
 import { parseSourceChart } from "../../lib/view-shapes";
+import { ActionGlyph } from "../../lib/state-visual";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
 import {
   CHART_COLORS,
@@ -227,18 +228,20 @@ export function ChartPanel({
   updatedAt?: Date | null;
 }): ReactNode {
   return (
-    <section className="chart" aria-label={title}>
+    <section className="chart" aria-label={title} data-refreshing={loading && data ? true : undefined}>
       <header className="chart__header">
         <div className="chart__heading">
           <strong>{title}</strong>
-          {status ? <span>{status}</span> : null}
+          {status ? <span>{loading && data ? "Updating…" : status}</span> : null}
         </div>
         {onRefresh ? (
-          <button className="button button--quiet button--small" type="button" onClick={onRefresh} disabled={loading} aria-label={loading ? "Refreshing chart" : "Refresh"}>
-            <span className={loading ? "chart__refresh-label chart__refresh-label--loading" : "chart__refresh-label"}>Refresh</span>
+          <button className="button button--quiet button--small chart__refresh" type="button" onClick={onRefresh} disabled={loading} aria-label={loading ? "Refreshing chart" : "Refresh"}>
+            <ActionGlyph reference="component:chart:refresh" />
+            <span>Refresh</span>
           </button>
         ) : null}
       </header>
+      {loading && data ? <small className="visually-hidden" role="status">Updating…</small> : null}
       {error ? <div className="chart__error" role="alert">{error}</div> : null}
       {data ? (
         <ChartSvg data={data} title={title} type={type} />

@@ -1637,7 +1637,8 @@ test('visual overview preserves refresh geometry, state shapes, and reduced moti
     expect(await status.locator('svg').count()).toBe(1);
     expect(await list.locator('li[data-tone="warning"] svg').count()).toBe(1);
     const before = await Promise.all([status, list].map(view => view.boundingBox()));
-    await proof.getByRole('button', { name: 'Refresh source state', exact: true }).click();
+    // The hover drag handle ends at the vertical centre of a 44 px button frame; click below it.
+    await proof.getByRole('button', { name: 'Refresh source state', exact: true }).click({ position: { x: 16, y: 34 } });
     await status.locator('.status__refreshing').waitFor({ state: 'attached' });
     await list.getByRole('button', { name: 'Refresh', exact: true }).click();
     await proof.waitForFunction(() => document.querySelector('.source-list')?.getAttribute('data-refreshing') === 'true');
@@ -1653,3 +1654,114 @@ test('visual overview preserves refresh geometry, state shapes, and reduced moti
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally { await proof.close(); }
 }, 20_000);
+
+test('glance atoms show trend, proportion, changes, item reveal, and chart refresh without moving layout', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
+  proof.setDefaultTimeout(5_000);
+  type GlanceWindow = Window & { glance?: { status: unknown; list: unknown; hold: boolean; release: Array<() => void> } };
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const glance = {
+        status: { state: 'healthy', detail: 'Observed', trend: [1, 1, 2, 5, 6], segments: [{ label: 'Done', value: 2, state: 'done' }, { label: 'Open', value: 1, state: 'open' }, { label: 'Bugs', value: 1, state: 'bug' }] },
+        list: [{ id: 'a', title: 'Alpha' }, { id: 'missing', title: 'Gone from backlog' }],
+        hold: false,
+        release: [] as Array<() => void>,
+      };
+      (window as GlanceWindow).glance = glance;
+      host.runShell = async (request) => {
+        if (request.command === 'glance-chart' && glance.hold) await new Promise<void>(resolve => glance.release.push(resolve));
+        const value = request.command === 'glance-list' ? glance.list
+          : request.command === 'glance-chart' ? { labels: ['A', 'B'], series: [{ label: 'Runs', values: [1, 2] }] }
+            : glance.status;
+        return { stdout: JSON.stringify(value), stderr: '', exitCode: 0, signal: null, timedOut: false };
+      };
+      const snapshot = await host.getSnapshot();
+      const status = (id: string, extra: Record<string, unknown> = {}) => ({ node: { id, component: '@dash-bored/status', props: { label: id, source: { shell: 'glance-status' }, ...extra } } });
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Glance proof', root: {
+        id: 'glance', component: '@dash-bored/group', children: { axis: 'vertical',
+          first: { axis: 'horizontal', first: status('glance-tile'), second: status('glance-compact', { density: 'compact' }) },
+          second: { axis: 'vertical',
+            first: { node: { id: 'glance-refresh', component: '@dash-bored/button', props: { name: 'Refresh glance status', action: 'component:glance-tile:refresh' } } },
+            second: { axis: 'vertical',
+              first: { node: { id: 'glance-list', component: '@dash-bored/list', props: { title: 'Attention', sort: 'source-order', filterByTags: false, source: { shell: 'glance-list' },
+                itemActions: [{ name: 'Show in backlog', action: { run: 'reveal:glance-backlog', with: { item: '${item.id}' } } }] } } },
+              second: { axis: 'vertical',
+                first: { node: { id: 'glance-chart', component: '@dash-bored/chart', props: { title: 'Runs', type: 'bar', source: { shell: 'glance-chart' } } } },
+                second: { node: { id: 'glance-backlog', component: '@dash-bored/list', props: { title: 'Backlog', todos: [
+                  { id: 'a', description: 'Alpha todo', done: false, tags: [] },
+                  { id: 'b', description: 'Beta todo', done: false, tags: [] },
+                ] } } },
+              },
+            },
+          },
+        },
+      } }, snapshot.configRevision!);
+    });
+    const tile = proof.locator('.status[aria-label^="glance-tile"]');
+    const compact = proof.locator('.status--compact');
+    await tile.getByText('Observed', { exact: true }).waitFor();
+    await compact.getByText('Observed', { exact: true }).waitFor();
+
+    // Trend and proportion carry text beside the marks.
+    expect(await tile.getByRole('img').getAttribute('aria-label')).toContain('Trend rising over 5 points');
+    await tile.getByText('↗ rising', { exact: true }).waitFor();
+    expect(await tile.locator('.glance-meter__legend li').allInnerTexts()).toEqual(['Done 2\n50%', 'Open 1\n25%', 'Bugs 1\n25%']);
+    expect(await tile.locator('.glance-meter__legend li[data-tone="negative"] svg').count()).toBe(1);
+
+    // Compact density keeps the label and value on one line and stays shorter.
+    const [tileBox, compactBox] = await Promise.all([tile.boundingBox(), compact.boundingBox()]);
+    expect(compactBox!.height).toBeLessThan(tileBox!.height);
+    const [label, value] = await Promise.all([compact.locator('.status__label').boundingBox(), compact.locator('.status__value').boundingBox()]);
+    expect(Math.abs(label!.y - value!.y)).toBeLessThan(4);
+
+    // A changed status value keeps text state and does not change geometry.
+    await proof.evaluate(() => { (window as GlanceWindow).glance!.status = { ...(window as GlanceWindow).glance!.status as object, state: 'warning' }; });
+    await proof.getByRole('button', { name: 'Refresh glance status', exact: true }).click({ position: { x: 16, y: 34 } });
+    await tile.locator('.status__changed').waitFor();
+    expect(await tile.locator('.status__changed').innerText()).toMatch(/^Changed from healthy · /);
+    expect(await tile.getAttribute('data-changed')).toBe('true');
+    expect((await tile.boundingBox())!.height).toBe(tileBox!.height);
+    await proof.waitForFunction(() => !document.querySelector('.status[aria-label^="glance-tile"]')?.hasAttribute('data-changed'));
+    await tile.locator('.status__changed').waitFor();
+
+    // List items mark what changed in the latest differing observation.
+    const list = proof.locator('.source-list');
+    expect(await list.locator('[data-change]').count()).toBe(0);
+    await proof.evaluate(() => { (window as GlanceWindow).glance!.list = [{ id: 'a', title: 'Alpha edited' }, { id: 'missing', title: 'Gone from backlog' }, { id: 'b', title: 'Beta' }]; });
+    await list.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await list.locator('li[data-item-id="b"][data-change="new"]').waitFor();
+    expect(await list.locator('li[data-item-id="a"]').getAttribute('data-change')).toBe('changed');
+    expect(await list.locator('li[data-item-id="missing"]').getAttribute('data-change')).toBeNull();
+    await list.locator('li[data-item-id="a"]').getByText('Changed', { exact: true }).waitFor();
+    await list.getByText(/3 items · 2 changed at /).waitFor();
+
+    // Drill down: reveal the matching backlog item, focus it, and mark it briefly.
+    await list.locator('li[data-item-id="b"]').getByRole('button', { name: 'Show in backlog', exact: true }).click();
+    const revealed = proof.locator('.todo [data-item-id="b"]');
+    await proof.waitForFunction(() => document.querySelector('.todo [data-item-id="b"]')?.getAttribute('data-revealed') === 'true');
+    expect(await revealed.evaluate(element => element === document.activeElement)).toBe(true);
+    expect(await proof.locator('.todo [data-revealed]').count()).toBe(1);
+    await list.locator('li[data-item-id="missing"]').getByRole('button', { name: 'Show in backlog', exact: true }).click();
+    await list.getByText('Item missing is not shown in glance-backlog; it may be filtered out or removed.', { exact: true }).waitFor();
+
+    // Chart refresh shows a visible cue in existing chrome.
+    const chart = proof.locator('.chart');
+    await chart.getByText('Source', { exact: true }).waitFor();
+    const chartBefore = await chart.boundingBox();
+    await proof.evaluate(() => { (window as GlanceWindow).glance!.hold = true; });
+    await chart.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await proof.waitForFunction(() => document.querySelector('.chart')?.getAttribute('data-refreshing') === 'true');
+    await chart.locator('.chart__heading').getByText('Updating…', { exact: true }).waitFor();
+    expect(await chart.boundingBox()).toEqual(chartBefore);
+    expect(await chart.locator('.chart__refresh svg').evaluate(e => getComputedStyle(e).animationName)).toBe('chart-refresh-turn');
+    await proof.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await chart.locator('.chart__refresh svg').evaluate(e => getComputedStyle(e).animationName)).toBe('none');
+    await proof.evaluate(() => { const glance = (window as GlanceWindow).glance!; glance.hold = false; glance.release.splice(0).forEach(resolve => resolve()); });
+    await proof.waitForFunction(() => !document.querySelector('.chart')?.hasAttribute('data-refreshing'));
+    await proof.setViewportSize({ width: 390, height: 844 });
+    expect(await proof.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  } finally { await proof.close(); }
+}, 30_000);

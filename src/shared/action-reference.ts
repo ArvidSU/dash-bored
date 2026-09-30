@@ -1,3 +1,10 @@
+/** `reveal:<node>` may name one item, by its stable ID, to highlight after revealing. */
+export const REVEAL_ACTION_ARGS_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  properties: { item: { type: "string", minLength: 1, maxLength: 512 } },
+};
+
 /** Return the stable node ID carried by a node-targeting action reference. */
 export function parseActionReferenceNodeId(reference: string): string | undefined {
   const parts = reference.split(":");

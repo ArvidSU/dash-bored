@@ -182,7 +182,8 @@ Composition rules:
 
 - An `action` is a reference string, or `{ run: <reference>, with: {...} }`
   for arguments. References name nodes by ID: `select:<selection-id>/<child-id>`
-  switches a `selection`; `reveal:<id>` expands and selects a node anywhere;
+  switches a `selection`; `reveal:<id>` expands and selects a node anywhere
+  (`with: { item: ${item.id} }` also focuses that item of a list inside it);
   `focus:<id>` makes it the page; `process:<command-id>` runs a `command`;
   `component:<node-id>:<action-id>` runs a declared action (a view's
   `refresh`, a command's `run`); `agent:prompt` with `with: { prompt }`

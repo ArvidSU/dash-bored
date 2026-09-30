@@ -240,7 +240,7 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
               const editingDescription = editTarget?.id === item.id && editTarget.field === "description";
               const editingTags = editTarget?.id === item.id && editTarget.field === "tags";
               return (
-                <article className={`todo__item${item.done ? " todo__item--done" : ""}`} key={item.id} role="listitem">
+                <article className={`todo__item${item.done ? " todo__item--done" : ""}`} key={item.id} role="listitem" data-item-id={item.id}>
                   <div className="todo__item-main">
                     <input
                       type="checkbox"

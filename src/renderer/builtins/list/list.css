@@ -149,4 +149,17 @@
 .source-list__item[data-tone="warning"] .source-list__state { color: var(--warning); }
 .source-list__item[data-tone="negative"] .source-list__glyph,
 .source-list__item[data-tone="negative"] .source-list__state { color: var(--negative); }
-.source-list__item-text > strong { font-size: 13px; font-weight: 600; line-height: 1.4; }
+.source-list__item-text > strong { font-size: var(--font-size-md); font-weight: 600; line-height: 1.4; }
+
+/* Changed since the previous differing observation: a text badge stays; the tint is brief. */
+.source-list__change {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.source-list__item[data-change] { border-left-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.source-list__item[data-flash] { background: color-mix(in srgb, var(--accent) 10%, transparent); }

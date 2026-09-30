@@ -10,8 +10,8 @@ already fits.
 
 | View | The source must produce | Notes |
 | --- | --- | --- |
-| `status` | `{"state": "healthy", "detail": "…"}` | `state` is exactly `unknown`, `healthy`, `warning`, or `error`; `detail` is an optional string. |
-| `list` | `[{"id": "…", "title": "…"}, …]` | `id` and `title` are non-empty strings; `id` must be unique and stable, derived from the thing rather than its position in the output (a SHA, a path, `path:line` for a marker in a file). Optional `detail` (string), `tags` (string array), `state` (string), `done` (boolean). Extra fields are allowed and feed item actions. |
+| `status` | `{"state": "healthy", "detail": "…"}` | `state` is exactly `unknown`, `healthy`, `warning`, or `error`; `detail` is an optional string. Optional `trend` (2–60 numbers or `null`, oldest first) draws a sparkline with a stated direction; optional `segments` (1–8 `{"label", "value" ≥ 0, "state"?}`) draws a part-of-whole meter, e.g. done/open/bug counts. Emit them only from real history or counts. |
+| `list` | `[{"id": "…", "title": "…"}, …]` | `id` and `title` are non-empty strings; `id` must be unique and stable, derived from the thing rather than its position in the output (a SHA, a path, `path:line` for a marker in a file). Optional `detail` (string), `tags` (string array), `state` (string), `done` (boolean). Extra fields are allowed and feed item actions. Stable IDs also drive the `New`/`Changed` markers between polls. Generic states such as `bug` or `blocked` get a semantic color and shape. |
 | `chart` | `{"labels": ["…"], "series": [{"label": "…", "values": [1, null]}]}` | 1–12 series; each `values` array matches `labels`; values are numbers or `null`. |
 | `markdown` | text | Rendered as Markdown, so bare lines merge into one paragraph: print bullets or a fenced block. JSON output is shown as a code block. |
 

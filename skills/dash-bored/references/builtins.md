@@ -191,7 +191,7 @@ Actions:
 
 ## @dash-bored/status
 
-Status — Displays a labeled state, with optional bounded sources emitting { state, detail? } or a supervised process snapshot.
+Status — Displays a labeled state, with optional bounded sources emitting { state, detail?, trend?, segments? } or a supervised process snapshot. Source-backed states mark the last change seen while mounted.
 
 Props:
 
@@ -200,6 +200,7 @@ Props:
 | `label` | string | see note | non-empty |
 | `state` | `unknown` \| `healthy` \| `warning` \| `error` | see note |  |
 | `detail` | string | no |  |
+| `density` | `comfortable` \| `compact` | no |  |
 | `source` | object | see note | object with keys: `shell` string, `file` string, `http` string, `process` string, `inline` any, `every` integer, `timeoutMs` integer, `cwd` string, `env` map of string to string |
 
 Exactly one of `label` + `state` or `label` + `source` is required.
@@ -313,7 +314,7 @@ Actions:
 
 ## @dash-bored/list
 
-List — Renders stable-ID items from a bounded source or editable YAML todos.
+List — Renders stable-ID items from a bounded source or editable YAML todos. Source items that are new or changed in the latest differing observation are marked.
 
 Props:
 
@@ -324,6 +325,7 @@ Props:
 | `todos` | array of object | see note | <= 500 items; object with keys: `id` (required) string, `description` (required) string, `done` (required) boolean, `tags` (required) array of string |
 | `filterByTags` | boolean | no |  |
 | `sort` | `open-first` \| `source-order` | no |  |
+| `highlightChanges` | boolean | no |  |
 | `itemActions` | array of object | no | <= 12 items; object with keys: `name` (required) string, `action` (required) any |
 
 Exactly one of `source` or `todos` is required.

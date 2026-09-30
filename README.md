@@ -452,7 +452,8 @@ The initial built-ins are:
 - Composition: `@dash-bored/group` for transparent tiled children and
   `@dash-bored/selection` for one core-selected managed child.
 - Controls and display: `@dash-bored/button`, `@dash-bored/markdown`, and
-  `@dash-bored/status`.
+  `@dash-bored/status` (a tile or `density: compact` row, with optional source
+  trend and part-of-whole segments).
 - Lists: `@dash-bored/list` for bounded source data with stable item IDs,
   tag filtering, and open-first sorting.
 - Charts: `@dash-bored/chart` for static YAML data or a bounded source, with
@@ -974,9 +975,10 @@ and **Set dashboard theme** in the command palette guide the same selections.
 Linked dashboards and component focus do not change the window theme.
 
 The development dashboard uses `Ocean`, with calm blue navigation accents and
-separate semantic health colors. Its Overview shows live health, project
-activity, and the first five open work items (bugs first); Work contains the
-full editable backlog and check terminals. `Retro Industrial` remains available
+separate semantic health colors. Its Overview shows live health, backlog
+completion as a meter, a 14-day commit trend, and the first five open work
+items (bugs first); **Show in backlog** opens Work and focuses that todo. Work
+contains the full editable backlog and check terminals. `Retro Industrial` remains available
 as an optional warm theme. Both are regular data-only theme packages that can
 be copied as a starting point for another project.
 

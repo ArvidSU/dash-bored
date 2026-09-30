@@ -33,6 +33,7 @@ import {
   buildNodeFocusActions,
 } from "../lib/action-providers";
 import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
+import { highlightRevealedItem, revealScrollBehavior } from "../lib/reveal-item";
 import type { AppView } from "../lib/action-providers";
 import { ActionExecutor, ActionRegistry, describeAgentAction, matchActionChoiceSelections } from "../lib/actions";
 import type { PaletteAction } from "../lib/actions";
@@ -1568,13 +1569,14 @@ export function App(): ReactNode {
   );
   const selectionActions = buildSelectionActions(snapshot, activeChildSelections, selectChild);
   // Reveal is presentation, not navigation: it never changes the focused target.
-  const revealActions = buildRevealActions(snapshot, (nodeId) => {
+  const revealActions = buildRevealActions(snapshot, (nodeId, itemId) => {
     setActiveView("dashboard");
     revealComponent(nodeId);
+    if (itemId !== undefined) return highlightRevealedItem(nodeId, itemId);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
         .find((element) => element.dataset.nodeId === nodeId)
-        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: revealScrollBehavior() });
     }));
   });
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, componentActions);

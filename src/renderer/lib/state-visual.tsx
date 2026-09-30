@@ -1,12 +1,22 @@
 export type StateTone = "positive" | "warning" | "negative" | "neutral";
 
+const CLOSED_STATES = new Set(["done", "completed", "closed"]);
+const POSITIVE_STATES = new Set(["ok", "online", "healthy", "success", "passed", "ready", ...CLOSED_STATES]);
+const WARNING_STATES = new Set(["warn", "warning", "pending", "starting", "running", "stopping", "blocked", "degraded", "stale"]);
+const NEGATIVE_STATES = new Set(["error", "failed", "failing", "offline", "down", "bug", "broken"]);
+
 /** Semantic states share color and shape; arbitrary source states stay neutral. */
 export function stateTone(state: string | undefined, done = false): StateTone {
-  const normalized = state?.toLowerCase();
-  if (done || ["ok", "online", "healthy", "success", "ready", "done", "completed", "closed"].includes(normalized ?? "")) return "positive";
-  if (["warn", "warning", "pending", "starting", "running", "stopping"].includes(normalized ?? "")) return "warning";
-  if (["error", "failed", "offline", "down"].includes(normalized ?? "")) return "negative";
+  const normalized = state?.trim().toLowerCase() ?? "";
+  if (done || POSITIVE_STATES.has(normalized)) return "positive";
+  if (WARNING_STATES.has(normalized)) return "warning";
+  if (NEGATIVE_STATES.has(normalized)) return "negative";
   return "neutral";
+}
+
+/** Completed work reads as closed, whether the source says done or a completed state. */
+export function isClosedState(state: string | undefined, done = false): boolean {
+  return done || CLOSED_STATES.has(state?.trim().toLowerCase() ?? "");
 }
 
 export function StateGlyph({ tone }: { tone: StateTone }) {
