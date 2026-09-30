@@ -2678,26 +2678,35 @@ img.sidebar__project-icon {
   z-index: 3;
   inset: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
   border-radius: var(--radius-lg);
-  animation: component-update-polish 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: component-update-polish 960ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--component-update-delay, 0ms);
-  background: transparent;
-  box-shadow: var(--focus-ring);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--accent) 8%, transparent),
+    transparent 45%
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 62%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
   opacity: 0;
   pointer-events: none;
 }
 
+/* A single soft sheen crosses the surface once, trailing the outline. */
 .component-node__update-polish::before {
   position: absolute;
-  top: -35%;
-  bottom: -35%;
-  left: -42%;
-  width: 0;
-  animation: none;
+  inset: 0;
+  animation: component-update-shine 780ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(var(--component-update-delay, 0ms) + 60ms);
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 50%,
+    transparent 60%
+  );
   content: "";
-  display: none;
-  transform: skewX(-16deg);
+  transform: translateX(-100%);
 }
 
 .component-node__stale-warning {
@@ -2717,14 +2726,14 @@ img.sidebar__project-icon {
 
 @keyframes component-update-polish {
   0% { opacity: 0; }
-  14% { opacity: 1; }
-  62% { opacity: 0.72; }
+  12% { opacity: 1; }
+  55% { opacity: 0.8; }
   100% { opacity: 0; }
 }
 
 @keyframes component-update-shine {
-  from { transform: translateX(0) skewX(-16deg); }
-  to { transform: translateX(430%) skewX(-16deg); }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
 }
 
 .config-link,
@@ -4399,8 +4408,6 @@ select:focus,
 
 .component-node__update-polish {
   border-radius: var(--radius);
-  background: transparent;
-  box-shadow: var(--focus-ring);
 }
 
 .component-node__stale-warning,
