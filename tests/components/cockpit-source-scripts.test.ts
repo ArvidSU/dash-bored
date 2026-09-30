@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { dashboardHealth } from "../../.dash-bored/scripts/dashboard-health";
 import { changeListItems } from "../../.dash-bored/scripts/git-changes";
-import { activityChart, commitListItems } from "../../.dash-bored/scripts/git-log";
+import { activityChart, activityStatus, commitListItems } from "../../.dash-bored/scripts/git-log";
+import { stateTone } from "../../src/renderer/lib/state-visual";
+import { parseStatusValue } from "../../src/renderer/lib/view-shapes";
 import { releaseListItems } from "../../.dash-bored/scripts/releases";
 import { roadmapListItems } from "../../.dash-bored/scripts/roadmap";
 import { findTodos, todoAttention, todoChart, todoStatus } from "../../.dash-bored/scripts/todo-stats";
@@ -33,6 +35,10 @@ describe("project cockpit source scripts", () => {
       labels: ["09-21", "09-22", "09-23"],
       series: [{ label: "Commits", values: [0, 2, 1] }],
     });
+    const pulse = activityStatus(activityChart(["2026-09-22", "2026-09-22", "2026-09-23"], new Date(2026, 8, 23), 3));
+    expect(pulse).toEqual({ state: "healthy", detail: "3 commits on 2 of 3 days · 1 today", trend: [0, 2, 1] });
+    expect(parseStatusValue(pulse)?.trend).toEqual([0, 2, 1]);
+    expect(activityStatus(activityChart([], new Date(2026, 8, 23), 3))).toMatchObject({ state: "warning", detail: "No commits in 3 days" });
   });
 
   test("summarizes working tree state", () => {
@@ -56,7 +62,13 @@ describe("project cockpit source scripts", () => {
     const dashboard = { root: { id: "root", children: { first: { node: { id: "yaml-todo", props: { todos } } } } } };
     expect(findTodos(dashboard, "yaml-todo")).toBe(todos);
     expect(findTodos(dashboard, "missing")).toBeUndefined();
-    expect(todoStatus(todos)).toEqual({ state: "warning", detail: "2 open · 1 done · 1 open bug" });
+    expect(todoStatus(todos)).toEqual({ state: "warning", detail: "33% done · 2 open · 1 done · 1 open bug", segments: [
+      { label: "Done", value: 1, state: "done" },
+      { label: "Open", value: 1, state: "open" },
+      { label: "Bugs", value: 1, state: "bug" },
+    ] });
+    expect(parseStatusValue(todoStatus(todos))?.segments?.map((segment) => stateTone(segment.state))).toEqual(["positive", "neutral", "negative"]);
+    expect(todoStatus([]).detail).toBe("0% done · 0 open · 0 done");
     expect(todoChart(todos)).toEqual({
       labels: ["bug", "feature"],
       series: [{ label: "Open", values: [1, 1] }, { label: "Done", values: [0, 1] }],
@@ -68,7 +80,10 @@ describe("project cockpit source scripts", () => {
     const original = structuredClone(todos);
     const attention = todoAttention(todos);
     expect(attention.map((item) => item.id)).toEqual(["6", "1", "2", "3", "4"]);
-    expect(attention[0]?.state).toBe("warning");
+    expect(attention[0]?.state).toBe("bug");
+    expect(attention[0]?.tags).toEqual([]);
+    expect(stateTone(attention[0]?.state)).toBe("negative");
+    expect(attention[1]?.state).toBe("open");
     expect(todos).toEqual(original);
     expect(todoAttention(todos.map((todo) => ({ ...todo, done: true })))).toEqual([]);
   });

@@ -30,12 +30,28 @@ export function findTodos(value: unknown, nodeId: string): Todo[] | undefined {
   return undefined;
 }
 
-export function todoStatus(todos: Todo[]): { state: "healthy" | "warning"; detail: string } {
+const isBug = (todo: Todo) => todo.tags.some((tag) => tag.toLowerCase() === "bug");
+
+export interface TodoStatus {
+  state: "healthy" | "warning";
+  detail: string;
+  segments: Array<{ label: string; value: number; state: string }>;
+}
+
+/** Backlog health plus its part-of-whole breakdown: done, open, and open bugs. */
+export function todoStatus(todos: Todo[]): TodoStatus {
   const open = todos.filter((todo) => !todo.done);
-  const bugs = open.filter((todo) => todo.tags.some((tag) => tag.toLowerCase() === "bug"));
+  const bugs = open.filter(isBug);
+  const done = todos.length - open.length;
+  const percent = todos.length ? Math.round(done / todos.length * 100) : 0;
   return {
     state: bugs.length ? "warning" : "healthy",
-    detail: `${open.length} open · ${todos.length - open.length} done${bugs.length ? ` · ${bugs.length} open bug${bugs.length === 1 ? "" : "s"}` : ""}`,
+    detail: `${percent}% done · ${open.length} open · ${done} done${bugs.length ? ` · ${bugs.length} open bug${bugs.length === 1 ? "" : "s"}` : ""}`,
+    segments: [
+      { label: "Done", value: done, state: "done" },
+      { label: "Open", value: open.length - bugs.length, state: "open" },
+      { label: "Bugs", value: bugs.length, state: "bug" },
+    ],
   };
 }
 
@@ -67,10 +83,12 @@ export function todoChart(todos: Todo[]): { labels: string[]; series: Array<{ la
 /** A bounded scan of real work, with bugs first and source order within each group. */
 export function todoAttention(todos: Todo[]) {
   return todos.filter((todo) => !todo.done)
-    .sort((a, b) => Number(b.tags.some((tag) => tag.toLowerCase() === "bug")) - Number(a.tags.some((tag) => tag.toLowerCase() === "bug")))
+    .sort((a, b) => Number(isBug(b)) - Number(isBug(a)))
     .slice(0, 5)
-    .map((todo) => ({ id: todo.id, title: todo.description.length > 100 ? `${todo.description.slice(0, 97).replace(/\s+\S*$/, "")}…` : todo.description, tags: todo.tags,
-      state: todo.tags.some((tag) => tag.toLowerCase() === "bug") ? "warning" : "open" }));
+    .map((todo) => ({ id: todo.id, title: todo.description.length > 100 ? `${todo.description.slice(0, 97).replace(/\s+\S*$/, "")}…` : todo.description,
+      // The bug state already says "bug"; keep the other tags for context.
+      tags: todo.tags.filter((tag) => tag.toLowerCase() !== "bug"),
+      state: isBug(todo) ? "bug" : "open" }));
 }
 
 if (import.meta.main) {

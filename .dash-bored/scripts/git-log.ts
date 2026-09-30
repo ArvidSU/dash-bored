@@ -57,16 +57,37 @@ export function activityChart(dates: string[], today: Date, days = 14): Activity
   };
 }
 
+export interface ActivityStatus {
+  state: "healthy" | "warning";
+  detail: string;
+  trend: number[];
+}
+
+/** Commit pulse: the same daily counts as the activity chart, as a status with a trend. */
+export function activityStatus(chart: ActivityChart): ActivityStatus {
+  const trend = chart.series[0]?.values ?? [];
+  const total = trend.reduce((sum, count) => sum + count, 0);
+  const activeDays = trend.filter((count) => count > 0).length;
+  return {
+    state: total > 0 ? "healthy" : "warning",
+    detail: total > 0
+      ? `${total} commit${total === 1 ? "" : "s"} on ${activeDays} of ${trend.length} days · ${trend.at(-1) ?? 0} today`
+      : `No commits in ${trend.length} days`,
+    trend,
+  };
+}
+
 if (import.meta.main) {
   const mode = process.argv[2] ?? "list";
   if (mode === "list") {
     const limit = Number(process.env.DASH_BORED_LOG_LIMIT || "25");
     emit(commitListItems(runOrExit(["git", "log", `-${limit}`, `--format=${LOG_FORMAT}`])));
-  } else if (mode === "activity") {
+  } else if (mode === "activity" || mode === "pulse") {
     const dates = runOrExit(["git", "log", "--all", "--since=15 days ago", "--date=format-local:%Y-%m-%d", "--format=%ad"]);
-    emit(activityChart(dates.split("\n"), new Date()));
+    const chart = activityChart(dates.split("\n"), new Date());
+    emit(mode === "pulse" ? activityStatus(chart) : chart);
   } else {
-    process.stderr.write("Usage: bun run .dash-bored/scripts/git-log.ts <list|activity>\n");
+    process.stderr.write("Usage: bun run .dash-bored/scripts/git-log.ts <list|activity|pulse>\n");
     process.exit(2);
   }
 }

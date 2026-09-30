@@ -92,7 +92,7 @@ root:
                         id: todo-status
                         component: "@dash-bored/status"
                         props:
-                          label: Todos
+                          label: Backlog
                           source:
                             shell: bun run .dash-bored/scripts/todo-stats.ts status
                             cwd: .
@@ -121,31 +121,18 @@ root:
                         id: project-pulse
                         component: "@dash-bored/group"
                         children:
-                          axis: vertical
-                          first:
-                            node:
-                              id: project-pulse-status
-                              component: "@dash-bored/status"
-                              props:
-                                label: Project pulse
-                                source:
-                                  shell: bun run .dash-bored/scripts/project-pulse.ts status
-                                  cwd: .
-                                  every: 30000
-                          second:
-                            node:
-                              id: git-activity
-                              component: "@dash-bored/chart"
-                              props:
-                                title: Commits · last 14 days
-                                type: bar
-                                source:
-                                  shell: bun run .dash-bored/scripts/git-log.ts activity
-                                  cwd: .
-                                  every: 60000
+                          node:
+                            id: commit-pulse
+                            component: "@dash-bored/status"
+                            props:
+                              label: Commits · last 14 days
+                              source:
+                                shell: bun run .dash-bored/scripts/git-log.ts pulse
+                                cwd: .
+                                every: 60000
                         props:
                           title: Project activity
-                          description: Recent movement across all branches.
+                          description: Recent movement across all branches. Changes holds the daily chart and history.
                     second:
                       node:
                         id: cockpit-attention
@@ -158,8 +145,11 @@ root:
                             shell: bun run .dash-bored/scripts/todo-stats.ts attention
                             every: 15000
                           itemActions:
-                            - name: View backlog
-                              action: reveal:yaml-todo
+                            - name: Show in backlog
+                              action:
+                                run: reveal:yaml-todo
+                                with:
+                                  item: ${item.id}
               props:
                 title: Project at a glance
                 description: Health, recent activity, and open work. Choose a section for detail.
@@ -397,6 +387,31 @@ root:
                             tags:
                               - agent
                               - skill
+                          - id: todo-glance-changes-since-visit
+                            description: "Persist \"changed since you last looked\" per dashboard across remounts and reloads (a bounded last-seen snapshot per status/list node), so tab switches and restarts keep the cue; today status and list change markers are per-mount and in memory."
+                            done: false
+                            tags:
+                              - renderer
+                              - visual
+                          - id: todo-glance-status-history
+                            description: "Offer an opt-in status history strip built from retained recent observations (bounded, reduced-motion aware) for sources that cannot emit their own trend, such as the working-tree status."
+                            done: false
+                            tags:
+                              - renderer
+                              - visual
+                          - id: todo-glance-chart-part-of-whole
+                            description: "Add a chart variant for part-of-whole history (stacked bars, e.g. QA pass/fail per run) and a real QA run-history source to feed it on the Overview."
+                            done: false
+                            tags:
+                              - renderer
+                              - visual
+                              - qa
+                          - id: todo-drag-handle-button-overlap
+                            description: "The hover drag handle (top 5-22 px, centered) reaches the vertical centre of a single 44 px action-button frame, so a click exactly at the button's centre can land on the handle. Move or shrink the handle for short frames; the renderer UI tests click below it for now."
+                            done: false
+                            tags:
+                              - bug
+                              - renderer
                   second:
                     node:
                       id: checks
@@ -488,62 +503,75 @@ root:
                   second:
                     axis: vertical
                     first:
-                      axis: horizontal
-                      ratio: 0.45
-                      first:
-                        node:
-                          id: recent-commits
-                          component: "@dash-bored/list"
-                          props:
-                            title: Recent commits
-                            sort: source-order
-                            source:
-                              shell: bun run .dash-bored/scripts/git-log.ts list
-                              cwd: .
-                              every: 30000
-                            itemActions:
-                              - name: Show
-                                action:
-                                  run: component:git-show-runner:run
-                                  with:
-                                    sha: ${item.sha}
-                      second:
-                        node:
-                          id: git-show-runner
-                          component: "@dash-bored/command"
-                          props:
-                            label: Show selected commit
-                            command: git --no-pager show --stat --patch --color=always "$DASH_ITEM_SHA"
+                      node:
+                        id: git-activity
+                        component: "@dash-bored/chart"
+                        props:
+                          title: Commits · last 14 days
+                          type: bar
+                          source:
+                            shell: bun run .dash-bored/scripts/git-log.ts activity
                             cwd: .
+                            every: 60000
                     second:
-                      axis: horizontal
-                      ratio: 0.45
+                      axis: vertical
                       first:
-                        node:
-                          id: git-branches
-                          component: "@dash-bored/list"
-                          props:
-                            title: Branches
-                            source:
-                              shell: bun run .dash-bored/scripts/git-branches.ts
+                        axis: horizontal
+                        ratio: 0.45
+                        first:
+                          node:
+                            id: recent-commits
+                            component: "@dash-bored/list"
+                            props:
+                              title: Recent commits
+                              sort: source-order
+                              source:
+                                shell: bun run .dash-bored/scripts/git-log.ts list
+                                cwd: .
+                                every: 30000
+                              itemActions:
+                                - name: Show
+                                  action:
+                                    run: component:git-show-runner:run
+                                    with:
+                                      sha: ${item.sha}
+                        second:
+                          node:
+                            id: git-show-runner
+                            component: "@dash-bored/command"
+                            props:
+                              label: Show selected commit
+                              command: git --no-pager show --stat --patch --color=always "$DASH_ITEM_SHA"
                               cwd: .
-                              every: 30000
-                              env:
-                                DASH_BORED_BASE_BRANCH: main
-                            itemActions:
-                              - name: Log
-                                action:
-                                  run: component:git-branch-log:run
-                                  with:
-                                    name: ${item.name}
                       second:
-                        node:
-                          id: git-branch-log
-                          component: "@dash-bored/command"
-                          props:
-                            label: Log selected branch against main
-                            command: git --no-pager log --color=always --graph --oneline --decorate -30 "$DASH_ITEM_NAME" --not main --
-                            cwd: .
+                        axis: horizontal
+                        ratio: 0.45
+                        first:
+                          node:
+                            id: git-branches
+                            component: "@dash-bored/list"
+                            props:
+                              title: Branches
+                              source:
+                                shell: bun run .dash-bored/scripts/git-branches.ts
+                                cwd: .
+                                every: 30000
+                                env:
+                                  DASH_BORED_BASE_BRANCH: main
+                              itemActions:
+                                - name: Log
+                                  action:
+                                    run: component:git-branch-log:run
+                                    with:
+                                      name: ${item.name}
+                        second:
+                          node:
+                            id: git-branch-log
+                            component: "@dash-bored/command"
+                            props:
+                              label: Log selected branch against main
+                              command: git --no-pager log --color=always --graph --oneline --decorate -30 "$DASH_ITEM_NAME" --not main --
+                              cwd: .
           - metadata:
               label: Develop
             node:
@@ -671,16 +699,29 @@ root:
                       second:
                         axis: vertical
                         first:
-                          node:
-                            id: project-pulse-chart
-                            component: "@dash-bored/chart"
-                            props:
-                              title: Package scripts by category
-                              type: bar
-                              source:
-                                shell: bun run .dash-bored/scripts/project-pulse.ts chart
-                                cwd: .
-                                every: 30000
+                          axis: vertical
+                          first:
+                            node:
+                              id: project-pulse-status
+                              component: "@dash-bored/status"
+                              props:
+                                label: Project pulse
+                                density: compact
+                                source:
+                                  shell: bun run .dash-bored/scripts/project-pulse.ts status
+                                  cwd: .
+                                  every: 30000
+                          second:
+                            node:
+                              id: project-pulse-chart
+                              component: "@dash-bored/chart"
+                              props:
+                                title: Package scripts by category
+                                type: bar
+                                source:
+                                  shell: bun run .dash-bored/scripts/project-pulse.ts chart
+                                  cwd: .
+                                  every: 30000
                         second:
                           node:
                             id: worktree-environment
