@@ -189,6 +189,8 @@ export interface AppSettings {
   favoriteActionIds: string[];
   /** App-local keyboard shortcut that opens the command palette. */
   commandPaletteShortcut: string | null;
+  /** Clear search after invoking a palette action while holding Command. */
+  clearPaletteInputOnKeepOpen: boolean;
   /** App-local keyboard shortcuts keyed by stable action id. */
   actionShortcuts: Record<string, string>;
 }

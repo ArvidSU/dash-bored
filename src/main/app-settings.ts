@@ -24,6 +24,7 @@ function defaults(dashBoredAgent: string): AppSettings {
     sidebarExpandedByDefault: false,
     favoriteActionIds: [],
     commandPaletteShortcut: DEFAULT_COMMAND_PALETTE_SHORTCUT,
+    clearPaletteInputOnKeepOpen: true,
     actionShortcuts: { ...DEFAULT_ACTION_SHORTCUTS },
   };
 }
@@ -70,6 +71,7 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
     sidebarExpandedByDefault: value.sidebarExpandedByDefault === true,
     favoriteActionIds: normalizeActionIds(value.favoriteActionIds),
     commandPaletteShortcut: paletteShortcut,
+    clearPaletteInputOnKeepOpen: value.clearPaletteInputOnKeepOpen !== false,
     actionShortcuts,
   };
 }

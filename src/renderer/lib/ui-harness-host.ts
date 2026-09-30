@@ -425,6 +425,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     sidebarExpandedByDefault: false,
     favoriteActionIds: [],
     commandPaletteShortcut: "Mod+K",
+    clearPaletteInputOnKeepOpen: true,
     actionShortcuts: { "app:reload": "Mod+Shift+R" },
   };
   let persistedConfig = structuredClone(initialConfig);

@@ -28,6 +28,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
+      clearPaletteInputOnKeepOpen: true,
       actionShortcuts: { "app:reload": "Mod+Shift+R" },
     });
     const updated = await store.update({
@@ -35,6 +36,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "app:reload", " component:refresh "],
       commandPaletteShortcut: "Mod+P",
+      clearPaletteInputOnKeepOpen: false,
       actionShortcuts: {
         "app:reload": "Mod+Shift+R",
         "app:show-settings": "Mod+,",
@@ -48,6 +50,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
       commandPaletteShortcut: "Mod+P",
+      clearPaletteInputOnKeepOpen: false,
       actionShortcuts: {
         "app:reload": "Mod+Shift+R",
         "app:show-settings": "Mod+,",
@@ -61,6 +64,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
       commandPaletteShortcut: "Mod+P",
+      clearPaletteInputOnKeepOpen: false,
       actionShortcuts: {
         "app:reload": "Mod+Shift+R",
         "app:show-settings": "Mod+,",
@@ -75,6 +79,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
       commandPaletteShortcut: "Mod+P",
+      clearPaletteInputOnKeepOpen: false,
       actionShortcuts: {
         "app:reload": "Mod+Shift+R",
         "app:show-settings": "Mod+,",
@@ -103,6 +108,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
+      clearPaletteInputOnKeepOpen: true,
       actionShortcuts: { "app:reload": "Mod+Shift+R" },
     });
     await expect(store.update({
@@ -110,6 +116,7 @@ describe("AppSettingsStore", () => {
       sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
+      clearPaletteInputOnKeepOpen: true,
       actionShortcuts: {},
     })).rejects.toMatchObject({
       code: "APP_SETTINGS_INVALID",
@@ -121,6 +128,18 @@ describe("AppSettingsStore", () => {
     expect(resolveDashBoredAgent(null, { DASH_BORED_AGENT: "project-agent --run" })).toBe("project-agent --run");
     expect(resolveDashBoredAgent(null, {})).toBe("codex exec");
     expect(resolveDashBoredAgent("app-agent", { DASH_BORED_AGENT: "project-agent" })).toBe("app-agent");
+  });
+
+  test("old settings default to clearing keep-open searches and explicit false survives reload", async () => {
+    const directory = await temporaryDirectory(); cleanup.push(directory);
+    const path = join(directory, "settings.json");
+    await writeFile(path, JSON.stringify({ version: 2, dashBoredAgent: null }));
+    const store = new AppSettingsStore(path);
+    expect((await store.get()).clearPaletteInputOnKeepOpen).toBeTrue();
+    await store.update({ ...await store.get(), clearPaletteInputOnKeepOpen: false });
+    expect((await new AppSettingsStore(path).get()).clearPaletteInputOnKeepOpen).toBeFalse();
+    await writeFile(path, JSON.stringify({ version: 2, dashBoredAgent: null, clearPaletteInputOnKeepOpen: "false" }));
+    expect((await new AppSettingsStore(path).get()).clearPaletteInputOnKeepOpen).toBeTrue();
   });
 });
 

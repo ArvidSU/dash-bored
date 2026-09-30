@@ -738,11 +738,18 @@ capability saves the configuration but returns the project to restricted mode
 until the expanded permission set is trusted.
 
 Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
-command palette. It searches application navigation, remembered dashboards,
-every node in the currently selected dashboard for focused projection,
-all declared process resources, and actions contributed by active components.
+command palette. It searches application controls, component navigation in the
+selected dashboard, its declared process resources, and component actions.
 Manifest-declared actions also stay in the palette and Settings while their
 component is collapsed or hidden; they show why they cannot run until mounted.
+Choose **Switch dashboard** in the palette to open another registered dashboard;
+searching its name also finds that chooser. Other dashboards remain reachable
+from the sidebar. Hold <kbd>Command</kbd>
+while pressing <kbd>Enter</kbd> or clicking an action to run it and keep the
+palette open. This also works through component choices and confirmations.
+Search clears by default; turn off **Clear search when keeping the palette
+open** in **Settings → General** to keep it. Plain Enter or a click closes the
+palette after running the action.
 Settings is split into **General**, **Themes**, and **Actions**. Themes contains app appearance defaults, a per-dashboard list of theme and appearance selections, and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
 palette actions: search them, assign an app-local keyboard shortcut, or mark an

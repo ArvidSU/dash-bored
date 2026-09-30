@@ -357,25 +357,48 @@ export function buildApplicationActions(
     }));
   }
 
-  for (const project of projects) {
+  const dashboardTargets = projects.map((project) => {
     const label = projectLabel(project);
     const current =
       project.configPath === snapshot?.configPath && activeView === "dashboard";
-    actions.push(
-      appAction({
-        id: `dashboard:${encodeURIComponent(project.configPath)}`,
-        label: `Open ${label}`,
-        description: project.configPath,
-        keywords: ["dashboard", "project", project.projectRoot],
-        group: "Dashboards",
-        source: project.projectRoot,
-        enabled: pendingAction === null && !current,
-        disabledReason: current
-          ? "This dashboard is already open."
-          : pendingReason,
-        run: () => callbacks.openProject(project),
-      }),
-    );
+    return appAction({
+      id: `dashboard:${encodeURIComponent(project.configPath)}`,
+      parentActionId: "app:switch-dashboard",
+      label: `Open ${label}`,
+      description: project.configPath,
+      keywords: ["dashboard", "project", project.projectRoot],
+      group: "Dashboards",
+      source: project.projectRoot,
+      enabled: pendingAction === null && !current,
+      disabledReason: current
+        ? "This dashboard is already open."
+        : pendingReason,
+      run: () => callbacks.openProject(project),
+    });
+  });
+  if (dashboardTargets.length > 0) {
+    const availableTargets = dashboardTargets.filter((action) => action.enabled);
+    const disabledReason = pendingReason ?? (availableTargets.length === 0 ? "No other dashboard is available." : undefined);
+    actions.push(appAction({
+      id: "app:switch-dashboard",
+      label: "Switch dashboard",
+      description: "Choose a registered dashboard to open.",
+      keywords: ["open", "switch", "dashboard", "project", ...projects.flatMap((project) => [projectLabel(project), project.configPath])],
+      group: "Dashboards",
+      enabled: disabledReason === undefined,
+      ...(disabledReason ? { disabledReason } : {}),
+      choices: [{
+        id: "dashboard",
+        label: "Switch dashboard",
+        options: projects.filter((project) => availableTargets.some((action) => action.id === `dashboard:${encodeURIComponent(project.configPath)}`))
+          .map((project) => ({ value: project.configPath, label: projectLabel(project), description: project.configPath })),
+      }],
+      run: (selections) => {
+        const target = availableTargets.find((action) => action.id === `dashboard:${encodeURIComponent(selections?.dashboard ?? "")}`);
+        if (!target) throw new Error("Choose an available dashboard to open.");
+        return target.run();
+      },
+    }), ...dashboardTargets);
   }
 
   if (projectOpen && snapshot) {

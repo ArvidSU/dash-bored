@@ -580,15 +580,32 @@ root:
               children:
                 axis: vertical
                 first:
-                  node:
-                    id: development-intro
-                    component: "@dash-bored/markdown"
-                    props:
-                      content: |
-                        **Development loop.** Start the desktop environment for live renderer and main-process
-                        updates; prefer the `:fast` checks while a watcher holds the Electrobun lock. For UI
-                        changes, start **UI fixture** and inspect it below at normal and narrow widths before the
-                        native desktop check.
+                  axis: vertical
+                  first:
+                    node:
+                      id: development-intro
+                      component: "@dash-bored/markdown"
+                      props:
+                        content: |
+                          **Development loop.** Start the desktop environment for live renderer and main-process
+                          updates; prefer the `:fast` checks while a watcher holds the Electrobun lock. For UI
+                          changes, start **UI fixture** and inspect it below at normal and narrow widths before the
+                          native desktop check.
+                  second:
+                    node:
+                      id: palette-workflow
+                      component: "@dash-bored/markdown"
+                      props:
+                        title: Run several palette actions
+                        content: |
+                          Open Commands with **⌘K**, search for a command, and use **⌘Enter** (or **⌘click**)
+                          to run it while keeping the palette open. Try **Validate dashboard** followed by
+                          **Typecheck (fast)**. Regular Enter closes the palette.
+
+                          Search clears after each keep-open invocation by default. In **Settings → General**,
+                          turn off **Clear search when keeping the palette open** to retain it. App controls
+                          remain available; dashboard actions belong to the currently selected dashboard.
+                          Choose **Switch dashboard** in the palette to open another registered dashboard.
                 second:
                   axis: vertical
                   first:

@@ -367,6 +367,12 @@ This allows:
 The application shell should expose its own navigation and lifecycle actions,
 configured project commands, and actions contributed by active components
 through one searchable command palette.
+The palette keeps application controls available while limiting dashboard
+actions to the selected dashboard. One Switch dashboard chooser keeps navigation
+to other registered dashboards available without listing their individual
+actions in the main results. Holding Command while invoking an action
+keeps the palette open for successive actions; a user setting decides whether
+to clear its search, with clearing as the default.
 
 Application settings separate general behavior, appearance defaults and
 per-dashboard appearance selections from the action catalog. Users

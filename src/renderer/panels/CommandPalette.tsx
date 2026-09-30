@@ -12,6 +12,8 @@ interface CommandPaletteProps {
   favoriteActionIds: ReadonlySet<string>;
   actionShortcuts: Readonly<Record<string, string>>;
   favoritesDisabled: boolean;
+  clearInputOnKeepOpen: boolean;
+  executionError?: string | null;
   initialActionId?: string | null;
   initialSelections?: ComponentActionSelections;
   onDismiss(): void;
@@ -36,6 +38,8 @@ export function CommandPalette({
   favoriteActionIds,
   actionShortcuts,
   favoritesDisabled,
+  clearInputOnKeepOpen,
+  executionError,
   initialActionId,
   initialSelections = {},
   onDismiss,
@@ -53,6 +57,7 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const keepOpenRef = useRef(false);
 
   const effectiveActions = useMemo(
     () =>
@@ -94,6 +99,7 @@ export function CommandPalette({
     setChoiceIndex(0);
     setChoices({});
     setStatus("");
+    keepOpenRef.current = false;
     requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
       const target = restoreFocusRef.current;
@@ -160,17 +166,38 @@ export function CommandPalette({
   }, [open, choiceActionId, choiceIndex, confirmationId]);
 
   function dismiss(): void {
+    keepOpenRef.current = false;
     setConfirmationId(null);
     setChoiceActionId(null);
     setChoices({});
     onDismiss();
   }
 
-  function choose(action: PaletteAction): void {
+  function execute(id: string, selections?: ComponentActionSelections, keepOpen = keepOpenRef.current): void {
+    if (keepOpen) {
+      keepOpenRef.current = false;
+      setConfirmationId(null);
+      setChoiceActionId(null);
+      setChoiceIndex(0);
+      setChoices({});
+      if (clearInputOnKeepOpen) {
+        setQuery("");
+        setSelectedIndex(0);
+      }
+      setStatus("Action invoked. Choose another action.");
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } else {
+      dismiss();
+    }
+    onExecute(id, selections);
+  }
+
+  function choose(action: PaletteAction, keepOpen = false): void {
     if (!action.enabled) {
       setStatus(action.disabledReason ?? "This action is unavailable.");
       return;
     }
+    keepOpenRef.current = keepOpen;
     if (action.choices?.length) {
       setChoiceActionId(action.id);
       setChoiceIndex(0);
@@ -183,8 +210,7 @@ export function CommandPalette({
       setStatus("");
       return;
     }
-    dismiss();
-    onExecute(action.id);
+    execute(action.id);
   }
 
   function moveSelection(nextIndex: number): void {
@@ -212,7 +238,7 @@ export function CommandPalette({
     } else if (event.key === "Enter") {
       event.preventDefault();
       const action = ranked[selectedIndex];
-      if (action) choose(action);
+      if (action) choose(action, event.metaKey);
     }
   }
 
@@ -238,6 +264,14 @@ export function CommandPalette({
       } else {
         dismiss();
       }
+      return;
+    }
+    if (event.key === "Enter" && event.metaKey && event.target instanceof HTMLButtonElement &&
+      (event.target.matches(".command-palette__choice") || event.target === confirmRef.current)) {
+      event.preventDefault();
+      event.stopPropagation();
+      keepOpenRef.current = true;
+      event.target.click();
       return;
     }
     if (currentChoice && !confirmationId &&
@@ -306,7 +340,8 @@ export function CommandPalette({
             {choiceError ? <p role="alert">{choiceError}</p> : (
               <div className="command-palette__choice-list" role="group" aria-label={currentChoice.label}>
                 {choiceOptions.map((option) => (
-                  <button className="button button--quiet command-palette__choice" type="button" key={option.value} onClick={() => {
+                  <button className="button button--quiet command-palette__choice" type="button" key={option.value} onClick={(event) => {
+                    keepOpenRef.current ||= event.metaKey;
                     const next = { ...choices, [currentChoice.id]: option.value };
                     let nextIndex = choiceIndex + 1;
                     while (
@@ -321,8 +356,7 @@ export function CommandPalette({
                       setChoiceIndex(nextIndex);
                       setConfirmationId(choiceAction.id);
                     } else {
-                      dismiss();
-                      onExecute(choiceAction.id, next);
+                      execute(choiceAction.id, next);
                     }
                   }}>
                     <strong>{option.label}</strong>{option.description ? <span>{option.description}</span> : null}
@@ -373,11 +407,10 @@ export function CommandPalette({
                 className="button button--danger"
                 type="button"
                 ref={confirmRef}
-                onClick={() => {
+                onClick={(event) => {
                   const id = confirmationAction.id;
                   const selections = choices;
-                  dismiss();
-                  onExecute(id, selections);
+                  execute(id, selections, keepOpenRef.current || event.metaKey);
                 }}
               >
                 {confirmationAction.confirmation.confirmLabel ?? "Confirm"}
@@ -398,7 +431,7 @@ export function CommandPalette({
                 aria-controls="command-palette-results"
                 aria-expanded="true"
                 aria-activedescendant={activeOption}
-                placeholder="Search actions, dashboards, and commands…"
+                placeholder="Search actions and commands…"
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -410,6 +443,8 @@ export function CommandPalette({
               <kbd>Esc</kbd>
             </div>
 
+            {executionError ? <p role="alert">{executionError}</p> : null}
+
             <div
               className="command-palette__results"
               id="command-palette-results"
@@ -419,7 +454,7 @@ export function CommandPalette({
               {ranked.length === 0 ? (
                 <div className="command-palette__empty">
                   <strong>No matching actions</strong>
-                  <span>Try a dashboard name, component, or configured command.</span>
+                  <span>Try a component, configured command, or app control.</span>
                 </div>
               ) : (
                 ranked.map((action, index) => {
@@ -453,8 +488,11 @@ export function CommandPalette({
                           className={`command-palette__option${
                             index === selectedIndex ? " command-palette__option--selected" : ""
                           }${!action.enabled ? " command-palette__option--disabled" : ""}`}
-                          onMouseEnter={() => setSelectedIndex(index)}
-                          onClick={() => choose(action)}
+                          onMouseMove={(event) => {
+                            // Opening, filtering, and scrolling can put a row under a stationary cursor.
+                            if (event.movementX !== 0 || event.movementY !== 0) setSelectedIndex(index);
+                          }}
+                          onClick={(event) => choose(action, event.metaKey)}
                         >
                           <span className="command-palette__option-copy">
                             <strong>{action.label}</strong>
@@ -491,6 +529,7 @@ export function CommandPalette({
             <footer className="command-palette__footer">
               <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
               <span><kbd>↵</kbd> Run</span>
+              <span><kbd>⌘↵</kbd> Run and keep open</span>
               <span className="command-palette__count">
                 {ranked.length} {ranked.length === 1 ? "action" : "actions"}
               </span>

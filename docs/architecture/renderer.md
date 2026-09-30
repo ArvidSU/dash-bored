@@ -564,7 +564,26 @@ provider groups, weighting visible action labels above keywords and incidental
 description, group, or source matches. Exact and prefix matches beat loose fuzzy
 matches; multiword queries also match partial words in any order and across
 fields, requiring every word. Empty queries retain provider group order, and
-groups plus registration order break relevance ties.
+groups plus registration order break relevance ties. Opening the palette and
+editing the search select the top result. Hover selection changes only on mouse
+movement; results moving under a stationary cursor cannot override search or
+keyboard selection.
+
+Palette results retain application controls and the selected dashboard's
+actions. One **Switch dashboard** action offers available registered dashboards
+as choices, identified by canonical config path. The individual
+`dashboard:<encoded-config-path>` actions declare
+`parentActionId: app:switch-dashboard`, keeping them out of main results,
+searches, and favorites. The sidebar, shortcut registry, Settings action catalog,
+and agent-control channel retain their existing dashboard navigation actions.
+Holding Command on Enter or an action click keeps the palette open. That intent
+also carries through choice and confirmation steps; it can be set on the final
+step. After invocation, the palette returns to search with keyboard focus in
+the input, refreshes availability, and shows invocation failures inside the
+dialog. The app setting `clearPaletteInputOnKeepOpen` defaults to `true`,
+including for older saved settings; `false` preserves the search text. Normal
+Enter and clicks still dismiss after invocation. Running and confirmation rules
+continue through the shared executor.
 
 Favorites are stored by stable action ID, so a temporarily unmounted component
 action can regain its favorite state when it registers again. Search first

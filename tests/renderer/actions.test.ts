@@ -590,6 +590,42 @@ describe("application action providers", () => {
     expect(stopping.every((item) => !item.enabled && item.disabledReason === "This process is stopping.")).toBeTrue();
   });
 
+  test("switches dashboards through one chooser while retaining direct stable actions", async () => {
+    const projects = [
+      { projectRoot: "/workspace/example", configPath: "/workspace/example/.dash-bored/dash-bored.yaml", dashboardName: "Example" },
+      { projectRoot: "/workspace/example", configPath: "/workspace/example/.dash-bored/other/dash-bored.yaml", dashboardName: "Other" },
+    ];
+    const opened: string[] = [];
+    const context = {
+      snapshot: snapshot({ configPath: projects[0]!.configPath }), projects,
+      activeView: "dashboard" as const, sidebarExpanded: false, pendingAction: null,
+      editing: false, draftDirty: false, draftValid: false, savingDraft: false,
+      callbacks: { ...callbacks, openProject: async (project: typeof projects[number]) => { opened.push(project.configPath); } },
+    };
+    const actions = buildApplicationActions(context);
+    const chooser = actions.find(({ id }) => id === "app:switch-dashboard")!;
+    expect(chooser.enabled).toBeTrue();
+    expect(chooser.choices?.[0]?.options).toEqual([{
+      value: projects[1]!.configPath, label: "Other", description: projects[1]!.configPath,
+    }]);
+    const matches = rankActions(actions, "Other");
+    expect(matches[0]?.id).toBe("app:switch-dashboard");
+    expect(matches.some(({ id }) => id.startsWith("dashboard:"))).toBeFalse();
+    expect(rankActions(actions, "", new Set([`dashboard:${encodeURIComponent(projects[1]!.configPath)}`]))
+      .some(({ id }) => id.startsWith("dashboard:"))).toBeFalse();
+    expect(rankActions(actions, "reload app").some(({ id }) => id === "app:reload")).toBeTrue();
+    await chooser.run({ dashboard: projects[1]!.configPath });
+    await actions.find(({ id }) => id === `dashboard:${encodeURIComponent(projects[1]!.configPath)}`)!.run();
+    expect(opened).toEqual([projects[1]!.configPath, projects[1]!.configPath]);
+    expect(() => chooser.run({ dashboard: "/stale/dashboard" })).toThrow("Choose an available dashboard");
+    const single = buildApplicationActions({ ...context, projects: [projects[0]!] });
+    expect(single.find(({ id }) => id === "app:switch-dashboard")?.enabled).toBeFalse();
+    const pending = buildApplicationActions({ ...context, pendingAction: "open" });
+    expect(pending.find(({ id }) => id === "app:switch-dashboard")?.disabledReason).toBe("Another application action is in progress.");
+    const settings = buildApplicationActions({ ...context, activeView: "settings" });
+    expect(settings.find(({ id }) => id === "app:switch-dashboard")?.choices?.[0]?.options).toHaveLength(2);
+  });
+
   test("derives focus actions for every node in the active dashboard", () => {
     let focusedNode: string | undefined;
     const actions = buildNodeFocusActions(

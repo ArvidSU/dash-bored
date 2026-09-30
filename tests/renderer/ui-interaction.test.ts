@@ -156,6 +156,57 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("palette search keeps the top result selected until the pointer moves", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      const options = palette.getByRole("option");
+      const secondBox = await options.nth(1).boundingBox();
+      if (!secondBox) throw new Error("Second palette result is unavailable.");
+      const pointer = { x: secondBox.x + 20, y: secondBox.y + secondBox.height / 2 };
+      await proof.mouse.move(pointer.x, pointer.y);
+      expect(await options.nth(1).getAttribute("aria-selected")).toBe("true");
+
+      await input.press("Escape");
+      await proof.keyboard.press("Meta+k");
+      await palette.waitFor();
+      const settlePointer = () => proof.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
+      await settlePointer();
+      expect(await options.first().getAttribute("aria-selected")).toBe("true");
+
+      for (const character of "app") {
+        await input.press(character);
+        await settlePointer();
+        expect(await options.first().getAttribute("aria-selected")).toBe("true");
+        expect(await input.getAttribute("aria-activedescendant")).toBe(await options.first().getAttribute("id"));
+      }
+      expect(await input.evaluate((element) => element === document.activeElement)).toBe(true);
+
+      // Moving inside the already-hovered row must resume pointer selection.
+      await proof.mouse.move(pointer.x + 1, pointer.y);
+      const hoveredId = await proof.evaluate(({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest('[role="option"]')?.id, pointer);
+      if (!hoveredId) throw new Error("The stationary cursor no longer covers a palette result.");
+      expect(await proof.locator(`#${hoveredId}`).getAttribute("aria-selected")).toBe("true");
+      expect(await input.getAttribute("aria-activedescendant")).toBe(hoveredId);
+
+      await input.press("ArrowDown");
+      const keyboardSelection = await input.getAttribute("aria-activedescendant");
+      await settlePointer();
+      expect(await input.getAttribute("aria-activedescendant")).toBe(keyboardSelection);
+      await input.press("Backspace");
+      await settlePointer();
+      expect(await options.first().getAttribute("aria-selected")).toBe("true");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("focus targets are choices under one main palette action", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     try {
@@ -202,6 +253,137 @@ describe("renderer fixture interactions", () => {
       await palette.getByRole("button", { name: /^Responsive tile/ }).click();
       await palette.waitFor({ state: "hidden" });
       await frame.locator(".component-node__collapsed").waitFor({ state: "hidden" });
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("Command execution keeps the palette open and clears search by default for repeated actions", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      await input.fill("expand sidebar");
+      await input.press("Meta+Enter");
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).waitFor();
+      expect(await input.inputValue()).toBe("");
+      expect(await input.evaluate((element) => element === document.activeElement)).toBeTrue();
+      await input.fill("collapse sidebar");
+      await palette.getByRole("option", { name: /Collapse sidebar/ }).click({ modifiers: ["Meta"] });
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+      expect(await input.inputValue()).toBe("");
+      await input.fill("reveal");
+      await input.press("Meta+Enter");
+      await palette.getByRole("group", { name: "Reveal component", exact: true }).waitFor();
+      await palette.getByRole("button", { name: /^Responsive tile/ }).click();
+      await input.waitFor();
+      expect(await input.inputValue()).toBe("");
+      // Holding Command at the final choice works even when the parent opened normally.
+      await input.fill("reveal");
+      await input.press("Enter");
+      const target = palette.getByRole("button", { name: /^Responsive tile/ });
+      await target.focus();
+      await target.press("Meta+Enter");
+      await input.waitFor();
+      expect(await input.inputValue()).toBe("");
+      await input.fill("expand sidebar");
+      await input.press("Enter");
+      await palette.waitFor({ state: "hidden" });
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).waitFor();
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("General setting preserves search for keep-open execution and persists through reopening Settings", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Settings", exact: true }).click();
+      const preference = proof.getByRole("checkbox", { name: "Clear search when keeping the palette open" });
+      expect(await preference.isChecked()).toBeTrue();
+      await proof.screenshot({ path: "/tmp/dash-bored-palette-settings-desktop.png" });
+      await proof.setViewportSize({ width: 390, height: 844 });
+      await proof.screenshot({ path: "/tmp/dash-bored-palette-settings-narrow.png" });
+      const cardBox = await proof.locator('[aria-labelledby="palette-settings-title"]').boundingBox();
+      if (!cardBox) throw new Error("Palette settings are not visible.");
+      expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(390);
+      await preference.uncheck();
+      await proof.getByRole("status").getByText("Keep-open actions will preserve the palette search.", { exact: true }).waitFor();
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      await input.fill("show dashboard");
+      await input.press("Meta+Enter");
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      expect(await input.inputValue()).toBe("show dashboard");
+      await proof.screenshot({ path: "/tmp/dash-bored-palette-keep-open-narrow.png" });
+      // Availability refreshes after execution; a disabled action cannot close or clear the palette.
+      expect(await palette.getByRole("option", { name: /Show dashboard/ }).getAttribute("aria-disabled")).toBe("true");
+      await input.press("Meta+Enter");
+      expect(await input.inputValue()).toBe("show dashboard");
+      await proof.keyboard.press("Escape");
+      await proof.getByRole("button", { name: "Settings", exact: true }).click();
+      expect(await preference.isChecked()).toBeFalse();
+      await preference.check();
+      await proof.getByRole("status").getByText("Keep-open actions will clear the palette search.", { exact: true }).waitFor();
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("keep-open intent crosses confirmation and multiple choice steps without bypassing them", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      await input.fill("set default theme");
+      await input.press("Meta+Enter");
+      await palette.getByRole("group", { name: "Select default theme", exact: true }).waitFor();
+      await palette.getByRole("group", { name: "Select default theme", exact: true }).getByRole("button").first().click();
+      await palette.getByRole("group", { name: "Select default appearance", exact: true }).waitFor();
+      await palette.getByRole("button", { name: "Light", exact: true }).click();
+      await input.waitFor();
+      expect(await input.inputValue()).toBe("");
+      await proof.waitForFunction(() => document.documentElement.dataset.appearance === "light");
+      await input.fill("revoke project trust");
+      await input.press("Meta+Enter");
+      await palette.getByRole("heading", { name: "Revoke project trust?", exact: true }).waitFor();
+      expect(await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).trusted)).toBeTrue();
+      await palette.getByRole("button", { name: "Revoke trust", exact: true }).click();
+      await input.waitFor();
+      await proof.waitForFunction(async () => !(await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).trusted);
+      expect(await input.inputValue()).toBe("");
+      await proof.keyboard.press("Escape");
+      await palette.waitFor({ state: "hidden" });
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("Switch dashboard opens its chooser and supports keep-open navigation", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Settings", exact: true }).click();
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      await input.fill("switch dashboard");
+      await palette.getByRole("option", { name: /Switch dashboard/ }).click();
+      const choices = palette.getByRole("group", { name: "Switch dashboard", exact: true });
+      await choices.waitFor();
+      expect(await choices.getByRole("button").count()).toBe(1);
+      await choices.getByRole("button").first().press("Meta+Enter");
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      await input.waitFor();
+      expect(await input.inputValue()).toBe("");
+      await proof.keyboard.press("Escape");
+      await palette.waitFor({ state: "hidden" });
     } finally {
       await proof.close();
     }
@@ -1171,7 +1353,7 @@ describe("renderer fixture interactions", () => {
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
-      await proof.getByRole("button", { name: "Open component library" }).waitFor();
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
       expect(await proof.locator(".setup-agent").count()).toBe(0);
       await proof.getByRole("button", { name: "Open component library" }).click();
       await proof.getByRole("button", { name: "Insert Dashboard setup agent", exact: true }).click();
@@ -1221,7 +1403,7 @@ describe("renderer fixture interactions", () => {
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
-      await proof.getByRole("button", { name: "Open component library" }).waitFor();
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();

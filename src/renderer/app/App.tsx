@@ -112,6 +112,7 @@ export function App(): ReactNode {
     sidebarExpandedByDefault: false,
     favoriteActionIds: [],
     commandPaletteShortcut: "Mod+K",
+    clearPaletteInputOnKeepOpen: true,
     actionShortcuts: { "app:reload": "Mod+Shift+R" },
   });
   const appSettingsRevision = useRef(0);
@@ -1920,6 +1921,8 @@ export function App(): ReactNode {
         runningActionIds={runningActionIds}
         favoriteActionIds={favoriteActionIds}
         actionShortcuts={appSettings.actionShortcuts}
+        clearInputOnKeepOpen={appSettings.clearPaletteInputOnKeepOpen}
+        executionError={actionError}
         favoritesDisabled={pendingAction !== null}
         initialActionId={paletteInitialActionId}
         onDismiss={() => {
@@ -1931,13 +1934,20 @@ export function App(): ReactNode {
           setPaletteOpen(false);
         }}
         initialSelections={paletteInvocationActionId === paletteInitialActionId ? paletteInvocationArgs as Readonly<Record<string, string>> : {}}
-        onExecute={(id, selections) => void executePaletteAction(
-          id,
-          selections,
-          paletteInvocationActionId === id ? paletteInvocationArgs : {},
-          paletteInvocationActionId === id ? paletteCallerNodeId : undefined,
-          paletteInvocationActionId === id ? paletteInvocationKey : id,
-        )}
+        onExecute={(id, selections) => {
+          void executePaletteAction(
+            id,
+            selections,
+            paletteInvocationActionId === id ? paletteInvocationArgs : {},
+            paletteInvocationActionId === id ? paletteCallerNodeId : undefined,
+            paletteInvocationActionId === id ? paletteInvocationKey : id,
+          );
+          setPaletteInitialActionId(null);
+          setPaletteInvocationActionId(null);
+          setPaletteInvocationArgs({});
+          setPaletteCallerNodeId(undefined);
+          setPaletteInvocationKey(undefined);
+        }}
         onToggleFavorite={toggleFavoriteAction}
       />
       <CompositionFlyout

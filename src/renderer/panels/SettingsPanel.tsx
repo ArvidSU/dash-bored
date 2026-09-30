@@ -220,13 +220,28 @@ export function SettingsPanel({
         <div>
           <h2 id="palette-settings-title">Command palette</h2>
           <p>Open the searchable action list from anywhere in the app.</p>
+          <p>Hold Command when running an action (⌘Enter or ⌘click) to keep the palette open.</p>
         </div>
-        <ShortcutRecorder
-          label="Command palette"
-          shortcut={appSettings.commandPaletteShortcut}
-          disabled={savingSettings}
-          onChange={updatePaletteShortcut}
-        />
+        <div className="settings-palette-controls">
+          <ShortcutRecorder
+            label="Command palette"
+            shortcut={appSettings.commandPaletteShortcut}
+            disabled={savingSettings}
+            onChange={updatePaletteShortcut}
+          />
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={appSettings.clearPaletteInputOnKeepOpen}
+              disabled={savingSettings}
+              onChange={(event) => onUpdateSettings(
+                { ...appSettings, clearPaletteInputOnKeepOpen: event.target.checked },
+                event.target.checked ? "Keep-open actions will clear the palette search." : "Keep-open actions will preserve the palette search.",
+              )}
+            />
+            <span>Clear search when keeping the palette open</span>
+          </label>
+        </div>
       </section>
       <section className="settings-card" aria-labelledby="sidebar-settings-title">
         <div>
