@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ProjectSnapshot, ResolvedComponentNode } from "../../src/shared/contracts";
 import { buildRevealActions, buildSelectionActions, revealItemArgument } from "../../src/renderer/lib/selection-actions";
 import { getBuiltinManifest } from "../../src/core/builtins";
+import { rankActions } from "../../src/renderer/lib/actions";
 
 const child: ResolvedComponentNode = { id: "overview", component: "@dash-bored/status", props: { title: "Overview" }, source: "builtin" };
 const other: ResolvedComponentNode = { id: "details", component: "@dash-bored/markdown", props: { title: "Details" }, source: "builtin" };
@@ -34,8 +35,30 @@ describe("selection and reveal actions", () => {
   test("reveal actions address every node by stable ID", () => {
     const actions = buildRevealActions(snapshot, () => {});
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
+      ["project:reveal", undefined],
       ["reveal:panels", undefined], ["reveal:overview", undefined], ["reveal:details", undefined],
     ]);
+  });
+
+  test("groups reveal targets under one searchable chooser and awaits the selected target", async () => {
+    const calls: string[] = [];
+    const actions = buildRevealActions(snapshot, async (nodeId) => {
+      await Promise.resolve();
+      calls.push(nodeId);
+    });
+    expect(rankActions(actions, "reveal").map(({ id }) => id)).toEqual(["project:reveal"]);
+    expect(rankActions(actions, "details").map(({ id }) => id)).toEqual(["project:reveal"]);
+    expect(rankActions(actions, "", new Set(["reveal:details"])).map(({ id }) => id)).toEqual(["project:reveal"]);
+    expect(rankActions(actions, "reveal", new Set(), true).map(({ id }) => id)).toContain("reveal:details");
+    expect(actions[0]!.choices?.[0]?.options).toEqual([
+      { value: "panels", label: "Dashboard", description: actions[1]!.description },
+      { value: "overview", label: "Overview", description: actions[2]!.description },
+      { value: "details", label: "Details", description: actions[3]!.description },
+    ]);
+    await actions[0]!.run({ node: "details" });
+    expect(calls).toEqual(["details"]);
+    expect(() => actions[0]!.run({ node: "missing" })).toThrow("Choose an available component to reveal.");
+    expect(buildRevealActions(null, () => {})).toEqual([]);
   });
 
   test("reveal passes an optional item ID and refuses other arguments", async () => {

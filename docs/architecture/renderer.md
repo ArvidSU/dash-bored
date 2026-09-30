@@ -503,6 +503,11 @@ command palette merges three providers:
   `parentActionId: project:focus` and stay out of top-level palette results,
   including searches and favorites, while remaining callable through buttons,
   shortcuts, and agent tools;
+- one **Reveal component** action whose choice step lists every resolved node
+  in the selected dashboard. Individual `reveal:<node-id>` actions declare
+  `parentActionId: project:reveal` and stay out of top-level palette results,
+  including searches and favorites. Buttons, shortcuts, and agent tools retain
+  those stable actions and their optional item argument;
 - run actions (`process:<node-id>`) derived from every resolved process
   resource and its authoritative process snapshot, disabled only while a run
   is active, plus a separate close/stop action while the terminal or process

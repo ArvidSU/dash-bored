@@ -64,6 +64,7 @@ export function buildRevealActions(
     actions.push({
       id: `reveal:${encodeURIComponent(node.id)}`,
       reference: `reveal:${encodeURIComponent(node.id)}`,
+      parentActionId: "project:reveal",
       label: `Reveal ${label}`,
       description: `Expand and show ${label} in the active dashboard; an item argument also highlights that item.`,
       keywords: ["reveal", "show", node.id, node.component, label],
@@ -73,5 +74,26 @@ export function buildRevealActions(
       run: (_selections, args) => revealNode(node.id, revealItemArgument(args)),
     });
   });
-  return actions;
+  return [{
+    id: "project:reveal",
+    label: "Reveal component",
+    description: "Choose a component to expand and show in the active dashboard.",
+    keywords: ["reveal", "show", snapshot.dashboardName ?? "", ...actions.flatMap((action) => action.keywords)],
+    group: "Dashboard presentation",
+    enabled: true,
+    choices: [{
+      id: "node",
+      label: "Reveal component",
+      options: actions.map((action) => ({
+        value: action.source!,
+        label: action.label.replace(/^Reveal /, ""),
+        description: action.description,
+      })),
+    }],
+    run: (selections) => {
+      const target = actions.find((action) => action.source === selections?.node);
+      if (!target) throw new Error("Choose an available component to reveal.");
+      return target.run();
+    },
+  } satisfies PaletteAction, ...actions];
 }

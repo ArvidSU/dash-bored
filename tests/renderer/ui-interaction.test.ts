@@ -180,6 +180,33 @@ describe("renderer fixture interactions", () => {
     }
   }, 20_000);
 
+  test("reveal targets are choices under one main palette action", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      const frame = proof.locator('[data-node-id="responsive-card"]');
+      await frame.waitFor();
+      await frame.locator("header").first().click({ button: "right" });
+      await proof.getByRole("menuitem", { name: "Collapse component", exact: true }).click();
+      await frame.getByRole("button", { name: "Expand Responsive tile component", exact: true }).waitFor();
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("reveal");
+      await palette.getByRole("option", { name: /Reveal component/ }).waitFor();
+      expect(await palette.getByRole("option", { name: /^Reveal / }).count()).toBe(1);
+      await palette.getByRole("option", { name: /Reveal component/ }).click();
+      await palette.getByRole("group", { name: "Reveal component", exact: true }).waitFor();
+      await palette.getByRole("button", { name: "Back", exact: true }).click();
+      await palette.getByRole("combobox").waitFor();
+      await palette.getByRole("option", { name: /Reveal component/ }).click();
+      await palette.getByRole("button", { name: /^Responsive tile/ }).click();
+      await palette.waitFor({ state: "hidden" });
+      await frame.locator(".component-node__collapsed").waitFor({ state: "hidden" });
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("brand decoration stays centered inside the icon throughout sidebar transitions", async () => {
     const active = currentPage();
     const originalViewport = active.viewportSize();
