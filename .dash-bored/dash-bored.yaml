@@ -1,7 +1,7 @@
 schemaVersion: 3
 name: Dash Bored
 icon: ../assets/icon.svg
-theme: ./themes/ocean
+theme: ./themes/retro-industrial
 themeMode: system
 root:
   id: project-cockpit
@@ -388,26 +388,26 @@ root:
                               - agent
                               - skill
                           - id: todo-glance-changes-since-visit
-                            description: "Persist \"changed since you last looked\" per dashboard across remounts and reloads (a bounded last-seen snapshot per status/list node), so tab switches and restarts keep the cue; today status and list change markers are per-mount and in memory."
+                            description: Persist "changed since you last looked" per dashboard across remounts and reloads (a bounded last-seen snapshot per status/list node), so tab switches and restarts keep the cue; today status and list change markers are per-mount and in memory.
                             done: false
                             tags:
                               - renderer
                               - visual
                           - id: todo-glance-status-history
-                            description: "Offer an opt-in status history strip built from retained recent observations (bounded, reduced-motion aware) for sources that cannot emit their own trend, such as the working-tree status."
+                            description: Offer an opt-in status history strip built from retained recent observations (bounded, reduced-motion aware) for sources that cannot emit their own trend, such as the working-tree status.
                             done: false
                             tags:
                               - renderer
                               - visual
                           - id: todo-glance-chart-part-of-whole
-                            description: "Add a chart variant for part-of-whole history (stacked bars, e.g. QA pass/fail per run) and a real QA run-history source to feed it on the Overview."
+                            description: Add a chart variant for part-of-whole history (stacked bars, e.g. QA pass/fail per run) and a real QA run-history source to feed it on the Overview.
                             done: false
                             tags:
                               - renderer
                               - visual
                               - qa
                           - id: todo-drag-handle-button-overlap
-                            description: "The hover drag handle (top 5-22 px, centered) reaches the vertical centre of a single 44 px action-button frame, so a click exactly at the button's centre can land on the handle. Move or shrink the handle for short frames; the renderer UI tests click below it for now."
+                            description: The hover drag handle (top 5-22 px, centered) reaches the vertical centre of a single 44 px action-button frame, so a click exactly at the button's centre can land on the handle. Move or shrink the handle for short frames; the renderer UI tests click below it for now.
                             done: false
                             tags:
                               - bug
