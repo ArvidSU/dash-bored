@@ -4,15 +4,15 @@ Generated from the v1 contract. Both variant maps inherit these defaults. Colors
 
 | Token | Dark | Light |
 | --- | --- | --- |
-| `bg` | #0e141e | #f4f6fa |
-| `surface` | #17202d | #ffffff |
-| `surface-raised` | #202b3b | #edf0f5 |
-| `surface-hover` | #29364a | #e3e8ef |
-| `border` | #303d50 | #d3dbe5 |
-| `border-bright` | #51617a | #aab6c5 |
-| `text` | #ecf1fa | #18212e |
-| `muted` | #a4b1c5 | #526176 |
-| `faint` | #8493aa | #657389 |
+| `bg` | #0a0f17 | #e8ecf2 |
+| `surface` | #151d2a | #ffffff |
+| `surface-raised` | #1e2939 | #f2f5f9 |
+| `surface-hover` | #283549 | #e6ebf2 |
+| `border` | #2e3a4d | #cfd7e2 |
+| `border-bright` | #50607a | #98a5b8 |
+| `text` | #edf2fa | #141c28 |
+| `muted` | #a9b5c8 | #4a586c |
+| `faint` | #8d9bb1 | #5b6a7f |
 | `accent` | #a8c8ff | #285fbb |
 | `accent-strong` | #80acfa | #17458f |
 | `accent-ink` | #101c30 | #ffffff |
@@ -23,9 +23,9 @@ Generated from the v1 contract. Both variant maps inherit these defaults. Colors
 | `highlight` | #ffffff14 | #ffffff |
 | `shadow-color` | #000000 | #000000 |
 | `positive` | #70e2a0 | #167345 |
-| `warning` | #f4c66b | #886000 |
+| `warning` | #f4c66b | #8a5a00 |
 | `negative` | #ff7b7b | #be303b |
-| `info` | #8fb8ff | #285fbb |
+| `info` | #c4a6ff | #6b46c1 |
 | `font-ui` | Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif | Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif |
 | `font-mono` | "SFMono-Regular", Consolas, "Liberation Mono", monospace | "SFMono-Regular", Consolas, "Liberation Mono", monospace |
 | `radius-sm` | 7px | 7px |

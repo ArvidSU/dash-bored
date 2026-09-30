@@ -1,11 +1,11 @@
 /** Public v1 design-token contract. Values are data, never CSS source. */
 export const DARK_TOKENS = {
-  bg: '#0e141e', surface: '#17202d', 'surface-raised': '#202b3b', 'surface-hover': '#29364a',
-  border: '#303d50', 'border-bright': '#51617a', text: '#ecf1fa', muted: '#a4b1c5', faint: '#8493aa',
+  bg: '#0a0f17', surface: '#151d2a', 'surface-raised': '#1e2939', 'surface-hover': '#283549',
+  border: '#2e3a4d', 'border-bright': '#50607a', text: '#edf2fa', muted: '#a9b5c8', faint: '#8d9bb1',
   accent: '#a8c8ff', 'accent-strong': '#80acfa', 'accent-ink': '#101c30',
   'accent-soft': '#273e61', 'panel-dark': '#0a0c10', 'panel-dark-muted': '#161a22',
   'border-dark': '#343c49', highlight: '#ffffff14',
-  'shadow-color': '#000000', positive: '#70e2a0', warning: '#f4c66b', negative: '#ff7b7b', info: '#8fb8ff',
+  'shadow-color': '#000000', positive: '#70e2a0', warning: '#f4c66b', negative: '#ff7b7b', info: '#c4a6ff',
   'font-ui': 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   'font-mono': '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
   'radius-sm': '7px', radius: '11px', 'radius-lg': '17px', shadow: '0px 18px 60px 0px #00000047',
@@ -68,12 +68,12 @@ export interface ThemeCatalogItem {
 }
 export const LIGHT_TOKENS: ThemeTokens = {
   ...DARK_TOKENS,
-  bg: '#f4f6fa', surface: '#ffffff', 'surface-raised': '#edf0f5', 'surface-hover': '#e3e8ef',
-  border: '#d3dbe5', 'border-bright': '#aab6c5', text: '#18212e', muted: '#526176', faint: '#657389',
+  bg: '#e8ecf2', surface: '#ffffff', 'surface-raised': '#f2f5f9', 'surface-hover': '#e6ebf2',
+  border: '#cfd7e2', 'border-bright': '#98a5b8', text: '#141c28', muted: '#4a586c', faint: '#5b6a7f',
   accent: '#285fbb', 'accent-strong': '#17458f', 'accent-ink': '#ffffff',
   'accent-soft': '#dbe7fa', 'panel-dark': '#18212e', 'panel-dark-muted': '#2c3644',
   'border-dark': '#657389', highlight: '#ffffff',
-  positive: '#167345', warning: '#886000', negative: '#be303b', info: '#285fbb',
+  positive: '#167345', warning: '#8a5a00', negative: '#be303b', info: '#6b46c1',
   shadow: '0px 18px 60px 0px #18212e24',
   'terminal-background': '#f8fafc', 'terminal-foreground': '#18212e', 'terminal-cursor': '#285fbb',
   'terminal-selection': '#dbe7fa', 'terminal-black': '#18212e', 'terminal-red': '#ad2334',

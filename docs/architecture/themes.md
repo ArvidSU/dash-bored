@@ -6,10 +6,14 @@ semantic token names, light/dark defaults, schema, and fallback resolver.
 `bun run generate:themes` generates the public JSON Schema, initial renderer
 CSS defaults, and the shipped token reference; a drift test checks all three.
 Built-in light and dark variants use calm blue navigation accents, separated
-surface levels, and readable secondary text. Health, warnings, and failures
-retain their semantic colors rather than borrowing the navigation accent.
+surface levels (the page background sits visibly below cards), and readable
+secondary text: `muted` and every semantic color reach WCAG AA (4.5:1) on
+`surface` and `surface-raised` in both variants. Health (green), warnings
+(amber), failures (red), and `info` (violet) keep hues distinct from the blue
+navigation accent and from each other rather than borrowing it.
 The development dashboard uses `./themes/ocean`; `./themes/retro-industrial`
-remains an optional warm equipment-panel theme. Shared
+remains an optional warm equipment-panel theme tuned to the same bar, with
+ochre warnings and crimson failures kept apart from its orange accent. Shared
 spacing, type-scale (`--font-size-2xs` … `--font-size-xl`, 10–17 px),
 control-state, and border tokens remain renderer-owned in `styles.css` so
 themes do not become layout overrides; built-in components use the type-scale
