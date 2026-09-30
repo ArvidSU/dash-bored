@@ -89,8 +89,14 @@ source equals the link target and that target is a bundled
   guided dashboard with an editable bundle-local `.env` file, a
   `agent:prompt` button that opens a reviewed starter prompt in the configured
   app-owned agent harness with the app-wide `DASH_BORED_AGENT` override when
-  set, and conditional commands that install the packaged skill globally or
-  into the project through `"$DASH_BORED_TOOL"`. The
+  set, and always-visible commands that install the packaged skill globally or
+  into the project through `"$DASH_BORED_TOOL"`. Each onboarding step pairs a
+  guide with a source-backed status (project trust, agent CLI on `PATH`, and
+  `install-skill --check` for each scope), so the outcome of every action stays
+  observable instead of hiding completed steps. A component tour below uses a
+  tab-styled action bar over a selection container; its status, list, chart,
+  and Markdown panels read the project's own files through bounded POSIX shell
+  sources (`git ls-files` inside a work tree, `find` otherwise). The
   starter presets a bundle-local `icon` (`./assets/icon.svg`, a silent generic
   glyph until the file exists), and its agent prompt instructs the agent to
   generate a project-customized SVG there while building the cockpit and to

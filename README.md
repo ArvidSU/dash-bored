@@ -246,9 +246,14 @@ while the view is hidden. Each source kind requests only its needed capability:
 shell execution, file read, HTTP, or process observation. The app bounds source
 timeouts and output, and shows a stale last value when a refresh fails.
 
-The generated dashboard is immediately valid and combines a short guided tour,
-a sampler of the available component primitives, and a setup action that asks your
-chosen CLI coding agent to tailor the dashboard to the project. It uses
+The generated dashboard is immediately valid. Its first screen is a
+**Get started** checklist: trust the project, choose your coding agent, install
+the dash-bored skill, and run the setup agent. Each step explains what its
+button does and what to expect, and shows a live status for the result, so
+installed skills and a missing agent CLI stay visible rather than disappearing.
+Below it, a tabbed component tour explains each component and shows it working
+on the project's own files. The setup action asks your chosen CLI coding agent
+to replace the starter with a project-specific cockpit. It uses
 `codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
 **Settings → General → Dashboard agent**. Leave that field empty and save when
 the active dashboard's `.env` should provide the command. The bundle environment
@@ -295,8 +300,8 @@ it opens Terminal, Diff, and Command tabs. Diff is scoped to the owning
 with a copy action. When configuration diagnostics are present, **Fix with
 agent** asks the configured CLI to repair the
 owning dashboard and includes the current reported issues, even when the tree
-cannot render. Adjacent starter actions install the skill globally or for this
-project. The global form writes the portable guidance and
+cannot render. The starter's skill step installs the skill globally or for
+this project and reports each scope's `install-skill --check` result. The global form writes the portable guidance and
 component-authoring reference to `~/.agents/skills/dash-bored/`; the project
 form writes to `.agents/skills/dash-bored/`. Both create
 `.claude/skills/dash-bored` as a link to the same canonical payload. Repeated

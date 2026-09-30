@@ -163,6 +163,66 @@ function formatDotenvValue(value: string): string {
     .replaceAll("\r", "\\r")}"`;
 }
 
+// Starter sources run through `/bin/sh -lc` in the project root. They list the
+// project's own files (honoring its ignore rules inside a Git work tree) and
+// shape the output for the built-in views, so the tour shows real data.
+const STARTER_PROJECT_FILES = String.raw`files() { if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git ls-files -z --cached --others --exclude-standard; else find . -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type f -print0; fi; }`;
+const STARTER_JSON_STRING = String.raw`function q(s){gsub(/\\/,"\\\\",s);gsub(/"/,"\\\"",s);gsub(/\t/,"\\t",s);return "\"" s "\""}`;
+// Escapes one line for a JSON string: drops ANSI color sequences and other
+// control bytes, which JSON forbids, then quotes backslashes and quotes.
+const STARTER_SH_JSON_STRING = String.raw`esc() { e=$(printf '\033'); printf '%s' "$1" | tr '\n\t' '  ' | sed "s/$e\[[0-9;]*[A-Za-z]//g" | LC_ALL=C tr -d '\000-\037\177' | sed 's/[\\"]/\\&/g'; }`;
+
+function starterRecentFilesSource(): string {
+  return [
+    STARTER_PROJECT_FILES,
+    String.raw`files | xargs -0 ls -td -- 2>/dev/null | head -n 12 | awk '${STARTER_JSON_STRING} BEGIN{printf "["} {p=$0; sub(/^\.\//,"",p); n=split(p,a,"/"); name=a[n]; dir=(n>1)?substr(p,1,length(p)-length(name)-1):"."; ext="no extension"; if (match(name,/\.[^.]+$/) && RSTART>1) ext=substr(name,RSTART); printf "%s{\"id\":%s,\"title\":%s,\"detail\":%s,\"tags\":[%s],\"path\":%s}", (NR>1?",":""), q(p), q(name), q(dir), q(ext), q(p)} END{print "]"}'`,
+  ].join("\n");
+}
+
+function starterFileTypesSource(): string {
+  return [
+    STARTER_PROJECT_FILES,
+    String.raw`files | tr '\0' '\n' | awk -F/ '{n=$NF; e="no extension"; if (match(n,/\.[^.]+$/) && RSTART>1) e=substr(n,RSTART); c[e]++} END{for (e in c) print c[e] "\t" e}' | sort -rn | head -n 8 | awk -F'\t' '${STARTER_JSON_STRING} {l=l (NR>1?",":"") q($2); v=v (NR>1?",":"") $1} END{printf "{\"labels\":[%s],\"series\":[{\"label\":\"Files\",\"values\":[%s]}]}\n", l, v}'`,
+  ].join("\n");
+}
+
+function starterActivitySource(): string {
+  return [
+    STARTER_PROJECT_FILES,
+    String.raw`count() { files | xargs -0 sh -c 'find "$@" -prune -type f '"$1"' -print' sh 2>/dev/null | wc -l | tr -d ' '; }`,
+    String.raw`all=$(count ""); day=$(count "-mtime -1"); week=$(($(count "-mtime -7") - day)); older=$((all - day - week))`,
+    String.raw`if [ "$all" -eq 0 ]; then echo '{"state":"unknown","detail":"No project files found yet."}'; exit 0; fi`,
+    String.raw`if [ $((day + week)) -gt 0 ]; then state=healthy; detail="$day changed today, $week earlier this week, $older older."; else state=warning; detail="No file changes in the last 7 days."; fi`,
+    String.raw`printf '{"state":"%s","detail":"%s","segments":[{"label":"Today","value":%s,"state":"healthy"},{"label":"This week","value":%s},{"label":"Older","value":%s,"state":"unknown"}]}\n' "$state" "$detail" "$day" "$week" "$older"`,
+  ].join("\n");
+}
+
+function starterReadmeSource(): string {
+  return String.raw`if [ -f README.md ]; then head -c 60000 README.md; else printf '%s\n\n' '### No README.md yet' 'This panel renders README.md from the project root once it exists. Until then, here are the top-level entries:'; ls -1p | head -n 30 | sed 's/^/- /'; fi`;
+}
+
+function starterSkillStatusSource(scope: "global" | "project"): string {
+  const target = scope === "global" ? "--global" : ".";
+  const installed = scope === "global"
+    ? "Installed in ~/.agents/skills/dash-bored, linked from ~/.claude/skills/dash-bored."
+    : "Installed in .agents/skills/dash-bored, linked from .claude/skills/dash-bored.";
+  return [
+    STARTER_SH_JSON_STRING,
+    String.raw`if [ -z "$DASH_BORED_TOOL" ]; then echo '{"state":"error","detail":"This app build does not publish its agent tool (DASH_BORED_TOOL is unset)."}'; exit 0; fi`,
+    `if out=$(FORCE_COLOR=0 "$DASH_BORED_TOOL" install-skill ${target} --check 2>&1); then echo '{"state":"healthy","detail":"${installed}"}'; else printf '{"state":"warning","detail":"Not installed yet: %s"}\\n' "$(esc "$(printf '%s' "$out" | head -n 1)")"; fi`,
+  ].join("\n");
+}
+
+function starterAgentStatusSource(): string {
+  return [
+    STARTER_SH_JSON_STRING,
+    String.raw`agent=$DASH_BORED_AGENT; set -- $agent; program=$1`,
+    String.raw`if [ -z "$program" ]; then echo '{"state":"warning","detail":"No agent command is set. Choose one in Settings, or set DASH_BORED_AGENT below."}'`,
+    String.raw`elif found=$(command -v "$program" 2>/dev/null); then printf '{"state":"healthy","detail":"Runs %s (found at %s)."}\n' "$(esc "$agent")" "$(esc "$found")"`,
+    String.raw`else printf '{"state":"error","detail":"%s was not found on PATH. Install it, or choose another agent in Settings."}\n' "$(esc "$program")"; fi`,
+  ].join("\n");
+}
+
 function defaultConfig(bundleNameSource: string, environmentPath: string): DashboardConfig {
   const projectName = basename(bundleNameSource) || "Project";
   const child = (node: ComponentNode): ComponentChildLayout => ({ node });
@@ -175,118 +235,88 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       second: vertical(nodes.slice(middle)),
     };
   };
-  const conditional = (id: string, command: string, node: ComponentNode): ComponentNode => ({
+  const markdown = (id: string, lines: string[]): ComponentNode => ({
     id,
-    component: "@dash-bored/conditional",
-    props: {
-      command,
-      invert: true,
-      pollIntervalMs: 2_000,
-    },
-    children: child(node),
+    component: "@dash-bored/markdown",
+    props: { content: `${lines.join("\n")}\n` },
   });
-  const howItWorks: ComponentNode = {
-    id: "how-it-works",
-    component: "@dash-bored/markdown",
-    props: {
-      content: "## How it works\n\nA small YAML tree becomes your project cockpit.\n\n1. Compose generic components in `.dash-bored/dash-bored.yaml`. The file is the only source of truth; there is no hidden layout database.\n2. Trust the project when it needs files, network access, or commands. Safe content like this panel renders before trust.\n3. Keep improving the dashboard as project friction appears. Every change goes through a draft you Save or Cancel.\n",
+  const status = (id: string, label: string, shell: string, every?: number): ComponentNode => ({
+    id,
+    component: "@dash-bored/status",
+    props: { label, source: { shell, cwd: ".", timeoutMs: 10_000, ...(every ? { every } : {}) } },
+  });
+  // A guide on the left says what the controls on the right do and what to
+  // expect; the live status beside each action reports what actually happened.
+  const guided = (id: string, title: string, guide: string[], panel: ComponentNode[]): ComponentNode => ({
+    id,
+    component: "@dash-bored/group",
+    props: { title },
+    children: {
+      axis: "horizontal",
+      ratio: 0.5,
+      first: child(markdown(`${id}-guide`, guide)),
+      second: vertical(panel),
     },
-  };
-  const waysToChange: ComponentNode = {
-    id: "ways-to-change",
-    component: "@dash-bored/markdown",
-    props: {
-      content: "## Ways to change it\n\nFour paths into the same YAML.\n\n**Components flyout** — arrange components and fill in their props visually  \n**Edit component** — open any panel's menu to edit its declared props  \n**Command-K palette** — focus any node, start or stop processes, run component actions  \n**Change with agent** — describe a change in words and let your CLI agent edit the YAML\n",
-    },
-  };
-  const demonstration: ComponentNode = {
-    id: "demonstration",
-    component: "@dash-bored/card",
-    props: {
-      title: "See it work",
-      description: "Live components that need no setup and no trust.",
-    },
-    children: vertical([
-      {
-        component: "@dash-bored/markdown",
-        props: {
-          content: "Each panel here is a real component, not a screenshot. The status and chart render from data in `dash-bored.yaml`, and the checklist stores its items there too — tick one, then press **Save dashboard** to publish the draft.\n",
-        },
-      },
-      {
-        id: "demo-live-panels",
-        component: "@dash-bored/group",
-        children: {
-          axis: "horizontal",
-          ratio: 0.4,
-          first: child({
-            id: "status-demo",
-            component: "@dash-bored/status",
-            props: {
-              label: "Starter dashboard",
-              state: "healthy",
-              detail: "Rendering safe content before project trust.",
-            },
-          }),
-          second: child({
-            id: "chart-demo",
-            component: "@dash-bored/chart",
-            props: {
-              title: "Sample chart",
-              type: "bar",
-              labels: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-              series: [{ label: "Example checks", values: [3, 5, 4, 6, 8] }],
-            },
-          }),
-        },
-      },
-      {
-        id: "demo-todos",
-        component: "@dash-bored/todo-list",
-        props: {
-          todos: [
-            { description: "Trust the project to enable commands and editing", done: false, tags: ["onboarding"] },
-            { description: "Run \"Set up this dashboard\" below so your agent can customize this cockpit", done: false, tags: ["onboarding"] },
-            { description: "Press Command-K and focus any node to try navigation", done: false, tags: ["onboarding"] },
-          ],
-        },
-      },
-    ]),
-  };
-  const agentSetupChildren: ComponentNode[] = [
+  });
+
+  const trustStep = guided("step-trust", "1 · Trust this project", [
+    "Until you trust it, this dashboard only renders safe content: text, layout, and YAML-backed panels. Checks, commands, and file reads stay off, which is why the statuses on this page read **unknown**.",
+    "",
+    "**When you press Trust project,** a dialog lists every capability this dashboard requests (running commands, reading and writing project files) before anything is enabled. Nothing is installed.",
+    "",
+    "**Expect:** *Project trust* turns healthy and the other checks on this page start reporting. Revoke trust at any time from the command palette.",
+  ], [
+    status("trust-status", "Project trust", String.raw`echo '{"state":"healthy","detail":"Trusted: checks and commands on this dashboard can run."}'`),
     {
-      component: "@dash-bored/markdown",
-      props: {
-        content: "Choose your CLI agent in application Settings (`DASH_BORED_AGENT`), or leave that field empty and save to use the value declared below in `.env`. Install the portable skill globally for all projects, or only in this project, so Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, and OpenCode can discover the component model, the agent tools that ship with it, and the safe workflow. Install it globally once if you plan to add dashboards to several projects; the per-project install covers only this project. The app keeps installed skills matched to its version.\n\nWhen ready, run **Set up this dashboard**: the agent inspects this project, replaces this starter content with a project-specific cockpit, and generates a custom SVG icon for the sidebar. Review each command and trust the project when you are ready.\n",
-      },
+      id: "trust-actions",
+      component: "@dash-bored/button",
+      props: { items: [{ name: "Trust project", action: "project:trust" }, { name: "Open settings", action: "app:show-settings" }] },
     },
+  ]);
+
+  const agentStep = guided("step-agent", "2 · Choose your coding agent", [
+    "Setup is done by a CLI coding agent you already use, such as Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, or OpenCode. dash-bored runs it as a command and appends the prompt as its last argument, for example `codex exec` or `claude -p`.",
+    "",
+    "The command comes from **Settings → General → Dashboard agent** when that field is set; otherwise from `DASH_BORED_AGENT` in this dashboard's `.env`, shown below. Give the CLI whatever permission flags it needs to edit files in this project.",
+    "",
+    "**Expect:** *Agent CLI* turns healthy once the program is found on your PATH.",
+  ], [
+    status("agent-cli-status", "Agent CLI", starterAgentStatusSource(), 5_000),
     { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
-    conditional(
-      "show-install-dash-bored-global-skill",
-      '"$DASH_BORED_TOOL" install-skill --global --check',
-      {
-        id: "install-dash-bored-global-skill",
-        component: "@dash-bored/command",
-        props: {
-          label: "Install or update dash-bored skill globally",
-          command: '"$DASH_BORED_TOOL" install-skill --global',
-          cwd: ".",
-        },
-      },
-    ),
-    conditional(
-      "show-install-dash-bored-skill",
-      '"$DASH_BORED_TOOL" install-skill . --check',
-      {
-        id: "install-dash-bored-skill",
-        component: "@dash-bored/command",
-        props: {
-          label: "Install or update portable dash-bored skill for this project",
-          command: '"$DASH_BORED_TOOL" install-skill .',
-          cwd: ".",
-        },
-      },
-    ),
+  ]);
+
+  const skillStep = guided("step-skill", "3 · Install the dash-bored skill", [
+    "The skill teaches your agent how dash-bored dashboards are built and ships the tools it uses to inspect, validate, and screenshot them. Nothing is installed until you run one of the commands. One install is enough.",
+    "",
+    "- **Globally** writes `~/.agents/skills/dash-bored/` and links `~/.claude/skills/dash-bored`, for every project on this Mac.",
+    "- **For this project** writes `.agents/skills/dash-bored/` and links `.claude/skills/dash-bored` in this folder, so you can commit it for your team.",
+    "",
+    "**Expect:** the terminal prints where it installed, and the matching status turns healthy within a few seconds. The commands stay here so you can reinstall any time. Afterwards the app refreshes installed skills when it updates and keeps your local edits.",
+  ], [
+    status("skill-global-status", "Skill · global", starterSkillStatusSource("global"), 5_000),
+    status("skill-project-status", "Skill · this project", starterSkillStatusSource("project"), 5_000),
+    {
+      id: "install-dash-bored-global-skill",
+      component: "@dash-bored/command",
+      props: { label: "Install skill globally", command: '"$DASH_BORED_TOOL" install-skill --global', cwd: "." },
+    },
+    {
+      id: "install-dash-bored-skill",
+      component: "@dash-bored/command",
+      props: { label: "Install skill for this project", command: '"$DASH_BORED_TOOL" install-skill .', cwd: "." },
+    },
+  ]);
+
+  const setupStep = guided("step-setup", "4 · Let the agent build your cockpit", [
+    "**When you press Set up this dashboard:**",
+    "",
+    "1. A review dialog shows the exact command and prompt. Nothing runs until you press **Send**.",
+    "2. The agent runs under **Agent work** in the header, with its terminal, a diff of `.dash-bored/`, and the full command.",
+    "3. It inspects this project and rewrites this dashboard's `dash-bored.yaml` into a project-specific cockpit with a custom sidebar icon. **This starter page is replaced.** Files outside the dashboard bundle are not part of the task.",
+    "4. When the agent exits, dash-bored validates the result and, if it finds configuration errors, asks the agent for one repair.",
+    "",
+    "**Expect** this to take several minutes. Validation proves the YAML is correct, not that the panels are useful, so review the result. If the new dashboard requests more capabilities, trust the project again.",
+  ], [
     {
       id: "setup-dashboard-with-agent",
       component: "@dash-bored/button",
@@ -295,33 +325,164 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
         action: { run: "agent:prompt", with: { prompt: starterAgentPrompt(projectName) } },
       },
     },
-  ];
-  const rootNodes: ComponentNode[] = [
-    {
-      id: "welcome",
-      component: "@dash-bored/markdown",
-      props: {
-        content: `# ${projectName}\n\nThis dashboard lives with your project in \`.dash-bored/\`. Use it to keep the commands, context, and tools you reach for close at hand.\n\nPress **Command-K** to search app, dashboard, and component actions, or choose **Components** to arrange components and configure their props. Collapse a panel to declutter; focusing one makes it the temporary dashboard root without changing any files.\n`,
-      },
-    },
-    {
-      id: "concepts",
+  ]);
+
+  const tourPanel = (id: string, label: string, guide: string[], examples: ComponentNode[]) => ({
+    metadata: { label },
+    node: {
+      id,
       component: "@dash-bored/group",
       children: {
         axis: "horizontal",
-        first: child(howItWorks),
-        second: child(waysToChange),
+        ratio: 0.4,
+        first: child(markdown(`${id}-guide`, guide)),
+        second: vertical(examples),
       },
-    },
-    demonstration,
-    {
-      id: "agent-setup",
-      component: "@dash-bored/card",
+    } satisfies ComponentNode,
+  });
+  const tourPanels = [
+    tourPanel("tour-status", "Status", [
+      "### Status",
+      "A labeled state (healthy, warning, error, or unknown) read from a source such as a shell command, file, or URL. Use it for “is it running?” questions.",
+      "",
+      "The status beside this text counts this project's files by when they last changed. Its detail and bar come from a small shell command that prints `{ state, detail, segments }`.",
+      "",
+      "**Try it:** save any file in the project and wait about ten seconds: the counts move and the status marks what changed. Open the panel menu and choose **Edit component** to read the command.",
+    ], [status("tour-activity-status", "Project activity", starterActivitySource(), 10_000)]),
+    tourPanel("tour-list", "List", [
+      "### List",
+      "Items with stable IDs from a source, with tags to filter and per-item actions. Use it for work queues, recent changes, or runnable scripts.",
+      "",
+      "This list shows the most recently modified files in this project. Items that appear or change between refreshes are marked.",
+      "",
+      "**Try it:** press **Details** on a file. The command panel below runs with that file as `$DASH_ITEM_PATH` and prints its size, type, and first lines. Choose a tag to filter by file type.",
+    ], [
+      {
+        id: "tour-recent-files",
+        component: "@dash-bored/list",
+        props: {
+          title: "Recently modified files",
+          sort: "source-order",
+          source: { shell: starterRecentFilesSource(), cwd: ".", timeoutMs: 10_000, every: 15_000 },
+          itemActions: [{ name: "Details", action: { run: "component:tour-file-details:run", with: { path: "${item.path}" } } }],
+        },
+      },
+      {
+        id: "tour-file-details",
+        component: "@dash-bored/command",
+        props: {
+          label: "Show the selected file",
+          command: 'ls -l -- "$DASH_ITEM_PATH" && file -b -- "$DASH_ITEM_PATH" && case "$(file -b --mime-type -- "$DASH_ITEM_PATH")" in text/*) echo && head -n 40 -- "$DASH_ITEM_PATH";; esac',
+          cwd: ".",
+        },
+      },
+    ]),
+    tourPanel("tour-chart", "Chart", [
+      "### Chart",
+      "Line or bar charts from inline YAML or a source that prints `{ labels, series }`. Use it for trends such as build times, test counts, or traffic.",
+      "",
+      "This chart counts this project's files by extension. Inside a Git work tree it follows your ignore rules; elsewhere it skips hidden folders and `node_modules`.",
+      "",
+      "**Try it:** hover a bar for its value. Add a few files and press **Refresh** from the command palette.",
+    ], [{
+      id: "tour-file-types",
+      component: "@dash-bored/chart",
+      props: { title: "Files by type", type: "bar", source: { shell: starterFileTypesSource(), cwd: ".", timeoutMs: 10_000, every: 60_000 } },
+    }]),
+    tourPanel("tour-markdown", "Markdown", [
+      "### Markdown",
+      "Safe Markdown from inline YAML, a project file, or a command's output. Use it for runbooks, READMEs, and generated reports.",
+      "",
+      "The panel beside this text renders this project's `README.md`, read fresh each time the tab opens.",
+      "",
+      "**Try it:** edit `README.md` and switch tabs to reload it. A Markdown panel pointed at a file with `path:` can also be edited and saved in place.",
+    ], [{
+      id: "tour-readme",
+      component: "@dash-bored/markdown",
+      props: { title: "README.md", source: { shell: starterReadmeSource(), cwd: ".", timeoutMs: 5_000 } },
+    }]),
+    tourPanel("tour-command", "Command", [
+      "### Command",
+      "A remembered command with a persistent terminal. Use it for dev servers, tests, builds, and deploys. It keeps running while you switch tabs and dashboards.",
+      "",
+      "**Try it:** run the command beside this text to list this folder. Run and stop commands from the command palette (**Command-K**, then type the command's name), or bind them to a keyboard shortcut in **Settings → Actions**.",
+    ], [{
+      id: "tour-list-folder",
+      component: "@dash-bored/command",
+      props: { label: "List this project folder", command: "ls -la", cwd: "." },
+    }]),
+    tourPanel("tour-todos", "Todos", [
+      "### Todos",
+      "A list whose items live in this dashboard's YAML, so they travel with the project and show up in code review.",
+      "",
+      "**Try it:** tick an item. dash-bored opens a draft; press **Save dashboard** to write the change to `dash-bored.yaml`, or **Cancel** to discard it.",
+    ], [{
+      id: "tour-ideas",
+      component: "@dash-bored/list",
       props: {
-        title: "Make it yours",
-        description: "Hand the repetitive setup work to your CLI coding agent.",
+        title: "Ideas for this dashboard",
+        todos: [
+          { id: "idea-dev-server", description: "Add a command that starts the dev server", done: false, tags: ["act"] },
+          { id: "idea-tests", description: "Add a status that runs the test suite on demand", done: false, tags: ["observe"] },
+          { id: "idea-docs", description: "Link the project's runbook or docs with a Markdown panel", done: false, tags: ["overview"] },
+          { id: "idea-local-ui", description: "Embed a local web UI with a webview", done: false, tags: ["observe"] },
+        ],
       },
-      children: vertical(agentSetupChildren),
+    }]),
+    tourPanel("tour-layout", "Layout & editing", [
+      "### Layout & editing",
+      "Everything on this page is one YAML tree in `.dash-bored/dash-bored.yaml`: groups with titles, horizontal and vertical splits, and switchable panels like this tab bar (an action bar selecting a child of a selection container).",
+      "",
+      "Four ways to change it, all through the same draft that you Save or Cancel:",
+      "",
+      "- **Component library**: add, move, and remove components and fill in their props.",
+      "- **Panel menu** (right-click a panel): Edit component, Focus, Collapse, Copy component path, or **Change with agent** to describe a change in words.",
+      "- **Command-K**: search every app, dashboard, and component action.",
+      "- **Your agent**: edit the YAML directly with the skill's tools.",
+      "",
+      "**Try it:** open the component library, or right-click this panel.",
+    ], [{
+      id: "tour-layout-actions",
+      component: "@dash-bored/button",
+      props: { items: [{ name: "Open component library", action: "project:edit" }, { name: "Focus a component", action: "project:focus" }] },
+    }]),
+  ];
+
+  const rootNodes: ComponentNode[] = [
+    markdown("welcome", [
+      `# ${projectName}`,
+      "",
+      "This is a starter dashboard in `.dash-bored/`. Creating it changed nothing else in the project and installed nothing. Work through the four steps below to have your coding agent turn it into a cockpit for this project: its commands, checks, docs, and services one click away.",
+      "",
+      "Each step says what its button does and shows a live check so you can see what happened. Scroll down for a tour of the components, reading this project's real files.",
+    ]),
+    {
+      id: "get-started",
+      component: "@dash-bored/group",
+      props: { title: "Get started", description: "Each step explains its action and shows a live check of the result." },
+      children: vertical([trustStep, agentStep, skillStep, setupStep]),
+    },
+    {
+      id: "tour",
+      component: "@dash-bored/group",
+      props: { title: "Tour the components", description: "Each tab explains one component, shows it working on this project, and suggests something to try." },
+      children: vertical([
+        {
+          id: "tour-tabs",
+          component: "@dash-bored/button",
+          props: {
+            variant: "tabs",
+            label: "Component tour",
+            items: tourPanels.map(({ metadata, node }) => ({ name: metadata.label, action: `select:tour-panels/${node.id}` })),
+          },
+        },
+        {
+          id: "tour-panels",
+          component: "@dash-bored/selection",
+          props: { defaultChild: tourPanels[0]!.node.id, label: "Component tour" },
+          children: tourPanels,
+        },
+      ]),
     },
   ];
   return {

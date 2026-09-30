@@ -67,7 +67,7 @@ app, where the tool is `"$DASH_BORED_TOOL"`.
 - Run `dash-bored inspect . --summary`. Without a dashboard it exits 1 with
   `FILE_NOT_FOUND` for `dash-bored.yaml` and `dash-bored-lock.yaml` (and lists
   an unavailable `./components` placeholder); then run `dash-bored init .`.
-  The starter is a tour of dash-bored built from legacy forms: replace its
+  The starter is dash-bored onboarding plus a component tour: replace its
   whole `root` tree rather than adapting it, and keep the generated `.env`
   (it holds the user's agent choice).
 - If a dashboard exists, read its `dash-bored.yaml` fully. Keep what the user

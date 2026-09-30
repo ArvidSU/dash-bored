@@ -412,6 +412,31 @@ root:
                             tags:
                               - bug
                               - renderer
+                          - id: todo-starter-trust-button-reason
+                            description: "The starter's Trust project button targets project:trust, which disappears once trusted, so the button shows the generic reason 'This action is not available in the current view.' Give state-dependent app actions a stable disabled entry (for example 'This project is already trusted') instead of vanishing."
+                            done: false
+                            tags:
+                              - renderer
+                              - onboarding
+                          - id: todo-command-narrow-title
+                            description: In a narrow column the command component's title wraps one word per line and slides under its Open terminal and run buttons (seen in the starter's skill step). Let the title take the full row above the controls when space is short.
+                            done: false
+                            tags:
+                              - bug
+                              - renderer
+                          - id: todo-screenshot-focus-timeout
+                            description: "`app screenshot --focus <id>` intermittently fails with 'RPC request timed out', reliably so when the node is already focused; the same capture without --focus succeeds."
+                            done: false
+                            tags:
+                              - bug
+                              - agent-tools
+                          - id: todo-starter-native-visual-check
+                            description: Capture the redesigned starter (Get started steps plus component tour) in the native app, untrusted and trusted, at desktop and narrow widths. The app screenshot RPC timed out in the implementing session, so only action wiring and source output were verified.
+                            done: false
+                            tags:
+                              - onboarding
+                              - visual
+                              - qa
                   second:
                     node:
                       id: checks
@@ -924,7 +949,7 @@ root:
                         Choose the CLI coding agent in Settings, install the version-matched dash-bored skill
                         globally or for this repository, then ask the agent to improve this cockpit. The skill ships
                         the agent tools; the app passes its bundled tool as `DASH_BORED_TOOL`. App settings override
-                        the bundle environment below. Install tiles hide themselves once the skill is current.
+                        the bundle environment below. The skill statuses report each install scope's check result.
                 second:
                   axis: horizontal
                   ratio: 0.5
@@ -969,37 +994,47 @@ root:
                       second:
                         axis: vertical
                         first:
-                          node:
-                            id: show-install-agent-skill-global
-                            component: "@dash-bored/conditional"
-                            props:
-                              command: '"$DASH_BORED_TOOL" install-skill --global --check'
-                              invert: true
-                              pollIntervalMs: 2000
-                            children:
-                              node:
-                                id: install-agent-skill-global
-                                component: "@dash-bored/command"
-                                props:
-                                  label: Install or update dash-bored skill globally
-                                  command: '"$DASH_BORED_TOOL" install-skill --global'
+                          axis: horizontal
+                          first:
+                            node:
+                              id: agent-skill-global-status
+                              component: "@dash-bored/status"
+                              props:
+                                label: Skill · global
+                                density: compact
+                                source:
+                                  shell: if out=$(FORCE_COLOR=0 "$DASH_BORED_TOOL" install-skill --global --check 2>&1); then echo '{"state":"healthy","detail":"Installed in ~/.agents/skills/dash-bored."}'; else printf '{"state":"warning","detail":"%s"}\n' "$(printf '%s' "$out" | head -n 1 | LC_ALL=C tr -d '\000-\037\177' | sed 's/\[[0-9;]*m//g; s/[\\"]/\\&/g')"; fi
                                   cwd: .
+                                  every: 5000
+                          second:
+                            node:
+                              id: agent-skill-project-status
+                              component: "@dash-bored/status"
+                              props:
+                                label: Skill · this repository
+                                density: compact
+                                source:
+                                  shell: if out=$(FORCE_COLOR=0 "$DASH_BORED_TOOL" install-skill . --check 2>&1); then echo '{"state":"healthy","detail":"Installed in .agents/skills/dash-bored."}'; else printf '{"state":"warning","detail":"%s"}\n' "$(printf '%s' "$out" | head -n 1 | LC_ALL=C tr -d '\000-\037\177' | sed 's/\[[0-9;]*m//g; s/[\\"]/\\&/g')"; fi
+                                  cwd: .
+                                  every: 5000
                         second:
-                          node:
-                            id: show-install-agent-skill
-                            component: "@dash-bored/conditional"
-                            props:
-                              command: '"$DASH_BORED_TOOL" install-skill . --check'
-                              invert: true
-                              pollIntervalMs: 2000
-                            children:
-                              node:
-                                id: install-agent-skill
-                                component: "@dash-bored/command"
-                                props:
-                                  label: Install or update portable dash-bored skill for this project
-                                  command: '"$DASH_BORED_TOOL" install-skill .'
-                                  cwd: .
+                          axis: vertical
+                          first:
+                            node:
+                              id: install-agent-skill-global
+                              component: "@dash-bored/command"
+                              props:
+                                label: Install or update dash-bored skill globally
+                                command: '"$DASH_BORED_TOOL" install-skill --global'
+                                cwd: .
+                          second:
+                            node:
+                              id: install-agent-skill
+                              component: "@dash-bored/command"
+                              props:
+                                label: Install or update portable dash-bored skill for this project
+                                command: '"$DASH_BORED_TOOL" install-skill .'
+                                cwd: .
           - metadata:
               label: Docs
             node:

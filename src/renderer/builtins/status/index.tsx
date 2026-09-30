@@ -19,6 +19,12 @@ function sourceUnavailable(source: DashboardSource | null, host: ComponentRender
   return undefined;
 }
 
+/** A short, escaped excerpt so invisible bytes such as ANSI color codes are visible. */
+function receivedPreview(value: unknown): string {
+  const text = JSON.stringify(value) ?? String(value);
+  return text.length > 160 ? `${text.slice(0, 160)}…` : text;
+}
+
 export default function Status({ props, host }: ComponentRendererProps): ReactNode {
   const label = stringProp(props, ["label", "name"], "Status");
   const source = props.source && typeof props.source === "object" && !Array.isArray(props.source)
@@ -57,7 +63,7 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
       } else {
         value = "unknown";
         detail = "";
-        diagnostic = "Expected { state: unknown | healthy | warning | error, detail?: string, trend?: (number | null)[2..60], segments?: [{ label, value ≥ 0, state? }][1..8] } or a supervised process snapshot.";
+        diagnostic = `Expected { state: unknown | healthy | warning | error, detail?: string, trend?: (number | null)[2..60], segments?: [{ label, value ≥ 0, state? }][1..8] } or a supervised process snapshot. Received ${receivedPreview(sourceState.value)}.`;
       }
     } else if (sourceState.loading) {
       value = "unknown";

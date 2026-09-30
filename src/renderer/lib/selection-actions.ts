@@ -22,7 +22,9 @@ export function buildSelectionActions(
     const selected = selectedChildId(container, selections);
     for (const edge of container.children) {
       const child = edge.node;
-      const label = nodeLabel(child, false);
+      // A panel label is metadata on the parent-child edge; fall back to the node's own name.
+      const edgeLabel = typeof edge.metadata?.label === "string" ? edge.metadata.label.trim() : "";
+      const label = edgeLabel || nodeLabel(child, false);
       const id = `select:${encodeURIComponent(container.id)}/${encodeURIComponent(child.id)}`;
       actions.push({
         id,

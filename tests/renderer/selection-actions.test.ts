@@ -21,6 +21,12 @@ describe("selection and reveal actions", () => {
     ]);
   });
 
+  test("labels selection actions with the edge's panel label before the node's own name", () => {
+    const labelled = { ...container, children: [{ node: child, metadata: { label: "Health" } }, { node: other }] };
+    const actions = buildSelectionActions({ ...snapshot, tree: labelled }, {}, () => {});
+    expect(actions.map(({ label }) => label)).toEqual(["Select Health", "Select Details"]);
+  });
+
   test("ships a generic selection container and honors its YAML default child", () => {
     expect(getBuiltinManifest("@dash-bored/selection")?.children).toMatchObject({
       presentation: { type: "managed" }, select: "single",

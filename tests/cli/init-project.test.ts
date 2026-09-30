@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 describe("initializeProject", () => {
-  test("creates a valid guided dashboard, agent setup command, lock, and component directory", async () => {
+  test("creates a valid guided dashboard with visible setup steps, a live tour, lock, and component directory", async () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-init-"));
     temporaryDirectories.push(project);
 
@@ -43,43 +43,57 @@ describe("initializeProject", () => {
     expect(config.icon).toBe("./assets/icon.svg");
     const nodes = configuredNodes(config.root);
     expect(nodes.find((node) => node.id === "welcome")).toBeDefined();
-    const concepts = nodes.find((node) => node.id === "concepts");
-    expect(concepts.component).toBe("@dash-bored/group");
-    expect(concepts.children.axis).toBe("horizontal");
-    expect(concepts.children.ratio).toBeUndefined();
-    const demonstration = nodes.find((node) => node.id === "demonstration");
-    expect(demonstration.component).toBe("@dash-bored/card");
-    const statusDemo = nodes.find((node) => node.id === "status-demo");
-    expect(statusDemo.component).toBe("@dash-bored/status");
-    expect(statusDemo.props.state).toBe("healthy");
-    const chartDemo = nodes.find((node) => node.id === "chart-demo");
-    expect(chartDemo.component).toBe("@dash-bored/chart");
-    expect(chartDemo.props.labels.length).toBe(chartDemo.props.series[0].values.length);
-    const demoTodos = nodes.find((node) => node.id === "demo-todos");
-    expect(demoTodos.component).toBe("@dash-bored/todo-list");
-    expect(demoTodos.props.todos.length).toBeGreaterThan(0);
-    for (const todo of demoTodos.props.todos) {
-      expect(todo.description).toBeString();
+    // Onboarding steps stay visible; each reports its outcome through a source-backed status.
+    expect(nodes.some((node) => node.component === "@dash-bored/conditional")).toBeFalse();
+    for (const id of ["get-started", "step-trust", "step-agent", "step-skill", "step-setup"]) {
+      expect(nodes.find((node) => node.id === id).component).toBe("@dash-bored/group");
+      if (id !== "get-started") expect(nodes.find((node) => node.id === `${id}-guide`).component).toBe("@dash-bored/markdown");
+    }
+    for (const id of ["trust-status", "agent-cli-status", "skill-global-status", "skill-project-status"]) {
+      const status = nodes.find((node) => node.id === id);
+      expect(status.component).toBe("@dash-bored/status");
+      expect(status.props.state).toBeUndefined();
+      expect(status.props.source.shell).toBeString();
+    }
+    expect(nodes.find((node) => node.id === "skill-global-status").props.source.shell)
+      .toContain('"$DASH_BORED_TOOL" install-skill --global --check');
+    expect(nodes.find((node) => node.id === "skill-project-status").props.source.shell)
+      .toContain('"$DASH_BORED_TOOL" install-skill . --check');
+    expect(nodes.find((node) => node.id === "trust-actions").props.items[0].action).toBe("project:trust");
+
+    // The tour switches panels through a tab bar over a selection container and
+    // reads the project's own files rather than hand-written sample data.
+    const tourPanels = nodes.find((node) => node.id === "tour-panels");
+    expect(tourPanels.component).toBe("@dash-bored/selection");
+    const tourTabs = nodes.find((node) => node.id === "tour-tabs");
+    expect(tourTabs.props.variant).toBe("tabs");
+    expect(tourTabs.props.items.map((item: any) => item.action))
+      .toEqual(tourPanels.children.map((edge: any) => `select:tour-panels/${edge.node.id}`));
+    for (const edge of tourPanels.children) {
+      expect(edge.metadata.label).toBeString();
+      expect(nodes.find((node) => node.id === `${edge.node.id}-guide`).component).toBe("@dash-bored/markdown");
+    }
+    for (const id of ["tour-activity-status", "tour-recent-files", "tour-file-types", "tour-readme"]) {
+      expect(nodes.find((node) => node.id === id).props.source.shell).toBeString();
+    }
+    const ideas = nodes.find((node) => node.id === "tour-ideas");
+    expect(ideas.component).toBe("@dash-bored/list");
+    for (const todo of ideas.props.todos) {
+      expect(todo.id).toBeString();
       expect(todo.done).toBeBoolean();
+    }
+    for (const retired of ["@dash-bored/card", "@dash-bored/todo-list", "@dash-bored/tabs"]) {
+      expect(nodes.some((node) => node.component === retired)).toBeFalse();
     }
     const environmentEditor = nodes.find((node) => node.id === "dashboard-environment");
     const globalSkillCommand = nodes.find((node) => node.id === "install-dash-bored-global-skill");
     const skillCommand = nodes.find((node) => node.id === "install-dash-bored-skill");
-    const globalSkillVisibility = nodes.find((node) => node.id === "show-install-dash-bored-global-skill");
-    const skillVisibility = nodes.find((node) => node.id === "show-install-dash-bored-skill");
     const agentCommand = nodes.find((node) => node.id === "setup-dashboard-with-agent");
     expect(environmentEditor.component).toBe("@dash-bored/env");
     expect(environmentEditor.props.path).toBe(".dash-bored/.env");
     expect(nodes.some((node) => String(node.props?.command ?? "").includes("install-cli"))).toBeFalse();
-    expect(globalSkillCommand.id).toBe("install-dash-bored-global-skill");
     expect(globalSkillCommand.props.command).toContain("install-skill --global");
-    expect(globalSkillVisibility.component).toBe("@dash-bored/conditional");
-    expect(globalSkillVisibility.props.invert).toBeTrue();
-    expect(globalSkillVisibility.props.command).toBe('"$DASH_BORED_TOOL" install-skill --global --check');
-    expect(skillCommand.id).toBe("install-dash-bored-skill");
     expect(skillCommand.props.command).toContain("install-skill .");
-    expect(skillVisibility.component).toBe("@dash-bored/conditional");
-    expect(skillVisibility.props.command).toBe('"$DASH_BORED_TOOL" install-skill . --check');
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
     expect(agentCommand.component).toBe("@dash-bored/button");
     expect(agentCommand.props.action.run).toBe("agent:prompt");

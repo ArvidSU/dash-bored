@@ -1930,7 +1930,9 @@ test('glance atoms show trend, proportion, changes, item reveal, and chart refre
     await proof.evaluate(() => { (window as GlanceWindow).glance!.status = { ...(window as GlanceWindow).glance!.status as object, state: 'warning' }; });
     await proof.getByRole('button', { name: 'Refresh glance status', exact: true }).click({ position: { x: 16, y: 34 } });
     await tile.locator('.status__changed').waitFor();
-    expect(await tile.locator('.status__changed').innerText()).toMatch(/^Changed from healthy · /);
+    expect(await tile.locator('.status__changed').innerText()).toMatch(/^Changed\s+from healthy · /);
+    // The previous state and time wrap under "Changed" instead of being clipped.
+    expect(await tile.locator('.status__changed').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBeTrue();
     expect(await tile.getAttribute('data-changed')).toBe('true');
     expect((await tile.boundingBox())!.height).toBe(tileBox!.height);
     await proof.waitForFunction(() => !document.querySelector('.status[aria-label^="glance-tile"]')?.hasAttribute('data-changed'));
