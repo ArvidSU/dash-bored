@@ -64,10 +64,19 @@ export function todoChart(todos: Todo[]): { labels: string[]; series: Array<{ la
   };
 }
 
+/** A bounded scan of real work, with bugs first and source order within each group. */
+export function todoAttention(todos: Todo[]) {
+  return todos.filter((todo) => !todo.done)
+    .sort((a, b) => Number(b.tags.some((tag) => tag.toLowerCase() === "bug")) - Number(a.tags.some((tag) => tag.toLowerCase() === "bug")))
+    .slice(0, 5)
+    .map((todo) => ({ id: todo.id, title: todo.description.length > 100 ? `${todo.description.slice(0, 97).replace(/\s+\S*$/, "")}…` : todo.description, tags: todo.tags,
+      state: todo.tags.some((tag) => tag.toLowerCase() === "bug") ? "warning" : "open" }));
+}
+
 if (import.meta.main) {
   const mode = process.argv[2];
-  if (mode !== "status" && mode !== "chart") {
-    process.stderr.write("Usage: bun run .dash-bored/scripts/todo-stats.ts <status|chart>\n");
+  if (mode !== "status" && mode !== "chart" && mode !== "attention") {
+    process.stderr.write("Usage: bun run .dash-bored/scripts/todo-stats.ts <status|chart|attention>\n");
     process.exit(2);
   }
   const path = process.env.DASH_BORED_CONFIG || ".dash-bored/dash-bored.yaml";
@@ -77,5 +86,5 @@ if (import.meta.main) {
     process.stderr.write(`No todos found on node ${nodeId} in ${path}.\n`);
     process.exit(1);
   }
-  emit(mode === "status" ? todoStatus(todos) : todoChart(todos));
+  emit(mode === "status" ? todoStatus(todos) : mode === "attention" ? todoAttention(todos) : todoChart(todos));
 }

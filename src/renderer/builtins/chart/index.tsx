@@ -163,7 +163,7 @@ function ChartSvg({
                     fill={chartColor(series, seriesIndex)}
                     key={index}
                     r="3"
-                  />
+                  ><title>{`${data.labels[index]} · ${series.label}: ${formatChartValue(value)}`}</title></circle>
                 ) : null,
               )}
             </g>
@@ -188,7 +188,7 @@ function ChartSvg({
                   width={Math.max(barWidth - 2, 1)}
                   x={barX}
                   y={Math.min(zeroY, valueY)}
-                />
+                ><title>{`${data.labels[index]} · ${series.label}: ${formatChartValue(value)}`}</title></rect>
               );
             }),
           )}
@@ -234,8 +234,8 @@ export function ChartPanel({
           {status ? <span>{status}</span> : null}
         </div>
         {onRefresh ? (
-          <button className="button button--quiet button--small" type="button" onClick={onRefresh}>
-            {loading ? "Refreshing…" : "Refresh"}
+          <button className="button button--quiet button--small" type="button" onClick={onRefresh} disabled={loading} aria-label={loading ? "Refreshing chart" : "Refresh"}>
+            <span className={loading ? "chart__refresh-label chart__refresh-label--loading" : "chart__refresh-label"}>Refresh</span>
           </button>
         ) : null}
       </header>

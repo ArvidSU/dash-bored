@@ -973,10 +973,12 @@ change the active dashboard, or enter the dashboard editor. **Set default theme*
 and **Set dashboard theme** in the command palette guide the same selections.
 Linked dashboards and component focus do not change the window theme.
 
-The development dashboard dogfoods the checked-in `Retro Industrial` theme:
-warm instrument-panel neutrals, charcoal functional surfaces, compact controls,
-and orange signal accents. It is a regular data-only theme package, so it can
-be copied or used as a starting point for another project.
+The development dashboard uses `Ocean`, with calm blue navigation accents and
+separate semantic health colors. Its Overview shows live health, project
+activity, and the first five open work items (bugs first); Work contains the
+full editable backlog and check terminals. `Retro Industrial` remains available
+as an optional warm theme. Both are regular data-only theme packages that can
+be copied as a starting point for another project.
 
 Ask your agent to create a local theme; it runs:
 

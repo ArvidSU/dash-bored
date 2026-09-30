@@ -1,5 +1,6 @@
 import { BUILTIN_THEME, projectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
 import Ajv, { type ErrorObject } from "ajv";
+import { permissionsForComponent } from "../../shared/component-permissions";
 import { listBuiltinManifests } from "../../core/builtins";
 import type {
   AppSettings,
@@ -132,7 +133,7 @@ const initialConfig: DashboardConfig = {
   },
 };
 
-const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card", "markdown", "status", "command", "todo-list"].map((name) => ({
+const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card", "markdown", "command", "todo-list"].map((name) => ({
   reference: `@dash-bored/${name}`,
   source: "builtin" as const,
   available: true,
@@ -154,9 +155,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
           properties: { content: { type: "string" }, path: { type: "string", minLength: 1 } },
           oneOf: [{ required: ["content"] }, { required: ["path"] }],
         }
-      : name === "status"
-        ? { type: "object", additionalProperties: false, properties: { label: { type: "string", minLength: 1 }, state: { enum: ["unknown", "healthy", "warning", "error"] }, detail: { type: "string" } }, required: ["label", "state"] }
-        : name === "card"
+      : name === "card"
           ? { type: "object", additionalProperties: false, properties: { title: { type: "string" }, description: { type: "string" } } }
           : name === "tabs"
             ? { type: "object", additionalProperties: false, properties: { defaultTab: { type: "integer", minimum: 0 } } }
@@ -230,7 +229,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
 }));
 
 catalog.push(...listBuiltinManifests()
-  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer" || manifest.id === "@dash-bored/button" || manifest.id === "@dash-bored/list")
+  .filter((manifest) => manifest.id === "@dash-bored/status" || manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer" || manifest.id === "@dash-bored/button" || manifest.id === "@dash-bored/list")
   .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
 
 catalog.push({
@@ -339,7 +338,7 @@ function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation
       return;
     }
     const manifest = item.manifest;
-    for (const permission of manifest.permissions ?? []) permissions.add(permission);
+    for (const permission of permissionsForComponent(manifest, node.props ?? {})) permissions.add(permission);
     const validateProps = ajv.compile(manifest.propsSchema);
     if (!validateProps(node.props ?? {})) {
       diagnostics.push(...(validateProps.errors ?? []).map((error) => fixtureSchemaDiagnostic(error, `${path}.props`, "COMPONENT_PROPS_INVALID")));
@@ -389,7 +388,7 @@ function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedCompone
     sourceConfigPath: CONFIG_PATH,
     sourcePath: path,
     ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
-    ...(item?.manifest ? { manifest: structuredClone(item.manifest) } : {}),
+    ...(item?.manifest ? { manifest: { ...structuredClone(item.manifest), permissions: permissionsForComponent(item.manifest, node.props ?? {}) } } : {}),
   };
   if (Array.isArray(node.children)) {
     resolved.children = node.children.map((edge, index) => ({

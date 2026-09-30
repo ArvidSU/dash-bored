@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import "./list.css";
+import { StateGlyph, stateTone } from "../../lib/state-visual";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
@@ -89,7 +90,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   if (!source) return <p className="component-state component-state--error" role="alert">List needs a source.</p>;
   if (!canRead) return <CapabilityGate title={title}>Trust this project and grant {permission} to read this source.</CapabilityGate>;
 
-  return <section className="source-list" aria-label={title}>
+  return <section className="source-list" data-refreshing={state.loading && state.value !== undefined || undefined} aria-label={title}>
     <header className="source-list__header">
       <div><strong>{title}</strong><span>{parsed.items.length} items</span></div>
       <div className="source-list__controls">
@@ -104,7 +105,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
       </div>
     </header>
     {state.loading && state.value === undefined ? <p className="component-state" role="status">Loading…</p> : null}
-    {state.loading && state.value !== undefined ? <small role="status">Updating…</small> : null}
+    {state.loading && state.value !== undefined ? <small className="visually-hidden" role="status">Updating…</small> : null}
     {state.error ? <p className="component-state component-state--error" role="alert">{state.value === undefined ? "Source error" : "Showing stale data"}: {state.error}</p> : null}
     {parsed.diagnostics.length ? <ul className="source-list__diagnostics" role="alert" aria-label="List source shape errors">
       {parsed.diagnostics.map((diagnostic, index) => <li key={`${diagnostic.index ?? "root"}-${index}`}>
@@ -115,8 +116,8 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
       {configuredActions.diagnostics.map((message, index) => <li key={index}>{message}</li>)}
     </ul> : null}
     {displayed.length ? <ul className="source-list__items" aria-label="Items">
-      {displayed.map((item) => <li key={item.id} className={item.done || ["done", "completed", "closed"].includes(item.state?.toLowerCase() ?? "") ? "source-list__item source-list__item--closed" : "source-list__item"}>
-        <div className="source-list__item-text"><strong>{item.title}</strong>{typeof item.detail === "string" ? <span>{item.detail}</span> : null}</div>
+      {displayed.map((item) => <li key={item.id} data-tone={stateTone(item.state, item.done)} className={item.done || ["done", "completed", "closed"].includes(item.state?.toLowerCase() ?? "") ? "source-list__item source-list__item--closed" : "source-list__item"}>
+        <div className="source-list__item-leading"><span className="source-list__glyph"><StateGlyph tone={stateTone(item.state, item.done)} /></span><div className="source-list__item-text"><strong>{item.title}</strong>{typeof item.detail === "string" ? <span>{item.detail}</span> : null}</div></div>
         <div className="source-list__item-trailing">
           <div className="source-list__item-meta">
             {typeof item.state === "string" ? <span className="source-list__state">{item.state}</span> : null}

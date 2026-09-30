@@ -62,8 +62,11 @@
   justify-content: space-between;
   gap: 0.7rem;
   min-width: 0;
-  padding: 0.45rem 0;
-  border-bottom: 1px solid var(--border);
+  padding: 0.65rem;
+  border: 1px solid transparent;
+  border-bottom-color: var(--border);
+  border-radius: var(--radius-sm);
+  transition: background 150ms ease, border-color 150ms ease;
 }
 
 .source-list__item-text {
@@ -134,3 +137,16 @@
   .source-list__item-action { justify-items: start; }
   .source-list__item-action > small { text-align: left; }
 }
+
+.source-list__item:hover { background: var(--surface-hover); }
+.source-list__item:focus-within { border-color: var(--border-bright); background: var(--surface-hover); }
+.source-list__item-leading { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.source-list__glyph { width: 20px; height: 20px; flex: 0 0 20px; color: var(--muted); }
+.source-list__glyph svg { width: 100%; height: 100%; }
+.source-list__item[data-tone="positive"] .source-list__glyph,
+.source-list__item[data-tone="positive"] .source-list__state { color: var(--positive); }
+.source-list__item[data-tone="warning"] .source-list__glyph,
+.source-list__item[data-tone="warning"] .source-list__state { color: var(--warning); }
+.source-list__item[data-tone="negative"] .source-list__glyph,
+.source-list__item[data-tone="negative"] .source-list__state { color: var(--negative); }
+.source-list__item-text > strong { font-size: 13px; font-weight: 600; line-height: 1.4; }

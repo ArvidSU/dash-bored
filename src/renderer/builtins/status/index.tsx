@@ -5,6 +5,7 @@ import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
 import type { DashboardSource } from "../../lib/source";
 import { useDashboardSource } from "../../lib/use-dashboard-source";
+import { StateGlyph, stateTone } from "../../lib/state-visual";
 import { parseStatusValue } from "../../lib/view-shapes";
 
 function sourceUnavailable(source: DashboardSource | null, host: ComponentRendererProps["host"]): string | undefined {
@@ -58,18 +59,11 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
     }
   }
 
-  const normalized = value.toLowerCase();
   const refreshing = sourceState.loading && sourceState.value !== undefined;
-  const tone = ["ok", "online", "healthy", "success", "ready"].includes(normalized)
-    ? "positive"
-    : ["warn", "warning", "pending", "starting"].includes(normalized)
-      ? "warning"
-      : ["error", "failed", "offline", "down"].includes(normalized)
-        ? "negative"
-        : "neutral";
+  const tone = stateTone(value);
   return (
-    <div className="status" aria-label={`${label}: ${value}`}>
-      <span className={`status__dot status__dot--${tone}${refreshing ? " status__dot--refreshing" : ""}`} title={refreshing ? "Updating…" : undefined} aria-hidden="true" />
+    <div className="status" data-tone={tone} aria-label={`${label}: ${value}`}>
+      <span className={`status__dot status__dot--${tone}${refreshing ? " status__dot--refreshing" : ""}`} title={refreshing ? "Updating…" : undefined} aria-hidden="true"><StateGlyph tone={tone} /></span>
       <span className="status__label">{label}</span>
       <span className="status__value">{value}</span>
       {detail ? <span className="status__detail">{detail}</span> : null}

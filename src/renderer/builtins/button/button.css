@@ -5,19 +5,20 @@
 
 .action-button--group {
   display: flex;
-  gap: 0.45rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .action-button__item {
   min-width: 0;
-  flex: 1 1 0;
+  flex: 1 1 140px;
 }
 
 .action-button--segmented {
   gap: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
 }
 
 .action-button--segmented .action-button__item + .action-button__item {
@@ -31,32 +32,35 @@
 }
 
 .action-button--tabs {
-  gap: 0.15rem;
-  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .action-button--tabs .action-button__control {
   background: transparent;
   border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   min-height: 40px;
 }
 
 .action-button--tabs .action-button__control[data-active] {
-  border-bottom-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .action-button__control {
   align-items: center;
   background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 600;
   gap: 0.65rem;
   justify-content: center;
   min-height: 44px;
@@ -68,7 +72,7 @@
 .action-button__control:hover:not(:disabled) {
   background: var(--surface-hover);
   border-color: var(--accent);
-  transform: translateY(-1px);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--shadow-color) 12%, transparent);
 }
 
 .action-button__control:focus-visible {
@@ -99,3 +103,12 @@
 @keyframes action-button-spin {
   to { transform: rotate(360deg); }
 }
+
+.action-button--tabs .action-button__item,
+.action-button--segmented .action-button__item { flex: 1 1 auto; }
+
+.action-button__control:active:not(:disabled) { transform: scale(0.98); }
+.action-button__control > span { overflow-wrap: anywhere; }
+.action-button__icon { display: grid; place-items: center; width: 18px; height: 18px; flex: 0 0 18px; color: var(--accent); }
+.action-button__icon svg { width: 18px; height: 18px; }
+.action-button__control[data-running] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }

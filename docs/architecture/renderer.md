@@ -28,7 +28,7 @@ modules under feature directories:
   `component-height.ts`, `component-view-state.ts`, `component-updates.ts`,
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
   `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
-  `clipboard.ts`, `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
+  `clipboard.ts`, `state-visual.tsx` (shared semantic state shapes and action verbs), `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
   `selection-actions.ts` (core select/reveal actions), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
@@ -570,3 +570,34 @@ offset throughout sidebar expansion and collapse. The pattern is centered
 inside the icon border, behind the bars. Selected navigation/tab
 controls use theme tokens without an offset raised shadow so their visual
 bounds stay centered.
+
+## Visual hierarchy and motion
+
+The generic atoms share `lib/state-visual.tsx`: healthy/completed states use a
+check circle, warnings/work in progress a triangle, failures a cross circle,
+and unknown or arbitrary states a neutral minus circle. State remains visible
+as text; glyphs are decorative. Semantic theme colors tint status borders,
+backgrounds, and state labels, while metadata uses the readable muted token.
+Status refresh dims the existing glyph without changing geometry.
+
+Action bars show contract-derived verbs (process, agent, navigation, component
+refresh, or a neutral generic action), replacing the same icon slot with a spinner while running. Tabs use a
+filled selected surface and an inset indicator; controls wrap in narrow panels.
+Source lists and Markdown announce background refresh in visually hidden text
+and indicate it within the existing header, retaining the prior content and
+height. Initial loading and source errors remain explicit. Group headings
+provide hierarchy, and charts have a bounded responsive plot height.
+
+Surfaces fade in once on mount for 180 ms. Button presses, hover, and source
+feedback use short transitions; polling does not replay mount animations.
+The global reduced-motion rule suppresses transitions and animations, and
+arrival animations are enabled only under `prefers-reduced-motion: no-preference`.
+
+The development cockpit dogfoods a bounded Overview (four live states,
+actions, recent activity, and five open items with bugs first). Work holds the
+unchanged stable-ID editable backlog and supervised check commands; reveal
+navigation uses those IDs after the move. The attention source uses real todos
+found by ID, preserving source order within priority groups.
+
+The renderer fixture uses the shipped status manifest so source-backed status
+refreshes receive the same props, action, and permission contract as the app.

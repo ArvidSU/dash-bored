@@ -27,7 +27,7 @@
 
 .chart__heading strong {
   color: var(--text);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .chart__heading span,
@@ -39,7 +39,7 @@
 .chart__svg {
   display: block;
   width: 100%;
-  min-height: 210px;
+  height: clamp(210px, 24vw, 260px);
   padding: 9px 10px 0;
 }
 
@@ -56,7 +56,7 @@
 
 .chart__axis-label,
 .chart__x-label {
-  fill: var(--faint);
+  fill: var(--muted);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -128,3 +128,8 @@
   font-size: 11px;
 }
 
+
+.chart__point, .chart__bar { transition: opacity 150ms ease; }
+.chart__point:hover, .chart__bar:hover { opacity: 0.65; }
+
+.chart__refresh-label--loading { opacity: 0.6; }

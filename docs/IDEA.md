@@ -4,6 +4,11 @@
 
 dash-bored is a local-first, agent-configurable project cockpit.
 
+It visualizes a project so its health, activity, structure, and next actions can
+be understood at a glance. This becomes more valuable as agent-driven work
+increases the volume of code, logs, and prose people need to review: visual
+understanding comes first, reading supplies the detail.
+
 It provides a way to turn any project, workspace, or environment into a custom operational interface without requiring the core application to understand the project domain.
 
 The user should not need to remember:
@@ -224,6 +229,25 @@ contain no executable code, custom CSS, or downloaded resources. Personal
 installations are shared by the agent tools and desktop app; project installations
 travel with the dashboard bundle. Git themes use exact commit pins, explicit
 installation/update actions, and no marketplace or automatic network updates.
+
+## Visual understanding
+
+A dashboard should answer “where does this stand?” before asking the user to
+read. Put current state, trends, and a bounded view of open work in the first
+scan; move full backlogs, logs, and documentation into detail views. Observed
+state must come from real sources, including explicit unknown and failed reads.
+
+Use consistent visual grammar across generic atoms: color plus shape for state,
+clear selected navigation, quieter metadata, and grouped related information.
+Reserve signal colors for meaning. Light and dark themes must preserve hierarchy
+and readable secondary text. A project-specific visualization belongs in its
+bundle and uses the same theme and capability contracts.
+
+Interactions should reveal detail and make the next action clear. Motion explains
+arrival, selection, or work in progress; it should be brief, respect reduced
+motion, and preserve layout during polling. Decorative continuous animation
+competes with the project and should be avoided. Keyboard focus and textual
+state remain available alongside every visual cue.
 
 ## Design Principles
 

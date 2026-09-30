@@ -5,8 +5,11 @@ focus, and visibility. `src/shared/themes.ts` owns the typed v1 manifest,
 semantic token names, light/dark defaults, schema, and fallback resolver.
 `bun run generate:themes` generates the public JSON Schema, initial renderer
 CSS defaults, and the shipped token reference; a drift test checks all three.
-The checked-in dashboard theme `./themes/retro-industrial` is the reference
-implementation for the app's warm equipment-panel visual language. Shared
+Built-in light and dark variants use calm blue navigation accents, separated
+surface levels, and readable secondary text. Health, warnings, and failures
+retain their semantic colors rather than borrowing the navigation accent.
+The development dashboard uses `./themes/ocean`; `./themes/retro-industrial`
+remains an optional warm equipment-panel theme. Shared
 spacing, control-state, and border tokens remain renderer-owned so themes do
 not become layout overrides.
 

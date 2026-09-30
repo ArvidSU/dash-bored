@@ -212,7 +212,7 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
     <section className="todo" aria-label="todo list">
       <header className="todo__header">
         <div>
-          <strong>Todo list</strong>
+          <strong>{typeof props.title === "string" ? props.title : "Todo list"}</strong>
           <span>{openCount} open · {items.length} total</span>
         </div>
         <label className="todo__filter">

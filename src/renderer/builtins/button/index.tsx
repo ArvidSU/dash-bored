@@ -4,6 +4,7 @@ import type { ComponentRendererProps } from "../types";
 import { actionInvocation } from "../../../shared/action-invocation";
 import { isProcessRunActive } from "../../../shared/process-state";
 import "./button.css";
+import { ActionGlyph } from "../../lib/state-visual";
 
 interface ButtonItem {
   name: string;
@@ -95,8 +96,11 @@ export default function ActionButton({ props, host }: ComponentRendererProps): R
               }}
               onKeyDown={(event) => selectWithKeyboard(event, index)}
             >
+              {variant === "buttons" ? <span className="action-button__icon" aria-hidden="true">
+                {running ? <span className="action-button__spinner" /> : <ActionGlyph reference={reference} />}
+              </span> : null}
               <span>{item.name}</span>
-              {running ? <span className="action-button__spinner" aria-hidden="true" /> : null}
+              {variant !== "buttons" && running ? <span className="action-button__spinner" aria-hidden="true" /> : null}
             </button>
             {disabledReason && disabled ? <span className="visually-hidden" id={`${itemId}-reason`} role="status">{disabledReason}</span> : null}
           </div>

@@ -16,8 +16,10 @@ root:
         props:
           variant: tabs
           items:
-            - name: Cockpit
+            - name: Overview
               action: select:project-sections/cockpit
+            - name: Work
+              action: select:project-sections/project-work
             - name: Changes
               action: select:project-sections/changes
             - name: Develop
@@ -44,7 +46,7 @@ root:
           defaultChild: cockpit
         children:
           - metadata:
-              label: Cockpit
+              label: Overview
             node:
               id: cockpit
               component: "@dash-bored/group"
@@ -52,21 +54,19 @@ root:
                 axis: vertical
                 first:
                   axis: horizontal
-                  ratio: 0.25
                   first:
-                    node:
-                      id: workspace-status
-                      component: "@dash-bored/status"
-                      props:
-                        label: Working tree
-                        source:
-                          shell: bun run .dash-bored/scripts/workspace-status.ts
-                          cwd: .
-                          every: 10000
-                  second:
                     axis: horizontal
-                    ratio: 0.3333
                     first:
+                      node:
+                        id: workspace-status
+                        component: "@dash-bored/status"
+                        props:
+                          label: Working tree
+                          source:
+                            shell: bun run .dash-bored/scripts/workspace-status.ts
+                            cwd: .
+                            every: 10000
+                    second:
                       node:
                         id: dashboard-health
                         component: "@dash-bored/status"
@@ -77,26 +77,26 @@ root:
                             cwd: .
                             every: 30000
                             timeoutMs: 20000
+                  second:
+                    axis: horizontal
+                    first:
+                      node:
+                        id: qa-status
+                        component: "@dash-bored/status"
+                        props:
+                          label: Last QA run
+                          source:
+                            process: run-qa
                     second:
-                      axis: horizontal
-                      first:
-                        node:
-                          id: qa-status
-                          component: "@dash-bored/status"
-                          props:
-                            label: Last QA run
-                            source:
-                              process: run-qa
-                      second:
-                        node:
-                          id: todo-status
-                          component: "@dash-bored/status"
-                          props:
-                            label: Todos
-                            source:
-                              shell: bun run .dash-bored/scripts/todo-stats.ts status
-                              cwd: .
-                              every: 15000
+                      node:
+                        id: todo-status
+                        component: "@dash-bored/status"
+                        props:
+                          label: Todos
+                          source:
+                            shell: bun run .dash-bored/scripts/todo-stats.ts status
+                            cwd: .
+                            every: 15000
                 second:
                   axis: vertical
                   first:
@@ -105,278 +105,323 @@ root:
                       component: "@dash-bored/button"
                       persistOnFocus: true
                       props:
-                        variant: buttons
                         items:
                           - name: Run QA
                             action: process:run-qa
-                          - name: Validate dashboard
+                          - name: Validate
                             action: process:validate-dashboard
-                          - name: Start dev environment
-                            action: process:start-development
                           - name: Review changes
                             action: select:project-sections/changes
-                          - name: Package scripts
-                            action: reveal:package-script-catalog
-                          - name: Triage todos with agent
-                            action:
-                              run: agent:prompt
-                              with:
-                                prompt: Review the open todos in node yaml-todo of .dash-bored/dash-bored.yaml. Recommend one scoped next action with rationale; do not edit files or change todo completion state.
+                          - name: Open backlog
+                            action: reveal:yaml-todo
                   second:
-                    axis: vertical
+                    axis: horizontal
                     first:
                       node:
-                        id: yaml-todo
-                        component: "@dash-bored/list"
-                        props:
-                          title: Todos
-                          itemActions:
-                            - name: Remediate with agent
-                              action:
-                                run: agent:prompt
-                                with:
-                                  prompt: ${item.description}
-                          todos:
-                            - id: todo-001
-                              description: Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path.
-                              done: true
-                              tags:
-                                - atom-roadmap
-                            - id: todo-002
-                              description: Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today).
-                              done: true
-                              tags:
-                                - agent-tools
-                            - id: todo-003
-                              description: Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3.
-                              done: true
-                              tags:
-                                - atoms
-                            - id: todo-004
-                              description: Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly.
-                              done: false
-                              tags:
-                                - agent-tools
-                            - id: todo-005
-                              description: Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window.
-                              done: false
-                              tags:
-                                - agent-tools
-                            - id: todo-007
-                              description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
-                              done: true
-                              tags:
-                                - tooling
-                            - id: todo-008
-                              description: Add a better agent interface with user feedback and control
-                              done: true
-                              tags:
-                                - improvement
-                            - id: todo-009
-                              description: Keyboard shortcut editor, in settings, tied in with command pallet actions
-                              done: true
-                              tags:
-                                - feature
-                            - id: todo-010
-                              description: Theme and styling as component?
-                              done: true
-                              tags:
-                                - feature
-                            - id: todo-011
-                              description: Individually collapsable components in sidebar tree view
-                              done: true
-                              tags:
-                                - feature
-                            - id: todo-012
-                              description: Components moveable from tree view
-                              done: true
-                              tags:
-                                - feature
-                            - id: todo-013
-                              description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
-                              done: true
-                              tags:
-                                - Improvement
-                            - id: todo-014
-                              description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
-                              done: true
-                              tags:
-                                - feature
-                                - component
-                            - id: todo-015
-                              description: unify agent work and component library look
-                              done: true
-                              tags:
-                                - improvement
-                            - id: todo-016
-                              description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
-                              done: false
-                              tags:
-                                - distribution
-                                - updates
-                            - id: todo-017
-                              description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
-                              done: true
-                              tags:
-                                - verification
-                                - updates
-                            - id: todo-018
-                              description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
-                              done: true
-                              tags:
-                                - verification
-                                - release
-                            - id: todo-019
-                              description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
-                              done: true
-                              tags:
-                                - feature
-                            - id: todo-020
-                              description: Agent work modal not showing diff
-                              done: false
-                              tags:
-                                - bug
-                            - id: todo-021
-                              description: Remove Agent work modal redundant "Recent agent output” dropdown
-                              done: false
-                              tags:
-                                - chore
-                            - id: todo-022
-                              description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
-                              done: false
-                              tags:
-                                - improvement
-                            - id: todo-023
-                              description: Drag and dropping component between, or creating new, tabs needs support
-                              done: false
-                              tags:
-                                - chore
-                            - id: todo-024
-                              description: "Drag targeting: let edge distance escalate to ancestor boundaries so a drop can tile beside a whole split pane or at the dashboard edge, not only beside the deepest hovered node's siblings."
-                              done: false
-                              tags:
-                                - improvement
-                            - id: todo-025
-                              description: Auto-scroll scroll containers when a composition drag nears their edge.
-                              done: false
-                              tags:
-                                - improvement
-                            - id: todo-026
-                              description: Retire the native HTML5 drag handlers in ComponentFrame and keep composition drags pointer-only.
-                              done: false
-                              tags:
-                                - chore
-                            - id: todo-atoms-schema-migration
-                              description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
-                              done: false
-                              tags:
-                                - atoms
-                            - id: todo-command-quick-action-exit
-                              description: A @dash-bored/command keeps its interactive shell open after the quick action finishes, so status tiles with source.process (such as qa-status) report running instead of the last exit code, and a command's run item action stays disabled after its first use until Stop. Track quick-action completion separately from the shell, or offer a non-interactive run mode; then drop the caveat from the skill's sources reference.
-                              done: true
-                              tags:
-                                - atoms
-                                - bug
-                            - id: todo-command-run-fixture-coverage
-                              description: The renderer UI fixture host (src/renderer/lib/ui-harness-host.ts) does not model a command's per-run `run` record, so test:renderer-ui cannot prove the Run, exit badge, Run-again loop, a process-bound status tile turning healthy or error, or an item action re-running without Close terminal. Model runs in the fixture and add that interaction test.
-                              done: false
-                              tags:
-                                - atoms
-                                - tests
-                            - id: todo-agent-tool-source-check
-                              description: Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app.
-                              done: false
-                              tags:
-                                - agent-tool
-                                - skill
-                            - id: todo-validate-text-diagnostics
-                              description: Include each diagnostic's path in validate's text output, and give ${item.*} inside command text a specific message instead of the schema's 'must NOT be valid'.
-                              done: false
-                              tags:
-                                - agent-tool
-                            - id: todo-catalog-retiring-builtins
-                              description: Mark retiring builtins (card, tabs, todo-list, live-chart, conditional, setup-agent, focus-timer) in inspect --summary and the generated builtins reference so agents stop picking them from the catalog; the skill currently lists them by hand.
-                              done: false
-                              tags:
-                                - agent-tool
-                                - skill
-                            - id: todo-creation-prompt-sources
-                              description: "Align the structural editor's natural-language creation prompt with IDEA.md: it tells agents to build a project-local component, while IDEA prefers a source script feeding an existing view."
-                              done: true
-                              tags:
-                                - agent
-                                - skill
-                            - id: todo-skill-trigger-evals
-                              description: Run trigger evals for the skill description with near-miss queries (starting services, deploying, app dashboards in user code); past sessions showed it firing on unrelated ops tasks in projects with .dash-bored/.
-                              done: false
-                              tags:
-                                - skill
-                            - id: todo-eval-skill-suite
-                              description: "Grow the WIP skill A/B eval in scripts/eval/skill/ into a repeatable suite: scripted headless agent runs, isolation and the compiled tool (likely inside release-qa's Docker harness), repeats with token/time capture, and JSON deltas. The Todo list in scripts/eval/README.md has the steps."
-                              done: false
-                              tags:
-                                - skill
-                                - eval
-                            - id: todo-starter-prompt-sources
-                              description: "Resolve the starter setup prompt's conflict with IDEA.md: starterAgentPrompt says to build a project-local component 'by default' when nothing in the catalog fits and never mentions source scripts, while IDEA prefers a source script feeding an existing view. The prompt was deliberately reviewed, so decide before changing it."
-                              done: false
-                              tags:
-                                - agent
-                                - skill
-                    second:
-                      node:
-                        id: checks
+                        id: project-pulse
                         component: "@dash-bored/group"
-                        props:
-                          title: Checks
-                          description: The status tiles above observe these supervised processes.
                         children:
                           axis: vertical
                           first:
                             node:
-                              id: run-qa
-                              component: "@dash-bored/command"
+                              id: project-pulse-status
+                              component: "@dash-bored/status"
                               props:
-                                label: Run QA (reuse prepared Hutch)
-                                command: bun run qa:fast
-                                cwd: .
-                          second:
-                            axis: vertical
-                            first:
-                              node:
-                                id: validate-dashboard
-                                component: "@dash-bored/command"
-                                props:
-                                  label: Validate dashboard configuration
-                                  command: bun run dash-bored -- validate .
+                                label: Project pulse
+                                source:
+                                  shell: bun run .dash-bored/scripts/project-pulse.ts status
                                   cwd: .
-                            second:
-                              node:
-                                id: project-pulse
-                                component: "@dash-bored/group"
-                                children:
-                                  axis: vertical
-                                  first:
-                                    node:
-                                      id: project-pulse-status
-                                      component: "@dash-bored/status"
-                                      props:
-                                        label: Project pulse
-                                        source:
-                                          shell: bun run .dash-bored/scripts/project-pulse.ts status
-                                          cwd: .
-                                          every: 30000
-                                  second:
-                                    node:
-                                      id: git-activity
-                                      component: "@dash-bored/chart"
-                                      props:
-                                        title: Commits per day · last 14 days, all branches
-                                        type: line
-                                        source:
-                                          shell: bun run .dash-bored/scripts/git-log.ts activity
-                                          cwd: .
-                                          every: 60000
+                                  every: 30000
+                          second:
+                            node:
+                              id: git-activity
+                              component: "@dash-bored/chart"
+                              props:
+                                title: Commits · last 14 days
+                                type: bar
+                                source:
+                                  shell: bun run .dash-bored/scripts/git-log.ts activity
+                                  cwd: .
+                                  every: 60000
+                        props:
+                          title: Project activity
+                          description: Recent movement across all branches.
+                    second:
+                      node:
+                        id: cockpit-attention
+                        component: "@dash-bored/list"
+                        props:
+                          title: Open work · bugs first
+                          filterByTags: false
+                          sort: source-order
+                          source:
+                            shell: bun run .dash-bored/scripts/todo-stats.ts attention
+                            every: 15000
+                          itemActions:
+                            - name: View backlog
+                              action: reveal:yaml-todo
+              props:
+                title: Project at a glance
+                description: Health, recent activity, and open work. Choose a section for detail.
+          - metadata:
+              label: Work
+            node:
+              id: project-work
+              component: "@dash-bored/group"
+              props:
+                title: Project work
+                description: The full editable backlog and checks. Overview shows the first five open items, with bugs first.
+              children:
+                axis: vertical
+                first:
+                  node:
+                    id: work-actions
+                    component: "@dash-bored/button"
+                    persistOnFocus: true
+                    props:
+                      variant: buttons
+                      items:
+                        - name: Run QA
+                          action: process:run-qa
+                        - name: Validate dashboard
+                          action: process:validate-dashboard
+                        - name: Start dev environment
+                          action: process:start-development
+                        - name: Review changes
+                          action: select:project-sections/changes
+                        - name: Package scripts
+                          action: reveal:package-script-catalog
+                        - name: Triage todos with agent
+                          action:
+                            run: agent:prompt
+                            with:
+                              prompt: Review the open todos in node yaml-todo of .dash-bored/dash-bored.yaml. Recommend one scoped next action with rationale; do not edit files or change todo completion state.
+                second:
+                  axis: vertical
+                  first:
+                    node:
+                      id: yaml-todo
+                      component: "@dash-bored/list"
+                      props:
+                        title: Project backlog
+                        itemActions:
+                          - name: Remediate with agent
+                            action:
+                              run: agent:prompt
+                              with:
+                                prompt: ${item.description}
+                        todos:
+                          - id: todo-001
+                            description: Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path.
+                            done: true
+                            tags:
+                              - atom-roadmap
+                          - id: todo-002
+                            description: Expose tab selection as palette actions so agents can switch tabs without focusing a node (tabs keep selection in local component state today).
+                            done: true
+                            tags:
+                              - agent-tools
+                          - id: todo-003
+                            description: Implement parameterized declared actions and agent:prompt as planned in atoms roadmap WP3.
+                            done: true
+                            tags:
+                              - atoms
+                          - id: todo-004
+                            description: Add a palette action that clears focus and shows the whole dashboard, so agent screenshots can restore the unfocused view explicitly.
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-005
+                            description: Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window.
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-007
+                            description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
+                            done: true
+                            tags:
+                              - tooling
+                          - id: todo-008
+                            description: Add a better agent interface with user feedback and control
+                            done: true
+                            tags:
+                              - improvement
+                          - id: todo-009
+                            description: Keyboard shortcut editor, in settings, tied in with command pallet actions
+                            done: true
+                            tags:
+                              - feature
+                          - id: todo-010
+                            description: Theme and styling as component?
+                            done: true
+                            tags:
+                              - feature
+                          - id: todo-011
+                            description: Individually collapsable components in sidebar tree view
+                            done: true
+                            tags:
+                              - feature
+                          - id: todo-012
+                            description: Components moveable from tree view
+                            done: true
+                            tags:
+                              - feature
+                          - id: todo-013
+                            description: "Pick up and hover with component to drill down on target. ex: Hover over Card to drop component into card."
+                            done: true
+                            tags:
+                              - Improvement
+                          - id: todo-014
+                            description: Add conditional component, hide “install cli/skill" components in default dashboard if already done
+                            done: true
+                            tags:
+                              - feature
+                              - component
+                          - id: todo-015
+                            description: unify agent work and component library look
+                            done: true
+                            tags:
+                              - improvement
+                          - id: todo-016
+                            description: Enable beta/stable release channels, make stable the default for new installations, and define explicit transitions for existing canary users without silently switching channels.
+                            done: false
+                            tags:
+                              - distribution
+                              - updates
+                          - id: todo-017
+                            description: Verified isolated unsigned macOS 99.0.1-to-99.0.2 native replacement, relaunch and matching CLI; fixed PAX archive rejection with USTAR and retained the verified DMG fallback.
+                            done: true
+                            tags:
+                              - verification
+                              - updates
+                          - id: todo-018
+                            description: Verify downloaded-DMG Gatekeeper Open Anyway approval for the first updater-capable release; never bypass normal macOS security approval.
+                            done: true
+                            tags:
+                              - verification
+                              - release
+                          - id: todo-019
+                            description: Provide tools (wrap cli?) with skill so that agent actions and progress can be cleanly and in a nice way shown to the user
+                            done: true
+                            tags:
+                              - feature
+                          - id: todo-020
+                            description: Agent work modal not showing diff
+                            done: false
+                            tags:
+                              - bug
+                          - id: todo-021
+                            description: Remove Agent work modal redundant "Recent agent output” dropdown
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-022
+                            description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
+                            done: false
+                            tags:
+                              - improvement
+                          - id: todo-023
+                            description: Drag and dropping component between, or creating new, tabs needs support
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-024
+                            description: "Drag targeting: let edge distance escalate to ancestor boundaries so a drop can tile beside a whole split pane or at the dashboard edge, not only beside the deepest hovered node's siblings."
+                            done: false
+                            tags:
+                              - improvement
+                          - id: todo-025
+                            description: Auto-scroll scroll containers when a composition drag nears their edge.
+                            done: false
+                            tags:
+                              - improvement
+                          - id: todo-026
+                            description: Retire the native HTML5 drag handlers in ComponentFrame and keep composition drags pointer-only.
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-atoms-schema-migration
+                            description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
+                            done: false
+                            tags:
+                              - atoms
+                          - id: todo-command-quick-action-exit
+                            description: A @dash-bored/command keeps its interactive shell open after the quick action finishes, so status tiles with source.process (such as qa-status) report running instead of the last exit code, and a command's run item action stays disabled after its first use until Stop. Track quick-action completion separately from the shell, or offer a non-interactive run mode; then drop the caveat from the skill's sources reference.
+                            done: true
+                            tags:
+                              - atoms
+                              - bug
+                          - id: todo-command-run-fixture-coverage
+                            description: The renderer UI fixture host (src/renderer/lib/ui-harness-host.ts) does not model a command's per-run `run` record, so test:renderer-ui cannot prove the Run, exit badge, Run-again loop, a process-bound status tile turning healthy or error, or an item action re-running without Close terminal. Model runs in the fixture and add that interaction test.
+                            done: false
+                            tags:
+                              - atoms
+                              - tests
+                          - id: todo-agent-tool-source-check
+                            description: Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app.
+                            done: false
+                            tags:
+                              - agent-tool
+                              - skill
+                          - id: todo-validate-text-diagnostics
+                            description: Include each diagnostic's path in validate's text output, and give ${item.*} inside command text a specific message instead of the schema's 'must NOT be valid'.
+                            done: false
+                            tags:
+                              - agent-tool
+                          - id: todo-catalog-retiring-builtins
+                            description: Mark retiring builtins (card, tabs, todo-list, live-chart, conditional, setup-agent, focus-timer) in inspect --summary and the generated builtins reference so agents stop picking them from the catalog; the skill currently lists them by hand.
+                            done: false
+                            tags:
+                              - agent-tool
+                              - skill
+                          - id: todo-creation-prompt-sources
+                            description: "Align the structural editor's natural-language creation prompt with IDEA.md: it tells agents to build a project-local component, while IDEA prefers a source script feeding an existing view."
+                            done: true
+                            tags:
+                              - agent
+                              - skill
+                          - id: todo-skill-trigger-evals
+                            description: Run trigger evals for the skill description with near-miss queries (starting services, deploying, app dashboards in user code); past sessions showed it firing on unrelated ops tasks in projects with .dash-bored/.
+                            done: false
+                            tags:
+                              - skill
+                          - id: todo-eval-skill-suite
+                            description: "Grow the WIP skill A/B eval in scripts/eval/skill/ into a repeatable suite: scripted headless agent runs, isolation and the compiled tool (likely inside release-qa's Docker harness), repeats with token/time capture, and JSON deltas. The Todo list in scripts/eval/README.md has the steps."
+                            done: false
+                            tags:
+                              - skill
+                              - eval
+                          - id: todo-starter-prompt-sources
+                            description: "Resolve the starter setup prompt's conflict with IDEA.md: starterAgentPrompt says to build a project-local component 'by default' when nothing in the catalog fits and never mentions source scripts, while IDEA prefers a source script feeding an existing view. The prompt was deliberately reviewed, so decide before changing it."
+                            done: false
+                            tags:
+                              - agent
+                              - skill
+                  second:
+                    node:
+                      id: checks
+                      component: "@dash-bored/group"
+                      props:
+                        title: Checks
+                        description: The status tiles above observe these supervised processes.
+                      children:
+                        axis: vertical
+                        first:
+                          node:
+                            id: run-qa
+                            component: "@dash-bored/command"
+                            props:
+                              label: Run QA (reuse prepared Hutch)
+                              command: bun run qa:fast
+                              cwd: .
+                        second:
+                          node:
+                            id: validate-dashboard
+                            component: "@dash-bored/command"
+                            props:
+                              label: Validate dashboard configuration
+                              command: bun run dash-bored -- validate .
+                              cwd: .
           - metadata:
               label: Changes
             node:

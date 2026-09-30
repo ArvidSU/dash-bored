@@ -48,10 +48,10 @@ function MarkdownSourceView({ props, source, host, refresh, onRefresh }: {
   const missing = permission === "process:execute" && !host.shell || permission === "network:http" && !host.http || permission === "process:observe" && !host.processes || permission === "filesystem:read" && !host.filesystem;
   if (missing) return <CapabilityGate title={title}>Trust this project and grant {permission} to read this source.</CapabilityGate>;
   const text = typeof state.value === "string" ? state.value : state.value === undefined ? "" : `\`\`\`json\n${JSON.stringify(state.value, null, 2)}\n\`\`\``;
-  return <section className="markdown-viewer" aria-label={title}>
+  return <section className="markdown-viewer" data-refreshing={state.loading && state.value !== undefined || undefined} aria-label={title}>
     <header className="markdown-viewer__header"><strong>{title}</strong><button className="button button--quiet" type="button" onClick={onRefresh} disabled={state.loading}>Refresh</button></header>
     {state.loading && state.value === undefined ? <div className="component-state" role="status">Loading…</div> : null}
-    {state.loading && state.value !== undefined ? <small role="status">Updating…</small> : null}
+    {state.loading && state.value !== undefined ? <small className="visually-hidden" role="status">Updating…</small> : null}
     {state.error ? <div className="component-state component-state--error" role="alert">{state.value === undefined ? "Source error" : "Stale value"}: {state.error}</div> : null}
     {state.value !== undefined ? <MarkdownPreview content={text} /> : null}
     {!visible ? <small>Paused while hidden</small> : null}

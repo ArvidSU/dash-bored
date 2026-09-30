@@ -1596,3 +1596,60 @@ test('source list actions filter data without exposing todo mutations', async ()
     expect(await proof.getByText('COMPONENT_ACTION_UNDECLARED', { exact: true }).count()).toBe(0);
   } finally { await proof.close(); }
 });
+
+
+test('visual overview preserves refresh geometry, state shapes, and reduced motion', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const reads = new Map<string, number>();
+      const finish: Array<() => void> = [];
+      (window as Window & { finishVisualReads?: () => void }).finishVisualReads = () => finish.splice(0).forEach(resolve => resolve());
+      host.runShell = async (request) => {
+        const count = reads.get(request.command) ?? 0;
+        reads.set(request.command, count + 1);
+        // StrictMode performs two initial effect reads. Hold subsequent refreshes.
+        if (count > 1) await new Promise<void>(resolve => finish.push(resolve));
+        const value = request.command === 'visual-status' ? { state: 'healthy', detail: 'Current observation' }
+          : [{ id: 'one', title: 'Open task', state: 'warning' }];
+        return { stdout: JSON.stringify(value), stderr: '', exitCode: 0, signal: null, timedOut: false };
+      };
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Visual overview', root: {
+        id: 'visual-proof', component: '@dash-bored/group', children: { axis: 'vertical',
+          first: { node: { id: 'visual-status', component: '@dash-bored/status', props: { label: 'Source state', source: { shell: 'visual-status' } } } },
+          second: { axis: 'vertical',
+            first: { node: { id: 'visual-refresh', component: '@dash-bored/button', props: { name: 'Refresh source state', action: 'component:visual-status:refresh' } } },
+            second: { node: { id: 'visual-list', component: '@dash-bored/list', props: { title: 'Open work', source: { shell: 'visual-list' } } } },
+          },
+        },
+      } }, snapshot.configRevision!);
+    });
+    await proof.getByText('Current observation', { exact: true }).waitFor();
+    await proof.getByText('Open task', { exact: true }).waitFor();
+    const status = proof.locator('.status');
+    const list = proof.locator('.source-list');
+    expect(await status.getAttribute('data-tone')).toBe('positive');
+    expect(await status.locator('svg').count()).toBe(1);
+    expect(await list.locator('li[data-tone="warning"] svg').count()).toBe(1);
+    const before = await Promise.all([status, list].map(view => view.boundingBox()));
+    await proof.getByRole('button', { name: 'Refresh source state', exact: true }).click();
+    await status.locator('.status__refreshing').waitFor({ state: 'attached' });
+    await list.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await proof.waitForFunction(() => document.querySelector('.source-list')?.getAttribute('data-refreshing') === 'true');
+    const during = await Promise.all([status, list].map(view => view.boundingBox()));
+    expect(during).toEqual(before);
+    expect(await status.locator('.status__refreshing').evaluate(e => e.getBoundingClientRect().height)).toBe(1);
+    expect(await list.getByText('Updating…', { exact: true }).evaluate(e => e.getBoundingClientRect().height)).toBe(1);
+    await proof.evaluate(() => (window as Window & { finishVisualReads?: () => void }).finishVisualReads?.());
+    await proof.waitForFunction(() => !document.querySelector('.source-list')?.hasAttribute('data-refreshing'));
+    await proof.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await status.evaluate(e => parseFloat(getComputedStyle(e).animationDuration))).toBeLessThanOrEqual(0.001);
+    await proof.setViewportSize({ width: 390, height: 844 });
+    expect(await proof.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  } finally { await proof.close(); }
+}, 20_000);

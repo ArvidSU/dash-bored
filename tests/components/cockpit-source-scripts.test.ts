@@ -4,7 +4,7 @@ import { changeListItems } from "../../.dash-bored/scripts/git-changes";
 import { activityChart, commitListItems } from "../../.dash-bored/scripts/git-log";
 import { releaseListItems } from "../../.dash-bored/scripts/releases";
 import { roadmapListItems } from "../../.dash-bored/scripts/roadmap";
-import { findTodos, todoChart, todoStatus } from "../../.dash-bored/scripts/todo-stats";
+import { findTodos, todoAttention, todoChart, todoStatus } from "../../.dash-bored/scripts/todo-stats";
 import { workspaceStatus } from "../../.dash-bored/scripts/workspace-status";
 
 describe("project cockpit source scripts", () => {
@@ -61,6 +61,16 @@ describe("project cockpit source scripts", () => {
       labels: ["bug", "feature"],
       series: [{ label: "Open", values: [1, 1] }, { label: "Done", values: [0, 1] }],
     });
+  });
+
+  test("bounds the overview to open work, prioritizing bugs without mutating the backlog", () => {
+    const todos = Array.from({ length: 8 }, (_, index) => ({ id: String(index), description: `Work ${index}`, done: index === 0, tags: index === 6 ? ["BUG"] : [] }));
+    const original = structuredClone(todos);
+    const attention = todoAttention(todos);
+    expect(attention.map((item) => item.id)).toEqual(["6", "1", "2", "3", "4"]);
+    expect(attention[0]?.state).toBe("warning");
+    expect(todos).toEqual(original);
+    expect(todoAttention(todos.map((todo) => ({ ...todo, done: true })))).toEqual([]);
   });
 
   test("reads the roadmap implementation-status table", () => {
