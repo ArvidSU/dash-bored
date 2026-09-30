@@ -143,6 +143,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
     name: name[0]!.toUpperCase() + name.slice(1),
     description: `Fixture ${name} component.`,
     entry: `builtin:${name}`,
+    actions: listBuiltinManifests().find((manifest) => manifest.id === `@dash-bored/${name}`)?.actions,
     ...(name === "group" || name === "conditional" || name === "tabs" ? { renderMode: "layout" as const } : {}),
     ...(name === "command" || name === "conditional" ? { permissions: ["process:execute" as const] } : {}),
     ...(name === "markdown" ? { permissions: ["filesystem:read" as const, "filesystem:write" as const] } : {}),
@@ -229,7 +230,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
 }));
 
 catalog.push(...listBuiltinManifests()
-  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer" || manifest.id === "@dash-bored/button")
+  .filter((manifest) => manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer" || manifest.id === "@dash-bored/button" || manifest.id === "@dash-bored/list")
   .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
 
 catalog.push({

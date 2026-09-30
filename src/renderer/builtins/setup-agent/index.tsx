@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate } from "../shared";
@@ -12,17 +12,25 @@ export default function SetupAgent({ host }: ComponentRendererProps): ReactNode 
   const missing = configured?.source === "unset" || !configured?.value?.trim();
   const setupWithAgent = host.dashboard.setupWithAgent;
 
-  async function start(): Promise<void> {
+  const start = useCallback(async (reportFailure = false): Promise<void> => {
     setPending(true);
     setError(null);
     try {
       await setupWithAgent?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      if (reportFailure) throw cause;
     } finally {
       setPending(false);
     }
-  }
+  }, [setupWithAgent]);
+
+  useEffect(() => host.actions.register({
+    id: "setup", label: "Set up dashboard with agent", enabled: Boolean(setupWithAgent) && !pending && !missing,
+    disabledReason: !setupWithAgent ? "Trust this project to run its configured agent." : missing ? "Configure DASH_BORED_AGENT first." : "Agent setup is starting.",
+    confirmation: { title: "Set up dashboard with agent?", message: `Run ${command} to customize this dashboard.` },
+    run: () => start(true),
+  }), [host.actions, setupWithAgent, pending, missing, command, start]);
 
   if (!setupWithAgent) {
     return <CapabilityGate title="Set up this dashboard">Trust this project to run its configured agent.</CapabilityGate>;

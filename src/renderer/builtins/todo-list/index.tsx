@@ -166,10 +166,44 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
     });
   };
 
-  const tags = todoTags(items);
+  const tags = useMemo(() => todoTags(items), [items]);
   useEffect(() => {
     if (filterTag !== "" && !tags.includes(filterTag)) setFilterTag("");
   }, [filterTag, items]);
+
+  useEffect(() => {
+    const itemChoice = { id: "id", label: "Choose a todo", options: () => items.map((item) => ({ value: item.id, label: item.description })) };
+    const targetItem = (selections?: Readonly<Record<string, string>>, args?: Record<string, unknown>) => {
+      const item = items.find((candidate) => candidate.id === (args?.id ?? selections?.id));
+      if (!item) throw new Error("This todo no longer exists.");
+      return item;
+    };
+    const unregister = [
+      host.actions.register({ id: "toggle", label: "Toggle todo completion", enabled: !saving && items.length > 0,
+        disabledReason: saving ? "Todo edits are being saved." : "There are no todos.", choices: [itemChoice],
+        run: async (selections, args) => {
+          const item = targetItem(selections, args);
+          if (!await persist(items.map((candidate) => candidate.id === item.id ? { ...candidate, done: !candidate.done } : candidate))) throw new Error("Could not update the todo draft.");
+        } }),
+      host.actions.register({ id: "remove", label: "Remove todo", enabled: !saving && items.length > 0,
+        disabledReason: saving ? "Todo edits are being saved." : "There are no todos.", choices: [itemChoice],
+        confirmation: { title: "Remove selected todo from the dashboard draft?" },
+        run: async (selections, args) => {
+          const item = targetItem(selections, args);
+          if (!await persist(items.filter((candidate) => candidate.id !== item.id))) throw new Error("Could not update the todo draft.");
+        } }),
+      host.actions.register({ id: "clear-filter", label: "Clear list tag filter", enabled: filterTag !== "", disabledReason: "No tag filter is selected.", run: () => setFilterTag("") }),
+      host.actions.register({ id: "filter", label: "Filter list by tag", enabled: tags.length > 0 || filterTag !== "",
+        disabledReason: "This list has no tags.",
+        choices: [{ id: "tag", label: "Choose a tag", options: () => tags.map((tag) => ({ value: tag, label: tag })) }],
+        run: (selections, args) => {
+          const tag = args?.tag ?? selections?.tag ?? "";
+          if (typeof tag !== "string" || tag !== "" && !tags.includes(tag)) throw new Error("Choose a current list tag.");
+          setFilterTag(tag);
+        } }),
+    ];
+    return () => unregister.forEach((remove) => remove());
+  }, [host.actions, items, saving, persist, filterTag, tags]);
 
   const visibleItems = sortTodos(filterTodos(items, filterTag));
   const openCount = items.filter((item) => !item.done).length;

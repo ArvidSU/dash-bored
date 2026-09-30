@@ -1,10 +1,10 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import "./tabs.css";
 import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
 
-export default function Tabs({ props, children }: ComponentRendererProps): ReactNode {
+export default function Tabs({ props, children, host }: ComponentRendererProps): ReactNode {
   const panels = children?.type === "managed" ? children.items : [];
   const requestedDefault = props.defaultTab;
   const defaultIndex =
@@ -20,6 +20,19 @@ export default function Tabs({ props, children }: ComponentRendererProps): React
   useEffect(() => {
     if (active >= panels.length) setActive(defaultIndex);
   }, [active, defaultIndex, panels.length]);
+
+  const tabOptionsKey = JSON.stringify(panels.map((panel) => ({ value: panel.id, label: typeof panel.metadata.label === "string" ? panel.metadata.label : panel.displayName })));
+  const tabOptions = useMemo(() => JSON.parse(tabOptionsKey) as { value: string; label: string }[], [tabOptionsKey]);
+  useEffect(() => host.actions.register({
+    id: "select", label: "Select tab", enabled: tabOptions.length > 0, disabledReason: "This tab group has no tabs.",
+    choices: [{ id: "child", label: "Choose a tab", options: () => tabOptions }],
+    run: (selections, args) => {
+      const target = args?.child ?? selections?.child;
+      const index = tabOptions.findIndex((option) => option.value === target);
+      if (index < 0) throw new Error("Choose a direct child of this tab group.");
+      setActive(index);
+    },
+  }), [host.actions, tabOptions]);
 
   function selectFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     let nextIndex: number | null = null;

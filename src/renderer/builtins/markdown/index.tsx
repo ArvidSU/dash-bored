@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useContext } from "react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
@@ -111,8 +111,9 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
       ? sourcePermissionAvailable ? undefined : "Trust this project to read the configured source."
       : path ? filesystem ? undefined : "Trust this project to read the Markdown file."
         : "Inline Markdown has no source to refresh.",
+    confirmation: source !== savedSource ? { title: "Discard Markdown edits and reload?" } : undefined,
     run: () => setRefresh((current) => current + 1),
-  }), [componentHost.actions, filesystem, path, sourcePermissionAvailable, sourceSpec]);
+  }), [componentHost.actions, filesystem, path, sourcePermissionAvailable, sourceSpec, source, savedSource]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,9 +164,7 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
 
   const dirty = source !== savedSource;
 
-  if (sourceSpec !== undefined) return <MarkdownSourceView host={componentHost} props={props} source={sourceSpec} refresh={refresh} onRefresh={() => setRefresh((current) => current + 1)} />;
-
-  async function save(): Promise<void> {
+  const save = useCallback(async (reportFailure = false): Promise<void> => {
     if (!dirty || saving) return;
     setSaving(true);
     setError(null);
@@ -180,16 +179,32 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
       setView("preview");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      if (reportFailure) throw cause;
     } finally {
       setSaving(false);
     }
-  }
+  }, [dirty, saving, path, filesystem, source, componentHost.dashboard, props]);
 
-  function cancelEdit(): void {
+  const cancelEdit = useCallback((): void => {
     setSource(savedSource);
     setError(null);
     setView("preview");
-  }
+  }, [savedSource]);
+
+  useEffect(() => {
+    const editable = !sourceSpec && (!path || Boolean(filesystem?.writeText));
+    const available = editable && !loading && !saving;
+    const reason = sourceSpec ? "Source Markdown is read-only." : !editable ? "Trust this project to edit this file." : "Markdown editor is busy.";
+    const unregister = [
+      componentHost.actions.register({ id: "edit", label: "Edit Markdown", enabled: available && view !== "raw", disabledReason: !available ? reason : "Editor is already open.", run: () => setView("raw") }),
+      componentHost.actions.register({ id: "preview", label: "Preview Markdown", enabled: !sourceSpec && view !== "preview" && !saving, disabledReason: sourceSpec ? reason : "Preview is already open or the editor is busy.", run: () => setView("preview") }),
+      componentHost.actions.register({ id: "save", label: "Save Markdown edits", enabled: available && dirty, disabledReason: !available ? reason : "No unsaved Markdown edits.", confirmation: path ? { title: "Save Markdown file?", message: `Write edits to ${path}.` } : undefined, run: () => save(true) }),
+      componentHost.actions.register({ id: "cancel", label: "Discard Markdown edits", enabled: available && dirty, disabledReason: !available ? reason : "No unsaved Markdown edits.", confirmation: { title: "Discard Markdown edits?" }, run: cancelEdit }),
+    ];
+    return () => unregister.forEach((remove) => remove());
+  }, [componentHost.actions, componentHost.dashboard, filesystem, sourceSpec, path, loading, saving, dirty, view, source, savedSource, props, save, cancelEdit]);
+
+  if (sourceSpec !== undefined) return <MarkdownSourceView host={componentHost} props={props} source={sourceSpec} refresh={refresh} onRefresh={() => setRefresh((current) => current + 1)} />;
 
   const title = path ? "Markdown file" : "Markdown";
   const label = path ? `Markdown preview for ${path}` : "Markdown preview";

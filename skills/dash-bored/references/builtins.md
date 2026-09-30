@@ -43,6 +43,13 @@ Children: none (leaf component).
 Permissions: none.
 
 
+Actions:
+
+- `start` — Start or resume timer
+- `pause` — Pause timer
+- `reset` — Reset timer
+- `next` — Start next timer session
+
 ## @dash-bored/setup-agent
 
 Dashboard setup agent — Runs the configured CLI agent to customize this starter dashboard.
@@ -55,6 +62,10 @@ Children: none (leaf component).
 
 Permissions: `process:execute`.
 
+
+Actions:
+
+- `setup` — Set up dashboard with agent
 
 ## @dash-bored/tabs
 
@@ -71,6 +82,11 @@ Edge metadata: object with keys: `label` (required) string.
 
 Permissions: none.
 
+
+Actions:
+
+- `select` — Select tab
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"child":{"type":"string","minLength":1}}}`.
 
 ## @dash-bored/group
 
@@ -125,6 +141,10 @@ Children: tiled presentation (axes: `both`), exactly 1.
 Permissions: `process:execute`.
 
 
+Actions:
+
+- `refresh` — Recheck condition
+
 ## @dash-bored/card
 
 Card — Frames dashboard content with an optional title.
@@ -164,6 +184,10 @@ Permissions: when configured: `path` requires `filesystem:read`, `filesystem:wri
 Actions:
 
 - `refresh` — Refresh Markdown: Reload the configured Markdown source.
+- `edit` — Edit Markdown
+- `preview` — Preview Markdown
+- `save` — Save Markdown edits
+- `cancel` — Discard Markdown edits
 
 ## @dash-bored/status
 
@@ -280,6 +304,13 @@ Children: none (leaf component).
 Permissions: `filesystem:read`, `filesystem:write`.
 
 
+Actions:
+
+- `refresh` — Reload environment file
+- `save` — Save environment file
+- `raw` — Show raw environment
+- `table` — Show environment variables
+
 ## @dash-bored/list
 
 List — Renders stable-ID items from a bounded source or editable YAML todos.
@@ -305,6 +336,13 @@ Permissions: when configured: `source.shell` requires `process:execute`; `source
 Actions:
 
 - `refresh` — Refresh list
+- `toggle` — Toggle todo completion
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"id":{"type":"string","minLength":1}}}`.
+- `remove` — Remove todo
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"id":{"type":"string","minLength":1}}}`.
+- `filter` — Filter list by tag
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"tag":{"type":"string","minLength":1}}}`.
+- `clear-filter` — Clear list tag filter
 
 ## @dash-bored/todo-list
 
@@ -322,6 +360,16 @@ Children: none (leaf component).
 Permissions: none.
 
 
+Actions:
+
+- `toggle` — Toggle todo completion
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"id":{"type":"string","minLength":1}}}`.
+- `remove` — Remove todo
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"id":{"type":"string","minLength":1}}}`.
+- `filter` — Filter list by tag
+  - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"tag":{"type":"string","minLength":1}}}`.
+- `clear-filter` — Clear list tag filter
+
 ## @dash-bored/webview
 
 Webview — Embeds an HTTP or HTTPS application page.
@@ -335,3 +383,8 @@ Props:
 Children: none (leaf component).
 
 Permissions: `webview:embed`.
+
+
+Actions:
+
+- `reload` — Reload embedded page

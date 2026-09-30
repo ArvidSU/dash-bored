@@ -443,6 +443,38 @@ config links and blocks cleanup when registered local component files are
 inside the target directory; unrelated component bundles outside the target do
 not block removing the target.
 
+## Built-in action coverage
+
+Built-ins declare their useful controls in their manifests and register the same
+handlers used by their inline UI while mounted. Stable references use
+`component:<node-id>:<action-id>`:
+
+- Focus timer: `start`, `pause`, `reset`, `next`; availability follows the
+  current running, paused, reset, or completed session.
+- Environment editor: `refresh`, `save`, `raw`, `table`. Reload asks before
+  discarding dirty edits; palette file saves require confirmation.
+- Markdown: `refresh`, `edit`, `preview`, `save`, `cancel`. Source content is
+  read-only; inline saves enter the dashboard draft, file saves use bounded
+  filesystem access. Dirty reloads/discards and palette file saves ask first.
+- List and legacy todo list: `toggle`, `remove`, `filter`, `clear-filter`.
+  Toggle/remove choose a stable todo `id`; removal asks for confirmation and
+  changes only the dashboard draft. Source lists disable mutations and retain
+  project-defined item actions. Filtering chooses a current `tag`.
+- Legacy tabs: `select` chooses a direct child by stable `child` ID. This
+  preserves the legacy local selection model; selection containers continue
+  using the core-owned `select:<container>/<child>` actions.
+- Conditional: `refresh` rechecks the configured bounded shell condition while
+  its containing panel is visible and trusted.
+- Webview: `reload` recreates the page at its configured URL after confirmation
+  that unsaved page state may be lost.
+- Setup agent: `setup` requires trust, a configured agent, and user
+  confirmation; the agent-control channel refuses this confirmation action.
+
+Choice arguments can be supplied through `{ run, with }` invocations; missing
+choices are collected by the palette. Unmounted declarations stay discoverable
+but unavailable. Containers, groups, and action buttons need no duplicate
+component verbs for the core navigation or the actions they already invoke.
+
 ## Action registry and command palette
 
 The renderer owns one action registry for the active application window. The
@@ -450,8 +482,12 @@ command palette merges three providers:
 
 - application navigation, lifecycle, and dashboard editing actions from shell
   state;
-- focus actions for every node in the currently selected dashboard, using the
-  same focused projection as the inline Focus controls;
+- one **Focus component** action whose choice step lists the available nodes in
+  the currently selected dashboard, using the same focused projection as the
+  inline Focus controls. Individual `focus:<node-id>` actions declare
+  `parentActionId: project:focus` and stay out of top-level palette results,
+  including searches and favorites, while remaining callable through buttons,
+  shortcuts, and agent tools;
 - run actions (`process:<node-id>`) derived from every resolved process
   resource and its authoritative process snapshot, disabled only while a run
   is active, plus a separate close/stop action while the terminal or process

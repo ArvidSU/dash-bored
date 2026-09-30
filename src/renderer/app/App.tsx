@@ -34,7 +34,7 @@ import {
 } from "../lib/action-providers";
 import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
 import type { AppView } from "../lib/action-providers";
-import { ActionExecutor, ActionRegistry, describeAgentAction } from "../lib/actions";
+import { ActionExecutor, ActionRegistry, describeAgentAction, matchActionChoiceSelections } from "../lib/actions";
 import type { PaletteAction } from "../lib/actions";
 import { writeClipboardText } from "../lib/clipboard";
 import { CommandPalette } from "../panels/CommandPalette";
@@ -1627,7 +1627,9 @@ export function App(): ReactNode {
       if (action) void actionExecutor.run(invocation.run, {}, actionArgs, callerNodeId, invocationKey ?? action.id);
       return;
     }
-    if (action?.choices?.length || action?.confirmation) {
+    const selections = action?.choices ? matchActionChoiceSelections(action.choices, actionArgs) : {};
+    const missingChoice = action?.choices?.some((choice) => selections[choice.id] === undefined);
+    if (action && (missingChoice || action.confirmation)) {
       // Invocation context lives only for this palette interaction.
       setPaletteInvocationArgs(actionArgs);
       setPaletteInvocationActionId(action.id);
@@ -1637,7 +1639,7 @@ export function App(): ReactNode {
       setPaletteOpen(true);
       return;
     }
-    void executePaletteAction(invocation.run, undefined, actionArgs, callerNodeId, invocationKey ?? action?.id);
+    void executePaletteAction(invocation.run, selections, actionArgs, callerNodeId, invocationKey ?? action?.id);
   }
 
   async function executePaletteAction(

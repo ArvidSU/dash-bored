@@ -17,6 +17,8 @@ export interface PaletteAction {
   id: string;
   /** Stable author-facing alias, when the runtime id is scoped to a mount. */
   reference?: string;
+  /** Listed through this parent action instead of as a top-level palette result. */
+  parentActionId?: string;
   label: string;
   description?: string;
   keywords: string[];
@@ -417,6 +419,7 @@ export function rankActions(
   actions: readonly PaletteAction[],
   rawQuery: string,
   favoriteActionIds: ReadonlySet<string> = new Set(),
+  includeSubActions = false,
 ): PaletteAction[] {
   const query = normalize(rawQuery);
   const groupOrder = new Map<string, number>();
@@ -425,6 +428,7 @@ export function rankActions(
   }
 
   return actions
+    .filter((action) => includeSubActions || !action.parentActionId)
     .map((action, index) => ({ action, index, score: actionScore(action, query) }))
     .filter(
       (item): item is { action: PaletteAction; index: number; score: number } =>

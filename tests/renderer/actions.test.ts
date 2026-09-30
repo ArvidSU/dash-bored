@@ -602,28 +602,37 @@ describe("application action providers", () => {
     );
 
     expect(actions.map((item) => item.id)).toEqual([
+      "project:focus",
       "focus:root",
       "focus:server",
     ]);
-    expect(actions[0]).toMatchObject({
+    expect(actions[1]).toMatchObject({
       label: "Focus Dashboard",
       description: "Show Dashboard in the active dashboard.",
       group: "Dashboard nodes",
       enabled: true,
     });
-    expect(actions[1]).toMatchObject({
+    expect(actions[2]).toMatchObject({
       label: "Focus Development server",
       enabled: false,
       disabledReason: "This node is already focused.",
     });
 
-    actions[0]?.run();
+    expect(rankActions(actions, "focus").map((action) => action.id)).toEqual(["project:focus"]);
+    expect(rankActions(actions, "", new Set(["focus:root"])).map((action) => action.id)).toEqual(["project:focus"]);
+    expect(rankActions(actions, "focus", new Set(), true).map((action) => action.id)).toContain("focus:root");
+    expect(actions[0]?.choices?.[0]?.options).toEqual([{
+      value: "root", label: "Dashboard", description: "Show Dashboard in the active dashboard.",
+    }]);
+    actions[0]?.run({ node: "root" });
+    expect(focusedNode).toBe("root");
+    actions[1]?.run();
     expect(focusedNode).toBe("root");
   });
 
-  test("keeps node focus actions searchable but unavailable while editing", () => {
+  test("keeps the focus chooser and direct targets unavailable while editing", () => {
     const actions = buildNodeFocusActions(snapshot(), null, true, () => undefined);
-    expect(actions).toHaveLength(2);
+    expect(actions).toHaveLength(3);
     expect(actions.every((item) => item.enabled)).toBeFalse();
     expect(actions[0]?.disabledReason).toBe(
       "Finish dashboard editing before focusing a node.",

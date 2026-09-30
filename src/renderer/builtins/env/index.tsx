@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
 import "./env.css";
 import type { ComponentRendererProps } from "../types";
@@ -64,7 +64,7 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
   const invalidKeys = rows.filter(({ entry }) => !isValidEnvKey(entry.key)).length;
   const invalidLines = invalidEnvLineCount(document);
 
-  function switchMode(nextMode: "table" | "raw"): void {
+  const switchMode = useCallback((nextMode: "table" | "raw"): void => {
     if (nextMode === mode) return;
     if (nextMode === "raw") {
       setRawSource(tableSource);
@@ -73,7 +73,7 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
     }
     setMode(nextMode);
     setError(null);
-  }
+  }, [mode, tableSource, rawSource]);
 
   function updateEntry(
     lineIndex: number,
@@ -100,8 +100,8 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
     setError(null);
   }
 
-  async function save(): Promise<void> {
-    if (!path || !dirty || invalidKeys > 0) return;
+  const save = useCallback(async (reportFailure = false): Promise<void> => {
+    if (!path || !dirty || invalidKeys > 0 || loading || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -111,10 +111,28 @@ export default function EnvEditor({ props, host: componentHost }: ComponentRende
       if (mode === "table") setRawSource(content);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      if (reportFailure) throw cause;
     } finally {
       setSaving(false);
     }
-  }
+  }, [path, dirty, invalidKeys, loading, saving, filesystem, content, mode]);
+
+  useEffect(() => {
+    const available = Boolean(filesystem?.writeText && path) && !loading && !saving;
+    const reason = !filesystem?.writeText ? "Trust this project to read and write this file." : !path ? "Configure an environment file path." : "Environment editor is busy.";
+    const unregister = [
+      componentHost.actions.register({ id: "refresh", label: "Reload environment file", enabled: available,
+        disabledReason: reason, confirmation: dirty ? { title: "Discard environment edits and reload?" } : undefined,
+        run: () => setRefresh((value) => value + 1) }),
+      componentHost.actions.register({ id: "save", label: "Save environment file", enabled: available && dirty && invalidKeys === 0,
+        disabledReason: !available ? reason : invalidKeys > 0 ? "Fix invalid variable names first." : "No unsaved environment edits.",
+        confirmation: { title: "Save environment file?", message: `Write edits to ${path}.` }, run: () => save(true) }),
+      ...(["raw", "table"] as const).map((nextMode) => componentHost.actions.register({ id: nextMode,
+        label: nextMode === "raw" ? "Show raw environment" : "Show environment variables", enabled: available && mode !== nextMode,
+        disabledReason: !available ? reason : "This view is already selected.", run: () => switchMode(nextMode) })),
+    ];
+    return () => unregister.forEach((remove) => remove());
+  }, [componentHost.actions, filesystem, path, loading, saving, dirty, invalidKeys, mode, content, tableSource, rawSource, save, switchMode]);
 
   if (!filesystem?.writeText) {
     return (

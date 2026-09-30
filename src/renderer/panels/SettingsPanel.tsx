@@ -93,7 +93,7 @@ export function SettingsPanel({
   const savingSettings = pendingAction === "save-settings";
   const favoriteIds = useMemo(() => new Set(appSettings.favoriteActionIds), [appSettings.favoriteActionIds]);
   const visibleActions = useMemo(
-    () => rankActions(actions, actionQuery, favoriteIds),
+    () => rankActions(actions, actionQuery, favoriteIds, true),
     [actionQuery, actions, favoriteIds],
   );
 

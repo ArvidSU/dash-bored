@@ -67,6 +67,20 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   useEffect(() => {
     if (filterTag !== "" && !tags.includes(filterTag)) setFilterTag("");
   }, [filterTag, tags]);
+  useEffect(() => {
+    const unregister = [
+      ...["toggle", "remove"].map((id) => host.actions.register({ id, label: id === "toggle" ? "Toggle todo completion" : "Remove todo", enabled: false, disabledReason: "Source-backed items are read-only; configure an item action instead.", run: () => undefined })),
+      host.actions.register({ id: "clear-filter", label: "Clear list tag filter", enabled: filterTag !== "", disabledReason: "No tag filter is selected.", run: () => setFilterTag("") }),
+      host.actions.register({ id: "filter", label: "Filter list by tag", enabled: filterByTags && (tags.length > 0 || filterTag !== ""), disabledReason: filterByTags ? "This list has no tags." : "Tag filtering is disabled.",
+        choices: [{ id: "tag", label: "Choose a tag", options: () => tags.map((tag) => ({ value: tag, label: tag })) }],
+        run: (selections, args) => {
+          const tag = args?.tag ?? selections?.tag ?? "";
+          if (typeof tag !== "string" || tag !== "" && !tags.includes(tag)) throw new Error("Choose a current list tag.");
+          setFilterTag(tag);
+        } }),
+    ];
+    return () => unregister.forEach((remove) => remove());
+  }, [host.actions, filterByTags, tags, filterTag]);
   const displayed = useMemo(
     () => sortListItems(filterListItems(parsed.items, filterTag), sortMode),
     [filterTag, parsed.items, sortMode],

@@ -283,12 +283,6 @@ root:
                               tags:
                                 - atoms
                                 - tests
-                            - id: todo-command-run-windows
-                              description: "Verify interactive command runs on Windows: each run is `cmd.exe /d /s /c <command>` in the PTY and the resting shell is `cmd.exe`. Its foreground job cannot be read, so once the user types into the resting shell a new run is refused (PROCESS_TERMINAL_BUSY) until the terminal is closed. Confirm quoting, Ctrl-C, and taskkill-based close, and find a safe busy check."
-                              done: false
-                              tags:
-                                - atoms
-                                - windows
                             - id: todo-agent-tool-source-check
                               description: Add an agent-tool check that runs each shell and file source once and reports view-shape mismatches (status, list, chart) with the node path. validate never executes sources, so agents only discover a wrong shape in the app.
                               done: false
@@ -1015,11 +1009,31 @@ root:
               label: Focus
             node:
               id: project-focus-timer
-              component: ./components/focus-timer
-              props:
-                title: Make something worth shipping
-                focusMinutes: 25
-                breakMinutes: 5
+              component: "@dash-bored/group"
+              children:
+                axis: vertical
+                first:
+                  node:
+                    id: builtin-timer
+                    component: "@dash-bored/focus-timer"
+                    props:
+                      title: Make something worth shipping
+                      focusMinutes: 25
+                      breakMinutes: 5
+                second:
+                  node:
+                    id: timer-actions
+                    component: "@dash-bored/button"
+                    props:
+                      items:
+                        - name: Start or resume
+                          action: component:builtin-timer:start
+                        - name: Pause
+                          action: component:builtin-timer:pause
+                        - name: Reset
+                          action: component:builtin-timer:reset
+                        - name: Next session
+                          action: component:builtin-timer:next
           - metadata:
               label: Themes
             node:

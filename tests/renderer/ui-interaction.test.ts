@@ -156,6 +156,30 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("focus targets are choices under one main palette action", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("focus");
+      await palette.getByRole("option", { name: /Focus component/ }).waitFor();
+      expect(await palette.getByRole("option").count()).toBe(1);
+      await palette.getByRole("option", { name: /Focus component/ }).click();
+      await palette.getByRole("group", { name: "Focus component", exact: true }).waitFor();
+      await palette.getByRole("button", { name: "Back", exact: true }).click();
+      await palette.getByRole("combobox").waitFor();
+      await palette.getByRole("option", { name: /Focus component/ }).click();
+      await palette.getByRole("button", { name: /^Responsive tile/ }).click();
+      await palette.waitFor({ state: "hidden" });
+      const path = proof.getByRole("navigation", { name: "Focused component path" });
+      await path.waitFor();
+      expect(await path.innerText()).toContain("Responsive tile");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("brand decoration stays centered inside the icon throughout sidebar transitions", async () => {
     const active = currentPage();
     const originalViewport = active.viewportSize();
@@ -1447,3 +1471,128 @@ test('action buttons compose persistent tab and sidebar navigation at narrow wid
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally { await proof.close(); }
 }, 30_000);
+
+test('built-in timer and Markdown actions share button invocation and availability', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Built-in actions', root: {
+        id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
+          first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
+            { name: 'Remote start', action: 'component:timer:start' },
+            { name: 'Remote pause', action: 'component:timer:pause' },
+            { name: 'Remote reset', action: 'component:timer:reset' },
+            { name: 'Remote edit', action: 'component:markdown:edit' },
+            { name: 'Remote preview', action: 'component:markdown:preview' },
+          ] } } },
+          second: { axis: 'horizontal',
+            first: { node: { id: 'timer', component: '@dash-bored/focus-timer', props: { focusMinutes: 1, breakMinutes: 1 } } },
+            second: { node: { id: 'markdown', component: '@dash-bored/markdown', props: { content: 'Original Markdown' } } },
+          },
+        },
+      } }, snapshot.configRevision!);
+    });
+    const start = proof.getByRole('button', { name: 'Remote start', exact: true });
+    const pause = proof.getByRole('button', { name: 'Remote pause', exact: true });
+    await start.waitFor();
+    expect(await start.isEnabled()).toBe(true);
+    expect(await pause.isEnabled()).toBe(false);
+    await start.click();
+    await proof.waitForFunction(() => document.querySelector('.focus-timer__controls')?.textContent?.includes('Pause'));
+    expect(await start.isEnabled()).toBe(false);
+    await pause.click();
+    await proof.waitForFunction(() => document.querySelector('.focus-timer__controls')?.textContent?.includes('Resume'));
+    await proof.getByRole('button', { name: 'Remote reset', exact: true }).click();
+    await proof.getByRole('button', { name: 'Start focus', exact: true }).waitFor();
+    await proof.getByRole('button', { name: 'Remote edit', exact: true }).click();
+    await proof.locator('.markdown-viewer textarea').waitFor();
+    await proof.getByRole('button', { name: 'Remote preview', exact: true }).click();
+    expect(await proof.locator('.markdown-viewer textarea').count()).toBe(0);
+    expect(await proof.getByText('Original Markdown', { exact: true }).count()).toBe(1);
+    expect(await proof.getByText('COMPONENT_ACTION_UNDECLARED', { exact: true }).count()).toBe(0);
+  } finally { await proof.close(); }
+});
+
+test('stable-ID tab and todo actions select locally and change only the draft', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Tab and todo actions', root: {
+        id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
+          first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
+            { name: 'Choose second tab', action: { run: 'component:tabs:select', with: { child: 'second' } } },
+            { name: 'Complete selected todo', action: { run: 'component:second:toggle', with: { id: 'stable-todo' } } },
+            { name: 'Remove selected todo', action: { run: 'component:second:remove', with: { id: 'stable-todo' } } },
+          ] } } },
+          second: { node: { id: 'tabs', component: '@dash-bored/tabs', children: [
+            { metadata: { label: 'First' }, node: { id: 'first', component: '@dash-bored/markdown', props: { content: 'First panel' } } },
+            { metadata: { label: 'Second' }, node: { id: 'second', component: '@dash-bored/list', props: { todos: [{ id: 'stable-todo', description: 'Selected task', done: false, tags: ['proof'] }] } } },
+          ] } },
+        },
+      } }, snapshot.configRevision!);
+    });
+    await proof.getByRole('button', { name: /Open command palette/ }).click();
+    const selectPalette = proof.getByRole('dialog', { name: 'Command palette' });
+    await selectPalette.getByRole('combobox').fill('Select tab');
+    await selectPalette.getByRole('option', { name: /Select tab/ }).click();
+    await selectPalette.getByRole('button', { name: 'Second', exact: true }).click();
+    await proof.getByRole('checkbox', { name: 'Mark complete: Selected task', exact: true }).waitFor();
+    await proof.getByRole('tab', { name: 'First', exact: true }).click();
+    await proof.getByRole('button', { name: 'Choose second tab', exact: true }).click();
+    await proof.getByRole('checkbox', { name: 'Mark complete: Selected task', exact: true }).waitFor();
+    await proof.getByRole('button', { name: 'Complete selected todo', exact: true }).click();
+    await proof.getByRole('checkbox', { name: 'Mark incomplete: Selected task', exact: true }).waitFor();
+    await proof.getByRole('button', { name: 'Save dashboard', exact: true }).waitFor();
+    expect(await proof.evaluate(async () => JSON.stringify((await window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot()).config))).toContain('"done":false');
+    await proof.getByRole('button', { name: 'Remove selected todo', exact: true }).click();
+    const palette = proof.getByRole('dialog', { name: 'Command palette' });
+    await palette.getByRole('heading', { name: 'Remove selected todo from the dashboard draft?' }).waitFor();
+    expect(await proof.getByRole('checkbox', { name: 'Mark incomplete: Selected task', exact: true }).count()).toBe(1);
+    await proof.keyboard.press('Escape');
+    expect(await proof.getByText('COMPONENT_ACTION_UNDECLARED', { exact: true }).count()).toBe(0);
+  } finally { await proof.close(); }
+});
+
+test('source list actions filter data without exposing todo mutations', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Source list actions', root: {
+        id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
+          first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
+            { name: 'Toggle source todo', action: { run: 'component:source-list:toggle', with: { id: 'one' } } },
+            { name: 'Filter proof tag', action: { run: 'component:source-list:filter', with: { tag: 'proof' } } },
+            { name: 'Clear proof filter', action: 'component:source-list:clear-filter' },
+          ] } } },
+          second: { node: { id: 'source-list', component: '@dash-bored/list', props: { source: { inline: [
+            { id: 'one', title: 'Tagged item', tags: ['proof'] },
+            { id: 'two', title: 'Other item', tags: ['other'] },
+          ] } } } },
+        },
+      } }, snapshot.configRevision!);
+    });
+    await proof.getByText('Other item', { exact: true }).waitFor();
+    expect(await proof.getByRole('button', { name: 'Toggle source todo', exact: true }).isEnabled()).toBe(false);
+    await proof.getByRole('button', { name: 'Filter proof tag', exact: true }).click();
+    await proof.waitForFunction(() => !document.querySelector('.source-list')?.textContent?.includes('Other item'));
+    await proof.getByRole('button', { name: 'Clear proof filter', exact: true }).click();
+    await proof.getByText('Other item', { exact: true }).waitFor();
+    expect(await proof.getByRole('button', { name: 'Save dashboard', exact: true }).count()).toBe(0);
+    expect(await proof.getByText('COMPONENT_ACTION_UNDECLARED', { exact: true }).count()).toBe(0);
+  } finally { await proof.close(); }
+});

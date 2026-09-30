@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ShellRunResult } from "../../../shared/contracts";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
@@ -46,6 +46,12 @@ export default function Conditional({ props, children, host }: ComponentRenderer
   const timeoutMs = numberProp(props, "timeoutMs", DEFAULT_TIMEOUT_MS);
   const panelVisible = useContext(ComponentVisibilityContext);
   const [showChildren, setShowChildren] = useState(true);
+  const checkRef = useRef<(() => Promise<void>) | null>(null);
+  useEffect(() => host.actions.register({
+    id: "refresh", label: "Recheck condition", enabled: Boolean(host.shell && command.trim()) && panelVisible,
+    disabledReason: !host.shell ? "Trust this project to run the condition." : !panelVisible ? "Condition panel is hidden." : "Configure a condition command.",
+    run: () => checkRef.current?.(),
+  }), [host.actions, host.shell, command, panelVisible]);
 
   useEffect(() => {
     const run = host.shell?.run;
@@ -74,10 +80,12 @@ export default function Conditional({ props, children, host }: ComponentRenderer
       }
     };
 
+    checkRef.current = check;
     void check();
     const timer = setInterval(() => void check(), pollIntervalMs);
     return () => {
       cancelled = true;
+      checkRef.current = null;
       clearInterval(timer);
     };
   }, [command, cwd, env, host.shell, invert, panelVisible, pollIntervalMs, timeoutMs]);

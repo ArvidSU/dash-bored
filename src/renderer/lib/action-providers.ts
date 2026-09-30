@@ -122,7 +122,8 @@ export function buildNodeFocusActions(
 ): PaletteAction[] {
   if (!snapshot?.projectRoot || !snapshot.tree) return [];
 
-  return dashboardNodes(snapshot.tree).map(({ node, path }) => {
+  const nodes = dashboardNodes(snapshot.tree);
+  const targets = nodes.map(({ node, path }) => {
     const alreadyFocused = node.id === focusedNodeId;
     const disabledReason = editing
       ? "Finish dashboard editing before focusing a node."
@@ -131,6 +132,7 @@ export function buildNodeFocusActions(
         : undefined;
     return {
       id: `focus:${encodeURIComponent(node.id)}`,
+      parentActionId: "project:focus",
       label: `Focus ${path.at(-1)}`,
       description: `Show ${path.join(" / ")} in the active dashboard.`,
       keywords: [
@@ -149,6 +151,33 @@ export function buildNodeFocusActions(
       run: () => focusNode(node.id),
     } satisfies PaletteAction;
   });
+  const availableTargets = targets.filter((action) => action.enabled);
+  const disabledReason = editing
+    ? "Finish dashboard editing before focusing a node."
+    : availableTargets.length === 0 ? "This node is already focused." : undefined;
+  return [{
+    id: "project:focus",
+    label: "Focus component",
+    description: "Choose a component to show in the active dashboard.",
+    keywords: ["focus", "node", snapshot.dashboardName ?? "", ...targets.flatMap((action) => action.keywords)],
+    group: "Dashboard nodes",
+    enabled: disabledReason === undefined,
+    ...(disabledReason ? { disabledReason } : {}),
+    choices: [{
+      id: "node",
+      label: "Focus component",
+      options: availableTargets.map((action) => ({
+        value: action.source!,
+        label: action.label.replace(/^Focus /, ""),
+        description: action.description,
+      })),
+    }],
+    run: (selections) => {
+      const target = availableTargets.find((action) => action.source === selections?.node);
+      if (!target) throw new Error("Choose an available component to focus.");
+      target.run();
+    },
+  } satisfies PaletteAction, ...targets];
 }
 
 /** Stable palette entries for declared actions whose component code is not mounted. */

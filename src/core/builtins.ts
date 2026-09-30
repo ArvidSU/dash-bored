@@ -117,6 +117,7 @@ const manifests: ComponentManifest[] = [
     name: "Focus timer",
     description: "A focused work session and a breathing break, with pause, resume, and explicit session starts. Session state resets on unmount or duration changes.",
     entry: "builtin:focus-timer",
+    actions: [{ id: "start", label: "Start or resume timer" }, { id: "pause", label: "Pause timer" }, { id: "reset", label: "Reset timer" }, { id: "next", label: "Start next timer session" }],
     propsSchema: objectSchema({
       title: { type: "string" },
       focusMinutes: { type: "integer", minimum: 1, maximum: 180, default: 25 },
@@ -129,6 +130,7 @@ const manifests: ComponentManifest[] = [
     name: "Dashboard setup agent",
     description: "Runs the configured CLI agent to customize this starter dashboard.",
     entry: "builtin:setup-agent",
+    actions: [{ id: "setup", label: "Set up dashboard with agent" }],
     propsSchema: objectSchema({}),
     permissions: ["process:execute"],
   },
@@ -138,6 +140,7 @@ const manifests: ComponentManifest[] = [
     name: "Tabs",
     description: "Switches between labeled dashboard panels.",
     entry: "builtin:tabs",
+    actions: [{ id: "select", label: "Select tab", args: objectSchema({ child: string }) }],
     renderMode: "layout",
     propsSchema: objectSchema({ defaultTab: { type: "integer", minimum: 0 } }),
     children: {
@@ -183,6 +186,7 @@ const manifests: ComponentManifest[] = [
     name: "Conditional visibility",
     description: "Recovery visibility for one tiled child based on a bounded shell check. Starts visible and fails open before trust or on host errors; unsuitable for asserting healthy status.",
     entry: "builtin:conditional",
+    actions: [{ id: "refresh", label: "Recheck condition" }],
     renderMode: "layout",
     propsSchema: objectSchema({
       command: string,
@@ -237,7 +241,7 @@ const manifests: ComponentManifest[] = [
       "source.http": ["network:http"],
       "source.process": ["process:observe"],
     },
-    actions: [{ id: "refresh", label: "Refresh Markdown", description: "Reload the configured Markdown source." }],
+    actions: [{ id: "refresh", label: "Refresh Markdown", description: "Reload the configured Markdown source." }, { id: "edit", label: "Edit Markdown" }, { id: "preview", label: "Preview Markdown" }, { id: "save", label: "Save Markdown edits" }, { id: "cancel", label: "Discard Markdown edits" }],
     references: { "source.process": { resource: "process" } },
   },
   {
@@ -353,6 +357,7 @@ const manifests: ComponentManifest[] = [
     name: "Environment editor",
     description: "Edits a project-local .env file as key-value pairs or raw text.",
     entry: "builtin:env",
+    actions: [{ id: "refresh", label: "Reload environment file" }, { id: "save", label: "Save environment file" }, { id: "raw", label: "Show raw environment" }, { id: "table", label: "Show environment variables" }],
     propsSchema: objectSchema({ path: string }, ["path"]),
     permissions: ["filesystem:read", "filesystem:write"],
   },
@@ -377,7 +382,7 @@ const manifests: ComponentManifest[] = [
       }),
       oneOf: [{ required: ["source"] }, { required: ["todos"] }],
     },
-    actions: [{ id: "refresh", label: "Refresh list" }],
+    actions: [{ id: "refresh", label: "Refresh list" }, { id: "toggle", label: "Toggle todo completion", args: objectSchema({ id: string }) }, { id: "remove", label: "Remove todo", args: objectSchema({ id: string }) }, { id: "filter", label: "Filter list by tag", args: objectSchema({ tag: string }) }, { id: "clear-filter", label: "Clear list tag filter" }],
     permissionsByProp: {
       "source.shell": ["process:execute"],
       "source.file": ["filesystem:read"],
@@ -395,6 +400,7 @@ const manifests: ComponentManifest[] = [
     name: "YAML todo list",
     description: "Keeps a small todo list in this component's dashboard YAML props.",
     entry: "builtin:todo-list",
+    actions: [{ id: "toggle", label: "Toggle todo completion", args: objectSchema({ id: string }) }, { id: "remove", label: "Remove todo", args: objectSchema({ id: string }) }, { id: "filter", label: "Filter list by tag", args: objectSchema({ tag: string }) }, { id: "clear-filter", label: "Clear list tag filter" }],
     propsSchema: objectSchema({
       todos: { type: "array", maxItems: 500, items: todoItemSchema },
       itemActions: {
@@ -411,6 +417,7 @@ const manifests: ComponentManifest[] = [
     name: "Webview",
     description: "Embeds an HTTP or HTTPS application page.",
     entry: "builtin:webview",
+    actions: [{ id: "reload", label: "Reload embedded page" }],
     propsSchema: objectSchema({ url: { type: "string", pattern: "^https?://" } }, ["url"]),
     permissions: ["webview:embed"],
   },
