@@ -2075,7 +2075,7 @@ test('stable-ID tab and todo actions select locally and change only the draft', 
   } finally { await proof.close(); }
 });
 
-test('source list actions filter data without exposing todo mutations', async () => {
+test('source lists leave todo mutations unavailable while preserving filter actions', async () => {
   const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
   proof.setDefaultTimeout(5_000);
   try {
@@ -2088,6 +2088,7 @@ test('source list actions filter data without exposing todo mutations', async ()
         id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
           first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
             { name: 'Toggle source todo', action: { run: 'component:source-list:toggle', with: { id: 'one' } } },
+            { name: 'Remove source todo', action: { run: 'component:source-list:remove', with: { id: 'one' } } },
             { name: 'Filter proof tag', action: { run: 'component:source-list:filter', with: { tag: 'proof' } } },
             { name: 'Clear proof filter', action: 'component:source-list:clear-filter' },
           ] } } },
@@ -2099,7 +2100,11 @@ test('source list actions filter data without exposing todo mutations', async ()
       } }, snapshot.configRevision!);
     });
     await proof.getByText('Other item', { exact: true }).waitFor();
-    expect(await proof.getByRole('button', { name: 'Toggle source todo', exact: true }).isEnabled()).toBe(false);
+    for (const name of ['Toggle source todo', 'Remove source todo']) {
+      const action = proof.getByRole('button', { name, exact: true });
+      expect(await action.isEnabled()).toBe(false);
+      expect(await action.getAttribute('title')).toBe('Component is not mounted');
+    }
     await proof.getByRole('button', { name: 'Filter proof tag', exact: true }).click();
     await proof.waitForFunction(() => !document.querySelector('.source-list')?.textContent?.includes('Other item'));
     await proof.getByRole('button', { name: 'Clear proof filter', exact: true }).click();
