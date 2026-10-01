@@ -256,12 +256,29 @@ agent edits.
 
 The app owns one dashboard-only agent harness around that same configured CLI.
 It records a bounded in-memory task for each component-change or component-build
-request and shows a compact item with the user's prompt, start time, and a
+request and shows a compact item with a bounded first-sentence summary, start time, and a
 Working/Not working state in an app-level Agent work drawer across dashboard
 navigation. Clicking an item opens a three-tab modal: the regular command
 component against that task's PTY-backed process, a bounded git diff for the
 owning `.dash-bored/` bundle, and the complete contextualized command with a copy
-action. The terminal includes retained output after the process exits. Tasks
+action. The full prompt remains in the Command tab; neither the drawer row nor
+the terminal title repeats it. The modal reserves its remaining height for the
+active panel, with bounded, scrollable validation feedback. The shared modal overlay
+and panel contain scroll chaining; the document also disables page scrolling while
+any shared modal is mounted, including modal-chrome gestures in native WebKit.
+Removing the final modal restores page scrolling. Agent output appears only in
+the Terminal tab, alongside separate validation feedback. The terminal includes retained
+output after the process exits, opens at the latest output, follows new
+output while at the bottom, and preserves scrollback when the user scrolls up.
+After the agent run ends, the terminal keeps a shell open in the owning project
+for typed commands until Close terminal or application exit. Working status and
+validation follow the agent run outcome, independently of the shell lifetime.
+Typing keeps focus through output and task updates; Escape inside the terminal
+reaches the PTY instead of dismissing the modal. Latest output returns to the tail.
+Terminal sizing uses measured cell dimensions
+and the container content box (`lib/terminal-fit.ts`); hidden tabs retain their last fitted size,
+and sends PTY size changes through the regular host API. Switching tasks remounts
+the terminal so buffers cannot mix between tasks. Tasks
 retain their component/YAML locator, request, contextualized prompt, command, and
 whether the owning dashboard changed while the CLI was running. A process exit
 or observed file change is never represented as agent success: the UI asks the
@@ -294,10 +311,12 @@ component ID. Setup's prompt is generated at launch and wins over any stale
 prompt value in inherited or bundle environment.
 
 Agent work shows checking, repairing, validated, failed, trust-required, and
-cancelled states independently of CLI exit. A completed task can reveal a
-bounded, ANSI-stripped recent-output excerpt; this is terminal output, not a
-provider-specific final answer. Ordinary command terminals stay persistent;
-tracked agent invocations replace their shell so CLI exit ends the task.
+cancelled states independently of CLI exit. Completed output remains in the
+Terminal tab. Both command and agent terminals keep a shell after their run;
+agent validation and its single repair allowance use the recorded run result.
+Closing the shell does not validate or repair a second time. Shared modal focus
+setup and restoration run only on mount and unmount, using the current dismiss
+callback without stealing focus during task updates.
 
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
 horizontal splits may be recursively nested for tiled layouts and stack based

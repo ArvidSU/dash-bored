@@ -5,10 +5,17 @@ import { EditorModal } from "../lib/editor-modal";
 import { RightDrawer } from "../lib/right-drawer";
 import { packagedComponent } from "../builtins";
 import { writeClipboardText } from "../lib/clipboard";
+import { isProcessLive, isProcessRunActive } from "../../shared/process-state";
 
 const AgentCommand = packagedComponent("@dash-bored/command");
 type AgentModalTab = "terminal" | "diff" | "command";
 const AGENT_MODAL_TABS: readonly AgentModalTab[] = ["terminal", "diff", "command"];
+
+function taskSummary(task: DashboardAgentTask): string {
+  const request = task.request.trim().replace(/\s+/g, " ");
+  const sentence = request.match(/^.*?[.!?](?:\s|$)/)?.[0].trim() ?? request;
+  return sentence.length > 160 ? `${sentence.slice(0, 159).trimEnd()}…` : sentence || "Dashboard agent";
+}
 
 function agentCommandText(task: DashboardAgentTask): string {
   const command = task.command.trim();
@@ -32,7 +39,7 @@ function errorMessage(error: unknown): string {
 }
 
 function isRunning(task: DashboardAgentTask): boolean {
-  return task.process.phase === "running" || task.process.phase === "stopping";
+  return isProcessRunActive(task.process);
 }
 
 function validationLabel(task: DashboardAgentTask): string | null {
@@ -45,15 +52,6 @@ function validationLabel(task: DashboardAgentTask): string | null {
     case "cancelled": return "Follow-up cancelled";
     default: return null;
   }
-}
-
-function recentAgentOutput(task: DashboardAgentTask): string {
-  return task.process.logs.filter((entry) => entry.stream !== "system")
-    .map((entry) => entry.text).join("")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    .trim().slice(-4_000);
 }
 
 export function activeDashboardAgentTaskCount(tasks: readonly DashboardAgentTask[]): number {
@@ -75,7 +73,7 @@ function agentCommandHost(
       return onStop(task.id);
     },
   };
-  if (isRunning(task)) {
+  if (isProcessLive(task.process)) {
     processes.write = (input) => onWrite(task.id, input);
     processes.resize = (cols, rows) => onResize(task.id, cols, rows);
   }
@@ -244,17 +242,19 @@ export function AgentActivity({
                   <button
                     className="agent-task"
                     type="button"
-                    aria-label={`${working ? "Working" : "Not working"}: ${task.request}`}
+                    aria-label={`${working ? "Working" : "Not working"}: ${taskSummary(task)}`}
                     onClick={() => selectTask(task.id)}
                   >
                     <span className="agent-task__heading">
-                      <strong>{task.request}</strong>
+                      <strong>{taskSummary(task)}</strong>
                       {startedTime(task) ? <time dateTime={task.startedAt}>{startedTime(task)}</time> : null}
                     </span>
-                    <span className={`phase phase--${working ? "running" : "exited"}`}>
-                      {working ? "Working" : "Not working"}
+                    <span className="agent-task__status">
+                      <span className={`phase phase--${working ? "running" : "exited"}`}>
+                        {working ? "Working" : "Not working"}
+                      </span>
+                      {validationLabel(task) ? <span>{validationLabel(task)}</span> : null}
                     </span>
-                    {validationLabel(task) ? <span>{validationLabel(task)}</span> : null}
                   </button>
                 </li>
               );
@@ -263,12 +263,12 @@ export function AgentActivity({
         )}
       </RightDrawer>
       {open && selectedTask && AgentCommand ? (
-        <EditorModal title="Agent command" className="editor-modal__panel--wide" onDismiss={() => setSelectedTaskId(null)}>
+        <EditorModal title="Agent command" className="editor-modal__panel--wide agent-task-dialog" onDismiss={() => setSelectedTaskId(null)}>
           <div className="agent-task-modal">
-            <p className="agent-task-modal__request">{selectedTask.request}</p>
+            <p className="agent-task-modal__request" title="The Command tab contains the full command and prompt.">{taskSummary(selectedTask)}</p>
             <code className="agent-task-modal__path" title={selectedTask.componentPath}>{selectedTask.componentPath}</code>
             {selectedTask.validation ? (
-              <div role="status">
+              <div className="agent-task-modal__feedback" role="status">
                 <strong>{validationLabel(selectedTask)}</strong>
                 {selectedTask.validation.message ? <p>{selectedTask.validation.message}</p> : null}
                 {selectedTask.validation.status === "checking" && !selectedTask.cancelled ? (
@@ -280,12 +280,6 @@ export function AgentActivity({
                   <ul>{selectedTask.validation.diagnostics.map((item, index) => <li key={`${item.code}-${index}`}>{item.code}: {item.message}</li>)}</ul>
                 ) : null}
               </div>
-            ) : null}
-            {!isRunning(selectedTask) && recentAgentOutput(selectedTask) ? (
-              <details>
-                <summary>Recent agent output</summary>
-                <pre className="agent-task-modal__diff">{recentAgentOutput(selectedTask)}</pre>
-              </details>
             ) : null}
             <div className="agent-task-modal__tabs" role="tablist" aria-label="Agent task details">
               {tabButton("terminal", "Terminal")}
@@ -301,8 +295,9 @@ export function AgentActivity({
             >
               {AgentCommand ? (
                 <AgentCommand
+                  key={selectedTask.id}
                   props={{
-                    label: selectedTask.request.trim() || "Dashboard agent",
+                    label: "Agent output",
                     command: selectedTask.command,
                   }}
                   host={agentCommandHost(selectedTask, onStop, onWrite, onResize)}

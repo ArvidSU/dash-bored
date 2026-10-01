@@ -131,9 +131,14 @@ Capability behavior is bounded:
   receives only the allowlisted effective
   `DASH_BORED_AGENT` value and its winning source, never arbitrary bundle or
   process secrets.
-- The app-owned Agent work Diff tab runs only a fixed, argument-vector `git diff`
-  scoped to the task's canonical `.dash-bored/` bundle and bounds its output to
-  512 KiB. It is not exposed as an arbitrary component shell capability.
+- The app-owned Agent work Diff tab uses `main/dashboard-agent-diff.ts` to read
+  tracked changes against `HEAD` plus non-ignored untracked files in the task's
+  canonical `.dash-bored/` bundle. Fixed argument-vector Git commands use literal
+  pathspecs; new files are diffed against `/dev/null` without staging them.
+  Symlinks show their targets rather than the target files' contents, and binary
+  files show Git's binary summary. The combined diff and the separate untracked
+  path listing are each bounded to 512 KiB. This is not exposed as an arbitrary
+  component shell capability.
 - Capability requests from untrusted projects, undeclared components, unknown
   nodes, or escaped paths fail with a permission or validation diagnostic.
 
@@ -242,8 +247,11 @@ status parsing, palette actions, and item feedback observe `run`. A node cannot
 have duplicate concurrent runs, while a finished run can start again without
 closing the terminal. Closing an interactive terminal hangs up the session in
 front and its foreground job, then force-kills after a grace period;
-non-interactive processes receive SIGTERM first. Host-owned agent work sets the
-internal `closeAfterRun` so its terminal ends with the agent's run. Unchanged
+non-interactive processes receive SIGTERM first. Host-owned agent work keeps a
+resting shell after the agent run. Its finisher observes `run` and runs once,
+independently of the shell; closing the shell preserves the agent's exit result.
+Open agent shells are not pruned as completed history and are stopped on owning
+project trust revocation and app exit. Unchanged
 command nodes keep their terminal across a hot reload, while removed or
 materially changed command nodes are stopped. Trust revocation and application
 exit terminate the terminal and its process tree.

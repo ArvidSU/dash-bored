@@ -7,6 +7,7 @@ import "./command.css";
 import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { isProcessLive, isProcessRunActive, processRun, processRunFailed, processRunOutcome } from "../../../shared/process-state";
+import { fitTerminal } from "../../lib/terminal-fit";
 
 export default function Command({
   props,
@@ -86,12 +87,13 @@ export default function Command({
       fontSize: 11,
       lineHeight: 1.35,
       scrollback: 2_000,
+      screenReaderMode: true,
       theme: terminalTheme(tokens),
     });
     terminal.open(output);
     terminalRef.current = terminal;
 
-    for (const entry of process?.logs ?? []) terminal.write(entry.text);
+    terminal.write((process?.logs ?? []).map((entry) => entry.text).join(""), () => terminal.scrollToBottom());
     lastSequenceRef.current = process?.logs.at(-1)?.sequence ?? 0;
 
     const inputSubscription = terminal.onData((input) => {
@@ -102,19 +104,27 @@ export default function Command({
       });
     });
     const resize = (): void => {
-      const bounds = output.getBoundingClientRect();
-      const cols = Math.max(20, Math.min(500, Math.floor(bounds.width / 8.1)));
-      const rows = Math.max(4, Math.min(200, Math.floor(bounds.height / 16)));
-      terminal.resize(cols, rows);
+      fitTerminal(terminal, output);
+    };
+    let fitFrame: number | undefined;
+    const scheduleFit = (): void => {
+      if (fitFrame !== undefined) return;
+      fitFrame = requestAnimationFrame(() => { fitFrame = undefined; resize(); });
+    };
+    const renderSubscription = terminal.onRender(scheduleFit);
+    const resizeSubscription = terminal.onResize(({ cols, rows }) => {
       const resizeTerminal = resizeRef.current;
       if (resizeTerminal) void resizeTerminal(cols, rows).catch(() => undefined);
-    };
+    });
     const observer = new ResizeObserver(resize);
     observer.observe(output);
     resize();
 
     return () => {
       observer.disconnect();
+      if (fitFrame !== undefined) cancelAnimationFrame(fitFrame);
+      renderSubscription.dispose();
+      resizeSubscription.dispose();
       inputSubscription.dispose();
       terminal.dispose();
       terminalRef.current = null;
@@ -137,11 +147,13 @@ export default function Command({
       terminal.clear();
       lastSequenceRef.current = 0;
     }
-    for (const entry of logs) {
-      if (entry.sequence <= lastSequenceRef.current) continue;
-      terminal.write(entry.text);
-      lastSequenceRef.current = entry.sequence;
-    }
+    const entries = logs.filter((entry) => entry.sequence > lastSequenceRef.current);
+    if (entries.length === 0) return;
+    const following = terminal.buffer.active.viewportY === terminal.buffer.active.baseY;
+    terminal.write(entries.map((entry) => entry.text).join(""), () => {
+      if (following) terminal.scrollToBottom();
+    });
+    lastSequenceRef.current = entries.at(-1)!.sequence;
   }, [process?.logs, terminalVisible]);
 
   useEffect(() => {
@@ -221,6 +233,11 @@ export default function Command({
         ) : live ? <span className="phase">open</span> : null}
       </div>
       <div className="command__actions">
+        {terminalVisible ? (
+          <button className="button button--quiet button--small" type="button" onClick={() => terminalRef.current?.scrollToBottom()}>
+            Latest output
+          </button>
+        ) : null}
         {canStart && !live ? (
           <button className="button button--quiet button--small" type="button" disabled={pending} onClick={() => void openTerminal()}>
             Open terminal

@@ -1390,11 +1390,177 @@ describe("renderer fixture interactions", () => {
       await row.click();
       const details = proof.getByRole("dialog", { name: "Agent command" });
       await details.getByText("Review newly requested permissions.", { exact: true }).waitFor();
-      await details.getByText("Recent agent output", { exact: true }).click();
-      await details.locator("details .agent-task-modal__diff").getByText("Created project workflows and checked the dashboard.", { exact: true }).waitFor();
+      await details.locator(".xterm-accessibility-tree").getByText("Created project workflows and checked the dashboard.", { exact: true }).waitFor({ state: "attached" });
       await proof.screenshot({ path: "/tmp/dash-bored-setup-proof.png", fullPage: true });
     } finally {
       await proof.close();
+    }
+  }, 30_000);
+
+  test("agent terminals keep keyboard focus through output and accept shell input after the run finishes", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const taskId = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.runComponentAgent({
+        nodeId: "status", prompt: "Interactive agent proof.",
+      })).taskId);
+      const row = proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first();
+      await row.click();
+      const dialog = proof.getByRole("dialog", { name: "Agent command" });
+      const terminal = dialog.locator(".command__terminal");
+      const input = terminal.locator(".xterm-helper-textarea");
+      const rows = terminal.locator(".xterm-accessibility-tree");
+      await terminal.locator(".xterm-screen").click();
+      await proof.keyboard.type("help");
+      await proof.evaluate(async (taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.appendAgentOutput(taskId, "LIVE UPDATE\r\n"), taskId);
+      await rows.getByText("LIVE UPDATE", { exact: false }).waitFor({ state: "attached" });
+      expect(await input.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Enter");
+      await proof.keyboard.press("Escape");
+      await proof.keyboard.press("Tab");
+      await proof.keyboard.press("Control+c");
+      expect(await dialog.isVisible()).toBe(true);
+      const inputs = () => proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTerminalInputs());
+      expect((await inputs()).map((entry) => entry.input).join("")).toBe("help\r\x1b\t\x03");
+      await proof.evaluate(async (taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.finishAgentTask(taskId,
+        { status: "valid", diagnostics: [] }, true), taskId);
+      await row.getByText("Not working", { exact: true }).waitFor();
+      await dialog.getByText("exit 0", { exact: true }).waitFor();
+      expect(await input.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.type("pwd");
+      await proof.keyboard.press("Enter");
+      expect((await inputs()).map((entry) => entry.input).join("")).toBe("help\r\x1b\t\x03pwd\r");
+      expect((await inputs()).every((entry) => entry.taskId === taskId)).toBe(true);
+      await dialog.getByRole("button", { name: "Close terminal", exact: true }).click();
+      await dialog.getByRole("button", { name: "Close terminal", exact: true }).waitFor({ state: "detached" });
+      await terminal.locator(".xterm-screen").click();
+      await proof.keyboard.type("closed");
+      expect((await inputs()).map((entry) => entry.input).join("")).not.toContain("closed");
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    } finally { await proof.close(); }
+  }, 20_000);
+
+  test("long agent prompts leave room for fitted terminals and latest output at desktop and narrow widths", async () => {
+    const prompt = "Set up the dash-bored dashboard for this project. " + "Inspect the project, preserve unrelated changes, and validate the cockpit. ".repeat(45);
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+      const proof = await browser!.newPage({ viewport });
+      proof.setDefaultTimeout(5_000);
+      try {
+        await proof.goto(fixtureUrl);
+        await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+        await proof.evaluate(async (prompt) => {
+          const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+          const task = await host.runComponentAgent({ nodeId: "status", prompt });
+          await host.appendAgentOutput(task.taskId, Array.from({ length: 180 }, (_, i) => `Activity ${i}\r\n`).join("") + "LATEST BEFORE OPEN\r\n");
+        }, prompt);
+        const row = proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first();
+        await row.waitFor();
+        expect((await row.boundingBox())!.height).toBeLessThan(150);
+        expect(await row.locator("strong").textContent()).toBe("Set up the dash-bored dashboard for this project.");
+        await row.click();
+        const dialog = proof.getByRole("dialog", { name: "Agent command" });
+        const terminal = dialog.locator(".command__terminal");
+        const rows = terminal.locator(".xterm-accessibility-tree");
+        await rows.getByText("LATEST BEFORE OPEN", { exact: false }).waitFor({ state: "attached" });
+        const assertFit = async () => {
+          const modalBox = (await dialog.boundingBox())!;
+          const terminalBox = (await terminal.boundingBox())!;
+          const screenBox = (await terminal.locator(".xterm-screen").boundingBox())!;
+          expect(modalBox.y).toBeGreaterThanOrEqual(0);
+          expect(modalBox.y + modalBox.height).toBeLessThanOrEqual(viewport.height);
+          expect(terminalBox.height).toBeGreaterThan(200);
+          expect(terminalBox.y + terminalBox.height).toBeLessThan(modalBox.y + modalBox.height);
+          expect(screenBox.y + screenBox.height).toBeLessThanOrEqual(terminalBox.y + terminalBox.height - 8);
+          expect(screenBox.x + screenBox.width).toBeLessThanOrEqual(terminalBox.x + terminalBox.width - 8);
+        };
+        await assertFit();
+        await proof.evaluate(async () => {
+          const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+          await host.appendAgentOutput((await host.getDashboardAgentTasks())[0]!.id, "LATEST LIVE ACTIVITY\r\n");
+        });
+        await rows.getByText("LATEST LIVE ACTIVITY", { exact: false }).waitFor({ state: "attached" });
+        await terminal.hover();
+        await proof.mouse.wheel(0, -700);
+        await proof.waitForFunction(() => !document.querySelector(".xterm-accessibility-tree")?.textContent?.includes("LATEST LIVE ACTIVITY"));
+        await proof.evaluate(async () => {
+          const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+          await host.appendAgentOutput((await host.getDashboardAgentTasks())[0]!.id, "LATEST AFTER HISTORY\r\n");
+        });
+        await proof.waitForTimeout(100);
+        expect(await rows.textContent()).not.toContain("LATEST AFTER HISTORY");
+        await dialog.getByRole("button", { name: "Latest output", exact: true }).click();
+        await rows.getByText("LATEST AFTER HISTORY", { exact: false }).waitFor({ state: "attached" });
+        await dialog.getByRole("tab", { name: "Command", exact: true }).click();
+        expect(await dialog.locator(".agent-task-modal__command").textContent()).toBe(`codex exec '${prompt.trim()}'`);
+        await dialog.getByRole("tab", { name: "Terminal", exact: true }).click();
+        await rows.getByText("LATEST AFTER HISTORY", { exact: false }).waitFor({ state: "attached" });
+        await assertFit();
+        const sizes = await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTerminalResizes());
+        expect(sizes.length).toBeGreaterThan(0);
+        expect(sizes.every(({ rows }) => rows > 10)).toBe(true);
+        await proof.screenshot({ path: `/tmp/dash-bored-agent-terminal-${viewport.width}.png` });
+      } finally { await proof.close(); }
+    }
+  }, 30_000);
+
+  test("modal scroll boundaries keep the background fixed and release it on dismissal", async () => {
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+      const proof = await browser!.newPage({ viewport });
+      proof.setDefaultTimeout(5_000);
+      try {
+        await proof.goto(fixtureUrl);
+        await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+        await proof.evaluate(async () => {
+          const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+          const snapshot = await host.getSnapshot();
+          await host.saveDashboardConfig({ schemaVersion: 3, name: "Scroll background", root: {
+            id: "background", component: "@dash-bored/markdown", props: { content: "Background paragraph.\n\n".repeat(150) },
+          } }, snapshot.configRevision!);
+          const task = await host.runComponentAgent({ nodeId: "background", prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
+          await host.appendAgentOutput(task.taskId, Array.from({ length: 120 }, (_, i) => `Activity ${i}\r\n`).join("") + "LAST ACTIVITY\r\n");
+        });
+        await proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first().click();
+        const dialog = proof.getByRole("dialog", { name: "Agent command" });
+        const terminal = dialog.locator(".command__terminal");
+        const rows = terminal.locator(".xterm-accessibility-tree");
+        await rows.getByText("LAST ACTIVITY", { exact: false }).waitFor({ state: "attached" });
+        await proof.evaluate(() => window.scrollTo(0, 400));
+        const backgroundPosition = await proof.evaluate(() => window.scrollY);
+        expect(backgroundPosition).toBe(400);
+        const wheel = async (delta: number) => {
+          await proof.mouse.wheel(0, delta);
+          await proof.waitForTimeout(150);
+          expect(await proof.evaluate(() => window.scrollY)).toBe(backgroundPosition);
+        };
+        await terminal.hover();
+        await wheel(1500); // Already at the bottom of the terminal.
+        // Xterm normalizes wheel ticks, so reach the top with repeated ticks.
+        for (let i = 0; i < 60 && !(await rows.textContent())?.includes("Activity 0"); i++) {
+          await proof.mouse.wheel(0, -700);
+          await proof.waitForTimeout(20);
+        }
+        await rows.getByText("Activity 0", { exact: true }).waitFor({ state: "attached" });
+        await wheel(-1500); // Remain at the top without moving the dashboard.
+        expect(await rows.textContent()).toContain("Activity 0");
+        await dialog.getByRole("tab", { name: "Command", exact: true }).click();
+        const command = dialog.locator(".agent-task-modal__command");
+        await command.hover();
+        await wheel(20000);
+        expect(await command.evaluate((element) => element.scrollTop > 0)).toBe(true);
+        await wheel(1500);
+        await wheel(-20000);
+        await wheel(-1500);
+        expect(await command.evaluate((element) => element.scrollTop)).toBe(0);
+        await dialog.getByRole("heading", { name: "Agent command", exact: true }).hover();
+        await wheel(1500); // Non-scrollable modal chrome also contains the gesture.
+        await dialog.getByRole("button", { name: "Close", exact: true }).click();
+        await proof.getByRole("dialog", { name: "Agent work" }).getByRole("button", { name: "Close", exact: true }).click();
+        await proof.locator(".workspace").hover();
+        await proof.mouse.wheel(0, 500);
+        await proof.waitForFunction((previous) => window.scrollY > previous, backgroundPosition);
+      } finally { await proof.close(); }
     }
   }, 30_000);
 

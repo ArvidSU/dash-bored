@@ -455,13 +455,33 @@ root:
                               command: bun run qa:fast
                               cwd: .
                         second:
-                          node:
-                            id: validate-dashboard
-                            component: "@dash-bored/command"
-                            props:
-                              label: Validate dashboard configuration
-                              command: bun run dash-bored -- validate .
-                              cwd: .
+                          axis: vertical
+                          first:
+                            node:
+                              id: validate-dashboard
+                              component: "@dash-bored/command"
+                              props:
+                                label: Validate dashboard configuration
+                                command: bun run dash-bored -- validate .
+                                cwd: .
+                          second:
+                            axis: vertical
+                            first:
+                              node:
+                                id: verify-agent-diffs
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Verify Agent work diffs
+                                  command: bun test tests/main/dashboard-agent-diff.test.ts
+                                  cwd: .
+                            second:
+                              node:
+                                id: verify-agent-terminal-ui
+                                component: "@dash-bored/command"
+                                props:
+                                  label: Verify Agent work terminal layout
+                                  command: bun test tests/renderer/ui-interaction.test.ts --test-name-pattern 'long agent prompts|modal scroll boundaries|agent terminals keep keyboard focus'
+                                  cwd: .
           - metadata:
               label: Changes
             node:

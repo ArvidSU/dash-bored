@@ -50,7 +50,7 @@ describe("DashboardSetupSupervisor", () => {
       await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "sh -c 'exit 0'", location }).launch(node);
       const deadline = Date.now() + 5_000;
       while (h.list()[0]?.validation?.status !== "valid" && Date.now() < deadline) await Bun.sleep(10);
-      expect(h.list()[0]).toMatchObject({ process: { phase: "exited", exitCode: 0 }, validation: { status: "valid" } });
+      expect(h.list()[0]).toMatchObject({ process: { phase: "running", run: { phase: "exited", exitCode: 0 } }, validation: { status: "valid" } });
     } finally {
       await h.close();
     }

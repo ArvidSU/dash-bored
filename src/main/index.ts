@@ -14,9 +14,10 @@ import Electrobun, {
   Utils,
 } from "electrobun/main";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
 import { resolveEnvironment } from "../core/environment";
+import { isProcessRunActive } from "../shared/process-state";
 import type {
   Diagnostic,
   DashboardAgentTask,
@@ -37,6 +38,7 @@ import type { DashboardRPC } from "../shared/rpc";
 import { keyboardShortcutAccelerator } from "../shared/keyboard-shortcut";
 import { AppSettingsStore, resolveDashBoredAgent } from "./app-settings";
 import { DashboardAgentHarness } from "./component-agent";
+import { readDashboardAgentDiff } from "./dashboard-agent-diff";
 import { assertAgentAvailable } from "./agent-preflight";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
@@ -68,67 +70,12 @@ const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
 const DEV_SERVER_ATTEMPTS = 40;
 const DEV_SERVER_RETRY_MS = 100;
 const MIN_WINDOW_WIDTH = 350;
-const MAX_AGENT_DIFF_BYTES = 512 * 1024;
-
-async function readBoundedProcessText(
-  stream: ReadableStream<Uint8Array> | null,
-  maximumBytes: number,
-): Promise<string> {
-  if (stream === null) return "";
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > maximumBytes) {
-      await reader.cancel();
-      throw new CoreError("DASHBOARD_AGENT_DIFF_TOO_LARGE", "The dashboard diff exceeds the display limit.");
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
-}
 
 async function getDashboardAgentDiff(taskId: string): Promise<string> {
   const task = dashboardAgentHarness.list().find((candidate) => candidate.id === taskId);
   if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
   const location = await resolveProjectLocation(task.configPath);
-  const folder = relative(location.projectRoot, location.configDirectory).split(sep).join("/");
-  if (folder === "" || folder === ".." || folder.startsWith("../") || isAbsolute(folder)) {
-    throw new CoreError("DASHBOARD_AGENT_DIFF_PATH_INVALID", "The dashboard folder is outside the project.");
-  }
-  const subprocess = Bun.spawn({
-    cmd: ["git", "-C", location.projectRoot, "diff", "--no-ext-diff", "--no-textconv", "HEAD", "--", folder],
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  try {
-    const [exitCode, stdout, stderr] = await Promise.all([
-      subprocess.exited,
-      readBoundedProcessText(subprocess.stdout, MAX_AGENT_DIFF_BYTES),
-      readBoundedProcessText(subprocess.stderr, MAX_AGENT_DIFF_BYTES),
-    ]);
-    if (subprocess.signalCode !== null || exitCode !== 0) {
-      throw new CoreError(
-        "DASHBOARD_AGENT_DIFF_FAILED",
-        stderr.trim() || `git diff exited with code ${String(exitCode)}.`,
-      );
-    }
-    return stdout;
-  } catch (error) {
-    if (subprocess.exitCode === null) subprocess.kill("SIGKILL");
-    await subprocess.exited.catch(() => undefined);
-    if (error instanceof CoreError) throw error;
-    throw new CoreError("DASHBOARD_AGENT_DIFF_FAILED", error instanceof Error ? error.message : String(error));
-  }
+  return readDashboardAgentDiff(location.projectRoot, location.configDirectory);
 }
 
 async function mainViewUrl(): Promise<string> {
@@ -483,7 +430,7 @@ async function setupDashboardWithAgent(nodeId: string) {
   const configPath = node.sourceConfigPath ?? snapshot.configPath;
   if (dashboardAgentHarness.list().some((task) => task.configPath === configPath
     && task.purpose !== undefined
-    && (task.process.phase === "running" || task.process.phase === "stopping"
+    && (isProcessRunActive(task.process)
       || task.validation?.status === "checking" || task.validation?.status === "repairing"))) {
     throw new CoreError("DASHBOARD_SETUP_RUNNING", "Setup is already active for this dashboard. Open Agent work to view or stop it.");
   }
@@ -579,7 +526,12 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
           moveToTrash: (path) => Utils.moveToTrash(path),
         }).then(withInstalledToolDiagnostics),
       trustProject: () => runtime.trust().then(withInstalledToolDiagnostics),
-      revokeTrust: () => runtime.revoke().then(withInstalledToolDiagnostics),
+      revokeTrust: async () => {
+        const projectRoot = runtime.getSnapshot().projectRoot;
+        const snapshot = await runtime.revoke();
+        if (projectRoot) await dashboardAgentHarness.stopProject(projectRoot);
+        return withInstalledToolDiagnostics(snapshot);
+      },
       reloadProject: () => runtime.reload().then(withInstalledToolDiagnostics),
       getDashboardConfigSource: ({ configPath }) => runtime.getDashboardConfigSource(configPath),
       validateDashboardDraft: ({ config, configPath }) => runtime.validateDashboardDraft(config, configPath),

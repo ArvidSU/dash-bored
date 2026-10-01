@@ -23,6 +23,7 @@ import type {
   ResolvedComponentNode,
 } from "../../shared/contracts";
 import { componentPath, findResolvedNode } from "../../shared/component-agent";
+import { processRun } from "../../shared/process-state";
 import {
   keyboardEventMatchesShortcut,
   keyboardShortcutLabel,
@@ -314,7 +315,7 @@ export function App(): ReactNode {
         }
       } else if (event.type === "agent-task") {
         setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, event.task));
-        syncAgentActivity(event.task.id, event.task.process.phase);
+        syncAgentActivity(event.task.id, processRun(event.task.process)?.phase ?? "idle");
       } else {
         setPaletteOpen(true);
       }
@@ -337,7 +338,7 @@ export function App(): ReactNode {
           return current.reduce(replaceDashboardAgentTask, withStarter);
         });
         for (const task of initialAgentTasks) {
-          syncAgentActivity(task.id, task.process.phase, false);
+          syncAgentActivity(task.id, processRun(task.process)?.phase ?? "idle", false);
         }
         if (starter) syncAgentActivity(starter.id, starter.process.phase, false);
       })

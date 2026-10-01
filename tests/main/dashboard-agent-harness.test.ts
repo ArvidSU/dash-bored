@@ -2,13 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { DashboardAgentHarness } from "../../src/main/component-agent";
 import { assertAgentAvailable } from "../../src/main/agent-preflight";
 import type { DashboardAgentTask } from "../../src/shared/contracts";
+import { isProcessRunActive } from "../../src/shared/process-state";
 
 describe("DashboardAgentHarness", () => {
-  test("finishes with the agent exit code and passes the prompt literally through the PTY", async () => {
+  test("retains the agent exit code and an interactive shell after passing the prompt literally through the PTY", async () => {
     const harness = new DashboardAgentHarness();
     const prompt = "A request with 'quotes', $HOME and $(printf unsafe).";
     try {
-      await harness.launch({
+      const launch = await harness.launch({
         command: "sh -c 'printf \"%s\\n\" \"$1\"; exit 7' agent",
         prompt,
         request: "Test finite agent work",
@@ -17,13 +18,17 @@ describe("DashboardAgentHarness", () => {
         componentPath: "/project/.dash-bored/dash-bored.yaml#root",
       });
       const deadline = Date.now() + 5_000;
-      while (harness.list()[0]?.process.phase === "running" && Date.now() < deadline) {
+      while (isProcessRunActive(harness.list()[0]?.process) && Date.now() < deadline) {
         await Bun.sleep(10);
       }
       const task = harness.list()[0]!;
-      expect(task.process.phase).toBe("exited");
-      expect(task.process.exitCode).toBe(7);
+      expect(task.process.phase).toBe("running");
+      expect(task.process.run).toMatchObject({ phase: "exited", exitCode: 7 });
       expect(task.process.logs.map((entry) => entry.text).join("")).toContain(prompt);
+      await harness.writeTerminal(launch.taskId, "printf 'SHELL_%s\\n' READY\r");
+      while (!harness.list()[0]?.process.logs.map((entry) => entry.text).join("").includes("SHELL_READY") && Date.now() < deadline) await Bun.sleep(10);
+      expect(harness.list()[0]?.process.logs.map((entry) => entry.text).join("")).toContain("SHELL_READY");
+      expect(harness.list()[0]?.process.run).toMatchObject({ phase: "exited", exitCode: 7 });
     } finally {
       await harness.close();
     }
@@ -81,13 +86,32 @@ describe("DashboardAgentHarness", () => {
         onFinished: () => { finished += 1; },
       });
       const deadline = Date.now() + 5_000;
-      while (harness.list()[0]?.process.phase === "running" && Date.now() < deadline) await Bun.sleep(10);
+      while (isProcessRunActive(harness.list()[0]?.process) && Date.now() < deadline) await Bun.sleep(10);
       expect(harness.list()[0]?.process.logs.map((entry) => entry.text).join("")).toContain(prompt);
       expect(finished).toBe(1);
       expect(launch.taskId).toStartWith("component-agent-");
+      await harness.stop(launch.taskId);
+      await Bun.sleep(10);
+      expect(finished).toBe(1);
     } finally {
       await harness.close();
     }
+  });
+
+  test("project trust revocation stops its shell while preserving other projects", async () => {
+    const harness = new DashboardAgentHarness();
+    try {
+      const launch = (projectRoot: string) => harness.launch({ command: "sh -c 'exit 0'", prompt: "Proof",
+        request: "Proof", projectRoot, configPath: `${projectRoot}/.dash-bored/dash-bored.yaml`, componentPath: "root" });
+      const own = await launch(process.cwd());
+      const other = await launch("/tmp");
+      const deadline = Date.now() + 5_000;
+      while (harness.list().some((task) => isProcessRunActive(task.process)) && Date.now() < deadline) await Bun.sleep(10);
+      expect(harness.list().every((task) => task.process.phase === "running")).toBe(true);
+      await harness.stopProject(process.cwd());
+      expect(harness.list().find((task) => task.id === own.taskId)?.process.phase).toBe("exited");
+      expect(harness.list().find((task) => task.id === other.taskId)?.process.phase).toBe("running");
+    } finally { await harness.close(); }
   });
 
   test("preflight skips shell expressions and rejects missing literal agents", () => {

@@ -771,9 +771,22 @@ img.sidebar__project-icon {
 }
 
 .agent-task__heading strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   font-size: 0.84rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.agent-task__status {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 0.35rem;
+  max-width: 40%;
+  font-size: 0.72rem;
 }
 
 .agent-task__heading time {
@@ -787,9 +800,84 @@ img.sidebar__project-icon {
 }
 
 .agent-task-modal {
-  display: grid;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   gap: 0.7rem;
   padding: 1rem;
+}
+
+.editor-modal__panel.agent-task-dialog {
+  display: flex;
+  width: min(980px, 100%);
+  flex-direction: column;
+  height: min(800px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+
+.agent-task-dialog > .editor-modal__header,
+.agent-task-modal__request,
+.agent-task-modal__path,
+.agent-task-modal__tabs {
+  flex: 0 0 auto;
+}
+
+.agent-task-modal__feedback {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 20%;
+  overflow: auto;
+  font-size: 0.78rem;
+}
+
+.agent-task-modal__panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  gap: 0.7rem;
+}
+
+.agent-task-modal__panel > .command {
+  flex: 1 1 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.agent-task-modal__panel .command__terminal {
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.agent-task-modal__panel .command__content strong {
+  flex: 0 0 100%;
+}
+
+.agent-task-modal__panel .command__actions {
+  max-width: 100%;
+}
+
+@media (max-width: 760px) {
+  .editor-modal__panel.agent-task-dialog {
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .agent-task-modal { padding: 0.7rem; }
+
+  .agent-task-modal__panel > .command {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .agent-task-modal__panel .command__actions {
+    width: auto;
+    flex-direction: column;
+  }
 }
 
 .editor-modal__panel--wide {
@@ -837,6 +925,8 @@ img.sidebar__project-icon {
 
 .agent-task-modal__diff,
 .agent-task-modal__command {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: min(52vh, 34rem);
   margin: 0;
   padding: 0.8rem;
@@ -858,6 +948,10 @@ img.sidebar__project-icon {
 }
 
 .agent-task-modal__request {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--text);
   font-size: 0.84rem;
   line-height: 1.4;
@@ -1474,6 +1568,11 @@ img.sidebar__project-icon {
   font-size: 10px;
 }
 
+html:has(.editor-modal) {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
 .editor-modal {
   position: fixed;
   z-index: 100;
@@ -1481,6 +1580,8 @@ img.sidebar__project-icon {
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
@@ -1488,6 +1589,7 @@ img.sidebar__project-icon {
   width: min(680px, 100%);
   max-height: min(760px, calc(100vh - 48px));
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-bright);
   border-radius: var(--radius-lg);
   background: var(--surface);

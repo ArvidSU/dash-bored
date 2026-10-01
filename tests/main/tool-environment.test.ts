@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path";
 import { assertAgentAvailable } from "../../src/main/agent-preflight";
 import { DashboardAgentHarness } from "../../src/main/component-agent";
 import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "../../src/main/tool-environment";
+import { isProcessRunActive } from "../../src/shared/process-state";
 
 const cleanup: string[] = [];
 
@@ -64,8 +65,8 @@ describe("configureDesktopExecutableEnvironment", () => {
         env: environment as Record<string, string>,
       });
       const deadline = Date.now() + 5_000;
-      while (harness.list()[0]?.process.phase === "running" && Date.now() < deadline) await Bun.sleep(10);
-      expect(harness.list()[0]?.process).toMatchObject({ phase: "exited", exitCode: 0 });
+      while (isProcessRunActive(harness.list()[0]?.process) && Date.now() < deadline) await Bun.sleep(10);
+      expect(harness.list()[0]?.process).toMatchObject({ phase: "running", run: { phase: "exited", exitCode: 0 } });
       expect(harness.list()[0]?.process.logs.map((entry) => entry.text).join("")).toContain("agent prompt: make a new dashboard");
     } finally {
       await harness.close();

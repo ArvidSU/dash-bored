@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { CoreError } from "../core/diagnostics";
 import { ProcessManager, type ProcessDefinition } from "../core/process-manager";
 import type { ComponentAgentLaunch, DashboardAgentTask, ProcessSnapshot } from "../shared/contracts";
+import { isProcessLive, isProcessRunActive, processRun } from "../shared/process-state";
 
 const MAX_AGENT_PROMPT_LENGTH = 16_384;
 const MAX_COMPLETED_AGENT_TASKS = 20;
@@ -66,7 +67,8 @@ export class DashboardAgentHarness {
     if (!task) return;
     task.process = process;
     this.emit(task);
-    if ((process.phase === "exited" || process.phase === "failed") && !this.finished.has(task.id)) {
+    const run = processRun(process);
+    if ((run?.phase === "exited" || run?.phase === "failed" || process.phase === "failed") && !this.finished.has(task.id)) {
       this.finished.add(task.id);
       const finisher = this.finishers.get(task.id);
       this.finishers.delete(task.id);
@@ -88,7 +90,7 @@ export class DashboardAgentHarness {
 
   private pruneCompletedTasks(): void {
     const completed = [...this.tasks.values()]
-      .filter((task) => (task.process.phase === "exited" || task.process.phase === "failed")
+      .filter((task) => !isProcessLive(task.process)
         && task.validation?.status !== "checking" && task.validation?.status !== "repairing")
       .sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""));
     for (const task of completed.slice(MAX_COMPLETED_AGENT_TASKS)) {
@@ -124,6 +126,12 @@ export class DashboardAgentHarness {
     return { ...task, process: { ...task.process, logs: task.process.logs.map((entry) => ({ ...entry })) } };
   }
 
+  async stopProject(projectRoot: string): Promise<void> {
+    const ids = this.definitions.filter((definition) => definition.projectRoot === projectRoot
+      && isProcessLive(this.tasks.get(definition.id)?.process)).map((definition) => definition.id);
+    await Promise.all(ids.map((id) => this.stop(id)));
+  }
+
   async resizeTerminal(id: string, cols: number, rows: number): Promise<DashboardAgentTask> {
     const process = await this.manager.resize(id, cols, rows);
     this.updateProcess(process);
@@ -134,7 +142,7 @@ export class DashboardAgentHarness {
 
   markDashboardChanged(configPath: string): void {
     for (const task of this.tasks.values()) {
-      if (task.configPath !== configPath || task.process.phase !== "running") continue;
+      if (task.configPath !== configPath || !isProcessRunActive(task.process)) continue;
       task.dashboardChanged = true;
       this.emit(task);
     }
@@ -179,12 +187,10 @@ export class DashboardAgentHarness {
       const id = `component-agent-${randomUUID()}`;
       const definition: ProcessDefinition = {
         id,
-        // Agent work has a finite lifetime even though it uses a PTY: the task
-        // finishes when the configured CLI's run finishes instead of continuing
-        // in a resting shell like ordinary command terminals.
+        // Report completion from the agent run, while keeping the PTY shell
+        // available for user input until explicitly closed.
         command: componentAgentInvocation(options.command),
         interactive: true,
-        closeAfterRun: true,
         // Do not source an arbitrary login shell: it may replace the PATH that
         // agent preflight just verified. The agent command itself still runs in
         // a PTY and retains its literal configured shell syntax.

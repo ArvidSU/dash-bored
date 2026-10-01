@@ -413,7 +413,10 @@ export interface UiHarnessHost extends DashboardHost {
   getPersistedConfig(): DashboardConfig;
   /** Test-only diagnostics control is exposed only on the ui-harness page. */
   setDiagnostics(diagnostics: Diagnostic[]): Promise<void>;
-  finishAgentTask(taskId: string, validation: NonNullable<DashboardAgentTask["validation"]>): Promise<void>;
+  finishAgentTask(taskId: string, validation: NonNullable<DashboardAgentTask["validation"]>, keepShell?: boolean): Promise<void>;
+  appendAgentOutput(taskId: string, text: string): Promise<void>;
+  getAgentTerminalResizes(): readonly { taskId: string; cols: number; rows: number }[];
+  getAgentTerminalInputs(): readonly { taskId: string; input: string }[];
   /** Test-only record of package operations the UI asked the app to run. */
   getPackageOperations(): readonly unknown[];
 }
@@ -480,6 +483,8 @@ export function createUiHarnessHost(): UiHarnessHost {
     return currentSnapshot;
   };
   const agentTasks: DashboardAgentTask[] = [];
+  const agentTerminalResizes: { taskId: string; cols: number; rows: number }[] = [];
+  const agentTerminalInputs: { taskId: string; input: string }[] = [];
   const launch = (request?: { prompt: string; componentPath?: string }): ComponentAgentLaunch => {
     const task: DashboardAgentTask = {
       id: `agent-task-${agentTasks.length + 1}`,
@@ -498,14 +503,24 @@ export function createUiHarnessHost(): UiHarnessHost {
   };
 
   return {
-    async finishAgentTask(taskId, validation) {
+    async finishAgentTask(taskId, validation, keepShell = false) {
       const task = agentTasks.find((candidate) => candidate.id === taskId);
       if (!task) throw new Error("Fixture agent task not found.");
       task.process = { ...task.process, phase: "exited", exitCode: 0,
         logs: [{ sequence: 1, stream: "stdout", text: "Created project workflows and checked the dashboard.\n" }] };
+      if (keepShell) task.process = { ...task.process, phase: "running", exitCode: null, interactive: true,
+        run: { phase: "exited", exitCode: 0, signal: null, startedAt: task.startedAt! } };
       task.validation = validation;
       emit({ type: "agent-task", task: structuredClone(task) });
     },
+    async appendAgentOutput(taskId, text) {
+      const task = agentTasks.find((candidate) => candidate.id === taskId);
+      if (!task) throw new Error("Fixture agent task not found.");
+      task.process.logs.push({ sequence: (task.process.logs.at(-1)?.sequence ?? 0) + 1, stream: "stdout", text });
+      emit({ type: "agent-task", task: structuredClone(task) });
+    },
+    getAgentTerminalResizes() { return structuredClone(agentTerminalResizes); },
+    getAgentTerminalInputs() { return structuredClone(agentTerminalInputs); },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -561,14 +576,17 @@ export function createUiHarnessHost(): UiHarnessHost {
       emit({ type: "agent-task", task: structuredClone(task) });
       return structuredClone(task);
     },
-    async writeDashboardAgentTerminal(taskId: string, _input: string) {
+    async writeDashboardAgentTerminal(taskId: string, input: string) {
       const task = agentTasks.find((item) => item.id === taskId);
       if (!task) throw new Error("That dashboard agent task is no longer available.");
+      if (task.process.phase !== "running") throw new Error("That dashboard agent terminal is closed.");
+      agentTerminalInputs.push({ taskId, input });
       return structuredClone(task);
     },
-    async resizeDashboardAgentTerminal(taskId: string, _cols: number, _rows: number) {
+    async resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number) {
       const task = agentTasks.find((item) => item.id === taskId);
       if (!task) throw new Error("That dashboard agent task is no longer available.");
+      agentTerminalResizes.push({ taskId, cols, rows });
       return structuredClone(task);
     },
     async listProjects() { return [project(persistedConfig)]; },

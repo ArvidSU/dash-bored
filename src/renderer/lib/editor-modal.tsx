@@ -10,25 +10,29 @@ interface ModalProps {
 
 export function EditorModal({ title, children, className, onDismiss }: ModalProps): ReactNode {
   const panelRef = useRef<HTMLDivElement>(null);
+  const dismissRef = useRef(onDismiss);
   const titleId = useId();
+  useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const close = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
+      const inTerminal = event.target instanceof HTMLElement && event.target.closest(".xterm") !== null;
+      if (event.key === "Escape" && !event.defaultPrevented && !inTerminal) {
         event.preventDefault();
-        onDismiss();
+        dismissRef.current();
       }
     };
     window.addEventListener("keydown", close);
-    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>(
+    const focusFrame = requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>(
       "input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled)",
     )?.focus());
     return () => {
+      cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", close);
       if (previous?.isConnected) previous.focus();
       else document.querySelector<HTMLElement>(".composition-library-trigger")?.focus();
     };
-  }, [onDismiss]);
+  }, []);
   return (
     <div className="editor-modal" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onDismiss();

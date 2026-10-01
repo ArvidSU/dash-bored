@@ -4,6 +4,7 @@ import type { ProjectLocation } from "../core/paths";
 import type { ComponentAgentLaunch, DashboardAgentTask, Diagnostic, Permission, ResolvedComponentNode } from "../shared/contracts";
 import { buildDiagnosticsAgentPrompt, componentPath, findResolvedNode } from "../shared/component-agent";
 import { starterAgentPrompt } from "../core/project-files";
+import { processRun } from "../shared/process-state";
 
 export interface DashboardSetupRuntime {
   getSnapshot(): { projectRoot: string | null; configPath?: string | null; trusted: boolean; tree: ResolvedComponentNode | null; requestedPermissions?: Permission[]; diagnostics?: Diagnostic[] };
@@ -105,10 +106,11 @@ export class DashboardSetupSupervisor {
         report("trust-required", diagnostics, "Project trust changed; no automatic repair will run.");
         return;
       }
-      const cleanExit = task.process.phase === "exited" && task.process.exitCode === 0 && task.process.signal === null;
+      const run = processRun(task.process);
+      const cleanExit = run?.phase === "exited" && run.exitCode === 0 && run.signal === null;
       if (!cleanExit) {
-        report(cancelled() || task.process.signal ? "cancelled" : "failed", diagnostics,
-          `Agent ${task.process.signal ? `stopped after ${task.process.signal}` : `exited with code ${String(task.process.exitCode)}`}. ${hasErrors(diagnostics) ? "Configuration errors remain." : "Saved configuration validates."} No automatic repair was started.`);
+        report(cancelled() || run?.signal ? "cancelled" : "failed", diagnostics,
+          `Agent ${run?.signal ? `stopped after ${run.signal}` : `exited with code ${String(run?.exitCode)}`}. ${hasErrors(diagnostics) ? "Configuration errors remain." : "Saved configuration validates."} No automatic repair was started.`);
         return;
       }
       if (!hasErrors(diagnostics)) {
