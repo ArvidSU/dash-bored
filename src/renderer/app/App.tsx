@@ -165,7 +165,7 @@ export function App(): ReactNode {
     refresh();
     window.addEventListener('focus', refresh);
     return () => { active = false; window.removeEventListener('focus', refresh); };
-  }, [snapshot?.revision, activeView]);
+  }, [snapshot?.revision]);
   useLayoutEffect(() => {
     const catalog = [...applicationThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith('./'))];
     const source = editSession?.configPath === snapshot?.configPath ? editSession?.draft : snapshot?.config;
