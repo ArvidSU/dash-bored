@@ -1,16 +1,8 @@
 import { createContext } from "react";
-import type {
-  ComponentCatalogItem,
-  DashboardConfig,
-  DashboardInsertionTarget,
-  ResolvedComponentNode,
-} from "../../shared/contracts";
-import type { InsertionTarget, NodePath } from "./dashboard-editor";
+import type { ComponentCatalogItem, DashboardConfig, ResolvedComponentNode } from "../../shared/contracts";
+import type { DashboardRootReplacementTarget, InsertionTarget, NodePath } from "./dashboard-editor";
 
-export const COMPOSITION_COMPONENT_DRAG_TYPE = "application/x-dash-bored-component";
-export const COMPOSITION_NODE_DRAG_TYPE = "application/x-dash-bored-node";
-
-export type CompositionTarget = InsertionTarget | { type: "root-replacement"; path: [] };
+export type CompositionTarget = InsertionTarget | DashboardRootReplacementTarget;
 
 export type CompositionDragPayload =
   | { type: "component"; reference: string }
@@ -27,7 +19,7 @@ export interface CompositionPointerState {
 export interface CompositionDropTarget {
   id: string;
   label: string;
-  target: DashboardInsertionTarget | { type: "root-replacement"; path: [] };
+  target: CompositionTarget;
 }
 
 export type CompositionDropZoneSide = "left" | "right" | "top" | "bottom" | "inside";
@@ -47,21 +39,10 @@ export interface CompositionContextValue {
     node: ResolvedComponentNode,
     payload?: CompositionDragPayload | null,
   ) => readonly CompositionDropZone[];
-  pointerDropZoneForNode: (
-    node: ResolvedComponentNode,
-    xRatio: number,
-    yRatio: number,
-    payload?: CompositionDragPayload | null,
-  ) => CompositionDropZone | null;
-  canDrop: (target: CompositionTarget, payload: CompositionDragPayload) => boolean;
   onNodeDragStart: (path: NodePath) => void;
   onNodeDragEnd: () => void;
   onNodePointerDragMove: (path: NodePath, point: { clientX: number; clientY: number }) => void;
   onNodePointerDrop: (path: NodePath, point: { clientX: number; clientY: number }) => void;
-  onDragTarget: (nodeId: string | null, zone: CompositionDropZone | null) => void;
-  onLibraryDragStart: (reference: string) => void;
-  onLibraryDragEnd: () => void;
-  onDrop: (target: CompositionTarget, payload: CompositionDragPayload) => void;
 }
 
 export const CompositionContext = createContext<CompositionContextValue | null>(null);

@@ -3264,11 +3264,6 @@ html:has(.editor-modal) {
   opacity: 1;
 }
 
-.composition-flyout--removal-hovered {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  box-shadow: -1rem 0 3rem color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
 .composition-flyout__trash {
   width: clamp(48px, 7vw, 82px);
   height: clamp(48px, 7vw, 82px);
@@ -3279,11 +3274,6 @@ html:has(.editor-modal) {
   stroke-linejoin: round;
   stroke-width: 1.5;
   transition: transform 160ms ease, filter 160ms ease;
-}
-
-.composition-flyout--removal-hovered .composition-flyout__trash {
-  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 30%, transparent));
-  transform: scale(1.12);
 }
 
 .agent-prompt {

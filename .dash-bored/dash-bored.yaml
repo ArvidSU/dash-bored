@@ -327,11 +327,21 @@ root:
                               - improvement
                           - id: todo-026
                             description: Retire the native HTML5 drag handlers in ComponentFrame and keep composition drags pointer-only.
-                            done: false
+                            done: true
                             tags:
                               - chore
                           - id: todo-027
                             description: "Replace App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, runningActionIdsRef, processesRef, actionsByIdRef, agentControlStateRef) with effect-synced refs or useEffectEvent, after confirming no child reads them during render (react-doctor no-ref-current-in-render)."
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-028
+                            description: Before unifying the dashboard tree and editor, verify native drag, move up/down, and Save/Cancel in the dash-bored dev app. Computer Use was not approved to use dash-bored-dev, so the L4 native UI gate remains open.
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-029
+                            description: "Define key-based list filter reset semantics before replacing filter effects: retain a still-valid selected tag, decide behavior when the source or tag set changes, and preserve todo editing and focus state."
                             done: false
                             tags:
                               - chore

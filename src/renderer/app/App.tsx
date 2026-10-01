@@ -73,7 +73,6 @@ import { actionInvocation } from "../../shared/action-invocation";
 import {
   CompositionContext,
   type CompositionDragPayload,
-  type CompositionDropZone,
   type CompositionTarget,
 } from "../composition/composition-context";
 import { createCompositionTargets } from "../composition/composition-targets";
@@ -1150,7 +1149,6 @@ export function App(): ReactNode {
   const {
     pathForNode: compositionPathForNode,
     dropZonesForNode: compositionDropZonesForNode,
-    pointerDropZoneForNode: compositionPointerDropZone,
     pointerTargetAt: compositionPointerTargetAt,
     targetIsValid: compositionTargetIsValid,
     defaultTarget: defaultCompositionTarget,
@@ -1442,8 +1440,6 @@ export function App(): ReactNode {
         catalog: compositionCatalog,
         pathForNode: compositionPathForNode,
         dropZonesForNode: compositionDropZonesForNode,
-        pointerDropZoneForNode: compositionPointerDropZone,
-        canDrop: compositionTargetIsValid,
         onNodeDragStart: compositionInteraction.beginNodeDrag,
         onNodeDragEnd: () => {
           clearPendingCompositionPointer();
@@ -1455,20 +1451,6 @@ export function App(): ReactNode {
         onNodePointerDrop: (path: NodePath, point: ComponentPointerDragPoint) => {
           dropCompositionPointer({ type: "node", path }, point);
         },
-        onLibraryDragStart: compositionInteraction.beginLibraryDrag,
-        onLibraryDragEnd: () => {
-          clearPendingCompositionPointer();
-          compositionInteraction.endDrag();
-        },
-        onDragTarget: (nodeId: string | null, zone: CompositionDropZone | null) => {
-          compositionInteraction.updatePointer(zone && nodeId ? {
-            nodeId,
-            zoneId: zone.id,
-            clientX: 0,
-            clientY: 0,
-          } : null);
-        },
-        onDrop: handleCompositionDrop,
       }
     : null;
 
@@ -1997,7 +1979,6 @@ export function App(): ReactNode {
         onInsert={handleCompositionInsert}
         onInsertSwitchablePanels={() => void handleInsertSwitchablePanels()}
         onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).result.message}
-        onRemoveDrop={(path) => void removeCompositionNode(path)}
         onBuildWithAgent={(description) => void handleCompositionAgent(description)}
         onPointerDragMove={handleCompositionPointerDragMove}
         onPointerDrop={handleCompositionPointerDrop}

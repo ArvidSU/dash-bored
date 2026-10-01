@@ -15,7 +15,6 @@ import {
 import { childEdges } from "../lib/component-children";
 import { deriveInsertionTargets } from "./composition-placement";
 import { planCompositionOperation } from "./composition-operation";
-import { compatibleCompositionDropZones } from "./composition-dnd";
 import type {
   CompositionDragPayload,
   CompositionDropZone,
@@ -28,6 +27,15 @@ import {
   compositionTargetId,
   contextualInsertionLabel,
 } from "./composition-labels";
+
+/** Keep presentation and hit-testing limited to targets accepted by the active payload. */
+export function compatibleCompositionDropZones(
+  zones: readonly CompositionDropZone[],
+  payload: CompositionDragPayload | null | undefined,
+  canDrop: (target: CompositionTarget, payload: CompositionDragPayload) => boolean,
+): CompositionDropZone[] {
+  return payload == null ? [...zones] : zones.filter((zone) => canDrop(zone.target, payload));
+}
 
 export interface CompositionResolution {
   config: DashboardConfig | null;

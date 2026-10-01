@@ -2,7 +2,6 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, u
 import { createPortal } from "react-dom";
 import type {
   CSSProperties,
-  DragEvent as ReactDragEvent,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
@@ -13,8 +12,7 @@ import { pathEquals } from "../composition/dashboard-editor";
 import { countComponentDescendants } from "../lib/component-view-state";
 import { MIN_COMPONENT_HEIGHT_PX, normalizeComponentHeight } from "../lib/component-height";
 import { nodeLabel } from "../lib/virtual-root";
-import { CompositionContext, type CompositionDragPayload, type CompositionDropZone } from "../composition/composition-context";
-import { compositionPayloadFromDragEvent } from "../composition/composition-dnd";
+import { CompositionContext } from "../composition/composition-context";
 import { usePointerSession } from "../lib/pointer-session";
 import { compositionPayloadLabel } from "../composition/composition-labels";
 
@@ -283,28 +281,6 @@ export function ComponentFrame({
     });
   }, [compositionPointerSession]);
 
-  function compositionPointerDrop(event: ReactDragEvent<HTMLElement>): {
-    payload: CompositionDragPayload;
-    zone: CompositionDropZone;
-  } | null {
-    if (!composition?.active) return null;
-    const eventTarget = event.target instanceof globalThis.Element ? event.target : null;
-    if (eventTarget?.closest("[data-composition-controls]")) return null;
-    const nearestNode = eventTarget?.closest<HTMLElement>("[data-node-id]");
-    if (nearestNode?.dataset.nodeId && nearestNode.dataset.nodeId !== node.id) return null;
-    const payload = compositionPayloadFromDragEvent(event.dataTransfer, composition.dragging);
-    if (!payload) return null;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return null;
-    const zone = composition.pointerDropZoneForNode(
-      node,
-      (event.clientX - rect.left) / rect.width,
-      (event.clientY - rect.top) / rect.height,
-      payload,
-    );
-    return zone && composition.canDrop(zone.target, payload) ? { payload, zone } : null;
-  }
-
   function positionMenu(anchorX: number, anchorY: number, alignRight: boolean): void {
     const width = Math.min(224, window.innerWidth - 24);
     const height = 208;
@@ -469,56 +445,6 @@ export function ComponentFrame({
           dragHandle?.focus();
           beginCompositionPointerMove(event, compositionPath);
         }
-      }}
-      onDragOver={(event) => {
-        if (!composition?.active) return;
-        const knownPayload = compositionPayloadFromDragEvent(event.dataTransfer, composition.dragging);
-        if (!knownPayload) {
-          // Keep the first WebKit dragover alive while dragstart state catches
-          // up, but do not advertise an unknown frame as a real target.
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "none";
-          composition.onDragTarget(null, null);
-          return;
-        }
-        const drop = compositionPointerDrop(event);
-        if (!drop) {
-          event.dataTransfer.dropEffect = "none";
-          composition.onDragTarget(null, null);
-          return;
-        }
-        event.preventDefault();
-        event.dataTransfer.dropEffect = drop.payload.type === "node" ? "move" : "copy";
-        composition.onDragTarget(node.id, drop.zone);
-      }}
-      onDragEnter={(event) => {
-        if (!composition?.active) return;
-        const knownPayload = compositionPayloadFromDragEvent(event.dataTransfer, composition.dragging);
-        if (!knownPayload) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "none";
-          return;
-        }
-        const drop = compositionPointerDrop(event);
-        if (!drop) {
-          composition.onDragTarget(null, null);
-          return;
-        }
-        event.preventDefault();
-        event.dataTransfer.dropEffect = drop.payload.type === "node" ? "move" : "copy";
-        composition.onDragTarget(node.id, drop.zone);
-      }}
-      onDragLeave={(event) => {
-        const related = event.relatedTarget;
-        if (related instanceof globalThis.Node && event.currentTarget.contains(related)) return;
-        composition?.onDragTarget(null, null);
-      }}
-      onDrop={(event) => {
-        const drop = compositionPointerDrop(event);
-        if (!drop) return;
-        event.preventDefault();
-        composition?.onDragTarget(null, null);
-        composition?.onDrop(drop.zone.target, drop.payload);
       }}
       onContextMenu={(event) => {
         if (!showComponentMenu) return;

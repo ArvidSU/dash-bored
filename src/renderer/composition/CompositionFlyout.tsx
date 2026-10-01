@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CSSProperties,
-  DragEvent as ReactDragEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from "react";
@@ -17,19 +16,10 @@ import {
 } from "../lib/component-library";
 import { RightDrawer } from "../lib/right-drawer";
 import { EditorModal } from "../lib/editor-modal";
-import { compositionPayloadFromDragEvent } from "./composition-dnd";
 import type { CompositionDragPayload } from "./composition-context";
-import type { NodePath } from "./dashboard-editor";
 import { usePointerSession } from "../lib/pointer-session";
 
 export { filterComponentCatalog } from "../lib/component-library";
-
-export const COMPONENT_CATALOG_DRAG_MIME = "application/x-dash-bored-component";
-
-export interface ComponentCatalogDragPayload {
-  type: "component";
-  reference: string;
-}
 
 export interface ComponentPointerDragPoint {
   clientX: number;
@@ -37,25 +27,6 @@ export interface ComponentPointerDragPoint {
 }
 
 type PointerDragPoint = ComponentPointerDragPoint & { pointerId: number };
-
-export function serializeComponentCatalogDragPayload(reference: string): string {
-  return JSON.stringify({ type: "component", reference } satisfies ComponentCatalogDragPayload);
-}
-
-export function parseComponentCatalogDragPayload(value: string): ComponentCatalogDragPayload | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    const payload = parsed as { type?: unknown; reference?: unknown };
-    return payload.type === "component"
-      && typeof payload.reference === "string"
-      && payload.reference.trim().length > 0
-      ? { type: "component", reference: payload.reference }
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 export interface CompositionFlyoutProps {
   dashboardAppearance?: ReactNode;
@@ -65,7 +36,6 @@ export interface CompositionFlyoutProps {
   onClose: () => void;
   onInsert: (entry: ComponentCatalogItem) => void;
   onInsertSwitchablePanels?: () => void;
-  onRemoveDrop?: (path: NodePath) => void;
   onBuildWithAgent?: (description: string) => void;
   onDragStateChange?: (entry: ComponentCatalogItem | null) => void;
   onPointerDragMove?: (reference: string, point: ComponentPointerDragPoint) => void;
@@ -141,7 +111,6 @@ export function CompositionFlyout({
   onClose,
   onInsert,
   onInsertSwitchablePanels,
-  onRemoveDrop,
   onBuildWithAgent,
   onDragStateChange,
   onPointerDragMove,
@@ -165,7 +134,6 @@ export function CompositionFlyout({
   const suppressClickRef = useRef(false);
   const [query, setQuery] = useState("");
   const [draggingReference, setDraggingReference] = useState<string | null>(null);
-  const [removeDropHovered, setRemoveDropHovered] = useState(false);
   const [addExternalOpen, setAddExternalOpen] = useState(false);
   const [manageExternalReference, setManageExternalReference] = useState<string | null>(null);
   const [externalUrl, setExternalUrl] = useState("");
@@ -232,38 +200,6 @@ export function CompositionFlyout({
     && onBuildWithAgent !== undefined;
   const removalMode = open && compositionDragging?.type === "node";
 
-  function removeDropPath(event: ReactDragEvent<HTMLElement>): NodePath | null {
-    if (!removalMode) return null;
-    const payload = compositionPayloadFromDragEvent(event.dataTransfer, compositionDragging);
-    return payload?.type === "node" && payload.path.length > 0 ? payload.path : null;
-  }
-
-  function handleRemoveDragOver(event: ReactDragEvent<HTMLElement>): void {
-    const path = removeDropPath(event);
-    if (!path || !onRemoveDrop) {
-      event.dataTransfer.dropEffect = "none";
-      setRemoveDropHovered(false);
-      return;
-    }
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    setRemoveDropHovered(true);
-  }
-
-  function handleRemoveDragLeave(event: ReactDragEvent<HTMLElement>): void {
-    const relatedTarget = event.relatedTarget;
-    if (relatedTarget instanceof globalThis.Node && event.currentTarget.contains(relatedTarget)) return;
-    setRemoveDropHovered(false);
-  }
-
-  function handleRemoveDrop(event: ReactDragEvent<HTMLElement>): void {
-    const path = removeDropPath(event);
-    if (!path || !onRemoveDrop) return;
-    event.preventDefault();
-    setRemoveDropHovered(false);
-    onRemoveDrop(path);
-  }
-
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -294,11 +230,6 @@ export function CompositionFlyout({
     setDraggingReference(null);
     onDragStateChange?.(null);
   }, [onDragStateChange, open, pointerSession]);
-
-  useEffect(() => {
-    if (removalMode) return;
-    setRemoveDropHovered(false);
-  }, [removalMode]);
 
   useEffect(() => {
     if (!removalMode) return;
@@ -533,7 +464,6 @@ export function CompositionFlyout({
     const removalClassName = [
       "composition-flyout",
       "composition-flyout--removal",
-      removeDropHovered ? "composition-flyout--removal-hovered" : "",
     ].filter(Boolean).join(" ");
     return (
       <aside
@@ -545,10 +475,6 @@ export function CompositionFlyout({
         ref={removalRef}
         role="dialog"
         style={removalStyle}
-        onDragEnter={handleRemoveDragOver}
-        onDragLeave={handleRemoveDragLeave}
-        onDragOver={handleRemoveDragOver}
-        onDrop={handleRemoveDrop}
       >
         <svg className="composition-flyout__trash" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 7h16" />

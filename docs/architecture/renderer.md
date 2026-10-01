@@ -14,13 +14,13 @@ modules under feature directories:
   `EmptyProject.tsx`, `AgentPromptPanel.tsx`, `AgentActivity.tsx`,
   `SettingsPanel.tsx`, `CommandPalette.tsx`.
 - `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
-  `composition-*.ts(x)` (targets, labels, dnd, placement, movement,
+  `composition-*.ts(x)` (targets, labels, placement, movement,
   operation, preview, interaction-controller), `ComponentCompositor.tsx`,
   `CompositionFlyout.tsx`, `DashboardEditor.tsx`, `DashboardOutlineTree.tsx`.
 - `render/` — node rendering: `NodeRenderer.tsx` (recursive rendering plus
   the staggered update-polish batch hook), `ComponentFrame.tsx` (per-node
   frame: menu, collapse shell, single-click collapse / double-click edit on
-  frame chrome, height resizing, drag/drop affordances),
+  frame chrome, height resizing, pointer drag affordances),
   `ComponentWebviewSurface.tsx`, `SplitLayout.tsx` + `split-layout.ts`,
   `local-host.tsx` (permission-gated `LocalComponentHost` factory),
   `local-components.tsx`.
@@ -408,7 +408,10 @@ composition. Every movable non-root frame supplies a small drag handle and a
 component menu; only the deepest hovered frame reveals those controls, while
 keyboard focus can reveal a focused control independently. Hidden ancestor
 controls do not intercept pointer input, and component content has no drag
-semantics. Custom components do not need special markup.
+semantics. Composition drags use pointer sessions and carry their payload in
+renderer state; native HTML5 drag remains limited to dashboard reordering and
+the temporary DashboardEditor workbench. Custom components do not need special
+markup.
 External-component add, update, remove, and sync run in the app through the
 `manageExternalComponent` RPC; the flyout does not present commands to copy.
 A node drag turns the flyout into a dotted 20%-wide trash target; dropping

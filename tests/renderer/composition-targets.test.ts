@@ -9,7 +9,8 @@ import type {
 } from "../../src/shared/contracts";
 import type { NodePath } from "../../src/renderer/composition/dashboard-editor";
 import { createCompositionTargets } from "../../src/renderer/composition/composition-targets";
-import type { CompositionDragPayload } from "../../src/renderer/composition/composition-context";
+import type { CompositionDragPayload, CompositionDropZone } from "../../src/renderer/composition/composition-context";
+import { compatibleCompositionDropZones } from "../../src/renderer/composition/composition-targets";
 
 const GROUP = "@dash-bored/group";
 const TABS = "@dash-bored/tabs";
@@ -256,5 +257,27 @@ describe("pointer zone hysteresis", () => {
     expect(targets.pointerDropZoneForNode(
       tabsResolved, 0.5, 0.5, leafPayload, { zoneId: "missing", marginX: margin, marginY: margin },
     )?.side).toBe("inside");
+  });
+});
+
+describe("compatible composition drop zones", () => {
+  test("filters invalid spatial zones before they reach the drag UI", () => {
+    const validTarget = {
+      parentPath: [],
+      placement: { type: "managed" as const, index: 0 },
+    };
+    const invalidTarget = {
+      parentPath: [],
+      placement: { type: "managed" as const, index: 1 },
+    };
+    const zones: CompositionDropZone[] = [
+      { id: "invalid", label: "Invalid", side: "left", target: invalidTarget },
+      { id: "valid", label: "Valid", side: "right", target: validTarget },
+    ];
+    const payload = { type: "component" as const, reference: "@dash-bored/card" };
+
+    expect(compatibleCompositionDropZones(zones, payload, (target) => target === validTarget))
+      .toEqual([zones[1]!]);
+    expect(compatibleCompositionDropZones(zones, null, () => false)).toEqual(zones);
   });
 });
