@@ -90,6 +90,10 @@ import {
   replaceDashboardAgentTask,
   replaceProcess,
   starterDashboardAgentTask,
+  createDashboardEditSession,
+  patchDashboardAppearance,
+  mergeThemeCatalog,
+  isCompositionSourceCurrent,
   EMPTY_SPLIT_RATIO_OVERRIDES,
   type ActionNotice,
   type DashboardCompositionSource,
@@ -160,7 +164,7 @@ export function App(): ReactNode {
     return () => { active = false; window.removeEventListener('focus', refresh); };
   }, [snapshot?.revision]);
   useLayoutEffect(() => {
-    const catalog = [...applicationThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith('./'))];
+    const catalog = mergeThemeCatalog(applicationThemes, snapshot?.themeCatalog);
     const source = editSession?.configPath === snapshot?.configPath ? editSession?.draft : snapshot?.config;
     applyTheme(catalog, source?.theme, appSettings.theme, source?.themeMode ?? appSettings.themeMode, systemDark);
   }, [applicationThemes, snapshot?.themeCatalog, snapshot?.configPath, snapshot?.config?.theme, snapshot?.config?.themeMode, editSession?.configPath, editSession?.draft.theme, editSession?.draft.themeMode, appSettings.theme, appSettings.themeMode, systemDark]);
@@ -710,15 +714,7 @@ export function App(): ReactNode {
       const focusedSource = requestedConfigPath ?? virtualRoot?.target.sourceConfigPath;
       const source = await host.getDashboardConfigSource(focusedSource);
       const validation = await host.validateDashboardDraft(source.config, source.configPath);
-      loaded = {
-        projectRoot: snapshot.projectRoot!,
-        configPath: source.configPath,
-        componentCatalog: source.componentCatalog,
-        original: structuredClone(source.config),
-        draft: structuredClone(source.config),
-        expectedConfigRevision: source.configRevision,
-        validation,
-      };
+      loaded = createDashboardEditSession(snapshot.projectRoot!, source, validation);
       if (!preserveView) setActiveView("dashboard");
       setEditSession(loaded);
     });
@@ -731,15 +727,7 @@ export function App(): ReactNode {
       if (!configPath) return;
       const session = await ensureCurrentDashboardEdit(configPath, true);
       if (!session || snapshotRef.current?.configPath !== session.configPath) return;
-      const draft = { ...session.draft };
-      if ("theme" in change) {
-        if (change.theme) draft.theme = change.theme;
-        else delete draft.theme;
-      }
-      if ("themeMode" in change) {
-        if (change.themeMode) draft.themeMode = change.themeMode;
-        else delete draft.themeMode;
-      }
+      const draft = patchDashboardAppearance(session.draft, change);
       const updated = { ...session, draft };
       editSessionRef.current = updated;
       setEditSession((current) => current?.configPath === session.configPath ? updated : current);
@@ -765,15 +753,7 @@ export function App(): ReactNode {
     if (!session) {
       const source = await host.getDashboardConfigSource(configPath);
       const validation = await host.validateDashboardDraft(source.config, source.configPath);
-      session = {
-        projectRoot: currentSnapshot.projectRoot,
-        configPath: source.configPath,
-        componentCatalog: source.componentCatalog,
-        original: structuredClone(source.config),
-        draft: structuredClone(source.config),
-        expectedConfigRevision: source.configRevision,
-        validation,
-      };
+      session = createDashboardEditSession(currentSnapshot.projectRoot, source, validation);
       editSessionRef.current = session;
       setActiveView("dashboard");
       setEditSession(session);
@@ -847,15 +827,7 @@ export function App(): ReactNode {
   ): Promise<void> {
     try {
       const source = await host.getDashboardConfigSource(dashboard.configPath);
-      const draft = { ...source.config };
-      if ("theme" in change) {
-        if (change.theme) draft.theme = change.theme;
-        else delete draft.theme;
-      }
-      if ("themeMode" in change) {
-        if (change.themeMode) draft.themeMode = change.themeMode;
-        else delete draft.themeMode;
-      }
+      const draft = patchDashboardAppearance(source.config, change);
       await host.saveDashboardConfig(draft, source.configRevision, source.configPath);
       setDashboardSettings((current) => current.map((item) => item.configPath === dashboard.configPath
         ? { ...item, theme: draft.theme, themeMode: draft.themeMode, error: undefined }
@@ -966,7 +938,7 @@ export function App(): ReactNode {
   const draftValid = Boolean(editSession &&
     editSession?.validation.diagnostics.every((item) => item.severity !== "error"),
   );
-  const availableThemeCatalog = [...applicationThemes, ...(snapshot?.themeCatalog ?? []).filter((item) => item.reference.startsWith("./"))];
+  const availableThemeCatalog = mergeThemeCatalog(applicationThemes, snapshot?.themeCatalog);
   const applicationActions = buildApplicationActions({
     snapshot,
     projects,
@@ -1048,13 +1020,11 @@ export function App(): ReactNode {
   }, [snapshot?.configPath, virtualRoot?.target.id]);
   const compositionPreviewTree = useMemo(() => {
     if (!snapshot?.tree) return null;
-    const source = compositionSource
-      && compositionSource.projectRoot === snapshot.projectRoot
-      && compositionSource.activeDashboardPath === snapshot.configPath
-      && compositionSource.focusedSourcePath === virtualRoot?.target.sourceConfigPath
-      && compositionSource.snapshotRevision === snapshot.revision
-      ? compositionSource
-      : null;
+    const source = isCompositionSourceCurrent(
+      compositionSource,
+      snapshot,
+      virtualRoot?.target.sourceConfigPath,
+    ) ? compositionSource : null;
     if (!editSession) {
       if (!source || source.configPath === snapshot.configPath) return snapshot.tree;
       const template = findResolvedConfigRoot(snapshot.tree, source.configPath);
@@ -1094,13 +1064,11 @@ export function App(): ReactNode {
   const compositionVirtualRoot = compositionPreviewTree
     ? resolveVirtualRoot(compositionPreviewTree, storedVirtualRoot ?? null)
     : null;
-  const activeCompositionSource = compositionSource
-    && compositionSource.projectRoot === snapshot?.projectRoot
-    && compositionSource.activeDashboardPath === snapshot?.configPath
-    && compositionSource.focusedSourcePath === virtualRoot?.target.sourceConfigPath
-    && compositionSource.snapshotRevision === snapshot?.revision
-    ? compositionSource
-    : null;
+  const activeCompositionSource = isCompositionSourceCurrent(
+    compositionSource,
+    snapshot,
+    virtualRoot?.target.sourceConfigPath,
+  ) ? compositionSource : null;
   const compositionConfig = editSession
     ? editSession.draft
     : activeCompositionSource?.config ?? snapshot?.config ?? null;
@@ -1457,10 +1425,7 @@ export function App(): ReactNode {
       return;
     }
     if (
-      compositionSource?.projectRoot === snapshot.projectRoot
-      && compositionSource.activeDashboardPath === snapshot.configPath
-      && compositionSource.focusedSourcePath === focusedSource
-      && compositionSource.snapshotRevision === snapshot.revision
+      isCompositionSourceCurrent(compositionSource, snapshot, focusedSource)
       && compositionSource.configPath === focusedSource
     ) return;
     void loadCompositionSource();
@@ -1957,8 +1922,7 @@ export function App(): ReactNode {
             onChange={(theme) => { void (async () => {
               const session = await ensureCurrentDashboardEdit(snapshot.configPath!);
               if (!session || snapshotRef.current?.configPath !== session.configPath) return;
-              const draft = { ...session.draft };
-              if (theme) draft.theme = theme; else delete draft.theme;
+              const draft = patchDashboardAppearance(session.draft, { theme });
               setEditSession({ ...session, draft });
             })(); }} /></label>
           <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={editSession?.configPath === snapshot.configPath ? editSession?.draft.themeMode ?? "" : snapshot.config?.themeMode ?? ""} onChange={(event) => updateDashboardAppearance({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>

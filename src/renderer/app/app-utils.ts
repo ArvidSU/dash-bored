@@ -3,6 +3,7 @@ import type {
   ComponentNode,
   DashboardAgentTask,
   DashboardConfig,
+  DashboardConfigSource,
   DashboardDraftValidation,
   ProcessSnapshot,
   ProjectListItem,
@@ -13,6 +14,7 @@ import type {
 import { childEdges } from "../lib/component-children";
 import type { ComponentHeightOverrides } from "../lib/component-height";
 import type { SplitRatioOverrides } from "../render/split-layout";
+import type { ThemeCatalogItem } from "../../shared/themes";
 
 export const EMPTY_COLLAPSED_COMPONENT_IDS = new Set<string>();
 export const EMPTY_SPLIT_RATIO_OVERRIDES: Readonly<SplitRatioOverrides> = Object.freeze({});
@@ -115,6 +117,38 @@ export interface DashboardEditSession {
   validation: DashboardDraftValidation;
 }
 
+export function createDashboardEditSession(
+  projectRoot: string,
+  source: DashboardConfigSource,
+  validation: DashboardDraftValidation,
+): DashboardEditSession {
+  return {
+    projectRoot,
+    configPath: source.configPath,
+    componentCatalog: source.componentCatalog,
+    original: structuredClone(source.config),
+    draft: structuredClone(source.config),
+    expectedConfigRevision: source.configRevision,
+    validation,
+  };
+}
+
+export function patchDashboardAppearance(
+  config: DashboardConfig,
+  change: Pick<DashboardConfig, "theme" | "themeMode">,
+): DashboardConfig {
+  const draft = { ...config };
+  if ("theme" in change) {
+    if (change.theme) draft.theme = change.theme;
+    else delete draft.theme;
+  }
+  if ("themeMode" in change) {
+    if (change.themeMode) draft.themeMode = change.themeMode;
+    else delete draft.themeMode;
+  }
+  return draft;
+}
+
 export interface DashboardCompositionSource {
   projectRoot: string;
   activeDashboardPath: string;
@@ -123,6 +157,31 @@ export interface DashboardCompositionSource {
   configPath: string;
   componentCatalog: ComponentCatalogItem[];
   config: DashboardConfig;
+}
+
+export function mergeThemeCatalog(
+  applicationThemes: readonly ThemeCatalogItem[],
+  projectThemes: readonly ThemeCatalogItem[] | undefined,
+): ThemeCatalogItem[] {
+  return [
+    ...applicationThemes,
+    ...(projectThemes ?? []).filter((item) => item.reference.startsWith("./")),
+  ];
+}
+
+export function isCompositionSourceCurrent(
+  source: DashboardCompositionSource | null | undefined,
+  snapshot: ProjectSnapshot | null | undefined,
+  focusedSourcePath: string | undefined,
+): source is DashboardCompositionSource {
+  return Boolean(
+    source
+    && snapshot
+    && source.projectRoot === snapshot.projectRoot
+    && source.activeDashboardPath === snapshot.configPath
+    && source.focusedSourcePath === focusedSourcePath
+    && source.snapshotRevision === snapshot.revision,
+  );
 }
 
 export function findResolvedConfigRoot(
