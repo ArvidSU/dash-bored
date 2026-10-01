@@ -287,7 +287,11 @@ manage agent sessions, persist work across app quit, or add a provider SDK;
 quitting dash-bored stops its child agent processes. The Agent work panel and
 the component library flyout are mutually exclusive right-side drawers sharing
 one shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
-focus trap and restore, unified header/body geometry below the modal layer);
+optional initial focus and focus restore, and unified header/body geometry below
+the modal layer). Drawers are non-modal: Tab follows normal document order and
+may move focus outside while a drawer stays open; the dashboard remains
+interactive. The library focuses its search field on open. Outside pointer
+presses and Escape dismiss a drawer; closing restores focus to its trigger;
 agent-process updates do not reopen a drawer the user dismissed, while a newly
 activated task still opens it automatically. Closing the panel only changes
 renderer visibility and never stops the attached agent process.

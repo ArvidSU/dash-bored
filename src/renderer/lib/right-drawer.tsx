@@ -4,9 +4,10 @@ import type { CSSProperties, ReactNode, RefObject } from "react";
 /**
  * Shared chrome for the mutually exclusive right-side drawers (component
  * library flyout, agent work panel). Owns the slide transition, outside
- * dismiss, Escape, focus trap, and initial/restore focus so the two panels
- * cannot drift apart again. Content, draft/task state, and library-only
- * drag/removal modes stay with the callers.
+ * dismiss, Escape, and optional initial/restore focus so the two panels cannot
+ * drift apart again. The drawers are non-modal and keep normal document Tab
+ * order. Content, draft/task state, and library-only drag/removal modes stay
+ * with the callers.
  */
 export const RIGHT_DRAWER_TRANSITION_MS = 220;
 
@@ -23,7 +24,7 @@ export interface RightDrawerProps {
   closeLabel?: string;
   /** Optional actions rendered in the header between the title and the close button. */
   headerActions?: ReactNode;
-  /** Focused on open; when omitted focus is left alone (trap still applies). */
+  /** Focused on open; when omitted focus is left alone. */
   initialFocusRef?: RefObject<HTMLElement | null>;
   /** Selector for the trigger to restore focus to when the drawer had no prior owner. */
   restoreFocusSelector?: string;
@@ -73,7 +74,7 @@ export function RightDrawer({
   }, [open ]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !rendered) return;
     restoreFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -91,7 +92,7 @@ export function RightDrawer({
         }
       });
     };
-  }, [initialFocusRef, open, restoreFocusSelector]);
+  }, [initialFocusRef, open, rendered, restoreFocusSelector]);
 
   useEffect(() => {
     if (!open) return;
@@ -111,22 +112,6 @@ export function RightDrawer({
       if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
         onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(
-        "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex=\"-1\"])",
-      ) ?? []).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
-      if (focusable.length === 0) return;
-      const first = focusable[0]!;
-      const last = focusable.at(-1)!;
-      const active = document.activeElement;
-      if (event.shiftKey ? active === first : active === last) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (!drawerRef.current?.contains(active)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
       }
     };
     document.addEventListener("pointerdown", handlePointerDown);

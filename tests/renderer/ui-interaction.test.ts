@@ -97,6 +97,25 @@ afterAll(async () => {
 });
 
 describe("renderer fixture interactions", () => {
+  test("right drawer keeps normal Tab navigation instead of trapping focus", async () => {
+    const active = currentPage();
+    await active.getByRole("button", { name: "Open component library" }).click();
+    const drawer = active.getByRole("dialog", { name: "Component library" });
+    const search = drawer.getByRole("searchbox", { name: "Search components" });
+    await search.waitFor();
+    await active.waitForFunction(() => document.activeElement === document.querySelector(".right-drawer input[type=search]"));
+
+    // Start at the drawer's first tab stop. Shift+Tab must follow document
+    // order back into the app shell, leaving the non-modal drawer open.
+    await drawer.getByRole("button", { name: "Add", exact: true }).focus();
+    await active.keyboard.press("Shift+Tab");
+    expect(await drawer.evaluate((element) => element.contains(document.activeElement))).toBe(false);
+    expect(await drawer.count()).toBe(1);
+
+    await drawer.getByRole("button", { name: "Close Component library", exact: true }).click();
+    await active.getByRole("button", { name: "Open component library" }).waitFor();
+  }, 20_000);
+
   test("opening and cleanly closing the library does not begin a draft", async () => {
     const active = currentPage();
     expect(await persistedGroupCount()).toBe(0);
