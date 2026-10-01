@@ -11,8 +11,13 @@ secondary text: `muted` and every semantic color reach WCAG AA (4.5:1) on
 `surface` and `surface-raised` in both variants. Health (green), warnings
 (amber), failures (red), and `info` (violet) keep hues distinct from the blue
 navigation accent and from each other rather than borrowing it.
-The development dashboard uses `./themes/ocean`; `./themes/retro-industrial`
-remains an optional warm equipment-panel theme tuned to the same bar, with
+`BUILTIN_THEMES` lists every shipped theme; each is a complete manifest
+held in code, always present at the head of every catalog, and resolved
+without disk access. `builtin:neon-dusk` is a synthwave variant: plum surface
+levels, a hot-magenta accent, cyan `info` kept apart from that accent, and a
+tinted glow shadow. Built-ins are held to the same AA bar by a test.
+The development dashboard uses `builtin:default`; `./themes/ocean` remains an
+optional blue-accent package and `./themes/retro-industrial` an optional warm equipment-panel theme tuned to the same bar, with
 ochre warnings and crimson failures kept apart from its orange accent. Shared
 spacing, type-scale (`--font-size-2xs` … `--font-size-xl`, 10–17 px),
 control-state, and border tokens remain renderer-owned in `styles.css` so
@@ -28,7 +33,7 @@ formats, oversized files, and escaping symlinks are rejected. Colors use hex,
 font stacks name installed fonts, radii are bounded, and shadows have a bounded
 literal format. No CSS, scripts, assets, downloads, or layout tokens are loaded.
 
-References are `builtin:default`, `global:<name>`, or `./themes/<name>` /
+References are `builtin:<id>` (`default`, `neon-dusk`), `global:<name>`, or `./themes/<name>` /
 `./themes/external/<name>`. AppSettings stores `theme` and `themeMode`
 (`dark|light|system`); old settings retain the built-in dark appearance. App
 defaults use an app-level catalog containing global packages and packages found

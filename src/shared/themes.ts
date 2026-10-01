@@ -26,7 +26,7 @@ export type ThemeAppearance = 'light' | 'dark';
 export type ThemeMode = ThemeAppearance | 'system';
 const THEME_PACKAGE_PATH = String.raw`\.\/themes(?:\/external)?\/[A-Za-z][A-Za-z0-9_-]*`;
 const THEME_PACKAGE_PATH_PATTERN = new RegExp(`^${THEME_PACKAGE_PATH}$`);
-const APP_THEME_REFERENCE_PATTERN = new RegExp(`^(?:builtin:default|global:[A-Za-z][A-Za-z0-9_-]*|project:[^:]+:${THEME_PACKAGE_PATH})$`);
+const APP_THEME_REFERENCE_PATTERN = new RegExp(`^(?:builtin:[A-Za-z][A-Za-z0-9_-]*|global:[A-Za-z][A-Za-z0-9_-]*|project:[^:]+:${THEME_PACKAGE_PATH})$`);
 const LEGACY_APP_THEME_REFERENCE_PATTERN = new RegExp(`^${THEME_PACKAGE_PATH}$`);
 
 /** Stable app-level reference for a theme installed below a registered dashboard bundle. */
@@ -89,11 +89,55 @@ export const BUILTIN_THEME: ThemeCatalogItem = {
   reference: 'builtin:default', name: 'dash-bored',
   manifest: { schemaVersion: 1, id: 'default', name: 'dash-bored', light: {}, dark: {} },
 };
+/** Synthwave dusk: plum surfaces, a hot-magenta signal accent, and cyan info kept apart from it. */
+export const NEON_DUSK_THEME: ThemeCatalogItem = {
+  reference: 'builtin:neon-dusk', name: 'Neon Dusk',
+  manifest: {
+    schemaVersion: 1, id: 'neon-dusk', name: 'Neon Dusk',
+    description: 'Synthwave plum surfaces with a hot-magenta accent, cyan info, and a soft neon glow.',
+    light: {
+      bg: '#ece4f5', surface: '#fdfaff', 'surface-raised': '#f5effb', 'surface-hover': '#ebe2f5',
+      border: '#d8cce8', 'border-bright': '#a796c2', text: '#1d1230', muted: '#5a4a75', faint: '#6c5c88',
+      accent: '#b5179e', 'accent-strong': '#8e0f7b', 'accent-ink': '#ffffff', 'accent-soft': '#f7d6ef',
+      'panel-dark': '#1c1230', 'panel-dark-muted': '#2e2047', 'border-dark': '#6c5c88', highlight: '#ffffff',
+      'shadow-color': '#1d1230', positive: '#0f7a52', warning: '#8a5a00', negative: '#c0283f', info: '#0b6f8f',
+      shadow: '0px 18px 60px 0px #b5179e1f',
+      'terminal-background': '#fbf7ff', 'terminal-foreground': '#1d1230', 'terminal-cursor': '#b5179e',
+      'terminal-selection': '#f7d6ef', 'terminal-black': '#1d1230', 'terminal-red': '#b3203a',
+      'terminal-green': '#0f6e4a', 'terminal-yellow': '#7d5600', 'terminal-blue': '#3b4fc4',
+      'terminal-magenta': '#a3168e', 'terminal-cyan': '#08708a', 'terminal-white': '#5a4a75',
+      'terminal-brightBlack': '#6c5c88', 'terminal-brightRed': '#c0283f', 'terminal-brightGreen': '#0f7a52',
+      'terminal-brightYellow': '#8a5a00', 'terminal-brightBlue': '#4a5fd6', 'terminal-brightMagenta': '#b5179e',
+      'terminal-brightCyan': '#0b7d9b', 'terminal-brightWhite': '#1d1230',
+      'chart-1': '#b5179e', 'chart-2': '#0b6f8f', 'chart-3': '#8a5a00', 'chart-4': '#5b3fc4',
+      'chart-5': '#0f7a52', 'chart-6': '#c0283f',
+    },
+    dark: {
+      bg: '#120b1f', surface: '#1c1230', 'surface-raised': '#261a40', 'surface-hover': '#31224f',
+      border: '#3a2a5c', 'border-bright': '#5e4a8a', text: '#f6eefe', muted: '#c3b3dc', faint: '#a593c4',
+      accent: '#ff7ad9', 'accent-strong': '#ff4fc8', 'accent-ink': '#2a0620', 'accent-soft': '#4d1d4a',
+      'panel-dark': '#0b0614', 'panel-dark-muted': '#170f26', 'border-dark': '#3d2d5a', highlight: '#ffffff12',
+      'shadow-color': '#000000', positive: '#5cf2b4', warning: '#ffd166', negative: '#ff6b81', info: '#6ee7ff',
+      shadow: '0px 18px 60px 0px #ff2fb026',
+      'terminal-background': '#0b0614', 'terminal-foreground': '#e6dcf5', 'terminal-cursor': '#ff7ad9',
+      'terminal-selection': '#4d1d4a', 'terminal-black': '#1c1230', 'terminal-red': '#ff6b81',
+      'terminal-green': '#5cf2b4', 'terminal-yellow': '#ffd166', 'terminal-blue': '#8c9eff',
+      'terminal-magenta': '#ff7ad9', 'terminal-cyan': '#6ee7ff', 'terminal-white': '#e6dcf5',
+      'terminal-brightBlack': '#6a5a8c', 'terminal-brightRed': '#ff97a8', 'terminal-brightGreen': '#8ff7cc',
+      'terminal-brightYellow': '#ffe19a', 'terminal-brightBlue': '#b3c0ff', 'terminal-brightMagenta': '#ffa6e6',
+      'terminal-brightCyan': '#a4f0ff', 'terminal-brightWhite': '#fbf7ff',
+      'chart-1': '#ff7ad9', 'chart-2': '#6ee7ff', 'chart-3': '#ffd166', 'chart-4': '#b69cff',
+      'chart-5': '#5cf2b4', 'chart-6': '#ff9e6b',
+    },
+  },
+};
+/** Themes shipped with the app; every catalog starts with these. */
+export const BUILTIN_THEMES: readonly ThemeCatalogItem[] = [BUILTIN_THEME, NEON_DUSK_THEME];
 export function resolveTheme(catalog: ThemeCatalogItem[], requested: string | undefined, fallback = 'builtin:default') {
   const references = [...new Set([requested, fallback, 'builtin:default'].filter(Boolean))] as string[];
   const errors: string[] = [];
   for (const reference of references) {
-    const item = reference === 'builtin:default' ? BUILTIN_THEME : catalog.find((item) => item.reference === reference);
+    const item = BUILTIN_THEMES.find((builtin) => builtin.reference === reference) ?? catalog.find((item) => item.reference === reference);
     if (item?.manifest) return { item, errors };
     errors.push(`${reference}: ${item?.error ?? 'Theme not installed. Sync theme packages in Settings → Themes.'}`);
   }

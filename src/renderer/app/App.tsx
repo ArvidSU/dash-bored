@@ -1,5 +1,5 @@
 import { applyTheme, ThemeNotice, ThemeSelect } from "../lib/theme";
-import { BUILTIN_THEME, parseProjectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
+import { BUILTIN_THEMES, parseProjectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
 import {
   useCallback,
   useEffect, useLayoutEffect,
@@ -147,7 +147,7 @@ export function App(): ReactNode {
   const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
   const compositionSourceRequestId = useRef(0);
   const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
-  const [applicationThemes, setApplicationThemes] = useState<ThemeCatalogItem[]>([BUILTIN_THEME]);
+  const [applicationThemes, setApplicationThemes] = useState<ThemeCatalogItem[]>([...BUILTIN_THEMES]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');

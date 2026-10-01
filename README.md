@@ -1052,8 +1052,10 @@ restore the exact pinned revision. Personal installation becomes `global:ocean`
 and lives under `~/.config/dash-bored/themes`. Git is required for
 installations, and project installs require a Git checkout. Updates are always
 explicit and refuse local changes. Installation does not select a theme.
-Missing themes show a diagnostic and fall back to your app default, then the
-built-in theme. Existing settings keep Dark until you choose another mode.
+Two themes ship with the app and need no installation: `builtin:default`
+(calm blue) and `builtin:neon-dusk` (synthwave plum with a hot-magenta accent).
+Missing themes show a diagnostic and fall back to your app default, then
+`builtin:default`. Existing settings keep Dark until you choose another mode.
 
 ### App updates and dashboard migrations
 

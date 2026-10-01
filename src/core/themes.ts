@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import Ajv from 'ajv';
 import { parseDocument } from 'yaml';
-import { BUILTIN_THEME, projectThemeReference, THEME_SCHEMA, type ThemeCatalogItem, type ThemeManifest } from '../shared/themes';
+import { BUILTIN_THEMES, projectThemeReference, THEME_SCHEMA, type ThemeCatalogItem, type ThemeManifest } from '../shared/themes';
 
 /** Shared by the agent tool and every desktop channel; independent of Electrobun's instance ID. */
 export function personalThemesDirectory(): string { return join(homedir(), '.config', 'dash-bored', 'themes'); }
@@ -97,7 +97,7 @@ async function loadProjectThemeCatalog(configDirectory: string): Promise<ThemeCa
 }
 
 export async function loadThemeCatalog(configDirectory?: string, globalDirectory = personalThemesDirectory()): Promise<ThemeCatalogItem[]> {
-  const catalog: ThemeCatalogItem[] = [BUILTIN_THEME];
+  const catalog: ThemeCatalogItem[] = [...BUILTIN_THEMES];
   await scanThemes(catalog, globalDirectory, globalDirectory, 'global:');
   if (configDirectory) await scanThemes(catalog, configDirectory, join(configDirectory, 'themes'), './themes/');
   await attachPins(catalog, globalDirectory, 'pins.yaml', 'global:');

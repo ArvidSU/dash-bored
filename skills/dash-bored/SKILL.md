@@ -345,7 +345,7 @@ End with a short summary in this shape:
   with `light` and `dark` token maps that inherit every default; check it with
   `dash-bored theme validate <directory>`. Token names and defaults are in
   [references/theme-tokens.md](references/theme-tokens.md). Select it with the
-  dashboard's top-level `theme:` (`builtin:default`, `global:<name>`,
+  dashboard's top-level `theme:` (`builtin:default`, `builtin:neon-dusk`, `global:<name>`,
   `./themes/<name>`, or `./themes/external/<name>`); themes are data only. In
   local components, use CSS variables or `useTheme()`, never hard-coded colors.
 - **Migrations** after an app update, or when validation reports an old

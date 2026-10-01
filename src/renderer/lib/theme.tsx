@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { BUILTIN_THEME, DARK_TOKENS, parseProjectThemeReference, resolveTheme, themeTokens, type ThemeAppearance, type ThemeCatalogItem, type ThemeMode, type ThemeTokens } from '../../shared/themes';
+import { BUILTIN_THEMES, DARK_TOKENS, parseProjectThemeReference, resolveTheme, themeTokens, type ThemeAppearance, type ThemeCatalogItem, type ThemeMode, type ThemeTokens } from '../../shared/themes';
 export interface ResolvedTheme {
   reference: string;
   appearance: ThemeAppearance;
@@ -7,7 +7,7 @@ export interface ResolvedTheme {
   catalog: ThemeCatalogItem[];
   errors: string[];
 }
-let state: ResolvedTheme = { reference: 'builtin:default', appearance: 'dark', tokens: DARK_TOKENS, catalog: [BUILTIN_THEME], errors: [] };
+let state: ResolvedTheme = { reference: 'builtin:default', appearance: 'dark', tokens: DARK_TOKENS, catalog: [...BUILTIN_THEMES], errors: [] };
 const listeners = new Set<() => void>();
 
 function sameTokenSet(left: ThemeTokens, right: ThemeTokens): boolean {

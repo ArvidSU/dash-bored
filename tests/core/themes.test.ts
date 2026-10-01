@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stringify } from 'yaml';
 import { parseTheme, loadApplicationThemeCatalog, loadThemeCatalog, readTheme } from '../../src/core/themes';
-import { DARK_TOKENS, LIGHT_TOKENS, projectThemeReference, resolveTheme, themeTokens } from '../../src/shared/themes';
+import { BUILTIN_THEMES, DARK_TOKENS, isAppThemeReference, LIGHT_TOKENS, projectThemeReference, resolveTheme, themeTokens } from '../../src/shared/themes';
 import { addTheme, updateTheme, removeTheme, syncThemes, statusThemes, themeGit } from '../../src/core/theme-install';
 import { parseDashboardLock, serializeDashboardLock } from '../../src/core/yaml';
 import { temporaryDirectory, removeTemporaryDirectory } from './helpers';
@@ -29,6 +29,37 @@ test('selection falls through missing dashboard and personal themes to built-in'
   expect(resolveTheme([ocean], './themes/missing', 'global:ocean').item).toEqual(ocean);
   expect(resolveTheme([], './themes/missing', 'global:missing').errors).toHaveLength(2);
   expect(resolveTheme([], undefined).item.reference).toBe('builtin:default');
+});
+test('built-in themes are always cataloged, selectable, and resolvable', async () => {
+  const catalog = await loadThemeCatalog(undefined, await temp());
+  for (const builtin of BUILTIN_THEMES) {
+    expect(catalog).toContainEqual(builtin);
+    expect(isAppThemeReference(builtin.reference)).toBe(true);
+    expect(parseTheme(stringify(builtin.manifest))).toEqual(builtin.manifest!);
+    expect(resolveTheme([], builtin.reference)).toEqual({ item: builtin, errors: [] });
+  }
+  expect(resolveTheme([], 'builtin:neon-dusk').item.name).toBe('Neon Dusk');
+});
+test('built-in themes keep secondary and semantic text at WCAG AA on card surfaces', () => {
+  const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: string, b: string) => {
+    const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+    return (high + 0.05) / (low + 0.05);
+  };
+  for (const builtin of BUILTIN_THEMES) for (const appearance of ['light', 'dark'] as const) {
+    const tokens = themeTokens(builtin.manifest!, appearance);
+    for (const background of [tokens.surface, tokens['surface-raised']]) {
+      for (const token of ['text', 'muted', 'accent', 'positive', 'warning', 'negative', 'info'] as const) {
+        expect({ theme: builtin.reference, appearance, token, ratio: contrast(tokens[token], background) >= 4.5 })
+          .toEqual({ theme: builtin.reference, appearance, token, ratio: true });
+      }
+    }
+    expect(contrast(tokens['accent-ink'], tokens.accent)).toBeGreaterThanOrEqual(4.5);
+  }
 });
 test('catalog reads local themes without executing anything and rejects escaping symlinks', async () => {
   const root = await temp(); const outside = await temp();
