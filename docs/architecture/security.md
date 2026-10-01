@@ -170,6 +170,14 @@ automation surface for the user's own agents, not a new capability.
   marks these with the refusal reason so agents can ask the user instead. It
   also refuses every `agent:*` action because configured prompts require a
   visible user review and explicit Send.
+- The read surfaces add no capability. Status reports the visible diagnostics
+  (first 50, messages capped) and whether the project is trusted with the
+  permissions awaiting approval; there is no route to change trust. `processes`
+  and `logs` read the bounded snapshot main already holds for the process UI
+  (tail capped at 1,000 lines, 2,000 characters per line), take no input, and
+  cannot start, stop, or write to a process. Output can contain whatever a
+  command printed, so it is as sensitive as the terminal panel the user sees;
+  the same user-private socket guards it.
 - Opening a dashboard is refused while a draft is open. It loads and registers
   the dashboard but never trusts it.
 - Screenshots capture only the app's own window: the NSWindow number (read

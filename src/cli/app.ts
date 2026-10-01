@@ -4,12 +4,14 @@ import { dirname, join, resolve } from "node:path";
 import { listAppInstances, selectAppInstance } from "../core/app-instances";
 import { CoreError, resolveProjectLocation } from "../core/index";
 import { printJson as print } from "./print-json";
-import type { AgentActionDescriptor, AgentViewState, AppInstanceRecord } from "../shared/agent-control";
+import type { AgentActionDescriptor, AgentProcessInfo, AgentProcessLogs, AgentViewState, AppInstanceRecord } from "../shared/agent-control";
 
 export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app actions [<filter>] [--all] [--instance <identifier>]
   dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--instance <identifier>]
   dash-bored app open <dashboard> [--instance <identifier>]
+  dash-bored app processes [--instance <identifier>]
+  dash-bored app logs <command-id> [--tail <n>] [--instance <identifier>]
   dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]`;
 
 interface AppArguments {
@@ -18,6 +20,7 @@ interface AppArguments {
   instance?: string;
   output?: string;
   focus?: string;
+  tail?: number;
   all: boolean;
   timeout?: number;
   wait: boolean;
@@ -38,6 +41,11 @@ function parseAppArguments(args: string[]): AppArguments {
     else if (argument === "--output") parsed.output = value();
     else if (argument === "--focus") parsed.focus = value();
     else if (argument === "--all") parsed.all = true;
+    else if (argument === "--tail") {
+      const tail = value();
+      if (!/^\d+$/.test(tail) || Number(tail) < 1) throw new Error("--tail expects a positive integer.");
+      parsed.tail = Number(tail);
+    }
     else if (argument === "--no-wait") parsed.wait = false;
     else if (argument === "--timeout") {
       const timeout = Number(value());
@@ -79,6 +87,13 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
     if (payload.error) throw new CoreError(payload.error.code ?? "APP_CONTROL_FAILED", payload.error.message ?? "Request failed.");
   }
   return response;
+}
+
+// CSI and OSC sequences, plus lone ESC-prefixed controls, that terminals render.
+const ANSI_ESCAPES = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g;
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_ESCAPES, "");
 }
 
 function defaultScreenshotPath(instance: AppInstanceRecord): string {
@@ -153,6 +168,21 @@ export async function runAppCommand(args: string[]): Promise<number> {
     const instance = await selectedInstance(parsed.instance);
     const location = await resolveProjectLocation(parsed.positional[0]!);
     print(await (await call(instance, "/v1/open", { configPath: location.configPath })).json());
+    return 0;
+  }
+
+  if (parsed.verb === "processes" && parsed.positional.length === 0) {
+    const instance = await selectedInstance(parsed.instance);
+    const { processes } = await (await call(instance, "/v1/processes")).json() as { processes: AgentProcessInfo[] };
+    print(processes);
+    return 0;
+  }
+
+  if (parsed.verb === "logs" && parsed.positional.length === 1) {
+    const instance = await selectedInstance(parsed.instance);
+    const query = parsed.tail === undefined ? "" : `?tail=${parsed.tail}`;
+    const { logs } = await (await call(instance, `/v1/processes/${encodeURIComponent(parsed.positional[0]!)}/logs${query}`)).json() as { logs: AgentProcessLogs };
+    print({ ...logs, lines: logs.lines.map((line) => stripAnsi(line).replace(/^.*\r/, "")) });
     return 0;
   }
 

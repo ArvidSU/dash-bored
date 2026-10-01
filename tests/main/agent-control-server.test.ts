@@ -2,8 +2,18 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { instanceSocketPath, listAppInstances, selectAppInstance } from "../../src/core/app-instances";
+import type { ProcessSnapshot } from "../../src/shared/contracts";
 import { startAgentControlServer, type AgentControlBridge } from "../../src/main/agent-control-server";
-import { agentActionRefusal, suggestActions, unknownActionReason, type AgentRunActionRequest, type AgentViewState } from "../../src/shared/agent-control";
+import {
+  agentActionRefusal,
+  agentProcessInfo,
+  agentProcessLogs,
+  summarizeAgentDiagnostics,
+  suggestActions,
+  unknownActionReason,
+  type AgentRunActionRequest,
+  type AgentViewState,
+} from "../../src/shared/agent-control";
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -26,11 +36,27 @@ function fakeBridge() {
     dashboardName: "Project",
     focusedNodeId: null,
     editing: false,
-    diagnostics: { errors: 0, warnings: 0 },
+    diagnostics: summarizeAgentDiagnostics([
+      { severity: "error", code: "COMPONENT_PROP_INVALID", message: "Bad prop", path: "tree.children[0]", file: "dash-bored.yaml", line: 4 },
+      { severity: "warning", code: "RUNTIME_WARN", message: "Slow" },
+    ]),
+    trust: { trusted: false, pendingPermissions: ["process:execute", "network:http"] },
   };
+  const processes: ProcessSnapshot[] = [
+    {
+      id: "tests", phase: "exited", pid: null, exitCode: 1, signal: null, startedAt: "2026-01-01T00:00:00.000Z", durationMs: 2500,
+      logs: [
+        { sequence: 1, stream: "stdout", text: "\u001b[32mok\u001b[0m one\r\ntwo\r\n" },
+        { sequence: 2, stream: "stderr", text: "\u001b[31mfail\u001b[0m three\r\n" },
+      ],
+    },
+    { id: "serve", phase: "idle", pid: null, exitCode: null, signal: null, logs: [] },
+  ];
+  const labels: Record<string, string> = { tests: "Run tests", serve: "Serve" };
   const runs: AgentRunActionRequest[] = [];
   const opened: string[] = [];
   const idleCalls: number[] = [];
+  const tails: number[] = [];
   const bridge: AgentControlBridge = {
     viewState: async () => ({ ...state }),
     listActions: async () => [
@@ -51,8 +77,14 @@ function fakeBridge() {
     idle: async (timeoutMs) => { idleCalls.push(timeoutMs); return true; },
     capture: async () => PNG,
     openDashboard: async (configPath) => { opened.push(configPath); },
+    processes: () => processes.map((item) => agentProcessInfo(item, labels[item.id]!)),
+    processLogs: (id, tail) => {
+      tails.push(tail);
+      const found = processes.find((item) => item.id === id);
+      return found ? agentProcessLogs(agentProcessInfo(found, labels[id]!), found, tail) : null;
+    },
   };
-  return { bridge, state, runs, opened, idleCalls };
+  return { bridge, state, runs, opened, idleCalls, processes, tails };
 }
 
 async function cli(homeDirectory: string, ...args: string[]) {
@@ -120,6 +152,74 @@ test("the agent tool reads state, runs actions, and reports refusals through the
   const ran = await cli(homeDirectory, "run", "focus:logs", "--select", "mode=all");
   expect(ran.exitCode).toBe(0);
   expect(runs.at(-1)).toEqual({ reference: "focus:logs", selections: { mode: "all" } });
+});
+
+test("status reports diagnostic text, bounded, and the read-only trust state", async () => {
+  const homeDirectory = await home();
+  const { state } = await serve(homeDirectory);
+
+  const status = JSON.parse((await cli(homeDirectory, "status")).stdout).state;
+  expect(status.diagnostics).toMatchObject({ errors: 1, warnings: 1, total: 2 });
+  expect(status.diagnostics.items[0]).toEqual({
+    code: "COMPONENT_PROP_INVALID", severity: "error", message: "Bad prop", file: "dash-bored.yaml", path: "tree.children[0]", line: 4,
+  });
+  expect(status.trust).toEqual({ trusted: false, pendingPermissions: ["process:execute", "network:http"] });
+
+  state.diagnostics = summarizeAgentDiagnostics(Array.from({ length: 120 }, (_, index) => ({
+    severity: "warning" as const, code: "W", message: `warning ${index}`.padEnd(900, "x"),
+  })));
+  const bounded = JSON.parse((await cli(homeDirectory, "status")).stdout).state.diagnostics;
+  expect(bounded.total).toBe(120);
+  expect(bounded.items).toHaveLength(50);
+  expect(bounded.items[0].message).toHaveLength(500);
+});
+
+test("processes lists each command process with state, exit, and times", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory);
+
+  const result = await cli(homeDirectory, "processes");
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toEqual([
+    {
+      id: "tests", label: "Run tests", state: "exited", phase: "exited", exitCode: 1, signal: null,
+      startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-01-01T00:00:02.500Z",
+    },
+    { id: "serve", label: "Serve", state: "idle", phase: "idle", exitCode: null, signal: null },
+  ]);
+});
+
+test("logs returns stripped, tail-bounded output and reports unknown commands", async () => {
+  const homeDirectory = await home();
+  const { processes, tails } = await serve(homeDirectory);
+
+  const full = JSON.parse((await cli(homeDirectory, "logs", "tests")).stdout);
+  expect(full).toMatchObject({ id: "tests", state: "exited", totalLines: 3, truncated: false, lines: ["ok one", "two", "fail three"] });
+  expect(tails.at(-1)).toBe(200);
+
+  const tail = JSON.parse((await cli(homeDirectory, "logs", "tests", "--tail", "2")).stdout);
+  expect(tail).toMatchObject({ lines: ["two", "fail three"], truncated: true });
+
+  const capped = await cli(homeDirectory, "logs", "tests", "--tail", "999999");
+  expect(capped.exitCode).toBe(0);
+  expect(tails.at(-1)).toBe(1000);
+
+  processes[0]!.logs = [{ sequence: 1, stream: "stdout", text: `${"x".repeat(3000)}\r\nprogress 10%\rprogress 100%\r\n` }];
+  const long = JSON.parse((await cli(homeDirectory, "logs", "tests")).stdout);
+  expect(long.lines[0]).toHaveLength(2003);
+  expect(long.lines[1]).toBe("progress 100%");
+
+  const empty = JSON.parse((await cli(homeDirectory, "logs", "serve")).stdout);
+  expect(empty).toMatchObject({ totalLines: 0, lines: [], truncated: false });
+
+  const missing = await cli(homeDirectory, "logs", "nope");
+  expect(missing.exitCode).toBe(1);
+  expect(missing.stderr).toContain("No command process has the id nope");
+
+  const invalid = await cli(homeDirectory, "logs", "tests", "--tail", "0");
+  expect(invalid.exitCode).toBe(1);
+  expect(invalid.stderr).toContain("--tail");
 });
 
 test("screenshot focuses the requested node and writes the captured PNG", async () => {

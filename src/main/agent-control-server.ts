@@ -4,11 +4,14 @@ import {
   DEFAULT_IDLE_TIMEOUT_MS,
   MAX_IDLE_TIMEOUT_MS,
   type AgentActionDescriptor,
+  type AgentProcessInfo,
+  type AgentProcessLogs,
   type AgentRunActionRequest,
   type AgentRunActionResult,
   type AgentViewState,
   type AppInstanceRecord,
 } from "../shared/agent-control";
+import { clampLogTail } from "../shared/agent-control";
 import { CoreError } from "../core/index";
 import { publishAppInstance, withdrawAppInstance } from "../core/app-instances";
 
@@ -25,6 +28,10 @@ export interface AgentControlBridge {
   idle(timeoutMs: number): Promise<boolean>;
   capture(): Promise<Uint8Array<ArrayBuffer>>;
   openDashboard(configPath: string): Promise<void>;
+  /** Command processes of the active dashboard; main owns their state. */
+  processes(): AgentProcessInfo[];
+  /** Recent output of one command process, or null when none has that id. */
+  processLogs(id: string, tail: number): AgentProcessLogs | null;
 }
 
 export interface AgentControlServer {
@@ -126,6 +133,20 @@ export async function startAgentControlServer(
       try {
         if (request.method === "GET" && pathname === "/v1/status") {
           return json({ instance: record, state: await bridge.viewState() });
+        }
+        if (request.method === "GET" && pathname === "/v1/processes") {
+          return json({ processes: bridge.processes() });
+        }
+        const logsRoute = /^\/v1\/processes\/([^/]+)\/logs$/.exec(pathname);
+        if (request.method === "GET" && logsRoute) {
+          const id = decodeURIComponent(logsRoute[1]!);
+          const requested = new URL(request.url).searchParams.get("tail");
+          if (requested !== null && !/^\d+$/.test(requested)) {
+            throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "tail must be a positive integer.");
+          }
+          const logs = bridge.processLogs(id, clampLogTail(requested === null ? undefined : Number(requested)));
+          if (!logs) throw new CoreError("AGENT_CONTROL_NOT_FOUND", `No command process has the id ${id}.`);
+          return json({ logs });
         }
         if (request.method === "GET" && pathname === "/v1/actions") {
           return json({ actions: await bridge.listActions() });

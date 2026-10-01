@@ -60,6 +60,8 @@ dash-bored app status [--instance <identifier>]
 dash-bored app actions [<filter>] [--all] [--instance <identifier>]
 dash-bored app run <action> [--select <choice>=<option> ...] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
+dash-bored app processes [--instance <identifier>]
+dash-bored app logs <command-id> [--tail <n>] [--instance <identifier>]
 dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--instance <identifier>]
 ```
 
@@ -180,8 +182,10 @@ instances therefore never answer for the release app by accident.
 
 | Route | Behavior |
 | --- | --- |
-| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, diagnostic counts. |
+| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), and read-only trust state (`trusted`, and the permissions awaiting approval while untrusted). |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
+| `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
+| `GET /v1/processes/<id>/logs?tail=<n>` | Recent output lines of one command process from the log ring the process manager already retains (2,000 entries, 512 KiB). `tail` defaults to 200 and is capped at 1,000; lines are capped at 2,000 characters; an unknown id is `AGENT_CONTROL_NOT_FOUND`. `app logs` strips ANSI escapes and carriage-return overwrites. |
 | `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. |

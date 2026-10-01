@@ -23,6 +23,7 @@ import type {
   DashboardAgentTask,
   DashboardConfigSource,
   DashboardInsertionTarget,
+  ProcessSnapshot,
   ProjectSnapshot,
 } from "../shared/contracts";
 import {
@@ -56,6 +57,7 @@ import { startAgentControlServer, type AgentControlServer } from "./agent-contro
 import { captureWindowPng, keepWindowRenderingWhenOccluded } from "./window-capture";
 import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { APP_VERSION } from "../shared/app-metadata";
+import { agentProcessInfo, agentProcessLogs, type AgentProcessInfo } from "../shared/agent-control";
 import type { AgentActionDescriptor, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
 
 configureDesktopExecutableEnvironment();
@@ -650,6 +652,16 @@ function rendererRequests(): AgentControlRendererRequests {
   return request;
 }
 
+/** Declared command processes with their node labels; ids are node ids. */
+function agentProcesses(): { info: AgentProcessInfo; snapshot: ProcessSnapshot }[] {
+  const { processes, tree } = runtime.getSnapshot();
+  return processes.map((snapshot) => {
+    const props = (tree ? findResolvedNode(tree, snapshot.id)?.props : undefined) ?? {};
+    const label = props.label ?? props.title;
+    return { snapshot, info: agentProcessInfo(snapshot, typeof label === "string" && label !== "" ? label : snapshot.id) };
+  });
+}
+
 const agentControl: AgentControlServer | null = await startAgentControlServer({
   identifier: appInstanceIdentifier,
   pid: process.pid,
@@ -665,6 +677,11 @@ const agentControl: AgentControlServer | null = await startAgentControlServer({
   capture: () => {
     if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
     return captureWindowPng({ windowPointer: mainWindow.ptr, frame: mainWindow.getFrame() }, Utils.screenCapture);
+  },
+  processes: () => agentProcesses().map(({ info }) => info),
+  processLogs: (id, tail) => {
+    const found = agentProcesses().find(({ info }) => info.id === id);
+    return found ? agentProcessLogs(found.info, found.snapshot, tail) : null;
   },
   openDashboard: async (configPath) => {
     // Loading registers the dashboard through onSnapshot, as an app launch for

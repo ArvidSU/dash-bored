@@ -67,7 +67,7 @@ import { CompositionFlyout } from "../composition/CompositionFlyout";
 import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout";
 import { useLocalComponents } from "../render/local-components";
 import { host, registerAgentControlHandler } from "../lib/rpc-client";
-import { agentActionRefusal, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
+import { agentActionRefusal, summarizeAgentDiagnostics, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
 import { resolveVirtualRoot } from "../lib/virtual-root";
 import { actionInvocation } from "../../shared/action-invocation";
 import {
@@ -1530,9 +1530,10 @@ export function App(): ReactNode {
     dashboardName: snapshot?.dashboardName ?? null,
     focusedNodeId: virtualRoot?.target.id ?? null,
     editing: editSession !== null,
-    diagnostics: {
-      errors: visibleDiagnostics.filter((item) => item.severity === "error").length,
-      warnings: visibleDiagnostics.filter((item) => item.severity === "warning").length,
+    diagnostics: summarizeAgentDiagnostics(visibleDiagnostics),
+    trust: {
+      trusted: snapshot?.trusted ?? false,
+      pendingPermissions: snapshot && !snapshot.trusted ? snapshot.requestedPermissions : [],
     },
   };
   useEffect(() => registerAgentControlHandler({

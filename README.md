@@ -197,6 +197,11 @@ With those tools an agent can:
   wait up to ten seconds for views to finish loading their sources, so a
   refresh is complete when the command returns; `--timeout <ms>` changes the
   bound and `app run --no-wait` skips the wait. Started commands keep running.
+- read results instead of guessing from pixels: visible diagnostics and trust
+  state in `app status`, command process states and exit codes
+  (`app processes`), and recent, ANSI-stripped command output
+  (`app logs <command-id> [--tail <n>]`). These are read-only; starting or
+  stopping a process stays an `app run process:*` action.
 
 The control channel never widens what an action can do. Trust, starting,
 saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
