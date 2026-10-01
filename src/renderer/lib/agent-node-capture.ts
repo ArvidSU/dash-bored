@@ -38,11 +38,27 @@ function intersect(a: Box, b: Box): Box {
   };
 }
 
-/** The part of the node a person could see: clipped by the viewport and by every clipping ancestor. */
-function visibleBox(element: HTMLElement): Box {
+/** Bottom edge of sticky or fixed bars pinned to the top of the viewport (the app header) that sit over the node. */
+function pinnedTopInset(element: HTMLElement): number {
+  const node = element.getBoundingClientRect();
+  let inset = 0;
+  for (const candidate of document.querySelectorAll<HTMLElement>("*")) {
+    if (candidate.contains(element)) continue;
+    const position = getComputedStyle(candidate).position;
+    if (position !== "sticky" && position !== "fixed") continue;
+    const rect = candidate.getBoundingClientRect();
+    if (rect.top > 1 || rect.bottom <= 0 || rect.height >= window.innerHeight / 2) continue;
+    if (rect.right <= node.left || rect.left >= node.right) continue;
+    inset = Math.max(inset, rect.bottom);
+  }
+  return Math.ceil(inset);
+}
+
+/** The part of the node a person could see: clipped by the viewport, pinned bars, and every clipping ancestor. */
+function visibleBox(element: HTMLElement, inset = 0): Box {
   let box = intersect(toBox(element.getBoundingClientRect()), {
     left: 0,
-    top: 0,
+    top: inset,
     right: document.documentElement.clientWidth,
     bottom: window.innerHeight,
   });
@@ -65,11 +81,11 @@ function sameBox(a: Box, b: Box): boolean {
 }
 
 /** Resolves once the node stops moving (smooth scrolls and mount animations finish). */
-async function settledBox(element: HTMLElement, maxFrames = 40): Promise<Box> {
-  let previous = visibleBox(element);
+async function settledBox(element: HTMLElement, inset: number, maxFrames = 40): Promise<Box> {
+  let previous = visibleBox(element, inset);
   for (let frame = 0; frame < maxFrames; frame += 1) {
     await nextFrame();
-    const current = visibleBox(element);
+    const current = visibleBox(element, inset);
     if (sameBox(previous, current)) return current;
     previous = current;
   }
@@ -129,14 +145,17 @@ export class NodeCaptureSession {
         await frames(3);
       }
       const full = element.getBoundingClientRect();
-      let box = await settledBox(element);
+      const inset = pinnedTopInset(element);
+      let box = await settledBox(element, inset);
       let scrolled = false;
       const fits = (visible: Box) => visible.right - visible.left >= full.width - 1 && visible.bottom - visible.top >= full.height - 1;
       if (!fits(box)) {
         const before = scrollPositions();
         // A node taller than the view cannot fit; show its top.
-        element.scrollIntoView({ block: full.height > window.innerHeight ? "start" : "nearest", inline: "nearest", behavior: "instant" });
-        box = await settledBox(element);
+        element.style.scrollMarginTop = `${inset}px`;
+        element.scrollIntoView({ block: full.height > window.innerHeight - inset ? "start" : "nearest", inline: "nearest", behavior: "instant" });
+        element.style.removeProperty("scroll-margin-top");
+        box = await settledBox(element, inset);
         scrolled = !sameScroll(before, scrollPositions());
       }
       const width = box.right - box.left;
