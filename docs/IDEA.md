@@ -385,7 +385,12 @@ through one searchable command palette.
 The palette keeps application controls available while limiting dashboard
 actions to the selected dashboard. One Switch dashboard chooser keeps navigation
 to other registered dashboards available without listing their individual
-actions in the main results. Holding Command while invoking an action
+actions in the main results. Users can drag sidebar dashboards into their
+preferred saved order. With the palette closed, Command reveals number hints on
+the first nine dashboard icons, and Command plus 1–9 navigates in that order.
+Selecting the already active dashboard by sidebar click or Command number toggles
+sidebar expansion; from Settings it returns to the dashboard.
+Holding Command while invoking an action
 keeps the palette open for successive actions; a user setting decides whether
 to clear its search, with clearing as the default.
 

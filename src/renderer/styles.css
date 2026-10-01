@@ -4678,3 +4678,37 @@ tr:last-child td {
   from { opacity: 0.55; }
   to { opacity: 1; }
 }
+
+/* Dashboard order and Command navigation hints share the fixed icon column. */
+.sidebar__project-icon-wrap { position: relative; }
+.sidebar__project-icon-wrap img { width: 20px; height: 20px; object-fit: contain; }
+.sidebar__shortcut-number {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+.sidebar__project--dragging { opacity: 0.45; }
+.sidebar__project-row { position: relative; }
+.sidebar__project-row--drop-before::before,
+.sidebar__project-row--drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.sidebar__project-row--drop-before::before { top: -2px; }
+.sidebar__project-row--drop-after::after { bottom: -2px; }

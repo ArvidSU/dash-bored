@@ -651,6 +651,12 @@ root:
                           turn off **Clear search when keeping the palette open** to retain it. App controls
                           remain available; dashboard actions belong to the currently selected dashboard.
                           Choose **Switch dashboard** in the palette to open another registered dashboard.
+
+                          With Commands closed, hold **⌘** to see sidebar number hints and press **1–9**
+                          to switch dashboards. Drag a dashboard icon above or below another row to save
+                          a new order; the number shortcuts follow it. Try switching back with **⌘1**.
+                          Click the active dashboard again, or press its **⌘number** again, to toggle
+                          sidebar expansion. From Settings, it returns to the dashboard instead.
                 second:
                   axis: vertical
                   first:

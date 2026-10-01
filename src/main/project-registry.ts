@@ -93,6 +93,29 @@ export class ProjectRegistry {
     return structuredClone(this.projects);
   }
 
+  /** Move only registered dashboards; stale drag targets cannot add or remove entries. */
+  async move(configPath: string, targetConfigPath: string, before: boolean): Promise<ProjectListItem[]> {
+    await this.load();
+    return this.enqueueWrite(async () => {
+      const previous = this.projects;
+      const source = previous.find((project) => project.configPath === configPath);
+      if (!source || configPath === targetConfigPath || !previous.some((project) => project.configPath === targetConfigPath)) {
+        return structuredClone(previous);
+      }
+      const next = previous.filter((project) => project !== source);
+      const targetIndex = next.findIndex((project) => project.configPath === targetConfigPath);
+      next.splice(targetIndex + (before ? 0 : 1), 0, source);
+      this.projects = next;
+      try {
+        await this.persist();
+      } catch (error) {
+        this.projects = previous;
+        throw error;
+      }
+      return structuredClone(next);
+    });
+  }
+
   async contains(projectRoot: string, configPath = canonicalConfigPath(projectRoot)): Promise<boolean> {
     await this.load();
     await this.writeQueue;

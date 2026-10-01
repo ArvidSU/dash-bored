@@ -37,6 +37,22 @@ function snapshot(
 }
 
 describe("ProjectRegistry", () => {
+  test("persists moves, preserves metadata, and ignores stale targets", async () => {
+    const directory = await temporaryDirectory();
+    cleanup.push(directory);
+    const path = join(directory, "projects.json");
+    const registry = new ProjectRegistry(path);
+    for (const name of ["first", "second", "third"]) await registry.remember(snapshot(join(directory, name), name));
+    const [first, second, third] = await registry.list();
+    expect(await registry.move(third!.configPath, first!.configPath, true)).toEqual([third!, first!, second!]);
+    expect(await new ProjectRegistry(path).list()).toEqual([third!, first!, second!]);
+    expect(await registry.move(third!.configPath, second!.configPath, false)).toEqual([first!, second!, third!]);
+    expect(await registry.move(first!.configPath, "missing", true)).toEqual([first!, second!, third!]);
+    expect(await registry.move("missing", first!.configPath, false)).toEqual([first!, second!, third!]);
+    await registry.remember(snapshot(first!.projectRoot, "Renamed"));
+    expect((await registry.list()).map((item) => item.dashboardName)).toEqual(["Renamed", "second", "third"]);
+  });
+
   test("persists projects in insertion order and updates configured names", async () => {
     const directory = await temporaryDirectory();
     cleanup.push(directory);

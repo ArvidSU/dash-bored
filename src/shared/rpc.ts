@@ -51,6 +51,7 @@ export type DashboardRPC = {
       writeDashboardAgentTerminal: { params: { taskId: string; input: string }; response: DashboardAgentTask };
       resizeDashboardAgentTerminal: { params: { taskId: string; cols: number; rows: number }; response: DashboardAgentTask };
       listProjects: { params: {}; response: ProjectListItem[] };
+      moveProject: { params: { configPath: string; targetConfigPath: string; before: boolean }; response: ProjectListItem[] };
       getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
       chooseProject: { params: {}; response: ProjectSnapshot };
       openProject: { params: ProjectTarget; response: ProjectSnapshot };

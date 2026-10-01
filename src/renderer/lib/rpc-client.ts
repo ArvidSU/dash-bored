@@ -65,6 +65,7 @@ export interface DashboardHost {
   writeDashboardAgentTerminal(taskId: string, input: string): Promise<DashboardAgentTask>;
   resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number): Promise<DashboardAgentTask>;
   listProjects(): Promise<ProjectListItem[]>;
+  moveProject(configPath: string, targetConfigPath: string, before: boolean): Promise<ProjectListItem[]>;
   getProjectOutline(project: ProjectListItem): Promise<ProjectOutline>;
   chooseProject(): Promise<ProjectSnapshot>;
   openProject(project: ProjectTarget): Promise<ProjectSnapshot>;
@@ -259,6 +260,11 @@ const liveHost: DashboardHost = {
   async listProjects(): Promise<ProjectListItem[]> {
     ensureTransport();
     return await rpc.request.listProjects({});
+  },
+
+  async moveProject(configPath: string, targetConfigPath: string, before: boolean): Promise<ProjectListItem[]> {
+    ensureTransport();
+    return await rpc.request.moveProject({ configPath, targetConfigPath, before });
   },
 
   async getProjectOutline(project: ProjectListItem): Promise<ProjectOutline> {

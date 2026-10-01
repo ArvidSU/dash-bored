@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { ProjectListItem, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import { projectLabel, type AppView } from "../lib/action-providers";
 import {
@@ -101,6 +101,8 @@ export interface AppShellProps {
   actionNotice: ReactNode;
   children: ReactNode;
   onToggleSidebar(): void;
+  showDashboardNumbers: boolean;
+  onMoveProject(source: string, target: string, before: boolean): void;
   onSelectProject(project: ProjectListItem): void;
   onToggleProjectOutline(project: ProjectListItem): void;
   onFocusProjectNode(project: ProjectListItem, nodeId: string): void;
@@ -142,6 +144,8 @@ export function AppShell({
   actionNotice,
   children,
   onToggleSidebar,
+  showDashboardNumbers,
+  onMoveProject,
   onSelectProject,
   onToggleProjectOutline,
   onFocusProjectNode,
@@ -154,6 +158,9 @@ export function AppShell({
   onToggleAgentActivity,
   onDismissError,
 }: AppShellProps): ReactNode {
+  const [draggedProject, setDraggedProject] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ path: string; before: boolean } | null>(null);
+  const clearDrag = () => { setDraggedProject(null); setDropTarget(null); };
   return (
     <div className="app-window">
       <div className="window-chrome" aria-hidden="true" />
@@ -217,6 +224,20 @@ export function AppShell({
                       ? currentVirtualRootId
                       : null
                   }
+                  shortcutNumber={showDashboardNumbers && projectIndex < 9 ? projectIndex + 1 : null}
+                  dragged={draggedProject === project.configPath}
+                  dropBefore={dropTarget?.path === project.configPath ? dropTarget.before : null}
+                  onDragStart={() => setDraggedProject(project.configPath)}
+                  onDragEnd={clearDrag}
+                  onDragOver={(before) => {
+                    if (draggedProject && draggedProject !== project.configPath) setDropTarget({ path: project.configPath, before });
+                  }}
+                  onDragLeave={() => setDropTarget(null)}
+                  onDrop={(before) => {
+                    if (draggedProject && pendingAction === null) onMoveProject(draggedProject, project.configPath, before);
+                    clearDrag();
+                  }}
+                  acceptsDrop={draggedProject !== null && draggedProject !== project.configPath && pendingAction === null}
                   onSelect={onSelectProject}
                   onToggleOutline={onToggleProjectOutline}
                   onFocusNode={onFocusProjectNode}
@@ -365,6 +386,15 @@ interface ProjectSidebarItemProps {
   outlineExpanded: boolean;
   currentVirtualRootId: string | null;
   collapsedNodeIds?: ReadonlySet<string>;
+  shortcutNumber: number | null;
+  dragged: boolean;
+  dropBefore: boolean | null;
+  acceptsDrop: boolean;
+  onDragStart(): void;
+  onDragEnd(): void;
+  onDragOver(before: boolean): void;
+  onDragLeave(): void;
+  onDrop(before: boolean): void;
   onSelect(project: ProjectListItem): void;
   onToggleOutline(project: ProjectListItem): void;
   onFocusNode(project: ProjectListItem, nodeId: string): void;
@@ -388,6 +418,15 @@ function ProjectSidebarItem({
   outlineExpanded,
   currentVirtualRootId,
   collapsedNodeIds,
+  shortcutNumber,
+  dragged,
+  dropBefore,
+  acceptsDrop,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
   onSelect,
   onToggleOutline,
   onFocusNode,
@@ -396,30 +435,49 @@ function ProjectSidebarItem({
 }: ProjectSidebarItemProps): ReactNode {
   const outlineId = `sidebar-project-tree-${index}`;
   return (
-    <div className="sidebar__project">
-      <div className="sidebar__project-row">
+    <div className={`sidebar__project${dragged ? " sidebar__project--dragging" : ""}`}>
+      <div
+        className={`sidebar__project-row${dropBefore === null ? "" : dropBefore ? " sidebar__project-row--drop-before" : " sidebar__project-row--drop-after"}`}
+        onDragOver={(event) => {
+          if (!acceptsDrop) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          const bounds = event.currentTarget.getBoundingClientRect();
+          onDragOver(event.clientY < bounds.top + bounds.height / 2);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onDragLeave();
+        }}
+        onDrop={(event) => {
+          if (!acceptsDrop) return;
+          event.preventDefault();
+          const bounds = event.currentTarget.getBoundingClientRect();
+          onDrop(event.clientY < bounds.top + bounds.height / 2);
+        }}
+      >
         <button
           className={`sidebar__item sidebar__project-link${active ? " sidebar__item--active" : ""}`}
           type="button"
           aria-current={active ? "page" : undefined}
           aria-label={label}
-          title={label}
+          title={`${label} · Drag to reorder${index < 9 ? ` · ⌘${index + 1}` : ""}`}
+          aria-keyshortcuts={index < 9 ? `Meta+${index + 1}` : undefined}
+          draggable={!pending}
+          onDragStart={(event) => {
+            event.dataTransfer.setData("application/x-dash-bored-project", project.configPath);
+            event.dataTransfer.effectAllowed = "move";
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
           disabled={pending}
           onClick={() => onSelect(project)}
         >
-          {project.iconDataUrl ? (
-            <img
-              className="sidebar__item-icon sidebar__project-icon"
-              src={project.iconDataUrl}
-              alt=""
-              width={20}
-              height={20}
-            />
-          ) : (
-            <span className="sidebar__item-icon">
-              <ShellIcon name="project" />
-            </span>
-          )}
+          <span className="sidebar__item-icon sidebar__project-icon-wrap">
+            {project.iconDataUrl ? (
+              <img className="sidebar__project-icon" src={project.iconDataUrl} alt="" width={20} height={20} draggable={false} />
+            ) : <ShellIcon name="project" />}
+            {shortcutNumber !== null ? <span className="sidebar__shortcut-number" aria-hidden="true">{shortcutNumber}</span> : null}
+          </span>
           <span className="sidebar__label">{opening ? "Opening…" : label}</span>
         </button>
         <button

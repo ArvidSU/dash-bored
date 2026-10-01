@@ -761,7 +761,14 @@ Manifest-declared actions also stay in the palette and Settings while their
 component is collapsed or hidden; they show why they cannot run until mounted.
 Choose **Switch dashboard** in the palette to open another registered dashboard;
 searching its name also finds that chooser. Other dashboards remain reachable
-from the sidebar. Hold <kbd>Command</kbd>
+from the sidebar. With the palette closed, hold <kbd>Command</kbd> to show
+number hints on the first nine dashboard icons and press <kbd>1</kbd>–<kbd>9</kbd>
+to switch to that dashboard. Drag a dashboard icon or row above or below another
+row to reorder the sidebar; the order is saved and determines these numbers.
+Click the active dashboard again, or press its Command number again, to toggle
+sidebar expansion. From Settings, that gesture returns to the dashboard.
+Switching still asks before discarding an unsaved dashboard draft.
+Hold <kbd>Command</kbd>
 while pressing <kbd>Enter</kbd> or clicking an action to run it and keep the
 palette open. This also works through component choices and confirmations.
 Search clears by default; turn off **Clear search when keeping the palette

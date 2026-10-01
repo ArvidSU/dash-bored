@@ -334,7 +334,23 @@ and configured dashboard name, so the canonical and named bundles can appear
 as separate sidebar entries. Each entry also retains its resolved top-level
 config icon when available. The sidebar can switch the single active runtime
 between those dashboards, add another target through the native chooser, open
-application settings, or remove a remembered dashboard.
+application settings, or remove a remembered dashboard. Dragging a dashboard
+icon or row onto the upper/lower half of another row moves it before/after that
+dashboard, with an insertion indicator. The typed `moveProject` RPC moves only
+existing canonical config-path entries through the registry's serialized,
+atomic persistence queue, rolling back on write failure and ignoring stale
+targets. It preserves metadata and dashboards added since the drag began.
+With the palette closed, Command plus 1–9 switches to the corresponding entry
+in saved sidebar order, including from editable controls, through the same
+pending-action and unsaved-draft guards as a sidebar click. This navigation
+takes precedence over configured action shortcuts. Clicking the already active
+dashboard's sidebar row, or pressing its Command number again while the dashboard
+view is visible, toggles sidebar expansion without reopening the dashboard or
+prompting to discard a draft. From Settings, either gesture returns to the
+dashboard instead. Palette and agent dashboard actions keep their ordinary
+navigation behavior. Command alone reveals
+small overlaid numbers on the first nine icons without changing layout;
+release, blur, hidden document, or an open palette removes the hints.
 
 Application Settings has General, Themes, and Actions tabs. General owns app
 behavior, including the command-palette shortcut, the sidebar startup

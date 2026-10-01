@@ -128,6 +128,7 @@ export function App(): ReactNode {
   const pendingProcessEvents = useRef(new Map<string, ProcessSnapshot>());
   const nextActionNoticeId = useRef(0);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [commandHeld, setCommandHeld] = useState(false);
   const [expandedProjectOutlines, setExpandedProjectOutlines] = useState<Record<string, boolean>>({});
   const [projectOutlines, setProjectOutlines] = useState<Record<string, ProjectOutlineState>>({});
   const [activeView, setActiveView] = useState<AppView>("dashboard");
@@ -393,8 +394,37 @@ export function App(): ReactNode {
   }, [editSession?.draft]);
 
   useEffect(() => {
+    const update = (event: globalThis.KeyboardEvent) => setCommandHeld(event.metaKey);
+    const clear = () => setCommandHeld(false);
+    const visibility = () => { if (document.hidden) clear(); };
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup", update);
+    window.addEventListener("blur", clear);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup", update);
+      window.removeEventListener("blur", clear);
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, []);
+
+  // Keep the window listener on the current draft guard without rebinding it
+  // for every unrelated process or source update.
+  const keyboardProjectSelector = useRef(selectProject);
+  useLayoutEffect(() => { keyboardProjectSelector.current = selectProject; });
+
+  useEffect(() => {
     function openFromKeyboard(event: globalThis.KeyboardEvent): void {
       if (event.repeat) return;
+      if (!paletteOpen && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && /^[1-9]$/.test(event.key)) {
+        const project = projects[Number(event.key) - 1];
+        if (project) {
+          event.preventDefault();
+          if (pendingAction === null) void keyboardProjectSelector.current(project, true);
+        }
+        return;
+      }
       const target = event.target;
       if (
         target instanceof HTMLElement
@@ -415,7 +445,7 @@ export function App(): ReactNode {
     }
     window.addEventListener("keydown", openFromKeyboard);
     return () => window.removeEventListener("keydown", openFromKeyboard);
-  }, [appSettings.actionShortcuts, appSettings.commandPaletteShortcut]);
+  }, [appSettings.actionShortcuts, appSettings.commandPaletteShortcut, paletteOpen, projects, pendingAction]);
 
   useEffect(() => {
     if (!actionNotice) return;
@@ -513,7 +543,11 @@ export function App(): ReactNode {
     });
   }
 
-  async function selectProject(project: ProjectListItem): Promise<void> {
+  async function selectProject(project: ProjectListItem, toggleSidebarWhenActive = false): Promise<void> {
+    if (toggleSidebarWhenActive && activeView === "dashboard" && snapshot?.configPath === project.configPath) {
+      setSidebarExpanded((expanded) => !expanded);
+      return;
+    }
     if (editSession && editSession.configPath !== project.configPath && !requireDiscard(
       "Discard the unsaved dashboard changes and switch projects?",
       () => void openSelectedProject(project),
@@ -1892,7 +1926,13 @@ export function App(): ReactNode {
           ) : null
         }
         onToggleSidebar={() => setSidebarExpanded((expanded) => !expanded)}
-        onSelectProject={(project) => void selectProject(project)}
+        showDashboardNumbers={commandHeld && !paletteOpen}
+        onMoveProject={(source, target, before) => {
+          void perform("reorder-projects", async () => {
+            setProjects(await host.moveProject(source, target, before));
+          });
+        }}
+        onSelectProject={(project) => void selectProject(project, true)}
         onToggleProjectOutline={toggleProjectOutline}
         onFocusProjectNode={(project, nodeId) => void focusProjectNode(project, nodeId)}
         onProjectNodeAction={handleProjectNodeAction}

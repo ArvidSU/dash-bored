@@ -599,6 +599,7 @@ export function createUiHarnessHost(): UiHarnessHost {
       return structuredClone(task);
     },
     async listProjects() { return [project(persistedConfig)]; },
+    async moveProject() { return [project(persistedConfig)]; },
     async getProjectOutline(_project: ProjectListItem): Promise<ProjectOutline> {
       return { ...project(persistedConfig), tree: resolveFixtureNode(persistedConfig.root), diagnostics: [] };
     },

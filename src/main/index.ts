@@ -509,6 +509,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       writeDashboardAgentTerminal: ({ taskId, input }) => dashboardAgentHarness.writeTerminal(taskId, input),
       resizeDashboardAgentTerminal: ({ taskId, cols, rows }) => dashboardAgentHarness.resizeTerminal(taskId, cols, rows),
       listProjects: () => projectRegistry.list(),
+      moveProject: ({ configPath, targetConfigPath, before }) => projectRegistry.move(configPath, targetConfigPath, before),
       getProjectOutline: ({ projectRoot, configPath }) =>
         getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),
       chooseProject: () => chooseAndLoadProject(),

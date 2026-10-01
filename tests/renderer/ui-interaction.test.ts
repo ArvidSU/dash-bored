@@ -365,6 +365,95 @@ describe("renderer fixture interactions", () => {
     }
   }, 20_000);
 
+  test("active dashboard clicks and Command numbers toggle the sidebar while Settings returns to the dashboard", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      const activeDashboard = proof.locator(".sidebar__project-link[aria-current=page]");
+      await activeDashboard.waitFor();
+      await activeDashboard.click();
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).waitFor();
+      await proof.keyboard.press("Meta+1");
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+      await proof.keyboard.press("Meta+1");
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).waitFor();
+      await activeDashboard.click();
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+      await proof.getByRole("button", { name: "Settings", exact: true }).click();
+      await proof.keyboard.press("Meta+1");
+      await activeDashboard.waitFor();
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+      expect(await proof.getByRole("button", { name: "Open component library", exact: true }).count()).toBe(1);
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("Command numbers follow draggable sidebar order and yield to the palette", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.addInitScript(() => {
+        let host: typeof window.__DASH_BORED_UI_HARNESS_HOST__;
+        Object.defineProperty(window, "__DASH_BORED_UI_HARNESS_HOST__", {
+          configurable: true,
+          get: () => host,
+          set: (value: NonNullable<typeof host>) => {
+            host = value;
+            let projects: Awaited<ReturnType<typeof value.listProjects>> = [];
+            const originalList = value.listProjects.bind(value);
+            value.listProjects = async () => {
+              if (!projects.length) {
+                const first = (await originalList())[0]!;
+                projects = [first, ...Array.from({ length: 9 }, (_, index) => ({
+                  ...first, configPath: `/fixture/dashboard-${index + 2}.yaml`, dashboardName: `Dashboard ${index + 2}`,
+                }))];
+              }
+              return structuredClone(projects);
+            };
+            value.moveProject = async (source, target, before) => {
+              const item = projects.find((project) => project.configPath === source)!;
+              projects = projects.filter((project) => project !== item);
+              projects.splice(projects.findIndex((project) => project.configPath === target) + (before ? 0 : 1), 0, item);
+              return structuredClone(projects);
+            };
+            const originalOpen = value.openProject.bind(value);
+            value.openProject = async (project) => {
+              document.documentElement.dataset.openedDashboard = project.configPath;
+              return originalOpen(project);
+            };
+          },
+        });
+      });
+      await proof.goto(fixtureUrl);
+      const rows = proof.locator(".sidebar__project-link");
+      await proof.getByRole("button", { name: "Dashboard 10", exact: true }).waitFor();
+      await proof.keyboard.down("Meta");
+      expect(await proof.locator(".sidebar__shortcut-number").allTextContents()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+      await proof.screenshot({ path: "/tmp/dash-bored-sidebar-number-hints.png" });
+      await proof.keyboard.press("9");
+      await proof.waitForFunction(() => document.documentElement.dataset.openedDashboard === "/fixture/dashboard-9.yaml");
+      await proof.keyboard.up("Meta");
+      expect(await proof.locator(".sidebar__shortcut-number").count()).toBe(0);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      await proof.keyboard.down("Meta");
+      expect(await proof.locator(".sidebar__shortcut-number").count()).toBe(0);
+      await proof.keyboard.press("2");
+      expect(await proof.evaluate(() => document.documentElement.dataset.openedDashboard)).toBe("/fixture/dashboard-9.yaml");
+      await proof.keyboard.up("Meta");
+      await proof.keyboard.press("Escape");
+      await proof.getByRole("button", { name: "Dashboard 3", exact: true }).dragTo(rows.first(), { targetPosition: { x: 15, y: 5 } });
+      await proof.waitForFunction(() => document.querySelector(".sidebar__project-link")?.getAttribute("aria-label") === "Dashboard 3");
+      await proof.keyboard.press("Meta+1");
+      await proof.waitForFunction(() => document.documentElement.dataset.openedDashboard === "/fixture/dashboard-3.yaml");
+      await proof.keyboard.down("Meta");
+      await proof.evaluate(() => window.dispatchEvent(new Event("blur")));
+      expect(await proof.locator(".sidebar__shortcut-number").count()).toBe(0);
+      await proof.keyboard.up("Meta");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("Switch dashboard opens its chooser and supports keep-open navigation", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     try {
