@@ -121,8 +121,10 @@ export function useLocalComponents(
     .map((component) => `${component.componentId}:${component.revision}`)
     .join("\u0000");
   const targetRef = useRef({ scope, signature });
-  loadedRef.current = loaded;
-  targetRef.current = { scope, signature };
+  useLayoutEffect(() => {
+    loadedRef.current = loaded;
+    targetRef.current = { scope, signature };
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -208,7 +210,6 @@ export function useLocalComponents(
                 loading: false,
                 error: null,
               });
-              loadedRef.current = next;
               return next;
             });
 
@@ -235,7 +236,6 @@ export function useLocalComponents(
                 loading: false,
                 error: errorMessage(error),
               });
-              loadedRef.current = next;
               return next;
             });
           });

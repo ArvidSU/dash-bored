@@ -330,6 +330,11 @@ root:
                             done: false
                             tags:
                               - chore
+                          - id: todo-027
+                            description: "Replace App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, runningActionIdsRef, processesRef, actionsByIdRef, agentControlStateRef) with effect-synced refs or useEffectEvent, after confirming no child reads them during render (react-doctor no-ref-current-in-render)."
+                            done: false
+                            tags:
+                              - chore
                           - id: todo-atoms-schema-migration
                             description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
                             done: false

@@ -104,7 +104,9 @@ export function NodeRenderer({
 }: NodeRendererProps): ReactNode {
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const nodeRef = useRef(node);
-  nodeRef.current = node;
+  useLayoutEffect(() => {
+    nodeRef.current = node;
+  });
   const updateProps = useCallback(
     (props: Record<string, unknown>): Promise<void> => onUpdateProps(nodeRef.current, props),
     [onUpdateProps],

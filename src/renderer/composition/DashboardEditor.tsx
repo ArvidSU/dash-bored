@@ -272,7 +272,7 @@ export function ComponentDialog({
     <EditorModal title={replace ? "Replace dashboard root" : existing ? "Configure component" : "Add component"} onDismiss={onDismiss}>
       {!item?.manifest ? (
         <div className="component-picker">
-          <input className="component-picker__search" type="search" placeholder="Search or describe a component…" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input className="component-picker__search" type="search" aria-label="Search components" placeholder="Search or describe a component…" value={query} onChange={(event) => setQuery(event.target.value)} />
           <div className="component-picker__list">
             {available.map((entry) => (
               <button type="button" key={entry.reference} disabled={!entry.available || !entry.manifest} onClick={() => choose(entry)}>
@@ -637,7 +637,7 @@ export function DashboardEditor({
 
   return (
     <>
-      {error ? <div className="global-error" role="alert"><strong>Edit failed</strong><span>{error}</span><button type="button" onClick={() => setError(null)}>×</button></div> : null}
+      {error ? <div className="global-error" role="alert"><strong>Edit failed</strong><span>{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}>×</button></div> : null}
       <section className="dashboard-metadata-editor" aria-label="Dashboard details">
         <div className="dashboard-metadata-editor__fields">
           <label className="props-field"><span>Name<em>Required</em></span><input value={config.name} onChange={(event) => onChange(updateDashboardMetadata(config, "name", event.target.value))} /></label>
@@ -654,7 +654,7 @@ export function DashboardEditor({
         <div className="editor-workbench__actions">
           {selectedLocator?.type === "managed" ? (
             <>
-              <button className="editor-icon-button" type="button" disabled={selectedLocator.index === 0} onClick={() => {
+              <button className="editor-icon-button" type="button" aria-label="Move component up" disabled={selectedLocator.index === 0} onClick={() => {
                 const planned = planCompositionOperation({
                   config, catalog, payload: { type: "node", path: effectiveSelectedPath },
                   target: { parentPath: selectedParentPath, placement: { type: "managed", index: selectedLocator.index - 1 } },
@@ -662,7 +662,7 @@ export function DashboardEditor({
                 if (planned.status !== "planned") setError(planned.message);
                 else apply(() => planned.nextConfig);
               }}>↑</button>
-              <button className="editor-icon-button" type="button" disabled={selectedLocator.index >= managedSiblings.length - 1} onClick={() => {
+              <button className="editor-icon-button" type="button" aria-label="Move component down" disabled={selectedLocator.index >= managedSiblings.length - 1} onClick={() => {
                 const planned = planCompositionOperation({
                   config, catalog, payload: { type: "node", path: effectiveSelectedPath },
                   target: { parentPath: selectedParentPath, placement: { type: "managed", index: selectedLocator.index + 2 } },

@@ -103,7 +103,9 @@ export function ComponentFrame({
   } | null>(null);
   const compositionPointerSession = usePointerSession();
   const heightPointerSession = usePointerSession();
-  compositionRef.current = composition;
+  useLayoutEffect(() => {
+    compositionRef.current = composition;
+  });
   const Element = as;
   const name = node.configName?.trim() || nodeLabel(node, false);
   const descendantCount = countComponentDescendants(node);

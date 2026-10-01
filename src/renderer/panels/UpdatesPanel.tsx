@@ -188,11 +188,12 @@ function projectName(configPath: string): string {
   return parts[at > 0 ? at - 1 : Math.max(parts.length - 2, 0)] ?? configPath;
 }
 
+const relativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
 function relativeTime(iso: string): string {
   const seconds = Math.round((Date.parse(iso) - Date.now()) / 1000);
   if (!Number.isFinite(seconds) || seconds > -45) return 'just now';
-  const format = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-  if (seconds > -3600) return format.format(Math.round(seconds / 60), 'minute');
-  if (seconds > -86400) return format.format(Math.round(seconds / 3600), 'hour');
-  return format.format(Math.round(seconds / 86400), 'day');
+  if (seconds > -3600) return relativeTimeFormat.format(Math.round(seconds / 60), 'minute');
+  if (seconds > -86400) return relativeTimeFormat.format(Math.round(seconds / 3600), 'hour');
+  return relativeTimeFormat.format(Math.round(seconds / 86400), 'day');
 }

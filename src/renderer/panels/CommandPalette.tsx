@@ -431,6 +431,7 @@ export function CommandPalette({
                 aria-controls="command-palette-results"
                 aria-expanded="true"
                 aria-activedescendant={activeOption}
+                aria-label="Search actions and commands"
                 placeholder="Search actions and commands…"
                 value={query}
                 onChange={(event) => {

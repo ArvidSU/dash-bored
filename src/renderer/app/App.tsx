@@ -149,6 +149,7 @@ export function App(): ReactNode {
     removePath: compositionRemovePath,
   } = compositionInteraction;
   const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
+  const compositionSourceRequestId = useRef(0);
   const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
   const [applicationThemes, setApplicationThemes] = useState<ThemeCatalogItem[]>([BUILTIN_THEME]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -660,6 +661,7 @@ export function App(): ReactNode {
   }
 
   async function loadCompositionSource(): Promise<void> {
+    const requestId = ++compositionSourceRequestId.current;
     if (!snapshot?.projectRoot || !snapshot.configPath) return;
     const focusedSource = virtualRoot?.target.sourceConfigPath;
     if (!focusedSource || focusedSource === snapshot.configPath) {
@@ -676,6 +678,8 @@ export function App(): ReactNode {
     setCompositionSource(null);
     try {
       const source = await host.getDashboardConfigSource(focusedSource);
+      // A newer focus change superseded this request; drop its late response.
+      if (requestId !== compositionSourceRequestId.current) return;
       if (source.configPath !== request.configPath) return;
       setCompositionSource({
         ...request,
@@ -683,6 +687,7 @@ export function App(): ReactNode {
         componentCatalog: source.componentCatalog,
       });
     } catch (error) {
+      if (requestId !== compositionSourceRequestId.current) return;
       setActionError(errorMessage(error));
     }
   }
@@ -1495,6 +1500,7 @@ export function App(): ReactNode {
     if (!componentLibraryOpen || editSession || !snapshot?.projectRoot || !snapshot.configPath) return;
     const focusedSource = virtualRoot?.target.sourceConfigPath;
     if (!focusedSource || focusedSource === snapshot.configPath) {
+      compositionSourceRequestId.current += 1;
       if (compositionSource !== null) setCompositionSource(null);
       return;
     }
