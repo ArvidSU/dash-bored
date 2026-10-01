@@ -59,6 +59,10 @@ export interface UpdateState {
   release: PublishedRelease | null;
   dashboards: DashboardMigration[];
   receipt: UpdateReceipt | null;
+  /** When this process last finished a successful release check. */
+  checkedAt?: string;
+  /** Startup reconciliation found this process is the receipt's newly installed target. */
+  installedThisLaunch?: boolean;
   phase: "idle" | "checking" | "available" | "downloading" | "ready" | "updating-guidance" | "migrating" | "verifying" | "finished" | "problem";
   message: string;
 }

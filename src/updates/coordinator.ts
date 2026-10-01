@@ -31,6 +31,8 @@ export class UpdateCoordinator {
   private phase: UpdateState["phase"] = "idle";
   private message = "Check for published canary releases.";
   private discovered: PublishedRelease | null = null;
+  private checkedAt: string | undefined;
+  private installedThisLaunch = false;
   private abort: AbortController | null = null;
   constructor(private readonly options: UpdateCoordinatorOptions) {
     this.directory = options.directory ?? updateDirectory();
@@ -49,13 +51,14 @@ export class UpdateCoordinator {
     const paths = [...new Set([...await this.options.listDashboards(), ...receipt?.selected ?? []])];
     return { currentVersion: this.current, settings: await getUpdateSettings(this.directory), release, receipt,
       dashboards: await Promise.all(paths.map(p => inspectMigration(p, release?.metadata ?? BUNDLED_MIGRATIONS))),
-      phase: this.phase, message: this.message };
+      checkedAt: this.checkedAt, installedThisLaunch: this.installedThisLaunch, phase: this.phase, message: this.message };
   }
   problem(error: unknown): void { this.report("problem", error instanceof Error ? error.message : String(error)); }
   async check(): Promise<UpdateState> {
     this.report("checking", "Checking GitHub for published canary releases…");
     try {
       this.discovered = await discoverRelease(this.current, this.options.fetcher);
+      this.checkedAt = new Date().toISOString();
       this.report(this.discovered ? "available" : "idle", this.discovered ? `Update available: ${this.discovered.metadata.version}` : "No newer published canary release.");
     } catch (error) { this.report("problem", String(error)); }
     return this.state();
@@ -157,7 +160,10 @@ export class UpdateCoordinator {
     await withUpdateLock(this.directory, async () => {
       const r = await this.receipt();
       if (!r) return;
-      if (r.release.metadata.version === this.current) r.installation = "installed";
+      if (r.release.metadata.version === this.current) {
+        this.installedThisLaunch = r.installation !== "installed";
+        r.installation = "installed";
+      }
       if (await this.cancelled(r)) { r.cancelled = true; await this.save(r); this.report("finished", "App installed; automatic migration continuation cancelled."); return; }
       for (const migration of Object.values(r.migrations)) if (migration.status === "running") { migration.status = "interrupted"; migration.message = "Interrupted work requires explicit retry after reviewing the snapshot and edits."; }
       if (r.release.metadata.version !== this.current) { await this.save(r); return; }

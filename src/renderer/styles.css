@@ -1055,12 +1055,6 @@ img.sidebar__project-icon {
   background: var(--accent);
 }
 
-.button--secondary {
-  border-color: var(--border-bright);
-  background: var(--surface-raised);
-}
-
-.button--secondary:hover:not(:disabled),
 .button--quiet:hover:not(:disabled) {
   border-color: var(--faint);
   background: var(--surface-hover);
@@ -4375,16 +4369,16 @@ select:focus,
   background: var(--accent-strong);
 }
 
+/* Raised and outlined: --text keeps contrast on surfaces in every theme. */
 .button--secondary {
-  border-color: var(--panel-dark);
-  color: var(--surface-raised);
-  background: var(--panel-dark);
+  border-color: var(--border-bright);
+  color: var(--text);
+  background: var(--surface-raised);
 }
 
 .button--secondary:hover:not(:disabled) {
-  border-color: var(--border-dark);
-  color: var(--text);
-  background: var(--panel-dark-muted);
+  border-color: var(--faint);
+  background: var(--surface-hover);
 }
 
 .button--quiet {
@@ -4550,22 +4544,117 @@ tr:last-child td {
 
 .settings-tabs { flex-wrap: wrap; }
 .settings-card.updates-panel {
+  --updates-tone: var(--accent);
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
   min-width: 0;
-  gap: 14px;
+  gap: 16px;
+  overflow: hidden;
 }
-.updates-panel > .button { align-self: flex-start; max-width: 100%; white-space: normal; }
-.updates-panel p, .updates-panel h3 { margin: 0; overflow-wrap: anywhere; }
-.updates-panel fieldset { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; }
-.updates-panel__dashboard { display: grid; gap: 6px; margin-top: 14px; font-size: 13px; }
-.updates-panel__dashboard input { margin-right: 8px; }
-.updates-panel__dashboard > span:last-child { color: var(--muted); }
+.updates-panel[data-tone="calm"] { --updates-tone: var(--positive); }
+.updates-panel[data-tone="fresh"],
+.updates-panel[data-tone="celebrate"] {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    var(--surface);
+}
+.updates-panel p, .updates-panel h2 { margin: 0; overflow-wrap: anywhere; }
+.updates-panel__hero { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.updates-panel__hero > div { display: grid; gap: 4px; min-width: 0; }
+.updates-panel__hero h2 { font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; }
+.updates-panel__eyebrow { color: var(--muted); font: 700 var(--font-size-2xs)/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+.updates-panel__body, .updates-panel__note { color: var(--muted); font-size: var(--font-size-md); line-height: 1.5; }
+.updates-panel__badge {
+  display: grid;
+  flex: none;
+  min-width: 52px;
+  height: 52px;
+  padding-inline: 10px;
+  place-items: center;
+  border-radius: 16px;
+  color: var(--updates-tone);
+  background: color-mix(in srgb, var(--updates-tone) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--updates-tone) 30%, transparent);
+  font: 750 var(--font-size-md)/1 var(--font-mono);
+}
+.updates-panel[data-tone="calm"] .updates-panel__badge { font-size: 22px; }
+.updates-panel__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.updates-panel__actions .button { max-width: 100%; white-space: normal; }
+.updates-panel__alert {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--negative) 30%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: color-mix(in srgb, var(--negative) 9%, transparent);
+  font-size: var(--font-size-md);
+}
+.updates-panel > .button { align-self: flex-start; }
+.updates-panel__notes { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--surface-raised); }
+.updates-panel__notes summary { cursor: pointer; font-weight: 650; font-size: var(--font-size-md); }
+.updates-panel__notes p { max-height: 220px; margin-top: 10px; overflow: auto; white-space: pre-wrap; font-size: var(--font-size-md); line-height: 1.55; }
+.updates-panel__notes a { display: inline-block; margin-top: 10px; color: var(--accent); font-size: var(--font-size-sm); }
+.updates-panel__dashboards { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border)); border-radius: var(--radius); }
+.updates-panel__dashboards legend { padding-inline: 4px; font-weight: 650; font-size: var(--font-size-md); }
+.updates-panel__dashboard { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: var(--font-size-md); }
+.updates-panel__dashboard input { margin-top: 3px; }
+.updates-panel__dashboard > span { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.updates-panel__dashboard > span > span { color: var(--muted); font-size: var(--font-size-sm); }
+.updates-panel__dashboard .updates-panel__failed { color: var(--negative); }
+.updates-panel__progress { height: 6px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.updates-panel__progress span { display: block; width: 40%; height: 100%; border-radius: inherit; background: var(--accent); }
+.updates-panel__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+.updates-panel__footer label { display: inline-flex; align-items: center; gap: 8px; }
 
-.updates-panel__check { font-size: 13px; }
-.updates-panel__check input { margin-right: 8px; }
+@media (prefers-reduced-motion: no-preference) {
+  .updates-panel__progress span { animation: updates-progress 1.3s ease-in-out infinite; }
+  .updates-panel[data-tone="fresh"] .updates-panel__badge,
+  .updates-panel[data-tone="celebrate"] .updates-panel__badge { animation: updates-pop 520ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  .updates-panel[data-tone="fresh"] .updates-panel__badge::after,
+  .updates-panel[data-tone="celebrate"] .updates-panel__badge::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, white 45%, transparent) 50%, transparent 65%);
+    animation: updates-shimmer 2.8s ease-in-out 600ms infinite;
+  }
+  .updates-panel[data-tone="celebrate"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle, var(--accent) 0 3px, transparent 4px) 8% 30% / 8px 8px no-repeat,
+      radial-gradient(circle, var(--positive) 0 2px, transparent 3px) 22% 14% / 6px 6px no-repeat,
+      radial-gradient(circle, var(--warning) 0 2px, transparent 3px) 38% 62% / 6px 6px no-repeat,
+      radial-gradient(circle, var(--info) 0 3px, transparent 4px) 52% 20% / 8px 8px no-repeat,
+      radial-gradient(circle, var(--accent) 0 2px, transparent 3px) 66% 48% / 6px 6px no-repeat,
+      radial-gradient(circle, var(--positive) 0 3px, transparent 4px) 78% 16% / 8px 8px no-repeat,
+      radial-gradient(circle, var(--warning) 0 2px, transparent 3px) 90% 38% / 6px 6px no-repeat,
+      radial-gradient(circle, var(--info) 0 2px, transparent 3px) 96% 70% / 6px 6px no-repeat,
+      radial-gradient(circle, var(--accent) 0 2px, transparent 3px) 30% 82% / 6px 6px no-repeat,
+      radial-gradient(circle, var(--positive) 0 2px, transparent 3px) 60% 86% / 6px 6px no-repeat;
+    animation: updates-confetti 2.4s ease-out both;
+  }
+  .updates-panel[data-tone="calm"] .updates-panel__badge { animation: updates-pop 420ms ease-out both; }
+}
+.updates-panel__badge { position: relative; overflow: hidden; }
+@keyframes updates-progress { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes updates-pop { from { transform: scale(0.6) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes updates-shimmer { 0%, 60% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@keyframes updates-confetti { from { transform: translateY(24px) scale(0.9); opacity: 0; } 25% { opacity: 1; } 70% { opacity: 0.8; } to { transform: translateY(-18px) scale(1.04); opacity: 0; } }
 
 /* reveal:<node> with an item: focus plus a brief accent that does not move layout. */
 [data-item-id][data-revealed] {

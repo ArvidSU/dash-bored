@@ -54,7 +54,7 @@ describe('release identity and discovery', () => {
   test('offline check is recoverable and does not destroy pending authorization', async () => {
     const { dir, config } = await fixture(); await atomicJson(join(dir, 'receipt.json'), receipt(config));
     const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [config], fetcher: (async () => { throw new Error('offline'); }) as unknown as typeof fetch });
-    expect((await c.check()).phase).toBe('problem'); expect((await c.receipt())?.choice).toBe('update-and-migrate');
+    const offline = await c.check(); expect(offline.phase).toBe('problem'); expect(offline.checkedAt).toBeUndefined(); expect((await c.receipt())?.choice).toBe('update-and-migrate');
   });
   test('malformed metadata fails closed', () => {
     expect(() => parseReleaseMetadata({ ...metadata(), channel: 'stable' })).toThrow();
@@ -93,7 +93,9 @@ describe('migration detection and durable journey', () => {
     await old.action({ type: 'prepare', choice: 'update-and-migrate', selected: [config] });
     let calls = 0;
     const next = () => new UpdateCoordinator({ directory: dir, currentVersion: '0.3.0', listDashboards: async () => [config], migrate: async () => { calls++; return { snapshot: '/snapshot', message: 'done' }; } });
-    await next().reconcile(); await next().reconcile(); expect(calls).toBe(1); expect((await next().receipt())?.installation).toBe('installed');
+    const first = next(); await first.reconcile(); expect((await first.state()).installedThisLaunch).toBe(true);
+    const second = next(); await second.reconcile(); expect((await second.state()).installedThisLaunch).toBe(false);
+    expect(calls).toBe(1); expect((await next().receipt())?.installation).toBe('installed');
   });
   test('no-migration update finishes without invoking an agent', async () => {
     const { dir, config } = await fixture(); await atomicJson(join(dir, 'receipt.json'), receipt(config, metadata()));

@@ -1723,23 +1723,45 @@ test('theme package manager runs scoped operations in the app without changing s
   } finally { await proof.close(); }
 });
 
-test('updates stay reachable from Settings and expose available channels at desktop and narrow widths', async () => {
+test('updates say up to date plainly and show migrations only when dashboards need them', async () => {
   const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
   try {
     await proof.goto(fixtureUrl);
     await proof.getByRole('button', { name: 'Settings', exact: true }).click();
     await proof.getByRole('tab', { name: 'Updates', exact: true }).click();
-    expect(await proof.getByRole('button', { name: 'Updates and migrations', exact: true }).count()).toBe(0);
-    await proof.getByRole('combobox', { name: 'Release channel' }).waitFor();
-    expect(await proof.getByRole('combobox', { name: 'Release channel' }).inputValue()).toBe('canary');
-    expect(await proof.locator('option[value="beta"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);
-    expect(await proof.locator('option[value="stable"]').evaluate(el => (el as HTMLOptionElement).disabled)).toBe(true);
-    await proof.getByRole('button', { name: 'Check for updates', exact: true }).click();
-    await proof.getByText('UI fixture: update action received; no installation performed.').waitFor();
+    const panel = proof.getByRole('region', { name: 'Updates', exact: true });
+    // A single available channel is not a choice worth showing.
+    expect(await panel.getByRole('combobox', { name: 'Release channel' }).count()).toBe(0);
+    await panel.getByRole('button', { name: 'Check for updates', exact: true }).click();
+    await panel.getByRole('heading', { name: "You're up to date" }).waitFor();
+    expect(await panel.getByRole('button', { name: 'Check again', exact: true }).count()).toBe(1);
+    expect(await panel.getByRole('group', { name: /migrating/ }).count()).toBe(0);
+    expect(await panel.getByRole('button', { name: /Update/ }).count()).toBe(0);
+    await proof.screenshot({ path: '/tmp/dash-bored-updates-current.png', fullPage: true });
+
+    const metadata = { format: 1, product: 'dash-bored', version: '0.3.0', channel: 'canary', platform: 'macos', arch: 'arm64', dashboardContract: 4, minimumContract: 3, recipes: [],
+      notes: 'Shinier panels.\nFaster start.', updater: { file: 'u', sha256: 'a' }, archive: { file: 'a', sha256: 'a' }, dmg: { file: 'd', sha256: 'a' } };
+    const release = { metadata, url: 'https://github.com/example/releases/0.3.0', assetBase: 'https://github.com/example/' };
+    const configPath = '/projects/demo/.dash-bored/dash-bored.yaml';
+    await proof.evaluate(([release]) => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({ release, phase: 'available',
+      dashboards: [{ configPath: '/projects/other/.dash-bored/dash-bored.yaml', contract: 4, status: 'current', steps: [], message: 'No dashboard migration required.' }] } as never), [release] as const);
+    await panel.getByRole('heading', { name: '0.3.0 is here' }).waitFor();
+    await panel.getByRole('button', { name: 'Update to 0.3.0', exact: true }).waitFor();
+    expect(await panel.getByRole('group', { name: /migrating/ }).count()).toBe(0);
+
+    await proof.evaluate(([release, configPath]) => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({ release, phase: 'available',
+      dashboards: [{ configPath, contract: 3, status: 'required', steps: [], message: 'Rename props to settings' }] } as never), [release, configPath] as const);
+    const migrate = panel.getByRole('group', { name: '1 dashboard needs migrating' });
+    await migrate.waitFor();
+    expect(await panel.getByRole('button', { name: 'Update and migrate', exact: true }).isDisabled()).toBe(true);
+    await migrate.getByRole('checkbox', { name: /demo/ }).check();
+    await panel.getByRole('button', { name: 'Update and migrate 1 dashboard', exact: true }).waitFor();
+    expect(await panel.getByRole('button', { name: 'Update without migrating', exact: true }).isEnabled()).toBe(true);
     await proof.screenshot({ path: '/tmp/dash-bored-updates-desktop.png', fullPage: true });
     await proof.setViewportSize({ width: 390, height: 844 });
     await proof.screenshot({ path: '/tmp/dash-bored-updates-narrow.png', fullPage: true });
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState(null));
   } finally { await proof.close(); }
 }, 30_000);
 

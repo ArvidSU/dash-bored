@@ -1050,19 +1050,24 @@ built-in theme. Existing settings keep Dark until you choose another mode.
 
 ### App updates and dashboard migrations
 
-Open **Updates and migrations** in the app, or **Application Settings → Updates**.
-The surface remains available when a dashboard cannot load. Canary is the only
-available channel; Beta and Stable are marked coming later. Startup and 24-hour
-checks can be switched off. Downloads and installation remain explicit actions.
+Open **Application Settings → Updates**. The surface remains available when a
+dashboard cannot load. It shows one state at a time: you're up to date, an
+update is available, or the step in progress. Startup and 24-hour checks can be
+switched off with **Check automatically**. Canary is the only available channel,
+so no channel picker is shown yet. Downloads and installation remain explicit
+actions.
 
-**Update and migrate** records the target release and the dashboards you select.
-After installing and restarting the exact target app, pending migrations continue
-automatically. **Update only** leaves affected dashboards for later; select them
-and use **Migrate dashboard** afterward. **Later** defers the choice, and
-**Cancel continuation** revokes pending automatic migration authorization.
+Dashboards appear only when the new release needs to migrate them. When some
+do, select them and choose **Update and migrate**: after installing and
+restarting the exact target app, those migrations continue automatically.
+**Update without migrating** leaves them for later; select them and use
+**Migrate** afterward. **Cancel update** revokes pending automatic migration
+authorization. With no migrations needed, the single action is **Update to
+<version>**.
 
 The app offers **Restart and install** using verified native update artifacts,
-plus **Open verified installer** as the DMG fallback. Save or cancel drafts and
+plus **Use the installer instead** (or **Open installer** where native
+updates are unavailable) as the DMG fallback. Save or cancel drafts and
 finish running terminals/agents first. With the DMG fallback, quit the
 app, replace it, then restart. The
 first updater-capable release requires manual installation. Unsigned macOS

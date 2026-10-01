@@ -33,6 +33,7 @@ import type {
   ShellRunResult,
 } from "../../shared/contracts";
 import type { DashboardHost, HostEvent } from "./rpc-client";
+import type { UpdateState } from "../../shared/updates";
 import { envEntries, parseEnv } from "../../shared/env";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
@@ -419,6 +420,8 @@ export interface UiHarnessHost extends DashboardHost {
   getAgentTerminalInputs(): readonly { taskId: string; input: string }[];
   /** Test-only record of package operations the UI asked the app to run. */
   getPackageOperations(): readonly unknown[];
+  /** Test-only override for the Updates panel state; null restores the idle fixture. */
+  setUpdateState(state: Partial<UpdateState> | null): void;
 }
 
 export function createUiHarnessHost(): UiHarnessHost {
@@ -435,6 +438,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   let configRevision = 1;
   let snapshotRevision = 1;
   let currentDiagnostics: Diagnostic[] = [];
+  let updateOverride: Partial<UpdateState> | null = null;
   const packageOperations: unknown[] = [];
   const processSnapshots = new Map<string, ProcessSnapshot>();
   const files = new Map<string, string>([
@@ -528,8 +532,13 @@ export function createUiHarnessHost(): UiHarnessHost {
     getPersistedConfig() { return structuredClone(persistedConfig); },
     async getSnapshot() { return snapshot(); },
     async getThemes() { return structuredClone(FIXTURE_APPLICATION_THEMES); },
-    async getUpdateState() { return { currentVersion: "0.2.6", settings: { channel: "canary" as const, automaticChecks: true }, release: null, receipt: null, dashboards: [], phase: "idle" as const, message: "UI fixture: no network check performed." }; },
-    async updateAction(action) { const state = await this.getUpdateState(); return { ...state, ...(action.type === "settings" ? { settings: action.settings } : {}), message: "UI fixture: update action received; no installation performed." }; },
+    async getUpdateState(): Promise<UpdateState> { return { currentVersion: "0.2.6", settings: { channel: "canary" as const, automaticChecks: true }, release: null, receipt: null, dashboards: [], phase: "idle" as const, message: "UI fixture: no network check performed.", ...structuredClone(updateOverride ?? {}) }; },
+    async updateAction(action) {
+      if (action.type === "settings") updateOverride = { ...updateOverride, settings: action.settings };
+      if (action.type === "check") updateOverride = { ...updateOverride, checkedAt: new Date().toISOString() };
+      return { ...await this.getUpdateState(), message: "UI fixture: update action received; no installation performed." };
+    },
+    setUpdateState(state) { updateOverride = state && structuredClone(state); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
