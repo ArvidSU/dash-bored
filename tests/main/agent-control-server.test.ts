@@ -240,6 +240,9 @@ test("logs returns stripped, tail-bounded output and reports unknown commands", 
   expect(long.lines[0]).toHaveLength(2003);
   expect(long.lines[1]).toBe("progress 100%");
 
+  processes[0]!.logs = [{ sequence: 1, stream: "stdout", text: "\u001b(Bdone\u001b=\u001b>\r\n" }];
+  expect(JSON.parse((await cli(homeDirectory, "logs", "tests")).stdout).lines).toEqual(["done"]);
+
   const empty = JSON.parse((await cli(homeDirectory, "logs", "serve")).stdout);
   expect(empty).toMatchObject({ totalLines: 0, lines: [], truncated: false });
 

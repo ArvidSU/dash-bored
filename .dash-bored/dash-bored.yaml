@@ -228,7 +228,7 @@ root:
                               - agent-tools
                           - id: todo-032
                             description: Keep app actions listings compact; choice-heavy actions such as theme:set-default embed every option (about 26 KB for one entry), so list choices only on request.
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                           - id: todo-007
@@ -362,7 +362,7 @@ root:
                               - chore
                           - id: todo-agent-run-idle-live
                             description: "Live-verify the app run idle wait in the desktop app (time component:workspace-status:refresh, screenshot right after); it was not verified live where it was added because Hutch prepare was blocked."
-                            done: false
+                            done: true
                             tags:
                               - chore
                           - id: todo-atoms-schema-migration

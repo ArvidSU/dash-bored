@@ -104,8 +104,8 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
   return response;
 }
 
-// CSI and OSC sequences, plus lone ESC-prefixed controls, that terminals render.
-const ANSI_ESCAPES = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g;
+// CSI and OSC sequences, then any other escape (keypad `ESC =`, charset `ESC ( B`).
+const ANSI_ESCAPES = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[ -/]*[0-~])/g;
 
 export function stripAnsi(text: string): string {
   return text.replace(ANSI_ESCAPES, "");

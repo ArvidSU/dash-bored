@@ -634,8 +634,7 @@ mainWindow.on("resize", (event) => {
 });
 
 mainWindow.webview.on("dom-ready", () => sendSnapshot(runtime.getSnapshot()));
-// Agents drive and capture the app while it sits behind their terminal; the
-// window is still visible at launch, which this needs (see the helper).
+// Agents drive and capture the app while it sits behind their terminal.
 keepWindowRenderingWhenOccluded(mainWindow.ptr);
 
 interface AgentControlRendererRequests {
@@ -674,7 +673,11 @@ const agentControl: AgentControlServer | null = await startAgentControlServer({
   viewState: () => rendererRequests().agentViewState({}),
   listActions: () => rendererRequests().agentListActions({}),
   runAction: (request) => rendererRequests().agentRunAction(request),
-  settle: async () => { await rendererRequests().agentSettle({}); },
+  settle: async () => {
+    // A relaunch behind other windows starts covered; re-assert before each wait.
+    if (mainWindow) keepWindowRenderingWhenOccluded(mainWindow.ptr);
+    await rendererRequests().agentSettle({});
+  },
   idle: async (timeoutMs) => (await rendererRequests().agentIdle({ timeoutMs })).idle,
   capture: () => {
     if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");

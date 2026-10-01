@@ -49,6 +49,29 @@ function objcRuntime() {
     const objectAtIndex = selector("objectAtIndex:");
     const respondsToSelector = selector("respondsToSelector:");
     const performOnMainThread = selector("performSelectorOnMainThread:withObject:waitUntilDone:");
+    const withName = dlopen(library, { objc_msgSend: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.ptr } });
+    const fromUtf8 = dlopen(library, { objc_msgSend: { args: [FFIType.ptr, FFIType.ptr, FFIType.cstring], returns: FFIType.ptr } });
+    const notificationCenter = object.symbols.objc_msgSend(
+      base.symbols.objc_getClass(Buffer.from("NSNotificationCenter\0")) as Pointer, selector("defaultCenter"),
+    ) as Pointer | null;
+    const occlusionChanged = fromUtf8.symbols.objc_msgSend(
+      base.symbols.objc_getClass(Buffer.from("NSString\0")) as Pointer, selector("stringWithUTF8String:"),
+      Buffer.from("NSWindowDidChangeOcclusionStateNotification\0"),
+    ) as Pointer | null;
+    // One retained-forever notification per window; posting it repeatedly allocates nothing.
+    const occlusionNotifications = new Map<number, Pointer>();
+    const occlusionNotification = (window: Pointer) => {
+      let notification = occlusionNotifications.get(Number(window));
+      if (!notification && occlusionChanged) {
+        notification = withName.symbols.objc_msgSend(
+          base.symbols.objc_getClass(Buffer.from("NSNotification\0")) as Pointer,
+          selector("notificationWithName:object:"), occlusionChanged, window,
+        ) as Pointer | null ?? undefined;
+        if (notification) object.symbols.objc_msgSend(notification, selector("retain"));
+        if (notification) occlusionNotifications.set(Number(window), notification);
+      }
+      return notification;
+    };
     const webViewsIn = (view: Pointer | null, found: Pointer[]): Pointer[] => {
       if (!view || !webViewClass) return found;
       if (binary.symbols.objc_msgSend(view, isKindOfClass, webViewClass)) return [...found, view];
@@ -69,6 +92,13 @@ function objcRuntime() {
         // A nil object is the BOOL NO argument; AppKit and WebKit must be
         // touched on the main thread, which is not Bun's thread here.
         for (const webView of webViews) onMainThread.symbols.objc_msgSend(webView, performOnMainThread, occlusionSetter, null, false);
+        // WebKit only recomputes visibility when the window's occlusion state
+        // changes; announcing a change resumes a window that was already
+        // covered. Main-thread performs run in order, after the setter.
+        const notification = occlusionNotification(window);
+        if (webViews.length && notificationCenter && notification) {
+          onMainThread.symbols.objc_msgSend(notificationCenter, performOnMainThread, selector("postNotification:"), notification, false);
+        }
         return webViews.length;
       },
       windowNumber(window) {
@@ -95,11 +125,11 @@ export function nativeWindowNumber(windowPointer: Pointer | null): number | null
  * WebKit otherwise pauses `requestAnimationFrame` and painting for an occluded
  * window, so agent requests that wait for a paint would stall until the user
  * focused the app, and captures would show stale content. Uses WebKit's
- * `_setWindowOcclusionDetectionEnabled:`, which automation drivers rely on.
- * Call it while the window is visible: WebKit re-evaluates visibility only on
- * the next window-state change, so disabling detection for an already covered
- * window does not resume it. A minimized or hidden window still stops
- * rendering. Returns how many web views were updated.
+ * `_setWindowOcclusionDetectionEnabled:`, which automation drivers rely on,
+ * then posts the window's occlusion-change notification so WebKit
+ * re-evaluates a window that is already covered. Idempotent and cheap; call it
+ * before each paint wait. A minimized or hidden window still stops rendering.
+ * Returns how many web views were updated.
  */
 export function keepWindowRenderingWhenOccluded(windowPointer: Pointer | null): number {
   if (process.platform !== "darwin" || windowPointer === null) return 0;
