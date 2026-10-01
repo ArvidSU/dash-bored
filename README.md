@@ -118,6 +118,7 @@ watcher is stopped before relying on fast checks.
 | Dashboard YAML | `bun run dash-bored -- validate .` |
 | Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
 | Agent skill guidance | `bun test tests/core/component-authoring.test.ts`; for behavior changes, the work-in-progress [skill A/B eval](./scripts/eval/README.md) |
+| Renderer, CSS, or dashboard change visible in the running dev app | `bun run dash-bored -- app screenshot [--focus <node-id>]`, then view the PNG; drive it with `app actions <filter>` and `app run <action>` (see [Agent tools](#agent-tools)) |
 | Documentation only | Check links and `git diff --check`; no full build needed |
 
 Run focused checks while iterating and the relevant full check once the change
@@ -190,7 +191,7 @@ With those tools an agent can:
   `theme`);
 - work with the running app through a private, per-instance control socket:
   read its state (`app status`), list and run the same command-palette actions
-  you can (`app actions`, `app run <action>`), open a dashboard
+  you can (`app actions [<filter>]`, `app run <action>`), open a dashboard
   (`app open <dashboard>`), and capture the app window to check the result
   visually (`app screenshot [--focus <node-id>]`).
 
@@ -198,7 +199,9 @@ The control channel never widens what an action can do. Trust, starting,
 saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
 action that asks for confirmation are refused and left to you. Opening a
 dashboard is refused while you have a draft open. Screenshots use macOS Screen
-Recording permission; the first capture asks for it.
+Recording permission; the first capture asks for it. The app keeps rendering
+while other windows cover it, so agents can drive and capture it without you
+switching to it; a minimized or hidden window cannot be captured.
 
 Later app launches refresh installer-owned skill files. Modified files are
 preserved, with a notice explaining the conflict; successful refreshes do not

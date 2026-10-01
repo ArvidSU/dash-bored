@@ -10,6 +10,7 @@ import { initializeProject } from "./init-project";
 import { inspectProject } from "../core/index";
 import { runComponentCommand } from "./component";
 import { runAppCommand } from "./app";
+import { printJson } from "./print-json";
 import { runMigrateCommand } from "./migrate";
 import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
@@ -281,7 +282,7 @@ async function main(): Promise<number> {
       componentCatalog: catalog.map(({ reference, available, manifest }) => ({ reference, available,
         name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions })),
     } : componentReference ? { ok: result.ok, diagnostics: result.diagnostics, component: selected } : result;
-    console.log(JSON.stringify(output, null, process.stdout.isTTY ? 2 : 0));
+    printJson(output);
     return result.ok ? 0 : 1;
   }
 

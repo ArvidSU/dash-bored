@@ -3,10 +3,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { listAppInstances, selectAppInstance } from "../core/app-instances";
 import { CoreError, resolveProjectLocation } from "../core/index";
+import { printJson as print } from "./print-json";
 import type { AgentActionDescriptor, AgentViewState, AppInstanceRecord } from "../shared/agent-control";
 
 export const APP_USAGE = `dash-bored app status [--instance <identifier>]
-  dash-bored app actions [--all] [--instance <identifier>]
+  dash-bored app actions [<filter>] [--all] [--instance <identifier>]
   dash-bored app run <action> [--select <choice>=<option> ...] [--instance <identifier>]
   dash-bored app open <dashboard> [--instance <identifier>]
   dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--instance <identifier>]`;
@@ -72,10 +73,6 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
   return response;
 }
 
-function print(value: unknown): void {
-  console.log(JSON.stringify(value, null, process.stdout.isTTY ? 2 : 0));
-}
-
 function defaultScreenshotPath(instance: AppInstanceRecord): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return join(tmpdir(), "dash-bored-screenshots", `${instance.identifier}-${stamp}.png`);
@@ -108,10 +105,15 @@ export async function runAppCommand(args: string[]): Promise<number> {
     return 0;
   }
 
-  if (parsed.verb === "actions" && parsed.positional.length === 0) {
+  if (parsed.verb === "actions" && parsed.positional.length <= 1) {
     const instance = await selectedInstance(parsed.instance);
     const { actions } = await (await call(instance, "/v1/actions")).json() as { actions: AgentActionDescriptor[] };
-    print(parsed.all ? actions : actions.filter((action) => action.enabled && !action.refusal));
+    // Dashboards with many nodes list hundreds of actions; a filter keeps the
+    // agent's context to the ones it is looking for.
+    const filter = parsed.positional[0]?.toLowerCase();
+    print(actions.filter((action) => (parsed.all || (action.enabled && !action.refusal))
+      && (!filter || [action.id, action.reference, action.label, action.group, action.source]
+        .some((field) => field?.toLowerCase().includes(filter)))));
     return 0;
   }
 

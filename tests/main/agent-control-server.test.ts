@@ -63,15 +63,21 @@ async function cli(homeDirectory: string, ...args: string[]) {
   return { exitCode, stdout, stderr };
 }
 
-async function serve(homeDirectory: string, identifier = "dev.dash-bored.test") {
+async function serve(
+  homeDirectory: string,
+  identifier = "dev.dash-bored.test",
+  overrides: Partial<AgentControlBridge> = {},
+  settleTimeoutMs?: number,
+) {
   const fake = fakeBridge();
+  Object.assign(fake.bridge, overrides);
   const server = await startAgentControlServer({
     identifier,
     pid: process.pid,
     version: "9.9.9",
     socketPath: instanceSocketPath(identifier, homeDirectory),
     toolPath: null,
-  }, fake.bridge, { homeDirectory });
+  }, fake.bridge, { homeDirectory, ...(settleTimeoutMs === undefined ? {} : { settleTimeoutMs }) });
   cleanup.push(() => server.close());
   return { ...fake, server };
 }
@@ -95,6 +101,11 @@ test("the agent tool reads state, runs actions, and reports refusals through the
 
   const actions = await cli(homeDirectory, "actions");
   expect(JSON.parse(actions.stdout).map((action: { id: string }) => action.id)).toEqual(["focus:logs"]);
+  const ids = async (...args: string[]) =>
+    JSON.parse((await cli(homeDirectory, "actions", ...args)).stdout).map((action: { id: string }) => action.id);
+  expect(await ids("LOGS")).toEqual(["focus:logs"]);
+  expect(await ids("trust")).toEqual([]);
+  expect(await ids("trust", "--all")).toEqual(["project:trust"]);
 
   const refused = await cli(homeDirectory, "run", "project:trust");
   expect(refused.exitCode).toBe(1);
@@ -116,6 +127,40 @@ test("screenshot focuses the requested node and writes the captured PNG", async 
   expect(runs.map((run) => run.reference)).toEqual(["focus:logs"]);
   expect(new Uint8Array(await readFile(output))).toEqual(PNG);
   expect(JSON.parse(result.stdout)).toMatchObject({ path: output, bytes: PNG.byteLength, state: { focusedNodeId: "logs" } });
+});
+
+test("a window that never paints fails screenshots and warns on runs instead of hanging", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory, undefined, { settle: () => new Promise<void>(() => undefined) }, 50);
+
+  const shot = await cli(homeDirectory, "screenshot", "--output", join(homeDirectory, "never.png"));
+  expect(shot.exitCode).toBe(1);
+  expect(shot.stderr).toContain("not rendering");
+
+  const run = await cli(homeDirectory, "run", "focus:logs");
+  expect(run.exitCode).toBe(0);
+  expect(JSON.parse(run.stdout)).toMatchObject({ result: { status: "completed" }, warning: expect.stringContaining("minimized") });
+});
+
+test("large action lists reach a slow pipe reader intact", async () => {
+  const homeDirectory = await home();
+  const actions = Array.from({ length: 2_000 }, (_, index) => ({
+    id: `focus:node-${index}`, label: `Focus node ${index}`, group: "Dashboard nodes", enabled: true,
+  }));
+  await serve(homeDirectory, undefined, { listActions: async () => actions });
+
+  // Bun 1.3 console.log lost output past the 64 KiB pipe buffer when the
+  // reader was slow, as with an agent shell piping into another tool.
+  const cliPath = resolve(import.meta.dirname, "../../src/cli/index.ts");
+  const child = Bun.spawn(["/bin/sh", "-c", '"$0" "$1" app actions | (sleep 0.5; cat)', process.execPath, cliPath], {
+    env: { ...process.env, HOME: homeDirectory, DASH_BORED_APP_INSTANCE: "", DASH_BORED_SKILL_DIR: "" },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const stdout = await new Response(child.stdout).text();
+  expect(await child.exited).toBe(0);
+  expect(stdout.length).toBeGreaterThan(64 * 1024);
+  expect(JSON.parse(stdout)).toHaveLength(2_000);
 });
 
 test("open is refused while the user edits a draft", async () => {

@@ -53,7 +53,7 @@ import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
 import { retireManagedCliLink } from "./retire-cli-link";
 import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
 import { startAgentControlServer, type AgentControlServer } from "./agent-control-server";
-import { captureWindowPng } from "./window-capture";
+import { captureWindowPng, keepWindowRenderingWhenOccluded } from "./window-capture";
 import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { APP_VERSION } from "../shared/app-metadata";
 import type { AgentActionDescriptor, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
@@ -632,6 +632,9 @@ mainWindow.on("resize", (event) => {
 });
 
 mainWindow.webview.on("dom-ready", () => sendSnapshot(runtime.getSnapshot()));
+// Agents drive and capture the app while it sits behind their terminal; the
+// window is still visible at launch, which this needs (see the helper).
+keepWindowRenderingWhenOccluded(mainWindow.ptr);
 
 interface AgentControlRendererRequests {
   agentViewState(params: {}): Promise<AgentViewState>;

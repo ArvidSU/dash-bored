@@ -26,6 +26,10 @@ export interface AgentControlServer {
 }
 
 const MAX_BODY_BYTES = 64 * 1024;
+/** A minimized or hidden window never paints; report that instead of hanging. */
+const SETTLE_TIMEOUT_MS = 5_000;
+const NOT_RENDERING =
+  "The dash-bored window is not rendering, usually because it is minimized or hidden. Ask the user to show it, then retry.";
 
 function json(value: unknown, status = 200): Response {
   return new Response(`${JSON.stringify(value)}\n`, { status, headers: { "content-type": "application/json" } });
@@ -68,11 +72,21 @@ function selections(value: unknown): Record<string, string> | undefined {
 export async function startAgentControlServer(
   identity: Omit<AppInstanceRecord, "startedAt">,
   bridge: AgentControlBridge,
-  options: { homeDirectory?: string } = {},
+  options: { homeDirectory?: string; settleTimeoutMs?: number } = {},
 ): Promise<AgentControlServer> {
   await mkdir(dirname(identity.socketPath), { recursive: true, mode: 0o700 });
   await chmod(dirname(identity.socketPath), 0o700);
   await rm(identity.socketPath, { force: true });
+
+  async function settled(): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), options.settleTimeoutMs ?? SETTLE_TIMEOUT_MS); });
+    try {
+      return await Promise.race([bridge.settle().then(() => true as const), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   const server = Bun.serve({
     unix: identity.socketPath,
@@ -92,8 +106,8 @@ export async function startAgentControlServer(
           }
           const selected = selections(body.selections);
           const result = await bridge.runAction({ reference: body.reference, ...(selected ? { selections: selected } : {}) });
-          await bridge.settle();
-          return json({ result, state: await bridge.viewState() }, result.status === "completed" ? 200 : 409);
+          const warning = await settled() ? {} : { warning: NOT_RENDERING };
+          return json({ result, state: await bridge.viewState(), ...warning }, result.status === "completed" ? 200 : 409);
         }
         if (request.method === "POST" && pathname === "/v1/open") {
           const body = await readBody(request);
@@ -104,11 +118,11 @@ export async function startAgentControlServer(
             throw new CoreError("AGENT_CONTROL_DRAFT_OPEN", "The user is editing a dashboard draft. Ask them to save or cancel it first.");
           }
           await bridge.openDashboard(body.configPath);
-          await bridge.settle();
-          return json({ state: await bridge.viewState() });
+          const warning = await settled() ? {} : { warning: NOT_RENDERING };
+          return json({ state: await bridge.viewState(), ...warning });
         }
         if (request.method === "POST" && pathname === "/v1/screenshot") {
-          await bridge.settle();
+          if (!await settled()) throw new CoreError("APP_WINDOW_NOT_RENDERING", NOT_RENDERING);
           const png = await bridge.capture();
           return new Response(png, { headers: { "content-type": "image/png" } });
         }

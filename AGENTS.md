@@ -32,6 +32,15 @@ verified agent-execution quirk that cannot reasonably live there.
 
 ## Agent-only UI verification
 
+For any change visible in the app, prove it in the running dev instance
+through its control channel before handing off; you do not need the user to
+focus the window. Check that `bun run dash-bored -- app status` reports this
+checkout's `configPath` (pass `--instance` when several run), navigate with
+`app actions <filter>` and `app run <reference>`, then
+`app screenshot --focus <node-id> --output <scratch>.png` and view the PNG.
+Restore the original `focusedNodeId` and selected tab afterwards. Fall back to
+`ui:fixture` only when no dev instance is running.
+
 When Computer Use is available, native app interaction is the second UI-proof
 layer. Read the current app state for `dash-bored-dev` (or the worktree's dev
 instance) using the available Computer Use API, and verify that the accessible

@@ -226,6 +226,11 @@ root:
                             done: false
                             tags:
                               - agent-tools
+                          - id: todo-032
+                            description: Keep app actions listings compact; choice-heavy actions such as theme:set-default embed every option (about 26 KB for one entry), so list choices only on request.
+                            done: false
+                            tags:
+                              - agent-tools
                           - id: todo-007
                             description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
                             done: true

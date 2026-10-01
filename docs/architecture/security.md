@@ -178,7 +178,10 @@ automation surface for the user's own agents, not a new capability.
   falls back to the window's frame region, which includes anything covering
   it. Capture requires macOS Screen Recording permission; without it the app
   asks macOS once and returns `SCREEN_RECORDING_PERMISSION_REQUIRED`. The PNG
-  is returned to the caller and not retained by the app.
+  is returned to the caller and not retained by the app. Keeping the webview
+  rendering while covered (see
+  [App control](./lifecycle-cli.md#app-control)) changes only WebKit's
+  occlusion heuristic; it adds no capture path.
 
 ## Declarative process resources
 

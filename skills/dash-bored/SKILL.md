@@ -273,7 +273,9 @@ When the app is running, check what the user will see:
 4. Fix, validate, and screenshot again until it reads well.
 5. Restore the user's view with `dash-bored app run focus:<original-id>`.
 
-`dash-bored app actions` lists what you may run. The app refuses trust
+`dash-bored app actions <filter>` lists what you may run whose id, label, or
+node contains the filter (the unfiltered list can run to hundreds of entries);
+pass the `reference` or `id` to `app run`. The app refuses trust
 changes, draft start/save/cancel, `agent:*` actions, the Add dashboard
 chooser, and anything that asks for confirmation; tell the user which of
 these they need to do. The app reloads after each YAML save, so if an `app`
@@ -327,7 +329,9 @@ End with a short summary in this shape:
   git-ignored by default.
 - **Screenshots need macOS Screen Recording permission.** If `app screenshot`
   fails with `SCREEN_RECORDING_PERMISSION_REQUIRED`, ask the user to allow it
-  and relaunch the app.
+  and relaunch the app. The app renders while covered by other windows, so you
+  never need the user to switch to it; `APP_WINDOW_NOT_RENDERING` (or a
+  `warning` on `app run`) means it is minimized or hidden: ask them to show it.
 - **Several app instances can run** (for example a release and a dev build).
   If `app` commands say the choice is ambiguous, pass
   `--instance <identifier>` from the list they print.

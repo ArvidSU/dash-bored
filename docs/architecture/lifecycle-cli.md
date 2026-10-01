@@ -57,7 +57,7 @@ dash-bored migrate inspect <dashboard>
 dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
 dash-bored app status [--instance <identifier>]
-dash-bored app actions [--all] [--instance <identifier>]
+dash-bored app actions [<filter>] [--all] [--instance <identifier>]
 dash-bored app run <action> [--select <choice>=<option> ...] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
 dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--instance <identifier>]
@@ -181,10 +181,26 @@ instances therefore never answer for the release app by accident.
 | Route | Behavior |
 | --- | --- |
 | `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, diagnostic counts. |
-| `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed. |
+| `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for two animation frames. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and returns the app window as PNG. |
+
+Agents usually drive the app while it sits behind their own terminal. WebKit
+pauses animation frames and painting for an occluded window, which would stall
+every paint wait until the user focused the app and leave captures stale, so
+main disables the main webview's window-occlusion detection at launch
+(`keepWindowRenderingWhenOccluded` in `src/main/window-capture.ts`, while the
+window is still visible, because WebKit only re-evaluates visibility on the
+next window-state change). A minimized or hidden window still stops painting;
+paint waits are therefore bounded at five seconds. Runs and opens then return
+their result with a `warning`, and screenshots fail with
+`APP_WINDOW_NOT_RENDERING` instead of capturing stale pixels.
+
+The tool writes JSON with `process.stdout.write`: under Bun 1.3, `console.log`
+loses output past the 64 KiB pipe buffer once `process.stdout` has been
+touched and the reader is slow, which truncated large `inspect` and
+`app actions` results in agent pipelines.
 
 The channel refuses all `agent:*` actions. In particular, `agent:prompt` requires the desktop composer to show the resolved command and configured prompt and wait for the user's explicit Send.
 
