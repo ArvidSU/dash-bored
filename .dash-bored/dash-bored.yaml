@@ -1,7 +1,7 @@
 schemaVersion: 3
 name: Dash Bored
 icon: ../assets/icon.svg
-theme: ./themes/retro-industrial
+theme: builtin:default
 themeMode: system
 root:
   id: project-cockpit
@@ -331,7 +331,7 @@ root:
                             tags:
                               - chore
                           - id: todo-027
-                            description: "Replace App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, runningActionIdsRef, processesRef, actionsByIdRef, agentControlStateRef) with effect-synced refs or useEffectEvent, after confirming no child reads them during render (react-doctor no-ref-current-in-render)."
+                            description: "Replace the remaining App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, processesRef, agentControlStateRef) with effect-synced refs or store reads. The L1 ActionStore already removed actionsByIdRef and runningActionIdsRef (react-doctor no-ref-current-in-render)."
                             done: false
                             tags:
                               - chore
@@ -348,6 +348,11 @@ root:
                           - id: todo-030
                             description: "Completed the milestone-one resumption: reviewed and committed S4, S12, and S14; completed S7 and S11. Continue with stores, host, and builtins in planned order."
                             done: true
+                            tags:
+                              - chore
+                          - id: todo-031
+                            description: "Finish the inherent-complexity refactor on branch refactor/inherent-complexity: L3 split App.tsx into hooks and a render context; L6 push-only host state, merged RPC commands, thin main/index.ts; rest of L7 (tree-links and tree-validate split, src/migrations/, one PackageStore); L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            done: false
                             tags:
                               - chore
                           - id: todo-atoms-schema-migration
@@ -433,7 +438,7 @@ root:
                               - bug
                               - renderer
                           - id: todo-starter-trust-button-reason
-                            description: "The starter's Trust project button targets project:trust, which disappears once trusted, so the button shows the generic reason 'This action is not available in the current view.' Give state-dependent app actions a stable disabled entry (for example 'This project is already trusted') instead of vanishing."
+                            description: The starter's Trust project button targets project:trust, which disappears once trusted, so the button shows the generic reason 'This action is not available in the current view.' Give state-dependent app actions a stable disabled entry (for example 'This project is already trusted') instead of vanishing.
                             done: false
                             tags:
                               - renderer
