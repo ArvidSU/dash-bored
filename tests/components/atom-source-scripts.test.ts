@@ -14,11 +14,12 @@ describe("dogfood atom source scripts", () => {
         { name: "feature/work", upstream: "origin/feature/work", commit: "def456", age: "1 day ago", work: 3, ahead: 2, behind: 1 },
       ],
     };
-    expect(branchListItems(snapshot)).toEqual([
+    const expected = [
       { id: "branch:main", title: "main", detail: "abc123 · 2 hours ago · no upstream · 0 commits on base", tags: ["branch", "current", "dirty"], state: "warning", name: "main" },
       { id: "branch:feature/work", title: "feature/work", detail: "def456 · 1 day ago · tracks origin/feature/work · 3 commits on base · 2 ahead · 1 behind", tags: ["branch"], state: "branch", name: "feature/work" },
-    ]);
-    expect(gitBranchesListJson(snapshot)).toBe(gitBranchesListJson(snapshot));
+    ];
+    expect(branchListItems(snapshot)).toEqual(expected);
+    expect(JSON.parse(gitBranchesListJson(snapshot))).toEqual(expected);
   });
 
   test("emits sorted package script rows with names usable by item actions", () => {
@@ -27,11 +28,12 @@ describe("dogfood atom source scripts", () => {
       packageManager: "bun@1.3.14",
       scripts: { test: "bun test", build: "vite build" },
     });
-    expect(packageScriptListItems(manifest)).toEqual([
+    const expected = [
       { id: "script:build", title: "build", detail: "vite build", tags: ["script", "bun"], name: "build", runner: "bun" },
       { id: "script:test", title: "test", detail: "bun test", tags: ["script", "bun"], name: "test", runner: "bun" },
-    ]);
-    expect(packageScriptsListJson(manifest)).toBe(packageScriptsListJson(manifest));
+    ];
+    expect(packageScriptListItems(manifest)).toEqual(expected);
+    expect(JSON.parse(packageScriptsListJson(manifest))).toEqual(expected);
   });
 
   test("summarizes project status and charts package script categories", () => {

@@ -888,28 +888,36 @@ describe("renderer fixture interactions", () => {
     expect(await persistedGroupCount()).toBe(0);
   }, 20_000);
 
-  test("only the deepest hovered component reveals its menu", async () => {
+  test("only the deepest hovered component reveals its menu and generated handle", async () => {
     const active = currentPage();
     const card = active.locator('[data-node-id="renderer-proof-card"]');
     const status = active.locator('[data-node-id="renderer-proof-status"]');
-    const cardMenu = card.locator(":scope > .component-node__menu");
-    const statusMenu = status.locator(":scope > .component-node__menu");
     const statusBox = await status.boundingBox();
     const cardHeaderBox = await card.locator("header").first().boundingBox();
-    if (!statusBox || !cardHeaderBox) throw new Error("Nested menu geometry is unavailable.");
+    if (!statusBox || !cardHeaderBox) throw new Error("Nested control geometry is unavailable.");
+
+    const assertControls = async (selected: string, hidden: string) => {
+      await active.waitForFunction(({ selected, hidden }) => {
+        const controls = (id: string) => [".component-node__menu", "[data-composition-drag-handle]"]
+          .map((selector) => document.querySelector(`[data-node-id="${id}"] > ${selector}`));
+        const matches = (id: string, opacity: string, pointerEvents: string) => controls(id).every((element) =>
+          element && getComputedStyle(element).opacity === opacity && getComputedStyle(element).pointerEvents === pointerEvents);
+        return matches(selected, "1", "auto") && matches(hidden, "0", "none");
+      }, { selected, hidden });
+      // Keep explicit assertions for both outputs; polling only synchronizes the transition.
+      for (const [id, opacity, pointerEvents] of [[selected, "1", "auto"], [hidden, "0", "none"]]) {
+        for (const selector of [".component-node__menu", "[data-composition-drag-handle]"]) {
+          const control = active.locator(`[data-node-id="${id}"] > ${selector}`);
+          expect(await control.evaluate((element) => getComputedStyle(element).opacity)).toBe(opacity!);
+          expect(await control.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe(pointerEvents!);
+        }
+      }
+    };
 
     await active.mouse.move(statusBox.x + statusBox.width / 2, statusBox.y + statusBox.height / 2);
-    await active.waitForTimeout(250);
-    expect(await statusMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-    expect(await statusMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
-    expect(await cardMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
-    expect(await cardMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
-
+    await assertControls("renderer-proof-status", "renderer-proof-card");
     await active.mouse.move(cardHeaderBox.x + cardHeaderBox.width / 2, cardHeaderBox.y + cardHeaderBox.height / 2);
-    await active.waitForTimeout(250);
-    expect(await cardMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-    expect(await cardMenu.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
-    expect(await statusMenu.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+    await assertControls("renderer-proof-card", "renderer-proof-status");
   });
 
   test("a left click outside the library closes it without beginning a draft", async () => {
@@ -1009,29 +1017,6 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
   }, 20_000);
-
-  test("only the deepest hovered component reveals its generated handle", async () => {
-    const active = currentPage();
-    const card = active.locator('[data-node-id="renderer-proof-card"]');
-    const status = active.locator('[data-node-id="renderer-proof-status"]');
-    const cardHandle = card.locator(":scope > [data-composition-drag-handle]");
-    const statusHandle = status.locator(":scope > [data-composition-drag-handle]");
-    const statusBox = await status.boundingBox();
-    const cardHeaderBox = await card.locator("header").first().boundingBox();
-    if (!statusBox || !cardHeaderBox) throw new Error("Nested handle geometry is unavailable.");
-
-    await active.mouse.move(statusBox.x + statusBox.width / 2, statusBox.y + statusBox.height / 2);
-    await active.waitForTimeout(250);
-    expect(await statusHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-    expect(await statusHandle.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("auto");
-    expect(await cardHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
-    expect(await cardHandle.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
-
-    await active.mouse.move(cardHeaderBox.x + cardHeaderBox.width / 2, cardHeaderBox.y + cardHeaderBox.height / 2);
-    await active.waitForTimeout(250);
-    expect(await cardHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-    expect(await statusHandle.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
-  });
 
   test("generated frame handle moves a component without component-owned drag markup", async () => {
     const active = currentPage();
@@ -1266,7 +1251,32 @@ describe("renderer fixture interactions", () => {
     expect(await persistedGroupCount()).toBe(2);
   }, 20_000);
 
-  test("lazy-loads the interactive command renderer only when it is inserted", async () => {
+  test("lazy-loads the command renderer when a fresh snapshot first needs it", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const moduleRequested = () => proof.evaluate(() => performance.getEntriesByType("resource").some((entry) =>
+        entry.name.includes("builtins/command") || entry.name.includes("/assets/command-")));
+      expect(await moduleRequested()).toBe(false);
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const snapshot = await host.getSnapshot();
+        await host.saveDashboardConfig({ schemaVersion: 3, name: "Lazy command proof", root: {
+          id: "lazy-command", component: "@dash-bored/command", props: { command: "printf fixture" },
+        } }, snapshot.configRevision!);
+      });
+      await proof.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
+      expect(await moduleRequested()).toBe(true);
+      await proof.getByRole("button", { name: "Open terminal", exact: true }).click();
+      await proof.locator(".command__terminal .xterm").waitFor();
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("inserted commands mount their generated frame and interactive terminal", async () => {
     const active = currentPage();
     await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
     await active.getByRole("dialog", { name: "Discard dashboard changes?" }).getByRole("button", { name: "Discard changes", exact: true }).click();
@@ -1275,8 +1285,6 @@ describe("renderer fixture interactions", () => {
         entry.name.includes("builtins/command") || entry.name.includes("/assets/command-"),
       ));
 
-    const commandModuleWasInitiallyRequested = await commandModuleRequested();
-    if (!commandModuleWasInitiallyRequested) expect(await commandModuleRequested()).toBe(false);
     await active.getByRole("button", { name: "Open component library" }).click();
     await active.getByRole("button", { name: "Insert Command", exact: true }).click();
 
@@ -1288,7 +1296,6 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
     await active.getByText("Revision 6", { exact: true }).waitFor();
-    await active.waitForTimeout(500);
     await active.getByRole("tab", { name: "Item 4", exact: true }).click();
     await active.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
     expect(await active.locator('[data-node-id="command"] > [data-composition-drag-handle]').count()).toBe(1);

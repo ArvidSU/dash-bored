@@ -48,7 +48,11 @@ describe("package scripts source helper", () => {
   test("keeps action output bounded for the component view", () => {
     const output = packageScriptOutput("\u001b[32mout\u001b[0m", "\u001b[31merr\u001b[0m");
     expect(output).toBe("out\nerr");
-    expect(packageScriptOutput("x".repeat(12_001), "")).toHaveLength(12_001);
+    const tail = "x".repeat(11_990) + "latest-end";
+    expect(packageScriptOutput(tail, "")).toBe(tail);
+    const truncated = packageScriptOutput("discarded-prefix" + tail, "");
+    expect(truncated).toBe("…" + tail);
+    expect(truncated).toHaveLength(12_001);
   });
 
   test("removes terminal formatting controls without changing visible text", () => {

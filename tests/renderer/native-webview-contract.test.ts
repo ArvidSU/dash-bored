@@ -18,7 +18,6 @@ describe("native webview proof foundation", () => {
   test("waits for an in-flow placeholder before mounting the native tag", async () => {
     const styles = await readFile("src/renderer/builtins/webview/webview.css", "utf8");
     expect(styles).toContain(`.webview-shell__placeholder,\n.webview-shell__view {\n  display: block;\n  aspect-ratio: 16 / 9;\n  width: 100%;\n  min-height: 320px;\n  max-height: 720px;`);
-    expect(styles).toContain("aspect-ratio: 16 / 9;");
     expect(styles).not.toContain("position: fixed;");
   });
 });
