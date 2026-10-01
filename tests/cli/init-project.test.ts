@@ -37,6 +37,11 @@ describe("initializeProject", () => {
     const config = parse(await readFile(result.configPath, "utf8"));
     const lock = parse(await readFile(result.lockPath, "utf8"));
     const environment = await readFile(result.environmentPath, "utf8");
+    const readme = await readFile(result.readmePath, "utf8");
+    expect(readme).toContain("https://github.com/ArvidSU/dash-bored/releases");
+    expect(readme).toContain("sh '.dash-bored/install-app.sh'");
+    expect(readme).toContain("Add dashboard");
+    expect(await readFile(result.installerPath, "utf8")).toContain("schemaVersion");
 
     expect(config.schemaVersion).toBe(3);
     expect(config.root.component).toBe("@dash-bored/group");
@@ -133,6 +138,8 @@ describe("initializeProject", () => {
         .find((node) => node.id === "dashboard-environment").props.path,
     ).toBe(".dash-bored/people/arvid/.env");
     expect((await stat(result.componentsPath)).isDirectory()).toBeTrue();
+    expect(await readFile(result.readmePath, "utf8")).toContain("sh '.dash-bored/people/arvid/install-app.sh'");
+    expect(await readFile(result.readmePath, "utf8")).toContain("select this project's `.dash-bored/people/arvid` directory");
     expect((await stat(join(project, ".dash-bored", "dash-bored.yaml"))).isFile()).toBeTrue();
     expect((await stat(join(project, ".dash-bored", "dash-bored-lock.yaml"))).isFile()).toBeTrue();
     expect((await stat(join(project, ".dash-bored", "components"))).isDirectory()).toBeTrue();

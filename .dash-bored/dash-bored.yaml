@@ -1072,6 +1072,8 @@ root:
                       items:
                         - name: README
                           action: select:documentation-panels/readme-markdown
+                        - name: Dashboard setup
+                          action: select:documentation-panels/dashboard-readme
                         - name: Product vision
                           action: select:documentation-panels/idea-markdown
                         - name: Architecture
@@ -1102,6 +1104,13 @@ root:
                           component: "@dash-bored/markdown"
                           props:
                             path: README.md
+                      - metadata:
+                          label: Dashboard setup
+                        node:
+                          id: dashboard-readme
+                          component: "@dash-bored/markdown"
+                          props:
+                            path: .dash-bored/README.md
                       - metadata:
                           label: Product vision
                         node:

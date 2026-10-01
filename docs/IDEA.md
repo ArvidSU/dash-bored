@@ -96,6 +96,12 @@ The starter dashboard should make that workflow self-contained: it can install
 global or project-local guidance that teaches compatible agents the dash-bored
 component model, then launch the user's chosen CLI agent with a project-specific prompt.
 
+Every initialized bundle also carries a succinct README for teammates who have
+never used dash-bored: explain the app and bundle files, link to downloads, and
+show how to install a release that opens the bundle's schema and get started.
+A project-owned helper may download, verify, and open that installer; installation
+and trust still use the normal desktop workflows.
+
 Previously installed skill payloads follow app updates while
 preserving local edits and reporting conflicts. Successful maintenance is not a
 diagnostic; only an unresolved conflict needs to remain visible. The setup
@@ -279,6 +285,8 @@ project/
 └── .dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── README.md
+    ├── install-app.sh
     ├── .env
     └── components/
 ```
@@ -292,11 +300,15 @@ people or workflows need different cockpits:
 project/.dash-bored/
 ├── dash-bored.yaml
 ├── dash-bored-lock.yaml
+├── README.md
+├── install-app.sh
 ├── .env
 ├── components/
 └── arvid/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── README.md
+    ├── install-app.sh
     ├── .env
     └── components/
 ```

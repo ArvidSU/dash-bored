@@ -26,6 +26,8 @@ describe("ensureProjectFiles", () => {
       config: true,
       lock: true,
       environment: true,
+      readme: true,
+      installer: true,
       componentsDirectory: true,
     });
     expect((await stat(join(root, ".dash-bored", "components"))).isDirectory()).toBeTrue();
@@ -55,6 +57,8 @@ describe("ensureProjectFiles", () => {
       config: false,
       lock: true,
       environment: true,
+      readme: true,
+      installer: true,
       componentsDirectory: true,
     });
     expect(await readFile(configPath, "utf8")).toBe(existingConfig);
@@ -65,6 +69,8 @@ describe("ensureProjectFiles", () => {
       config: false,
       lock: false,
       environment: false,
+      readme: false,
+      installer: false,
       componentsDirectory: false,
     });
     expect(await readFile(configPath, "utf8")).toBe(existingConfig);
@@ -83,6 +89,22 @@ describe("ensureProjectFiles", () => {
 
     expect(result.created.environment).toBeFalse();
     expect(await readFile(environmentPath, "utf8")).toBe(existingEnvironment);
+  });
+
+  test("preserves project-owned README and installer instructions when repairing a bundle", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const directory = join(root, ".dash-bored");
+    await mkdir(directory);
+    await writeFile(join(directory, "README.md"), "Custom team onboarding\n");
+    await writeFile(join(directory, "install-app.sh"), "# Custom installer\n");
+
+    const result = await ensureProjectFiles(root);
+
+    expect(result.created.readme).toBeFalse();
+    expect(result.created.installer).toBeFalse();
+    expect(await readFile(result.readmePath, "utf8")).toBe("Custom team onboarding\n");
+    expect(await readFile(result.installerPath, "utf8")).toBe("# Custom installer\n");
   });
 
   test("treats a selected folder named .dash-bored as the project root", async () => {

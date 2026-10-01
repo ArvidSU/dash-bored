@@ -8,6 +8,8 @@ export interface InitResult {
   configPath: string;
   lockPath: string;
   environmentPath: string;
+  readmePath: string;
+  installerPath: string;
   componentsPath: string;
 }
 
@@ -23,6 +25,8 @@ export async function initializeProject(
     configPath: result.location.configPath,
     lockPath: result.location.lockPath,
     environmentPath: result.environmentPath,
+    readmePath: result.readmePath,
+    installerPath: result.installerPath,
     componentsPath: result.location.componentsDirectory,
   };
 }

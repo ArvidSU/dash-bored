@@ -218,9 +218,19 @@ project/
 └── .dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── README.md
+    ├── install-app.sh
     ├── .env
     └── components/
 ```
+
+Each bundle's `README.md` explains the app, its files, and setup for teammates
+who have never used dash-bored. From the project root, run
+`sh .dash-bored/install-app.sh` to download, verify, and open the newest
+published canary DMG for the bundle's exact `schemaVersion`, then drag the app
+into Applications. The helper uses built-in macOS tools and requires Apple
+Silicon with macOS 14 or newer; it does not migrate YAML or replace an installed
+app. Existing README and helper files are preserved when opening a project.
 
 ### Show output from a project source
 
@@ -346,17 +356,19 @@ dash-bored init arvid
 dash-bored init arvid --project /path/to/project
 ```
 
-This creates all four bundle artifacts independently of the main dashboard:
+This creates a complete bundle independently of the main dashboard:
 
 ```text
-project/..dash-bored/arvid/
+project/.dash-bored/arvid/
 ├── dash-bored.yaml
 ├── dash-bored-lock.yaml
+├── README.md
+├── install-app.sh
 ├── .env
 └── components/
 ```
 
-The command does not edit `project/..dash-bored/dash-bored.yaml` or automatically
+The command does not edit `project/.dash-bored/dash-bored.yaml` or automatically
 link the new dashboard into it. Each positional name adds another directory
 level, so `dash-bored init arvid cicd` creates `.dash-bored/arvid/cicd/`.
 Safe slash-separated names such as `dash-bored init people/arvid` remain

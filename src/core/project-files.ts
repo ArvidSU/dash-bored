@@ -18,6 +18,7 @@ import type {
   DashboardLock,
 } from "../shared/contracts";
 import { CONFIG_DIRECTORY } from "../shared/contracts";
+import { INSTALL_APP_SCRIPT, projectReadme } from "./project-readme";
 import {
   assertProjectLocationContained,
   parseConfigName,
@@ -30,10 +31,14 @@ import {
 export interface ProjectFilesResult {
   location: ProjectLocation;
   environmentPath: string;
+  readmePath: string;
+  installerPath: string;
   created: {
     config: boolean;
     lock: boolean;
     environment: boolean;
+    readme: boolean;
+    installer: boolean;
     componentsDirectory: boolean;
   };
 }
@@ -519,11 +524,15 @@ async function createProjectFilesAtLocation(
   );
   await assertProjectLocationContained(location);
   const environmentPath = join(location.configDirectory, ".env");
+  const readmePath = join(location.configDirectory, "README.md");
+  const installerPath = join(location.configDirectory, "install-app.sh");
   const relativeEnvironmentPath = relative(location.projectRoot, environmentPath).replaceAll("\\", "/");
-  const [configExists, lockExists, environmentExists] = await Promise.all([
+  const [configExists, lockExists, environmentExists, readmeExists, installerExists] = await Promise.all([
     existingFile(location.configPath, "dash-bored configuration"),
     existingFile(location.lockPath, "dash-bored lock file"),
     existingFile(environmentPath, "dash-bored environment file"),
+    existingFile(readmePath, "dash-bored README"),
+    existingFile(installerPath, "dash-bored installer helper"),
   ]);
 
   if (existingFiles === "error" && (configExists || lockExists || environmentExists)) {
@@ -548,6 +557,8 @@ async function createProjectFilesAtLocation(
   let configCreated = false;
   let lockCreated = false;
   let environmentCreated = false;
+  let readmeCreated = false;
+  let installerCreated = false;
 
   try {
     if (!configExists) {
@@ -600,7 +611,24 @@ async function createProjectFilesAtLocation(
         }
       }
     }
+
+    // These are project-owned guidance, so preserve them even during explicit init.
+    for (const [path, exists, contents, label] of [
+      [readmePath, readmeExists, projectReadme(location), "dash-bored README"],
+      [installerPath, installerExists, INSTALL_APP_SCRIPT, "dash-bored installer helper"],
+    ] as const) {
+      if (exists) continue;
+      try {
+        await writeExclusiveAtomic(path, contents);
+        if (path === readmePath) readmeCreated = true;
+        else installerCreated = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !(await existingFile(path, label))) throw error;
+      }
+    }
   } catch (error) {
+    if (installerCreated) await unlink(installerPath).catch(() => undefined);
+    if (readmeCreated) await unlink(readmePath).catch(() => undefined);
     if (environmentCreated) await unlink(environmentPath).catch(() => undefined);
     if (lockCreated) await unlink(location.lockPath).catch(() => undefined);
     if (configCreated) await unlink(location.configPath).catch(() => undefined);
@@ -610,10 +638,14 @@ async function createProjectFilesAtLocation(
   return {
     location,
     environmentPath,
+    readmePath,
+    installerPath,
     created: {
       config: configCreated,
       lock: lockCreated,
       environment: environmentCreated,
+      readme: readmeCreated,
+      installer: installerCreated,
       componentsDirectory,
     },
   };

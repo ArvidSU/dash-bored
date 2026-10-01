@@ -240,6 +240,8 @@ async function main(): Promise<number> {
     console.log(result.configPath);
     console.log(result.lockPath);
     console.log(result.environmentPath);
+    console.log(result.readmePath);
+    console.log(result.installerPath);
     return 0;
   }
 

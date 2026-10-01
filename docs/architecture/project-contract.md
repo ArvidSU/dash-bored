@@ -11,6 +11,8 @@ project/
 └── .dash-bored/
     ├── dash-bored.yaml
     ├── dash-bored-lock.yaml
+    ├── README.md
+    ├── install-app.sh
     ├── .env
     └── components/
         └── external/
@@ -26,6 +28,8 @@ project/
     └── arvid/
         ├── dash-bored.yaml
         ├── dash-bored-lock.yaml
+        ├── README.md
+        ├── install-app.sh
         ├── .env
         └── components/
 ```
@@ -50,10 +54,25 @@ merging standalone configs into one another.
 Opening a project, either through the desktop project chooser or the agent
 tool's `app open`, ensures that this complete project contract exists. The application
 creates the `.dash-bored/` directory, default configuration, empty lock file,
-starter environment file, and `components/` directory when they are missing. It
+starter environment file, onboarding `README.md`, `install-app.sh` helper, and
+`components/` directory when they are missing. It
 creates only missing artifacts and never replaces an existing configuration,
 lock, or environment file, so a partially initialized project is repaired
 without discarding project state.
+README and installer helper files are project-owned and never overwritten,
+including during explicit initialization. They use the same exclusive atomic
+publication and rollback as the configuration, lock, and environment files.
+The README explains the portable bundle and links to GitHub Releases. Its
+command runs the adjacent helper from the project root; named bundles receive
+their own correct path and chooser instructions. The helper reads the adjacent
+YAML's top-level numeric `schemaVersion`, discovers all published GitHub release
+pages (including canary prereleases, excluding drafts), and chooses the highest
+semantic version whose metadata declares that exact `dashboardContract`,
+canary channel, and macOS arm64 identity. Minimum migratable contract alone is
+not direct load compatibility. The helper verifies the metadata's DMG SHA-256
+before opening the installer with normal macOS approval; no matching release
+or an invalid download fails without opening an installer. It uses macOS's
+built-in JXA, curl, and shasum; app installation remains drag-and-drop in the UI.
 The starter `.env` is created with owner-only permissions for project-local
 component and command variables, and is prepopulated with an editable starter
 value for `DASH_BORED_AGENT`. `DASH_BORED_AGENT_PROMPT` is generated once when
@@ -76,8 +95,8 @@ Directories selected in the desktop chooser are always treated as project
 roots, including when the selected directory itself is named `.dash-bored`.
 
 `dash-bored init arvid` creates the complete named bundle under
-`.dash-bored/arvid/`: configuration, lock file, environment file, and local
-component directory.
+`.dash-bored/arvid/`: configuration, lock file, environment file, README,
+installer helper, and local component directory.
 Additional positional names each add a directory level, so `dash-bored init
 arvid cicd` creates `.dash-bored/arvid/cicd/`. Slash-separated names such as
 `people/arvid` remain supported. The command neither changes the canonical
