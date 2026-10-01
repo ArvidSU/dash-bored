@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
-  ActionExecutor,
-  ActionRegistry,
+  ActionStore,
   matchActionChoiceSelections,
   rankActions,
+  resolveActionChoiceOptions,
 } from "../../src/renderer/lib/actions";
 import type {
   ComponentActionOwner,
@@ -95,15 +95,15 @@ function snapshot(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
   };
 }
 
-describe("ActionRegistry", () => {
+describe("ActionStore component registrations", () => {
   test("rejects undeclared registrations only for manifests that opt in", () => {
-    const registry = new ActionRegistry();
-    registry.register({ ...owner, componentName: "package-scripts" }, {
+    const store = new ActionStore();
+    store.register({ ...owner, componentName: "package-scripts" }, {
       id: "test",
       label: "Run tests",
       run: () => undefined,
     });
-    registry.register({
+    store.register({
       ...owner,
       nodeId: "strict",
       declaredActionIds: ["refresh"],
@@ -113,23 +113,23 @@ describe("ActionRegistry", () => {
       run: () => undefined,
     });
 
-    expect(registry.getSnapshot()).toHaveLength(1);
-    expect(registry.getDiagnostics()).toEqual([expect.objectContaining({
+    expect(store.getSnapshot().componentActions).toHaveLength(1);
+    expect(store.getDiagnostics()).toEqual([expect.objectContaining({
       code: "COMPONENT_ACTION_UNDECLARED",
       path: "strict",
     })]);
   });
 
   test("namespaces registrations and disposes them by token, owner, and scope", () => {
-    const registry = new ActionRegistry();
-    const disposeFirst = registry.register(owner, {
+    const store = new ActionStore();
+    const disposeFirst = store.register(owner, {
       id: "refresh",
       label: "Refresh service health",
       keywords: ["status"],
       run: () => undefined,
     });
-    expect(registry.getSnapshot()).toHaveLength(1);
-    expect(registry.getSnapshot()[0]).toMatchObject({
+    expect(store.getSnapshot().componentActions).toHaveLength(1);
+    expect(store.getSnapshot().componentActions[0]).toMatchObject({
       label: "Refresh service health",
       group: "Component · Service health",
       source: "health",
@@ -137,44 +137,70 @@ describe("ActionRegistry", () => {
     });
 
     expect(() =>
-      registry.register(owner, {
+      store.register(owner, {
         id: "refresh",
         label: "Duplicate",
         run: () => undefined,
       }),
     ).toThrow("duplicate action id");
 
-    registry.clearOwner(owner);
-    const disposeReplacement = registry.register(owner, {
+    store.clearOwner(owner);
+    const disposeReplacement = store.register(owner, {
       id: "refresh",
       label: "Replacement",
       run: () => undefined,
     });
     disposeFirst();
-    expect(registry.getSnapshot().map((item) => item.label)).toEqual([
+    expect(store.getSnapshot().componentActions.map((item) => item.label)).toEqual([
       "Replacement",
     ]);
 
-    registry.register(
+    store.register(
       { ...owner, nodeId: "secondary" },
       { id: "refresh", label: "Other instance", run: () => undefined },
     );
-    expect(registry.getSnapshot()).toHaveLength(2);
-    registry.clearScope(owner.scope);
-    expect(registry.getSnapshot()).toEqual([]);
+    expect(store.getSnapshot().componentActions).toHaveLength(2);
+    store.clearScope(owner.scope);
+    expect(store.getSnapshot().componentActions).toEqual([]);
     disposeReplacement();
   });
 
+  test("refreshes dependent choice resolvers when a mounted action is replaced", () => {
+    const store = new ActionStore();
+    const firstOptions = [{ value: "old", label: "Old item" }];
+    const disposeFirst = store.register(owner, {
+      id: "choose",
+      label: "Choose item",
+      choices: [{ id: "item", label: "Item", options: () => firstOptions }],
+      run: () => undefined,
+    });
+    const oldChoice = store.getSnapshot().componentActions[0]?.choices?.[0];
+    expect(oldChoice).toBeDefined();
+    expect(oldChoice && resolveActionChoiceOptions(oldChoice, {})).toEqual(firstOptions);
+
+    disposeFirst();
+    const latestOptions = [{ value: "new", label: "New item" }];
+    store.register(owner, {
+      id: "choose",
+      label: "Choose item",
+      choices: [{ id: "item", label: "Item", options: () => latestOptions }],
+      run: () => undefined,
+    });
+    const latestChoice = store.getSnapshot().componentActions[0]?.choices?.[0];
+    expect(latestChoice).toBeDefined();
+    expect(latestChoice && resolveActionChoiceOptions(latestChoice, {})).toEqual(latestOptions);
+  });
+
   test("validates component-owned action metadata", () => {
-    const registry = new ActionRegistry();
+    const store = new ActionStore();
     expect(() =>
-      registry.register(owner, { id: "1bad", label: "Bad", run: () => undefined }),
+      store.register(owner, { id: "1bad", label: "Bad", run: () => undefined }),
     ).toThrow("must start with an ASCII letter");
     expect(() =>
-      registry.register(owner, { id: "bad", label: " ", run: () => undefined }),
+      store.register(owner, { id: "bad", label: " ", run: () => undefined }),
     ).toThrow("labels must be non-empty");
     expect(() =>
-      registry.register(owner, {
+      store.register(owner, {
         id: "bad",
         label: "Bad",
         keywords: [""],
@@ -184,9 +210,9 @@ describe("ActionRegistry", () => {
   });
 
   test("validates choice steps and resolves options from prior selections", () => {
-    const registry = new ActionRegistry();
+    const store = new ActionStore();
     const run = () => undefined;
-    registry.register(owner, {
+    store.register(owner, {
       id: "scoped",
       label: "Scoped action",
       choices: [
@@ -201,17 +227,62 @@ describe("ActionRegistry", () => {
       ],
       run,
     });
-    const action = registry.getSnapshot()[0];
+    const action = store.getSnapshot().componentActions[0];
     expect(action?.choices?.[1]?.options).toBeFunction();
     expect(action?.choices?.[1] && typeof action.choices[1].options === "function"
       ? action.choices[1].options({ kind: "a" })
       : []).toEqual([{ value: "one", label: "One" }]);
-    expect(() => registry.register(owner, {
+    expect(() => store.register(owner, {
       id: "invalid-choice",
       label: "Invalid",
       choices: [{ id: "bad", label: "Bad", options: [] }],
       run,
     })).toThrow("options must be non-empty");
+  });
+});
+
+describe("ActionStore provider index", () => {
+  test("keeps provider order and applies the last id/reference alias", () => {
+    const first = action("shared", { reference: "public:shared", label: "First" });
+    const second = action("shared", { reference: "public:shared", label: "Second" });
+    const store = new ActionStore();
+    store.replaceProviders([
+      { id: "first", actions: [first] },
+      { id: "second", actions: [second] },
+    ]);
+
+    expect(store.getSnapshot().actions.map(({ label }) => label)).toEqual(["First", "Second"]);
+    expect(store.get("shared")).toBe(second);
+    expect(store.get("public:shared")).toBe(second);
+    expect(store.getIndexedActions()).toEqual([second]);
+  });
+
+  test("keeps callbacks fresh without notifying until presentation data changes", async () => {
+    let called = "first";
+    const first = action("refresh", { run: () => { called = "first"; } });
+    const store = new ActionStore();
+    store.replaceProviders([{ id: "application", actions: [first] }]);
+    let observed = store.getSnapshot();
+    let notifications = 0;
+    store.subscribe(() => { notifications += 1; observed = store.getSnapshot(); });
+
+    store.replaceProviders([{ id: "application", actions: [action("refresh", {
+      run: () => { called = "latest"; },
+    })] }]);
+    expect(notifications).toBe(0);
+    expect(store.getSnapshot()).toBe(observed);
+    await store.run("refresh");
+    expect(called).toBe("latest");
+    notifications = 0;
+    observed = store.getSnapshot();
+
+    store.replaceProviders([{ id: "application", actions: [action("refresh", {
+      label: "Refresh now",
+      run: () => { called = "changed"; },
+    })] }]);
+    expect(notifications).toBe(1);
+    expect(observed).toBe(store.getSnapshot());
+    expect(observed.actions[0]?.label).toBe("Refresh now");
   });
 });
 
@@ -315,25 +386,27 @@ describe("action search and execution", () => {
       ["disabled", action("disabled", { enabled: false, disabledReason: "Blocked" })],
       ["failure", action("failure", { run: () => Promise.reject(new Error("Boom")) })],
     ]);
-    const executor = new ActionExecutor((id) => actions.get(id));
+    const store = new ActionStore();
+    store.replaceProviders([{ id: "test", actions: [...actions.values()] }]);
 
-    const first = executor.run("slow");
-    expect(executor.getSnapshot().has("slow")).toBeTrue();
-    expect(await executor.run("slow")).toEqual({ status: "running" });
+    const first = store.run("slow");
+    expect(store.getSnapshot().runningActionIds.has("slow")).toBeTrue();
+    expect(await store.run("slow")).toEqual({ status: "running" });
     release?.();
     expect(await first).toEqual({ status: "completed" });
-    expect(executor.getSnapshot().has("slow")).toBeFalse();
+    expect(store.getSnapshot().runningActionIds.has("slow")).toBeFalse();
 
-    expect(await executor.run("disabled")).toEqual({
+    expect(await store.run("disabled")).toEqual({
       status: "unavailable",
       reason: "Blocked",
     });
     actions.delete("slow");
-    expect(await executor.run("slow")).toEqual({
+    store.replaceProviders([{ id: "test", actions: [...actions.values()] }]);
+    expect(await store.run("slow")).toEqual({
       status: "unavailable",
       reason: "This action is no longer available.",
     });
-    const failed = await executor.run("failure");
+    const failed = await store.run("failure");
     expect(failed.status).toBe("failed");
     if (failed.status === "failed") expect(String(failed.error)).toContain("Boom");
   });
@@ -342,24 +415,25 @@ describe("action search and execution", () => {
     let release: (() => void) | undefined;
     const pending = new Promise<void>((resolve) => { release = resolve; });
     const slow = action("runtime:slow", { reference: "component:node:slow", run: () => pending });
-    const executor = new ActionExecutor((id) =>
-      id === slow.id || id === slow.reference ? slow : undefined);
-    const first = executor.run(slow.reference!);
-    expect(executor.getSnapshot()).toEqual(new Set([slow.id]));
-    expect(await executor.run(slow.id)).toEqual({ status: "running" });
+    const store = new ActionStore();
+    store.replaceProviders([{ id: "test", actions: [slow] }]);
+    const first = store.run(slow.reference!);
+    expect(store.getSnapshot().runningActionIds).toEqual(new Set([slow.id]));
+    expect(await store.run(slow.id)).toEqual({ status: "running" });
     release?.();
     expect(await first).toEqual({ status: "completed" });
   });
 
   test("records outcomes for the invoking control without copying them to another control", async () => {
     const run = action("process:qa", { invocationOutcome: "started", run: () => undefined });
-    const executor = new ActionExecutor((id) => id === run.id ? run : undefined);
-    expect(await executor.run(run.id, {}, {}, "button", "button:run-qa")).toEqual({ status: "completed" });
-    expect(executor.getInvocationState("button:run-qa")).toMatchObject({
+    const store = new ActionStore();
+    store.replaceProviders([{ id: "test", actions: [run] }]);
+    expect(await store.run(run.id, {}, {}, "button", "button:run-qa")).toEqual({ status: "completed" });
+    expect(store.getInvocationState("button:run-qa")).toMatchObject({
       status: "completed",
       outcome: "started",
     });
-    expect(executor.getInvocationState("list:item-2:run-qa")).toBeUndefined();
+    expect(store.getInvocationState("list:item-2:run-qa")).toBeUndefined();
   });
 
   test("passes completed choice selections to the action", async () => {
@@ -370,7 +444,9 @@ describe("action search and execution", () => {
         run: (selections, args, callerNodeId) => { received = { selections, args, callerNodeId }; },
       })],
     ]);
-    const result = await new ActionExecutor((id) => actions.get(id)).run("choose", { mode: "safe" }, { prompt: "Review" }, "button-node");
+    const store = new ActionStore();
+    store.replaceProviders([{ id: "test", actions: [...actions.values()] }]);
+    const result = await store.run("choose", { mode: "safe" }, { prompt: "Review" }, "button-node");
     expect(result).toEqual({ status: "completed" });
     expect(received).toEqual({ selections: { mode: "safe" }, args: { prompt: "Review" }, callerNodeId: "button-node" });
   });

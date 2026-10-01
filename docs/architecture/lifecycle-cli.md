@@ -182,7 +182,7 @@ instances therefore never answer for the release app by accident.
 | --- | --- |
 | `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, diagnostic counts. |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed. |
-| `POST /v1/actions/run` | Resolves an id or reference in the renderer's action index and runs it through the palette's `ActionExecutor`, then waits for two animation frames. |
+| `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for two animation frames. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and returns the app window as PNG. |
 

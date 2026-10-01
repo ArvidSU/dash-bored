@@ -16,7 +16,7 @@ read the pages in this order only when a full system view is needed:
 4. [Security and capabilities](./docs/architecture/security.md) — trust,
    host APIs, permissions, and supervised processes.
 5. [Renderer and shipped examples](./docs/architecture/renderer.md) — built-ins,
-   composition UI, dashboard navigation, and the action registry.
+   composition UI, dashboard navigation, and the action store.
 6. [Lifecycle and agent tools](./docs/architecture/lifecycle-cli.md) — reload,
    failure handling, the skill-shipped agent tool, and the app control channel.
 7. [Distribution and exclusions](./docs/architecture/distribution.md) — macOS

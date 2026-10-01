@@ -7,6 +7,7 @@ import type {
   ActionInvocationState,
   Diagnostic,
   ProcessSnapshot,
+  ResolvedComponentAction,
 } from "../../shared/contracts";
 import { componentActionReference } from "../../shared/action-reference";
 import { agentActionRefusal, type AgentActionDescriptor } from "../../shared/agent-control";
@@ -210,22 +211,164 @@ function validateComponentAction(action: ComponentAction): ComponentAction {
   return action;
 }
 
-export class ActionRegistry {
-  private readonly actions = new Map<string, RegisteredAction>();
+export interface ActionStoreSnapshot {
+  actions: readonly PaletteAction[];
+  componentActions: readonly PaletteAction[];
+  runningActionIds: ReadonlySet<string>;
+  invocationStates: ReadonlyMap<string, ActionInvocationState>;
+  diagnostics: readonly Diagnostic[];
+}
+
+interface ActionProviderSnapshot {
+  id: string;
+  actions: readonly PaletteAction[];
+}
+
+function sameActionPresentation(left: readonly PaletteAction[], right: readonly PaletteAction[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((action, index) => {
+    const other = right[index];
+    if (!other) return false;
+    const fields = (candidate: PaletteAction) => [
+      candidate.id,
+      candidate.reference,
+      candidate.parentActionId,
+      candidate.label,
+      candidate.description,
+      candidate.keywords,
+      candidate.group,
+      candidate.source,
+      candidate.enabled,
+      candidate.active,
+      candidate.disabledReason,
+      candidate.confirmation,
+      candidate.choices?.map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        options: Array.isArray(choice.options) ? choice.options : "dynamic",
+      })),
+      candidate.process,
+      candidate.invocationOutcome,
+    ];
+    return JSON.stringify(fields(action)) === JSON.stringify(fields(other));
+  });
+}
+
+export class ActionStore {
+  private readonly componentActions = new Map<string, RegisteredAction>();
+  private providers: ActionProviderSnapshot[] = [];
+  private readonly actionIndex = new Map<string, PaletteAction>();
   private readonly listeners = new Set<Listener>();
-  private snapshot: readonly PaletteAction[] = [];
   private readonly registrationDiagnostics = new Map<string, Diagnostic>();
+  private readonly running = new Set<string>();
+  private readonly invocationStates = new Map<string, ActionInvocationState>();
+  private runningSnapshot: ReadonlySet<string> = new Set();
+  private state: ActionStoreSnapshot = {
+    actions: [],
+    componentActions: [],
+    runningActionIds: this.runningSnapshot,
+    invocationStates: new Map(),
+    diagnostics: [],
+  };
 
   readonly subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
 
-  readonly getSnapshot = (): readonly PaletteAction[] => this.snapshot;
-  readonly getDiagnostics = (): readonly Diagnostic[] => [...this.registrationDiagnostics.values()];
+  readonly getSnapshot = (): ActionStoreSnapshot => this.state;
+  readonly getDiagnostics = (): readonly Diagnostic[] => this.state.diagnostics;
 
   get(id: string): PaletteAction | undefined {
-    return this.actions.get(id)?.action;
+    return this.actionIndex.get(id);
+  }
+
+  getInvocationState(invocationKey: string): ActionInvocationState | undefined {
+    return this.invocationStates.get(invocationKey);
+  }
+
+  /** Replace provider output in order; id/reference collisions keep the last provider. */
+  replaceProviders(providers: readonly ActionProviderSnapshot[]): void {
+    const presentationChanged = providers.length !== this.providers.length
+      || providers.some((provider, index) => {
+        const current = this.providers[index];
+        return !current || current.id !== provider.id || !sameActionPresentation(current.actions, provider.actions);
+      });
+    this.providers = providers.map((provider) => ({ ...provider, actions: [...provider.actions] }));
+    this.reindex();
+    if (presentationChanged) this.emit();
+  }
+
+  getIndexedActions(): readonly PaletteAction[] {
+    return [...new Set(this.actionIndex.values())];
+  }
+
+  resolve(reference: string, invocationKey?: string): ResolvedComponentAction {
+    const action = this.get(reference);
+    const resolvedInvocationKey = invocationKey ?? action?.id ?? reference;
+    if (!action) return {
+      id: reference,
+      label: "Unavailable action",
+      enabled: false,
+      disabledReason: "This action is not available in the current view.",
+      running: false,
+      active: false,
+      requiresInteraction: false,
+      ...(this.getInvocationState(resolvedInvocationKey) ? { invocation: this.getInvocationState(resolvedInvocationKey) } : {}),
+    };
+    return {
+      id: action.id,
+      label: action.label,
+      enabled: action.enabled,
+      ...(action.disabledReason ? { disabledReason: action.disabledReason } : {}),
+      running: this.running.has(action.id),
+      active: action.active === true,
+      requiresInteraction: Boolean(action.choices?.length || action.confirmation),
+      ...(action.process ? { process: action.process } : {}),
+      ...(this.getInvocationState(resolvedInvocationKey) ? { invocation: this.getInvocationState(resolvedInvocationKey) } : {}),
+    };
+  }
+
+  async run(
+    id: string,
+    selections: ComponentActionSelections = {},
+    args: Record<string, unknown> = {},
+    callerNodeId?: string,
+    invocationKey = id,
+  ): Promise<ActionRunResult> {
+    const action = this.get(id);
+    if (!action) return { status: "unavailable", reason: "This action is no longer available." };
+    if (!action.enabled) return { status: "unavailable", reason: action.disabledReason ?? "This action is unavailable." };
+    const canonicalId = action.id;
+    if (this.running.has(canonicalId)) return { status: "running" };
+
+    const startedAt = new Date().toISOString();
+    this.setInvocation(invocationKey, { status: "running", startedAt });
+    this.running.add(canonicalId);
+    this.emit();
+    try {
+      await action.run(selections, args, callerNodeId);
+      const outcome = id === "agent:prompt" ? "prepared" : action.invocationOutcome ?? "completed";
+      this.setInvocation(invocationKey, {
+        status: "completed",
+        outcome,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        ...(outcome === "prepared" ? { message: "Prompt ready for review." } : outcome === "started" ? { message: "Process start requested." } : {}),
+      });
+      return { status: "completed" };
+    } catch (error) {
+      this.setInvocation(invocationKey, {
+        status: "failed",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        message: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+      });
+      return { status: "failed", error };
+    } finally {
+      this.running.delete(canonicalId);
+      this.emit();
+    }
   }
 
   register(owner: ComponentActionOwner, input: ComponentAction): () => void {
@@ -243,14 +386,14 @@ export class ActionRegistry {
     }
     this.registrationDiagnostics.delete(`${ownerKey(owner)}:${action.id}`);
     const id = componentActionId(owner, action.id);
-    if (this.actions.has(id)) {
+    if (this.componentActions.has(id)) {
       throw new Error(
         `Component ${owner.componentName} registered duplicate action id ${action.id}.`,
       );
     }
 
     const token = Symbol(id);
-    this.actions.set(id, {
+    this.componentActions.set(id, {
       ownerKey: ownerKey(owner),
       token,
       action: {
@@ -292,9 +435,9 @@ export class ActionRegistry {
     this.emit();
 
     return () => {
-      const current = this.actions.get(id);
+      const current = this.componentActions.get(id);
       if (current?.token !== token) return;
-      this.actions.delete(id);
+      this.componentActions.delete(id);
       this.emit();
     };
   }
@@ -302,9 +445,9 @@ export class ActionRegistry {
   clearOwner(owner: Pick<ComponentActionOwner, "scope" | "nodeId">): void {
     const expectedOwner = ownerKey(owner);
     let changed = false;
-    for (const [id, registered] of this.actions) {
+    for (const [id, registered] of this.componentActions) {
       if (registered.ownerKey !== expectedOwner) continue;
-      this.actions.delete(id);
+      this.componentActions.delete(id);
       changed = true;
     }
     const diagnosticPrefix = `${expectedOwner}:`;
@@ -318,10 +461,10 @@ export class ActionRegistry {
 
   clearScope(scope: string): void {
     let changed = false;
-    for (const [id, registered] of this.actions) {
+    for (const [id, registered] of this.componentActions) {
       const parsed = JSON.parse(registered.ownerKey) as [string, string];
       if (parsed[0] !== scope) continue;
-      this.actions.delete(id);
+      this.componentActions.delete(id);
       changed = true;
     }
     for (const key of this.registrationDiagnostics.keys()) {
@@ -334,14 +477,48 @@ export class ActionRegistry {
   }
 
   clear(): void {
-    if (this.actions.size === 0 && this.registrationDiagnostics.size === 0) return;
-    this.actions.clear();
+    if (this.componentActions.size === 0 && this.registrationDiagnostics.size === 0) return;
+    this.componentActions.clear();
     this.registrationDiagnostics.clear();
     this.emit();
   }
 
+  private reindex(): void {
+    this.actionIndex.clear();
+    const all = [
+      ...this.providers.flatMap(({ actions }) => actions),
+      ...[...this.componentActions.values()].map(({ action }) => action),
+    ];
+    for (const action of all) {
+      this.actionIndex.set(action.id, action);
+      if (action.reference) this.actionIndex.set(action.reference, action);
+    }
+  }
+
+  private setInvocation(key: string, value: ActionInvocationState): void {
+    this.invocationStates.delete(key);
+    this.invocationStates.set(key, value);
+    while (this.invocationStates.size > 200) {
+      const oldest = this.invocationStates.keys().next().value;
+      if (oldest === undefined) break;
+      this.invocationStates.delete(oldest);
+    }
+  }
+
   private emit(): void {
-    this.snapshot = [...this.actions.values()].map(({ action }) => action);
+    this.reindex();
+    const componentActions = [...this.componentActions.values()].map(({ action }) => action);
+    this.runningSnapshot = new Set(this.running);
+    this.state = {
+      actions: [
+        ...this.providers.flatMap(({ actions }) => actions),
+        ...componentActions,
+      ],
+      componentActions,
+      runningActionIds: this.runningSnapshot,
+      invocationStates: new Map(this.invocationStates),
+      diagnostics: [...this.registrationDiagnostics.values()],
+    };
     for (const listener of this.listeners) listener();
   }
 }
@@ -451,88 +628,3 @@ export type ActionRunResult =
   | { status: "running" }
   | { status: "unavailable"; reason: string }
   | { status: "failed"; error: unknown };
-
-export class ActionExecutor {
-  private readonly resolve: (id: string) => PaletteAction | undefined;
-  private readonly listeners = new Set<Listener>();
-  private readonly running = new Set<string>();
-  private snapshot: ReadonlySet<string> = new Set();
-  private readonly invocationStates = new Map<string, ActionInvocationState>();
-
-  constructor(resolve: (id: string) => PaletteAction | undefined) {
-    this.resolve = resolve;
-  }
-
-  readonly subscribe = (listener: Listener): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
-
-  readonly getSnapshot = (): ReadonlySet<string> => this.snapshot;
-
-  getInvocationState(invocationKey: string): ActionInvocationState | undefined {
-    return this.invocationStates.get(invocationKey);
-  }
-
-  async run(id: string, selections: ComponentActionSelections = {}, args: Record<string, unknown> = {}, callerNodeId?: string, invocationKey = id): Promise<ActionRunResult> {
-    const action = this.resolve(id);
-    if (!action) {
-      return {
-        status: "unavailable",
-        reason: "This action is no longer available.",
-      };
-    }
-    if (!action.enabled) {
-      return {
-        status: "unavailable",
-        reason: action.disabledReason ?? "This action is unavailable.",
-      };
-    }
-    const canonicalId = action.id;
-    if (this.running.has(canonicalId)) return { status: "running" };
-
-    const startedAt = new Date().toISOString();
-    this.setInvocation(invocationKey, { status: "running", startedAt });
-    this.running.add(canonicalId);
-    this.emit();
-    try {
-      await action.run(selections, args, callerNodeId);
-      const outcome = id === "agent:prompt" ? "prepared" : action.invocationOutcome ?? "completed";
-      this.setInvocation(invocationKey, {
-        status: "completed",
-        outcome,
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        ...(outcome === "prepared" ? { message: "Prompt ready for review." } : outcome === "started" ? { message: "Process start requested." } : {}),
-      });
-      return { status: "completed" };
-    } catch (error) {
-      this.setInvocation(invocationKey, {
-        status: "failed",
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        message: (error instanceof Error ? error.message : String(error)).slice(0, 500),
-      });
-      return { status: "failed", error };
-    } finally {
-      this.running.delete(canonicalId);
-      this.emit();
-    }
-  }
-
-  private setInvocation(key: string, value: ActionInvocationState): void {
-    this.invocationStates.delete(key);
-    this.invocationStates.set(key, value);
-    while (this.invocationStates.size > 200) {
-      const oldest = this.invocationStates.keys().next().value;
-      if (oldest === undefined) break;
-      this.invocationStates.delete(oldest);
-    }
-    this.emit();
-  }
-
-  private emit(): void {
-    this.snapshot = new Set(this.running);
-    for (const listener of this.listeners) listener();
-  }
-}

@@ -37,8 +37,7 @@ import {
 import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
 import { highlightRevealedItem, revealScrollBehavior } from "../lib/reveal-item";
 import type { AppView } from "../lib/action-providers";
-import { ActionExecutor, ActionRegistry, describeAgentAction, matchActionChoiceSelections } from "../lib/actions";
-import type { PaletteAction } from "../lib/actions";
+import { ActionStore, describeAgentAction, matchActionChoiceSelections } from "../lib/actions";
 import { writeClipboardText } from "../lib/clipboard";
 import { CommandPalette } from "../panels/CommandPalette";
 import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
@@ -212,55 +211,21 @@ export function App(): ReactNode {
     snapshot?.trusted,
     localComponents,
   );
-  const actionRegistry = useMemo(() => new ActionRegistry(), []);
-  const componentActions = useSyncExternalStore(
-    actionRegistry.subscribe,
-    actionRegistry.getSnapshot,
+  const actionStore = useMemo(() => new ActionStore(), []);
+  const actionStoreState = useSyncExternalStore(
+    actionStore.subscribe,
+    actionStore.getSnapshot,
   );
-  const actionsByIdRef = useRef<ReadonlyMap<string, PaletteAction>>(new Map());
-  const actionExecutor = useMemo(
-    () => new ActionExecutor((id) => actionsByIdRef.current.get(id)),
-    [],
-  );
-  const runningActionIds = useSyncExternalStore(
-    actionExecutor.subscribe,
-    actionExecutor.getSnapshot,
-  );
-  const runningActionIdsRef = useRef<ReadonlySet<string>>(runningActionIds);
-  runningActionIdsRef.current = runningActionIds;
+  const componentActions = actionStoreState.componentActions;
+  const runningActionIds = actionStoreState.runningActionIds;
   const actionController = useMemo(() => ({
     resolve(reference: string, invocationKey?: string) {
-      const action = actionsByIdRef.current.get(reference);
-      if (!action) return {
-        id: reference,
-        label: "Unavailable action",
-        enabled: false,
-        disabledReason: "This action is not available in the current view.",
-        running: false,
-        active: false,
-        requiresInteraction: false,
-        ...(actionExecutor.getInvocationState(invocationKey ?? reference)
-          ? { invocation: actionExecutor.getInvocationState(invocationKey ?? reference) }
-          : {}),
-      };
-      return {
-        id: action.id,
-        label: action.label,
-        enabled: action.enabled,
-        ...(action.disabledReason ? { disabledReason: action.disabledReason } : {}),
-        running: runningActionIdsRef.current.has(action.id),
-        active: action.active === true,
-        requiresInteraction: Boolean(action.choices?.length || action.confirmation),
-        ...(action.process ? { process: action.process } : {}),
-        ...(actionExecutor.getInvocationState(invocationKey ?? action.id)
-          ? { invocation: actionExecutor.getInvocationState(invocationKey ?? action.id) }
-          : {}),
-      };
+      return actionStore.resolve(reference, invocationKey);
     },
     invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string) {
       requestAction(reference, args, callerNodeId, invocationKey);
     },
-  }), [actionExecutor]);
+  }), [actionStore]);
 
   useEffect(() => () => {
     if (compositionPointerFrame.current !== null) {
@@ -1539,18 +1504,25 @@ export function App(): ReactNode {
     }));
   });
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, componentActions);
-  const allActions = [...applicationActions, ...nodeFocusActions, ...selectionActions, ...revealActions, ...declaredComponentActions, ...componentActions];
-  const runtimeDiagnostics = actionRegistry.getDiagnostics();
+  const actionProviders = [
+    { id: "application", actions: applicationActions },
+    { id: "node-focus", actions: nodeFocusActions },
+    { id: "selection", actions: selectionActions },
+    { id: "reveal", actions: revealActions },
+    { id: "declared-component", actions: declaredComponentActions },
+  ];
+  useLayoutEffect(() => {
+    actionStore.replaceProviders(actionProviders);
+  }, [actionStore, applicationActions, nodeFocusActions, selectionActions, revealActions, declaredComponentActions]);
+  // Built during render so dynamic choice options always close over current state;
+  // the store's index (refreshed in the layout effect above) serves handlers.
+  const allActions = [...actionProviders.flatMap((provider) => provider.actions), ...componentActions];
+  const runtimeDiagnostics = actionStoreState.diagnostics;
   const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...runtimeDiagnostics];
   const favoriteActionIds = useMemo(
     () => new Set(appSettings.favoriteActionIds),
     [appSettings.favoriteActionIds],
   );
-  actionsByIdRef.current = new Map(allActions.flatMap((action) => [
-    [action.id, action] as const,
-    ...(action.reference ? [[action.reference, action] as const] : []),
-  ]));
-
   const agentControlStateRef = useRef<AgentViewState | null>(null);
   agentControlStateRef.current = {
     view: activeView,
@@ -1565,27 +1537,27 @@ export function App(): ReactNode {
   };
   useEffect(() => registerAgentControlHandler({
     viewState: () => agentControlStateRef.current!,
-    listActions: () => [...new Set(actionsByIdRef.current.values())].map(describeAgentAction),
+    listActions: () => actionStore.getIndexedActions().map(describeAgentAction),
     async runAction({ reference, selections }) {
-      const action = actionsByIdRef.current.get(reference);
+      const action = actionStore.get(reference);
       if (!action) return { status: "unavailable", reason: `No action matches ${reference}.` };
       const refusal = agentActionRefusal(action);
       if (refusal) return { status: "refused", id: action.id, reason: refusal };
-      const result = await actionExecutor.run(action.id, selections);
+      const result = await actionStore.run(action.id, selections);
       if (result.status === "completed") return { status: "completed", id: action.id };
       if (result.status === "running") return { status: "running", id: action.id, reason: "That action is already running." };
       if (result.status === "unavailable") return { status: "unavailable", id: action.id, reason: result.reason };
       return { status: "failed", id: action.id, reason: errorMessage(result.error) };
     },
-  }), [actionExecutor]);
+  }), [actionStore]);
 
   function requestAction(reference: string, args: Record<string, unknown> = {}, callerNodeId?: string, invocationKey?: string): void {
     const invocation = actionInvocation(reference);
     if (!invocation) return;
     const actionArgs = { ...invocation.with, ...args };
-    const action = actionsByIdRef.current.get(invocation.run);
+    const action = actionStore.get(invocation.run);
     if (invocation.run === "agent:prompt") {
-      if (action) void actionExecutor.run(invocation.run, {}, actionArgs, callerNodeId, invocationKey ?? action.id);
+      if (action) void actionStore.run(invocation.run, {}, actionArgs, callerNodeId, invocationKey ?? action.id);
       return;
     }
     const selections = action?.choices ? matchActionChoiceSelections(action.choices, actionArgs) : {};
@@ -1611,12 +1583,12 @@ export function App(): ReactNode {
     invocationKey?: string,
   ): Promise<void> {
     setActionError(null);
-    const action = actionsByIdRef.current.get(id);
+    const action = actionStore.get(id);
     if (!action) {
       setActionError("This action is no longer available.");
       return;
     }
-    const result = await actionExecutor.run(id, selections, args, callerNodeId, invocationKey ?? id);
+    const result = await actionStore.run(id, selections, args, callerNodeId, invocationKey ?? id);
     if (result.status === "failed") setActionError(errorMessage(result.error));
     else if (result.status === "unavailable") setActionError(result.reason);
     else if (result.status === "running") {
@@ -1739,7 +1711,7 @@ export function App(): ReactNode {
                       processesRef={processesRef}
                       environmentByNode={snapshot.environmentByNode}
                       localComponents={localComponents}
-                      actionRegistry={actionRegistry}
+                      actionStore={actionStore}
                       actionScope={actionScope}
                       actionController={actionController}
                       updateBatch={componentUpdateBatch}

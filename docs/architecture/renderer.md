@@ -544,8 +544,14 @@ component verbs for the core navigation or the actions they already invoke.
 
 ## Action registry and command palette
 
-The renderer owns one action registry for the active application window. The
-command palette merges three providers:
+The renderer owns one `ActionStore` for the active application window. It
+holds the ordered provider index, mounted component registrations, canonical
+running IDs, invocation history, and registration diagnostics. React reads its
+stable snapshot through `useSyncExternalStore`; App replaces provider output
+after commit, while the store silently refreshes execution callbacks when
+presentation metadata is unchanged. Invocations resolve against the latest
+index. The palette's action list is still built during App's render, so dynamic
+choice options always close over current state. The command palette merges three providers:
 
 - application navigation, lifecycle, and dashboard editing actions from shell
   state;
@@ -574,7 +580,7 @@ with the reason `Component is not mounted`. Process actions call
 the same typed `startProcess` and `stopProcess` RPC used by any component UI;
 the palette never executes a shell command directly.
 
-The registry re-resolves an action by ID immediately before invocation, tracks
+The store re-resolves an action by ID immediately before invocation, tracks
 canonical running IDs to reject duplicate execution through aliases, and drops
 stale registrations. Mounted component actions also expose stable
 `component:<node-id>:<local-action-id>` aliases while their runtime registrations
@@ -588,11 +594,11 @@ Trust, revoke, and component-selected sensitive actions use the palette's
 confirmation state. Trust confirmation names the complete requested capability
 set before calling the existing trust RPC.
 
-The agent-control channel reaches the registry through main-to-renderer
+The agent-control channel reaches the store through main-to-renderer
 `agentViewState`, `agentListActions`, `agentRunAction`, and `agentSettle`
 requests. `App.tsx` registers their handler with
 `registerAgentControlHandler` in `rpc-client.ts`, and agent-run actions go
-through the same `ActionExecutor` as the palette. The policy in
+through the same store as the palette. The policy in
 `src/shared/agent-control.ts` refuses trust, revoke, edit, save/cancel draft,
 add-dashboard, and any confirmation-requiring action, so the channel never
 widens what a palette action may do. See [Security](./security.md).

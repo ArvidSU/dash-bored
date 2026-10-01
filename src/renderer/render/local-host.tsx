@@ -1,11 +1,11 @@
 import type { ComponentEnvironmentSnapshot, LocalComponentHost, ProcessSnapshot, ResolvedComponentAction, ResolvedComponentNode } from "../../shared/contracts";
-import type { ActionRegistry } from "../lib/actions";
+import type { ActionStore } from "../lib/actions";
 import { ComponentWebviewSurface } from "./ComponentWebviewSurface";
 import { host } from "../lib/rpc-client";
 
 export function createLocalHost(
   node: ResolvedComponentNode,
-  actionRegistry: ActionRegistry,
+  actionStore: ActionStore,
   actionScope: string,
   trusted: boolean,
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>,
@@ -40,7 +40,7 @@ export function createLocalHost(
     },
     actions: {
       register(action) {
-        return actionRegistry.register(actionOwner, action);
+        return actionStore.register(actionOwner, action);
       },
       resolve: (reference, invocationKey) => actionController.resolve(reference, invocationKey ? `${node.id}:${invocationKey}` : undefined),
       invoke: (reference, args, callerNodeId, invocationKey) => actionController.invoke(

@@ -11,7 +11,7 @@ import { composeComponentChildren } from "../composition/ComponentCompositor";
 import { packagedComponent } from "../builtins";
 import { LocalComponentErrorBoundary } from "./local-components";
 import type { LoadedLocalComponent } from "./local-components";
-import type { ActionRegistry } from "../lib/actions";
+import type { ActionStore } from "../lib/actions";
 import { ComponentFrame } from "./ComponentFrame";
 import { createLocalHost } from "./local-host";
 
@@ -26,7 +26,7 @@ export interface NodeRendererProps {
    */
   processesRef: Readonly<{ current: ReadonlyMap<string, ProcessSnapshot> }>;
   localComponents: ReadonlyMap<string, LoadedLocalComponent>;
-  actionRegistry: ActionRegistry;
+  actionStore: ActionStore;
   actionScope: string;
   actionController: {
     resolve(reference: string, invocationKey?: string): ResolvedComponentAction;
@@ -84,7 +84,7 @@ export function NodeRenderer({
   environmentByNode,
   processesRef,
   localComponents,
-  actionRegistry,
+  actionStore,
   actionScope,
   actionController,
   updateBatch,
@@ -112,15 +112,15 @@ export function NodeRenderer({
     [onUpdateProps],
   );
   const localHost = useMemo(
-    () => createLocalHost(node, actionRegistry, actionScope, trusted, processesRef, updateProps, actionController),
-    [actionController, actionRegistry, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted, updateProps],
+    () => createLocalHost(node, actionStore, actionScope, trusted, processesRef, updateProps, actionController),
+    [actionController, actionStore, actionScope, node.id, node.manifest?.name, permissionsKey, processesRef, trusted, updateProps],
   );
   // Keep capability objects stable while public values update, so unsaved editor
   // contents and long-running component effects survive environment refreshes.
   localHost.environment = trusted ? environmentByNode?.[node.id] : undefined;
   useEffect(
-    () => () => actionRegistry.clearOwner({ scope: actionScope, nodeId: node.id }),
-    [actionRegistry, actionScope, node.id],
+    () => () => actionStore.clearOwner({ scope: actionScope, nodeId: node.id }),
+    [actionStore, actionScope, node.id],
   );
   const collapsed = collapsedNodeIds.has(node.id);
   const frameHeightProps = {
@@ -143,7 +143,7 @@ export function NodeRenderer({
             processesRef={processesRef}
             environmentByNode={environmentByNode}
             localComponents={localComponents}
-            actionRegistry={actionRegistry}
+            actionStore={actionStore}
             actionScope={actionScope}
             actionController={actionController}
             updateBatch={updateBatch}

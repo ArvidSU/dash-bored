@@ -159,7 +159,7 @@ automation surface for the user's own agents, not a new capability.
   connect. There is no network listener and no token to leak.
 - Request bodies are bounded JSON objects. Selections must map choice ids to
   option ids.
-- Actions run through the same renderer action index and `ActionExecutor` as
+- Actions run through the same renderer `ActionStore` as
   the command palette, with the same availability and duplicate-run rules.
   Component actions still flow through their declared host APIs and project
   trust.

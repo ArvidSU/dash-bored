@@ -50,7 +50,7 @@ socket at `~/.config/dash-bored/run/<identifier>.sock`, advertised by
 `<identifier>.json` in the same directory and withdrawn on quit. Its
 `/v1/status`, `/v1/actions`, `/v1/actions/run`, `/v1/open`, and
 `/v1/screenshot` routes back the tool's `app` command. Actions are relayed to
-the renderer and run through the palette's `ActionExecutor`; trust, edit-mode,
+the renderer and run through the shared `ActionStore`; trust, edit-mode,
 add-dashboard, and confirmation-requiring actions are refused, and `/v1/open`
 is refused while a draft is open. Screenshots capture the app window with
 `screencapture` and require Screen Recording permission. See
@@ -88,7 +88,7 @@ Electrobun Bun main process
 Vite + React renderer in the system webview
   - render the resolved tree and diagnostics
   - load revisioned local-component browser bundles
-  - own the action registry, search, confirmation, and command palette UI
+  - own the action store, search, confirmation, and command palette UI
   - display process output and project trust controls
 ```
 
