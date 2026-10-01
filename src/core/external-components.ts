@@ -150,6 +150,17 @@ async function readLock(location: ProjectLocation): Promise<DashboardLock> {
   return parsed.value;
 }
 
+async function repoRootAndLock(location: ProjectLocation): Promise<[string, DashboardLock]> {
+  const [repoResult, lockResult] = await Promise.allSettled([
+    repoRootFor(location.configDirectory),
+    readLock(location),
+  ]);
+  // Keep the old sequential error precedence: repository validation ran first.
+  if (repoResult.status === "rejected") throw repoResult.reason;
+  if (lockResult.status === "rejected") throw lockResult.reason;
+  return [repoResult.value, lockResult.value];
+}
+
 async function writeLock(location: ProjectLocation, lock: DashboardLock): Promise<void> {
   try {
     await writeFileAtomically(location.lockPath, serializeDashboardLock(lock));
@@ -310,8 +321,7 @@ export async function addComponent(
   const name = options.name ?? deriveNameFromUrl(url);
   validateComponentName(name);
   const location = await resolveProjectLocation(projectInput);
-  const repoRoot = await repoRootFor(location.configDirectory);
-  const lock = await readLock(location);
+  const [repoRoot, lock] = await repoRootAndLock(location);
   if (lock.components[name] !== undefined) {
     throw new CoreError(
       "COMPONENT_ALREADY_PINNED",
@@ -364,13 +374,11 @@ export async function statusComponents(
   name?: string,
 ): Promise<ExternalComponentStatus[]> {
   const location = await resolveProjectLocation(projectInput);
-  const repoRoot = await repoRootFor(location.configDirectory);
-  const lock = await readLock(location);
+  const [repoRoot, lock] = await repoRootAndLock(location);
   const entries = name === undefined
     ? Object.entries(lock.components).sort(([left], [right]) => left.localeCompare(right))
     : [[name, lockEntryOrThrow(lock, name)] as const];
-  const statuses: ExternalComponentStatus[] = [];
-  for (const [entryName, entry] of entries) {
+  const readStatus = async ([entryName, entry]: readonly [string, ExternalComponentLockEntry]): Promise<ExternalComponentStatus> => {
     const targetDirectory = targetDirectoryFor(location, entryName);
     const checkedOutCommit = await readCheckedOutCommit(targetDirectory);
     const initialized = checkedOutCommit !== null;
@@ -378,7 +386,7 @@ export async function statusComponents(
       ? (await runGit(["status", "--porcelain"], targetDirectory, { timeoutMs: 15_000 })).trim().length > 0
       : false;
     const remoteHead = await readRemoteHead(entry.url, repoRoot);
-    statuses.push({
+    return {
       name: entryName,
       url: entry.url,
       commit: entry.commit,
@@ -388,7 +396,16 @@ export async function statusComponents(
       dirty,
       inSync: initialized && checkedOutCommit === entry.commit.toLowerCase(),
       updateAvailable: remoteHead === null ? null : remoteHead !== entry.commit.toLowerCase(),
-    });
+    };
+  };
+  const statuses: ExternalComponentStatus[] = [];
+  for (let offset = 0; offset < entries.length; offset += 2) {
+    const batch = entries.slice(offset, offset + 2);
+    const results = await Promise.allSettled(batch.map(readStatus));
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason;
+      statuses.push(result.value);
+    }
   }
   return statuses;
 }
@@ -400,8 +417,7 @@ export async function updateComponent(
 ): Promise<ExternalComponentUpdateResult> {
   validateComponentName(name);
   const location = await resolveProjectLocation(projectInput);
-  await repoRootFor(location.configDirectory);
-  const lock = await readLock(location);
+  const [, lock] = await repoRootAndLock(location);
   const entry = lockEntryOrThrow(lock, name);
   const targetDirectory = targetDirectoryFor(location, name);
   const checkedOutCommit = await readCheckedOutCommit(targetDirectory);
@@ -464,8 +480,7 @@ export async function removeComponent(
 ): Promise<ExternalComponentRemoveResult> {
   validateComponentName(name);
   const location = await resolveProjectLocation(projectInput);
-  const repoRoot = await repoRootFor(location.configDirectory);
-  const lock = await readLock(location);
+  const [repoRoot, lock] = await repoRootAndLock(location);
   lockEntryOrThrow(lock, name);
   const targetDirectory = targetDirectoryFor(location, name);
   const gitPath = submoduleGitPath(repoRoot, targetDirectory);
@@ -504,8 +519,7 @@ export async function removeComponent(
 
 export async function syncComponents(projectInput: string): Promise<ExternalComponentSummary[]> {
   const location = await resolveProjectLocation(projectInput);
-  const repoRoot = await repoRootFor(location.configDirectory);
-  const lock = await readLock(location);
+  const [repoRoot, lock] = await repoRootAndLock(location);
   const entries = Object.entries(lock.components).sort(([left], [right]) => left.localeCompare(right));
   const synced: ExternalComponentSummary[] = [];
   for (const [name, entry] of entries) {

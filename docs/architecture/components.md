@@ -295,7 +295,9 @@ runtime modules. No output directory is configured, so the runtime consumes
 the build's in-memory outputs without writing component bundles to disk. A
 component may use contained relative TS, TSX, and CSS imports. Bare package
 imports, Node or Electrobun APIs, files outside that component directory, and
-unsupported asset types are rejected.
+unsupported asset types are rejected. The main process builds at most two local
+components at a time, then returns compiled components and diagnostics in the
+same order as the resolved local-component definitions.
 
 The compiled JavaScript and CSS travel in the project snapshot. The renderer
 imports JavaScript through a revisioned blob URL and owns a replaceable style

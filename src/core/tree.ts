@@ -974,6 +974,27 @@ export async function resolveComponentTree(
       }
     }
 
+    const cwdChecks = allNodes.flatMap((node) => {
+      if (node.sourceConfigPath !== location.configPath) return [];
+      const propName = node.manifest?.resources?.process?.cwdProp;
+      const cwd = propName === undefined ? undefined : node.props[propName];
+      return typeof cwd === "string" && propName !== undefined
+        ? [{ node, propName, cwd }]
+        : [];
+    });
+    const cwdResults = new Map<ResolvedComponentNode, PromiseSettledResult<string>>();
+    // Keep filesystem work bounded while checking independent process working
+    // directories concurrently. Results are consumed in tree order below.
+    for (let offset = 0; offset < cwdChecks.length; offset += 8) {
+      const batch = cwdChecks.slice(offset, offset + 8);
+      const results = await Promise.allSettled(
+        batch.map(({ cwd }) => resolveContainedPath(location.projectRoot, cwd, { kind: "directory" })),
+      );
+      for (const [index, result] of results.entries()) {
+        cwdResults.set(batch[index]!.node, result);
+      }
+    }
+
     for (const node of allNodes) {
       // Linked dashboards resolve and validate their own references before
       // namespacing. Their IDs are intentionally private to that bundle.
@@ -1113,13 +1134,12 @@ export async function resolveComponentTree(
         ? undefined
         : node.props[processResource.cwdProp];
       if (typeof cwd === "string") {
-        try {
-          await resolveContainedPath(location.projectRoot, cwd, { kind: "directory" });
-        } catch (error) {
+        const result = cwdResults.get(node);
+        if (result?.status === "rejected") {
           diagnostics.push(
             diagnostic({
               code: "COMPONENT_PROCESS_CWD_INVALID",
-              message: errorMessage(error),
+              message: errorMessage(result.reason),
               path: `${node.id}.props.${processResource!.cwdProp}`,
             }),
           );

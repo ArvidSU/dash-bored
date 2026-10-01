@@ -32,7 +32,10 @@ export function parseThemeLock(source: string, file: string): { value: Dashboard
 }
 export async function readTheme(directory: string): Promise<ThemeManifest> {
   const root = await realpath(directory);
-  const file = await realpath(join(directory, 'theme.yaml'));
+  return readThemeAt(root);
+}
+async function readThemeAt(root: string): Promise<ThemeManifest> {
+  const file = await realpath(join(root, 'theme.yaml'));
   if (relative(root, file) !== 'theme.yaml') throw new Error('theme.yaml must be contained in its package.');
   const info = await stat(file);
   if (!info.isFile() || info.size > 64 * 1024) throw new Error('theme.yaml must be a regular file of at most 64 KiB.');
@@ -40,9 +43,15 @@ export async function readTheme(directory: string): Promise<ThemeManifest> {
 }
 async function itemAt(root: string, directory: string, reference: string): Promise<ThemeCatalogItem> {
   try {
-    const rel = relative(await realpath(root), await realpath(directory));
-    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(await realpath(root), rel) !== await realpath(directory)) throw new Error('Theme directory escapes its installation root.');
-    const manifest = await readTheme(directory);
+    const [rootResult, directoryResult] = await Promise.allSettled([realpath(root), realpath(directory)]);
+    // Keep the old validation order when both independent paths fail.
+    if (rootResult.status === 'rejected') throw rootResult.reason;
+    if (directoryResult.status === 'rejected') throw directoryResult.reason;
+    const canonicalRoot = rootResult.value;
+    const canonicalDirectory = directoryResult.value;
+    const rel = relative(canonicalRoot, canonicalDirectory);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(canonicalRoot, rel) !== canonicalDirectory) throw new Error('Theme directory escapes its installation root.');
+    const manifest = await readThemeAt(canonicalDirectory);
     return { reference, name: manifest.name, manifest };
   } catch (error) { return { reference, name: reference, error: error instanceof Error ? error.message : String(error) }; }
 }

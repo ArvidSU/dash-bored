@@ -153,6 +153,67 @@ export interface CompileLocalComponentsResult {
   diagnostics: Diagnostic[];
 }
 
+async function compileDefinition(
+  definition: LocalComponentDefinition,
+  options: CompileLocalComponentsOptions,
+): Promise<CompileLocalComponentsResult> {
+  const components: CompiledLocalComponent[] = [];
+  const diagnostics: Diagnostic[] = [];
+  let result: Awaited<ReturnType<typeof Bun.build>>;
+  try {
+    result = await Bun.build({
+      entrypoints: [definition.entryPath],
+      target: "browser",
+      format: "esm",
+      splitting: false,
+      minify: options.minify ?? false,
+      sourcemap: "none",
+      plugins: [runtimePlugin(definition)],
+    });
+  } catch (error) {
+    if (error instanceof AggregateError && error.errors.length > 0) {
+      diagnostics.push(...error.errors.map((item) => buildDiagnostic(definition, item)));
+    } else {
+      diagnostics.push(buildDiagnostic(definition, error));
+    }
+    return { components, diagnostics };
+  }
+
+  if (!result.success) {
+    diagnostics.push(...result.logs.map((message) => buildDiagnostic(definition, message)));
+    return { components, diagnostics };
+  }
+
+  let javascript = "";
+  let css = "";
+  for (const output of result.outputs) {
+    const value = await output.text();
+    if (output.path.endsWith(".css")) css += value;
+    else if (output.path.endsWith(".js")) javascript += value;
+  }
+  if (javascript === "") {
+    diagnostics.push(
+      diagnostic({
+        code: "COMPONENT_COMPILE_EMPTY",
+        message: "The component bundle did not produce JavaScript.",
+        file: definition.entryPath,
+      }),
+    );
+    return { components, diagnostics };
+  }
+
+  const revision = createHash("sha256")
+    .update(definition.manifest.id)
+    .update("\0")
+    .update(javascript)
+    .update("\0")
+    .update(css)
+    .digest("hex")
+    .slice(0, 20);
+  components.push({ componentId: definition.manifest.id, revision, javascript, css });
+  return { components, diagnostics };
+}
+
 /** Bundle trusted local code while replacing React and the component SDK with renderer globals. */
 export async function compileLocalComponents(
   definitions: readonly LocalComponentDefinition[],
@@ -160,65 +221,14 @@ export async function compileLocalComponents(
 ): Promise<CompileLocalComponentsResult> {
   const components: CompiledLocalComponent[] = [];
   const diagnostics: Diagnostic[] = [];
-
-  for (const definition of definitions) {
-    let result: Awaited<ReturnType<typeof Bun.build>>;
-    try {
-      result = await Bun.build({
-        entrypoints: [definition.entryPath],
-        target: "browser",
-        format: "esm",
-        splitting: false,
-        minify: options.minify ?? false,
-        sourcemap: "none",
-        plugins: [runtimePlugin(definition)],
-      });
-    } catch (error) {
-      if (error instanceof AggregateError && error.errors.length > 0) {
-        diagnostics.push(...error.errors.map((item) => buildDiagnostic(definition, item)));
-      } else {
-        diagnostics.push(buildDiagnostic(definition, error));
-      }
-      continue;
+  for (let offset = 0; offset < definitions.length; offset += 2) {
+    const batch = definitions.slice(offset, offset + 2);
+    const results = await Promise.allSettled(batch.map((definition) => compileDefinition(definition, options)));
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason;
+      components.push(...result.value.components);
+      diagnostics.push(...result.value.diagnostics);
     }
-
-    if (!result.success) {
-      diagnostics.push(...result.logs.map((message) => buildDiagnostic(definition, message)));
-      continue;
-    }
-
-    let javascript = "";
-    let css = "";
-    for (const output of result.outputs) {
-      const value = await output.text();
-      if (output.path.endsWith(".css")) css += value;
-      else if (output.path.endsWith(".js")) javascript += value;
-    }
-    if (javascript === "") {
-      diagnostics.push(
-        diagnostic({
-          code: "COMPONENT_COMPILE_EMPTY",
-          message: "The component bundle did not produce JavaScript.",
-          file: definition.entryPath,
-        }),
-      );
-      continue;
-    }
-
-    const revision = createHash("sha256")
-      .update(definition.manifest.id)
-      .update("\0")
-      .update(javascript)
-      .update("\0")
-      .update(css)
-      .digest("hex")
-      .slice(0, 20);
-    components.push({
-      componentId: definition.manifest.id,
-      revision,
-      javascript,
-      css,
-    });
   }
 
   return { components, diagnostics };

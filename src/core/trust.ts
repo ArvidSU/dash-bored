@@ -105,6 +105,17 @@ export class TrustStore {
     }
   }
 
+  private async canonicalRootAndRead(projectRoot: string): Promise<[string, TrustFile]> {
+    const [rootResult, fileResult] = await Promise.allSettled([
+      canonicalRoot(projectRoot),
+      this.read(),
+    ]);
+    // Preserve the previous sequential error precedence: canonicalize first.
+    if (rootResult.status === "rejected") throw rootResult.reason;
+    if (fileResult.status === "rejected") throw fileResult.reason;
+    return [rootResult.value, fileResult.value];
+  }
+
   private async write(value: TrustFile): Promise<void> {
     await mkdir(dirname(this.filePath), { recursive: true });
     await writeFileAtomically(this.filePath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -112,8 +123,8 @@ export class TrustStore {
 
   async getGrant(projectRoot: string): Promise<TrustGrantSnapshot | null> {
     return this.serialize(async () => {
-      const root = await canonicalRoot(projectRoot);
-      const grant = (await this.read()).projects[root];
+      const [root, value] = await this.canonicalRootAndRead(projectRoot);
+      const grant = value.projects[root];
       return grant === undefined ? null : { projectRoot: root, ...grant };
     });
   }
@@ -127,8 +138,7 @@ export class TrustStore {
 
   async trust(projectRoot: string, permissions: readonly Permission[]): Promise<TrustGrantSnapshot> {
     return this.serialize(async () => {
-      const root = await canonicalRoot(projectRoot);
-      const value = await this.read();
+      const [root, value] = await this.canonicalRootAndRead(projectRoot);
       const grant: TrustGrant = {
         permissions: [...new Set(permissions)].sort(),
         trustedAt: new Date().toISOString(),
@@ -141,8 +151,7 @@ export class TrustStore {
 
   async revoke(projectRoot: string): Promise<boolean> {
     return this.serialize(async () => {
-      const root = await canonicalRoot(projectRoot);
-      const value = await this.read();
+      const [root, value] = await this.canonicalRootAndRead(projectRoot);
       if (value.projects[root] === undefined) return false;
       delete value.projects[root];
       await this.write(value);
