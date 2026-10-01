@@ -33,7 +33,7 @@ import type {
   AgentViewState,
 } from "../../shared/agent-control";
 import type { DashboardRPC } from "../../shared/rpc";
-import { createUiHarnessHost } from "./ui-harness-host";
+import type { UiHarnessHost } from "./ui-harness-host";
 
 export type HostEvent =
   | { type: "themes"; catalog: import("../../shared/themes").ThemeCatalogItem[] }
@@ -414,7 +414,7 @@ declare global {
   interface Window {
     __DASH_BORED_UI_HARNESS__?: boolean;
     /** Present only on ui-harness.html so browser interaction tests can inspect host state. */
-    __DASH_BORED_UI_HARNESS_HOST__?: ReturnType<typeof createUiHarnessHost>;
+    __DASH_BORED_UI_HARNESS_HOST__?: UiHarnessHost;
   }
 }
 
@@ -423,7 +423,19 @@ declare global {
  * It is deliberately selected only by ui-harness.html; production renderer
  * pages keep the Electrobun transport guard above.
  */
-const uiHarnessHost = window.__DASH_BORED_UI_HARNESS__ ? createUiHarnessHost() : null;
-if (uiHarnessHost) window.__DASH_BORED_UI_HARNESS_HOST__ = uiHarnessHost;
+export let host: DashboardHost = liveHost;
 
-export const host: DashboardHost = uiHarnessHost ?? liveHost;
+let hostInitialization: Promise<void> | null = null;
+
+/** Select the browser fixture host before the renderer mounts its UI. */
+export function initializeHost(): Promise<void> {
+  if (!window.__DASH_BORED_UI_HARNESS__) return Promise.resolve();
+  if (hostInitialization) return hostInitialization;
+
+  hostInitialization = import("./ui-harness-host").then(({ createUiHarnessHost }) => {
+    const uiHarnessHost = createUiHarnessHost();
+    window.__DASH_BORED_UI_HARNESS_HOST__ = uiHarnessHost;
+    host = uiHarnessHost;
+  });
+  return hostInitialization;
+}

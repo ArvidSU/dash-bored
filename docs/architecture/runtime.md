@@ -122,7 +122,9 @@ static imports can still make every grouped module part of startup.
 `ui-harness.html` is a development-only renderer proof surface. It selects an
 in-memory `DashboardHost` before mounting the normal application entrypoint,
 then renders the same App, CSS, packaged components, composition, and sidebar
-with deterministic fixture data. The host mirrors the browser-safe dashboard
+with deterministic fixture data. The entrypoint awaits host initialization
+before mounting React, and only the harness page dynamically imports the
+fixture host. The host mirrors the browser-safe dashboard
 contract: catalog/children/props validation is meaningful, accepted saves
 advance the config and snapshot revisions, publish a new resolved tree, and
 stale revisions reject. Filesystem, lock-file, local-component compilation,
