@@ -58,7 +58,7 @@ import { captureWindowPng, keepWindowRenderingWhenOccluded } from "./window-capt
 import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { APP_VERSION } from "../shared/app-metadata";
 import { agentProcessInfo, agentProcessLogs, type AgentProcessInfo } from "../shared/agent-control";
-import type { AgentActionDescriptor, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
+import type { AgentActionDescriptor, AgentNodeMeasurement, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
 
 configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
@@ -644,6 +644,8 @@ interface AgentControlRendererRequests {
   agentRunAction(params: AgentRunActionRequest): Promise<AgentRunActionResult>;
   agentSettle(params: {}): Promise<{}>;
   agentIdle(params: { timeoutMs: number }): Promise<{ idle: boolean }>;
+  agentBeginNodeCapture(params: { nodeId: string }): Promise<AgentNodeMeasurement>;
+  agentEndNodeCapture(params: {}): Promise<{}>;
 }
 
 function rendererRequests(): AgentControlRendererRequests {
@@ -683,6 +685,8 @@ const agentControl: AgentControlServer | null = await startAgentControlServer({
     const found = agentProcesses().find(({ info }) => info.id === id);
     return found ? agentProcessLogs(found.info, found.snapshot, tail) : null;
   },
+  beginNodeCapture: (nodeId) => rendererRequests().agentBeginNodeCapture({ nodeId }),
+  endNodeCapture: async () => { await rendererRequests().agentEndNodeCapture({}); },
   openDashboard: async (configPath) => {
     // Loading registers the dashboard through onSnapshot, as an app launch for
     // that path did before; trust remains a separate user decision.

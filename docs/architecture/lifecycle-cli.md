@@ -57,12 +57,12 @@ dash-bored migrate inspect <dashboard>
 dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
 dash-bored app status [--instance <identifier>]
-dash-bored app actions [<filter>] [--all] [--instance <identifier>]
-dash-bored app run <action> [--select <choice>=<option> ...] [--instance <identifier>]
+dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
+dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
 dash-bored app processes [--instance <identifier>]
 dash-bored app logs <command-id> [--tail <n>] [--instance <identifier>]
-dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--instance <identifier>]
+dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
 ```
 
 ### Resolution and version matching
@@ -183,12 +183,12 @@ instances therefore never answer for the release app by accident.
 | Route | Behavior |
 | --- | --- |
 | `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), and read-only trust state (`trusted`, and the permissions awaiting approval while untrusted). |
-| `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
+| `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` summarizes each choice as `{id, label, optionCount}` (`--choices` includes the options) and hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
 | `GET /v1/processes/<id>/logs?tail=<n>` | Recent output lines of one command process from the log ring the process manager already retains (2,000 entries, 512 KiB). `tail` defaults to 200 and is capped at 1,000; lines are capped at 2,000 characters; an unknown id is `AGENT_CONTROL_NOT_FOUND`. `app logs` strips ANSI escapes and carriage-return overwrites. |
 | `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
-| `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. |
+| `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. With `{nodeId}` it returns that node's bounds cropped from the capture and describes the node in an `x-dash-bored-node` header (see below). |
 
 Idle means no source fetch is in flight for a mounted view. Every
 `readDashboardSource` call registers with `src/renderer/lib/activity.ts`, and
@@ -225,11 +225,38 @@ The channel refuses all `agent:*` actions. In particular, `agent:prompt` require
 
 Main owns the socket and relays to the renderer through `webview.requests`
 (`agentViewState`, `agentListActions`, `agentRunAction`, `agentSettle`,
-`agentIdle`); the
+`agentIdle`, `agentBeginNodeCapture`, `agentEndNodeCapture`); the
 renderer shell registers the handler because it owns action, focus, and view
-state. `app screenshot --focus <node-id>` first runs `focus:<node-id>` unless
-that node is already focused. The action policy and capture boundary are
+state. The action policy and capture boundary are
 described in [Security](./security.md#agent-control-channel).
+
+#### Screenshots of a node
+
+`app screenshot --node <node-id>` captures one node without taking over the
+user's view. The renderer's `NodeCaptureSession` finds the node's frame
+(`[data-node-id]`); a node that is already visible is measured where it
+stands. Otherwise it runs `reveal:<node-id>` (unmounted nodes in collapsed
+sections or unselected tabs) and/or scrolls the node into view without
+animation. It reports the node's visible rectangle in CSS pixels, clipped to the
+viewport and to scrolling ancestors, plus the viewport size and
+`devicePixelRatio`. Main captures the window and crops it in process
+(`src/main/png-crop.ts`, no external tool): the capture contains the title bar,
+and the webview is anchored to the window's bottom and horizontal centre, so the
+offsets follow from the difference between the image size and the viewport size
+at that scale. After the capture, `agentEndNodeCapture` restores whatever the
+session changed: the active view, the dashboard's presentation state (focus,
+collapse, selected children, split ratios, heights) and scroll positions. One
+node capture runs at a time. The CLI prints the node's measurement:
+`truncated: true` with `fullHeight`/`fullWidth` when the node is larger than
+the visible area (the visible part is captured; nodes are not stitched), and
+`changes: {revealed, scrolled}` for the temporary view changes it made and
+undid. Scroll positions inside a panel the reveal unmounted again may reset.
+
+`app screenshot --focus <node-id>` remains for capturing the window with a node
+focused. It records the previous `focusedNodeId`, restores it afterwards by
+default (`--keep-focus` leaves the new focus), and prints
+`previousFocusedNodeId` and `focusRestored`. Focus also expands and selects the
+node's ancestors; only the focus itself is restored, so prefer `--node`.
 
 At application startup, the main process refreshes only previously installed
 global and registered-project skills. It skips absent installations, keeps

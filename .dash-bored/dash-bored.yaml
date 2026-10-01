@@ -223,7 +223,7 @@ root:
                               - agent-tools
                           - id: todo-005
                             description: Crop agent screenshots to a node's bounds (app screenshot --node) instead of only capturing the whole window.
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                           - id: todo-032

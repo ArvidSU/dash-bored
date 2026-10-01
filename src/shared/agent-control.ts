@@ -135,6 +135,21 @@ export function agentProcessInfo(process: ProcessSnapshot, label: string): Agent
   };
 }
 
+/** Where a node sits in the webview, in CSS pixels from the viewport's top-left. */
+export interface AgentNodeMeasurement {
+  nodeId: string;
+  /** The node's visible bounds, clipped to the viewport and to scrolling ancestors. */
+  rect: { x: number; y: number; width: number; height: number };
+  /** The node's full, unclipped size; larger than `rect` when `truncated`. */
+  fullWidth: number;
+  fullHeight: number;
+  truncated: boolean;
+  viewport: { width: number; height: number };
+  devicePixelRatio: number;
+  /** View changes made to show the node; they are undone after capture. */
+  changes: { revealed: boolean; scrolled: boolean };
+}
+
 export interface AgentRunActionRequest {
   reference: string;
   selections?: Readonly<Record<string, string>>;

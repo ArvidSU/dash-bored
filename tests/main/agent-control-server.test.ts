@@ -11,9 +11,12 @@ import {
   summarizeAgentDiagnostics,
   suggestActions,
   unknownActionReason,
+  type AgentNodeMeasurement,
   type AgentRunActionRequest,
   type AgentViewState,
 } from "../../src/shared/agent-control";
+import { pngSize } from "../../src/main/png-crop";
+import { syntheticPng } from "./synthetic-png";
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -57,10 +60,28 @@ function fakeBridge() {
   const opened: string[] = [];
   const idleCalls: number[] = [];
   const tails: number[] = [];
+  const capture = { events: [] as string[], png: PNG as Uint8Array<ArrayBuffer>, failCapture: false };
+  const measurement: AgentNodeMeasurement = {
+    nodeId: "logs",
+    rect: { x: 10, y: 5, width: 20, height: 10 },
+    fullWidth: 20,
+    fullHeight: 10,
+    truncated: false,
+    viewport: { width: 90, height: 60 },
+    devicePixelRatio: 2,
+    changes: { revealed: false, scrolled: false },
+  };
   const bridge: AgentControlBridge = {
     viewState: async () => ({ ...state }),
     listActions: async () => [
       { id: "focus:logs", label: "Focus Logs", group: "Dashboard nodes", enabled: true },
+      {
+        id: "project:reveal",
+        label: "Reveal component",
+        group: "Dashboard presentation",
+        enabled: true,
+        choices: [{ id: "node", label: "Component", options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] }],
+      },
       { id: "project:trust", label: "Trust project", group: "Project", enabled: true, refusal: agentActionRefusal({ id: "project:trust" }) },
     ],
     runAction: async (request) => {
@@ -75,7 +96,16 @@ function fakeBridge() {
     },
     settle: async () => undefined,
     idle: async (timeoutMs) => { idleCalls.push(timeoutMs); return true; },
-    capture: async () => PNG,
+    capture: async () => {
+      capture.events.push("capture");
+      if (capture.failCapture) throw new Error("capture failed");
+      return capture.png;
+    },
+    beginNodeCapture: async (nodeId) => {
+      capture.events.push(`begin:${nodeId}`);
+      return { ...measurement, nodeId };
+    },
+    endNodeCapture: async () => { capture.events.push("end"); },
     openDashboard: async (configPath) => { opened.push(configPath); },
     processes: () => processes.map((item) => agentProcessInfo(item, labels[item.id]!)),
     processLogs: (id, tail) => {
@@ -84,7 +114,7 @@ function fakeBridge() {
       return found ? agentProcessLogs(agentProcessInfo(found, labels[id]!), found, tail) : null;
     },
   };
-  return { bridge, state, runs, opened, idleCalls, processes, tails };
+  return { bridge, state, runs, opened, idleCalls, processes, tails, capture, measurement };
 }
 
 async function cli(homeDirectory: string, ...args: string[]) {
@@ -138,7 +168,7 @@ test("the agent tool reads state, runs actions, and reports refusals through the
   expect(JSON.parse(status.stdout).state.dashboardName).toBe("Project");
 
   const actions = await cli(homeDirectory, "actions");
-  expect(JSON.parse(actions.stdout).map((action: { id: string }) => action.id)).toEqual(["focus:logs"]);
+  expect(JSON.parse(actions.stdout).map((action: { id: string }) => action.id)).toEqual(["focus:logs", "project:reveal"]);
   const ids = async (...args: string[]) =>
     JSON.parse((await cli(homeDirectory, "actions", ...args)).stdout).map((action: { id: string }) => action.id);
   expect(await ids("LOGS")).toEqual(["focus:logs"]);
@@ -220,6 +250,67 @@ test("logs returns stripped, tail-bounded output and reports unknown commands", 
   const invalid = await cli(homeDirectory, "logs", "tests", "--tail", "0");
   expect(invalid.exitCode).toBe(1);
   expect(invalid.stderr).toContain("--tail");
+});
+
+test("actions list choice counts by default and options only on request", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory);
+
+  const summary = JSON.parse((await cli(homeDirectory, "actions", "reveal")).stdout);
+  expect(summary).toHaveLength(1);
+  expect(summary[0].choices).toEqual([{ id: "node", label: "Component", optionCount: 2 }]);
+
+  const full = JSON.parse((await cli(homeDirectory, "actions", "reveal", "--choices")).stdout);
+  expect(full[0].choices[0].options).toHaveLength(2);
+});
+
+test("screenshot --node crops the window capture to the node and reports view changes", async () => {
+  const homeDirectory = await home();
+  const { capture, measurement } = await serve(homeDirectory);
+  // 90x60 CSS px at 2x plus a 40px title bar and 10px side margins.
+  capture.png = syntheticPng(200, 160) as Uint8Array<ArrayBuffer>;
+  measurement.changes = { revealed: true, scrolled: false };
+  const output = join(homeDirectory, "shots", "node.png");
+
+  const result = await cli(homeDirectory, "screenshot", "--node", "logs", "--output", output);
+
+  expect(result.exitCode).toBe(0);
+  expect(capture.events).toEqual(["begin:logs", "capture", "end"]);
+  expect(pngSize(new Uint8Array(await readFile(output)))).toEqual({ width: 40, height: 20 });
+  expect(JSON.parse(result.stdout).node).toMatchObject({
+    nodeId: "logs",
+    truncated: false,
+    changes: { revealed: true, scrolled: false },
+  });
+});
+
+test("a failed node capture still ends the capture session", async () => {
+  const homeDirectory = await home();
+  const { capture } = await serve(homeDirectory);
+  capture.failCapture = true;
+
+  const result = await cli(homeDirectory, "screenshot", "--node", "logs");
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("capture failed");
+  expect(capture.events).toEqual(["begin:logs", "capture", "end"]);
+});
+
+test("screenshot --focus restores the previous focus unless asked to keep it", async () => {
+  const homeDirectory = await home();
+  const { runs, state } = await serve(homeDirectory);
+  state.focusedNodeId = "overview";
+  const output = join(homeDirectory, "shots", "focus.png");
+
+  const restored = await cli(homeDirectory, "screenshot", "--focus", "logs", "--output", output);
+  expect(runs.map((run) => run.reference)).toEqual(["focus:logs", "focus:overview"]);
+  expect(JSON.parse(restored.stdout)).toMatchObject({ previousFocusedNodeId: "overview", focusRestored: true, state: { focusedNodeId: "overview" } });
+
+  runs.length = 0;
+  state.focusedNodeId = "overview";
+  const kept = await cli(homeDirectory, "screenshot", "--focus", "logs", "--keep-focus", "--output", output);
+  expect(runs.map((run) => run.reference)).toEqual(["focus:logs"]);
+  expect(JSON.parse(kept.stdout)).toMatchObject({ previousFocusedNodeId: "overview", focusRestored: false, state: { focusedNodeId: "logs" } });
 });
 
 test("screenshot focuses the requested node and writes the captured PNG", async () => {

@@ -190,6 +190,10 @@ automation surface for the user's own agents, not a new capability.
   rendering while covered (see
   [App control](./lifecycle-cli.md#app-control)) changes only WebKit's
   occlusion heuristic; it adds no capture path.
+  A node screenshot is
+  the same window capture cropped in process to the node's rectangle; it never
+  captures anything outside the app's own window, and the temporary reveal it
+  may perform runs through the same action path and is undone afterwards.
 
 ## Declarative process resources
 

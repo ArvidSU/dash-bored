@@ -193,7 +193,10 @@ With those tools an agent can:
   read its state (`app status`), list and run the same command-palette actions
   you can (`app actions [<filter>]`, `app run <action>`), open a dashboard
   (`app open <dashboard>`), and capture the app window to check the result
-  visually (`app screenshot [--focus <node-id>]`). `app run` and `app screenshot`
+  visually (`app screenshot [--node <node-id>]`). `--node` crops to one node,
+  restoring any view change it made, and `--focus <node-id>` restores your
+  previous focus afterwards unless `--keep-focus` is given. `app actions` lists
+  choices by option count; `--choices` includes their options. `app run` and `app screenshot`
   wait up to ten seconds for views to finish loading their sources, so a
   refresh is complete when the command returns; `--timeout <ms>` changes the
   bound and `app run --no-wait` skips the wait. Started commands keep running.

@@ -4,6 +4,7 @@ import {
   DEFAULT_IDLE_TIMEOUT_MS,
   MAX_IDLE_TIMEOUT_MS,
   type AgentActionDescriptor,
+  type AgentNodeMeasurement,
   type AgentProcessInfo,
   type AgentProcessLogs,
   type AgentRunActionRequest,
@@ -13,6 +14,7 @@ import {
 } from "../shared/agent-control";
 import { clampLogTail } from "../shared/agent-control";
 import { CoreError } from "../core/index";
+import { cropNodeCapture } from "./png-crop";
 import { publishAppInstance, withdrawAppInstance } from "../core/app-instances";
 
 export interface AgentControlBridge {
@@ -27,6 +29,13 @@ export interface AgentControlBridge {
    */
   idle(timeoutMs: number): Promise<boolean>;
   capture(): Promise<Uint8Array<ArrayBuffer>>;
+  /**
+   * Makes a node visible (revealing and scrolling only when needed) and
+   * measures it. Every call is paired with `endNodeCapture`, which undoes any
+   * view change the renderer made.
+   */
+  beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
+  endNodeCapture(): Promise<void>;
   openDashboard(configPath: string): Promise<void>;
   /** Command processes of the active dashboard; main owns their state. */
   processes(): AgentProcessInfo[];
@@ -126,6 +135,27 @@ export async function startAgentControlServer(
     }
   }
 
+  let capturingNode = false;
+  async function captureNode(nodeId: string, timeoutMs: number): Promise<Response> {
+    if (capturingNode) throw new CoreError("AGENT_CONTROL_BUSY", "Another node screenshot is in progress.");
+    capturingNode = true;
+    try {
+      const node = await bridge.beginNodeCapture(nodeId);
+      try {
+        // A reveal can mount views whose sources then load.
+        const quiet = await idle(timeoutMs);
+        const png = cropNodeCapture(await bridge.capture(), node);
+        return new Response(png, { headers: {
+          "content-type": "image/png", "x-dash-bored-node": JSON.stringify(node), ...(quiet ? {} : { "x-dash-bored-idle": "false" }),
+        } });
+      } finally {
+        await bridge.endNodeCapture();
+      }
+    } finally {
+      capturingNode = false;
+    }
+  }
+
   const server = Bun.serve({
     unix: identity.socketPath,
     async fetch(request) {
@@ -185,7 +215,11 @@ export async function startAgentControlServer(
         if (request.method === "POST" && pathname === "/v1/screenshot") {
           const body = await readBody(request);
           const timeoutMs = idleTimeout(body.timeoutMs);
+          if (body.nodeId !== undefined && (typeof body.nodeId !== "string" || body.nodeId === "")) {
+            throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "nodeId must be a node id.");
+          }
           if (!await settled()) throw new CoreError("APP_WINDOW_NOT_RENDERING", NOT_RENDERING);
+          if (body.nodeId !== undefined) return await captureNode(body.nodeId, timeoutMs);
           const quiet = await idle(timeoutMs);
           const png = await bridge.capture();
           return new Response(png, {

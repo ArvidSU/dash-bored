@@ -68,6 +68,8 @@ import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout
 import { useLocalComponents } from "../render/local-components";
 import { host, registerAgentControlHandler } from "../lib/rpc-client";
 import { agentActionRefusal, summarizeAgentDiagnostics, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
+import { NodeCaptureSession, type NodeCaptureHooks } from "../lib/agent-node-capture";
+import { dashboardViewStateStore } from "../lib/dashboard-view-state";
 import { resolveVirtualRoot } from "../lib/virtual-root";
 import { actionInvocation } from "../../shared/action-invocation";
 import {
@@ -1536,8 +1538,28 @@ export function App(): ReactNode {
       pendingPermissions: snapshot && !snapshot.trusted ? snapshot.requestedPermissions : [],
     },
   };
+  const nodeCaptureSession = useMemo(() => new NodeCaptureSession(), []);
+  const nodeCaptureHooksRef = useRef<NodeCaptureHooks | null>(null);
+  nodeCaptureHooksRef.current = {
+    reveal: async (nodeId) => {
+      const action = actionStore.get(`reveal:${encodeURIComponent(nodeId)}`);
+      if (!action) throw new Error(`No node ${nodeId} in the active dashboard.`);
+      const result = await actionStore.run(action.id);
+      if (result.status !== "completed") throw new Error(`Could not reveal ${nodeId}.`);
+    },
+    snapshotView: () => {
+      const view = activeView;
+      const presentation = dashboardViewStateStore.getSnapshot(dashboardPath, snapshot?.tree);
+      return () => {
+        setActiveView(view);
+        dashboardViewStateStore.update(dashboardPath, snapshot?.tree, () => presentation);
+      };
+    },
+  };
   useEffect(() => registerAgentControlHandler({
     viewState: () => agentControlStateRef.current!,
+    beginNodeCapture: (nodeId) => nodeCaptureSession.begin(nodeId, nodeCaptureHooksRef.current!),
+    endNodeCapture: () => nodeCaptureSession.end(),
     listActions: () => actionStore.getIndexedActions().map(describeAgentAction),
     async runAction({ reference, selections }) {
       const action = actionStore.get(reference);
@@ -1559,7 +1581,7 @@ export function App(): ReactNode {
       if (result.status === "unavailable") return { status: "unavailable", id: action.id, reason: result.reason };
       return { status: "failed", id: action.id, reason: errorMessage(result.error) };
     },
-  }), [actionStore]);
+  }), [actionStore, nodeCaptureSession]);
 
   function requestAction(reference: string, args: Record<string, unknown> = {}, callerNodeId?: string, invocationKey?: string): void {
     const invocation = actionInvocation(reference);
