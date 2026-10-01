@@ -15,6 +15,8 @@ import { nodeLabel } from "../lib/virtual-root";
 import { CompositionContext } from "../composition/composition-context";
 import { usePointerSession } from "../lib/pointer-session";
 import { compositionPayloadLabel } from "../composition/composition-labels";
+import { ComponentActionsMenu, type ComponentActionsMenuAction } from "../lib/component-actions-menu";
+import { useAnchoredMenu } from "../lib/use-anchored-menu";
 
 export interface ComponentFrameProps {
   as?: "div" | "section";
@@ -69,8 +71,16 @@ export function ComponentFrame({
   onOpenAgent,
   children,
 }: ComponentFrameProps): ReactNode {
-  const [open, setOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const {
+    open,
+    position: menuPosition,
+    triggerRef,
+    triggerContainerRef: menuRef,
+    popoverRef: menuPopoverRef,
+    openAt,
+    toggleFromTrigger,
+    close: closeMenu,
+  } = useAnchoredMenu(true);
   const [transientHeight, setTransientHeight] = useState<number | null | undefined>(undefined);
   const [heightDragging, setHeightDragging] = useState(false);
   const [measuredHeight, setMeasuredHeight] = useState(height ?? MIN_COMPONENT_HEIGHT_PX);
@@ -85,9 +95,6 @@ export function ComponentFrame({
     lastHeight: number | null;
     captureTarget: HTMLElement;
   } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuPopoverRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const clickTimerRef = useRef<number | null>(null);
   const composition = useContext(CompositionContext);
   const compositionRef = useRef(composition);
@@ -281,62 +288,18 @@ export function ComponentFrame({
     });
   }, [compositionPointerSession]);
 
-  function positionMenu(anchorX: number, anchorY: number, alignRight: boolean): void {
-    const width = Math.min(224, window.innerWidth - 24);
-    const height = 208;
-    const requestedLeft = alignRight ? anchorX - width : anchorX;
-    setMenuPosition({
-      left: Math.max(12, Math.min(requestedLeft, window.innerWidth - width - 12)),
-      top: Math.max(12, Math.min(anchorY, window.innerHeight - height - 12)),
-    });
-  }
-
-  function toggleMenu(): void {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) positionMenu(rect.right, rect.bottom + 5, true);
-    setOpen(true);
-  }
-
   useEffect(() => {
     if (showComponentMenu) return;
-    setOpen(false);
-  }, [showComponentMenu]);
+    closeMenu();
+  }, [closeMenu, showComponentMenu]);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: PointerEvent): void => {
-      const target = event.target as Node;
-      if (!menuRef.current?.contains(target) && !menuPopoverRef.current?.contains(target)) setOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      requestAnimationFrame(() => triggerRef.current?.focus());
-    };
-    const closeOnViewportChange = (): void => setOpen(false);
-    document.addEventListener("pointerdown", closeOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    window.addEventListener("resize", closeOnViewportChange);
-    window.addEventListener("scroll", closeOnViewportChange, true);
-    requestAnimationFrame(() => {
-      menuPopoverRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']:not(:disabled)")?.focus();
-    });
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-      window.removeEventListener("resize", closeOnViewportChange);
-      window.removeEventListener("scroll", closeOnViewportChange, true);
-    };
-  }, [open]);
-
-  function choose(action: () => void): void {
-    setOpen(false);
-    action();
+  function performMenuAction(action: ComponentActionsMenuAction): void {
+    closeMenu();
+    if (action === "focus") onFocus(node.id);
+    else if (action === "edit") onEditComponent(node);
+    else if (action === "collapse") onToggleCollapse();
+    else if (action === "copy") onCopyPath(node);
+    else onOpenAgent(node);
   }
 
   useEffect(() => () => {
@@ -450,8 +413,7 @@ export function ComponentFrame({
         if (!showComponentMenu) return;
         event.preventDefault();
         event.stopPropagation();
-        positionMenu(event.clientX, event.clientY, false);
-        setOpen(true);
+        openAt(event.clientX, event.clientY);
       }}
     >
       {compositionPath && compositionPath.length > 0 ? (
@@ -482,7 +444,7 @@ export function ComponentFrame({
           aria-haspopup="menu"
           aria-expanded={open}
           title="Component menu"
-          onClick={toggleMenu}
+          onClick={toggleFromTrigger}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="4" cy="10" r="1.25" />
@@ -491,42 +453,14 @@ export function ComponentFrame({
           </svg>
         </button>
         {open && typeof document !== "undefined" ? createPortal(
-          <div
-            className="component-node__menu-popover"
-            ref={menuPopoverRef}
-            role="menu"
-            aria-label={`${name} component actions`}
+          <ComponentActionsMenu
+            popoverRef={menuPopoverRef}
             style={menuPosition}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              disabled={isVirtualRoot}
-              title={isVirtualRoot ? "This component is already focused." : undefined}
-              onClick={() => choose(() => onFocus(node.id))}
-            >
-              <span>Focus component</span>
-              {isVirtualRoot ? <small>Focused</small> : null}
-            </button>
-            <button type="button" role="menuitem" onClick={() => choose(() => onEditComponent(node))}>
-              Edit component
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              aria-expanded={!collapsed}
-              onClick={() => choose(onToggleCollapse)}
-            >
-              <span>{collapsed ? "Expand component" : "Collapse component"}</span>
-              {collapsed ? <small>Collapsed</small> : null}
-            </button>
-            <button type="button" role="menuitem" onClick={() => choose(() => onCopyPath(node))}>
-              Copy component path
-            </button>
-            <button type="button" role="menuitem" onClick={() => choose(() => onOpenAgent(node))}>
-              Change with agent…
-            </button>
-          </div>,
+            label={name}
+            focused={isVirtualRoot}
+            collapsed={collapsed}
+            onAction={performMenuAction}
+          />,
           document.body,
         ) : null}
       </div> : null}

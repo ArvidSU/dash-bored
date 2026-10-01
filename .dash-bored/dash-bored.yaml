@@ -345,6 +345,11 @@ root:
                             done: false
                             tags:
                               - chore
+                          - id: todo-030
+                            description: "Completed the milestone-one resumption: reviewed and committed S4, S12, and S14; completed S7 and S11. Continue with stores, host, and builtins in planned order."
+                            done: true
+                            tags:
+                              - chore
                           - id: todo-atoms-schema-migration
                             description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
                             done: false

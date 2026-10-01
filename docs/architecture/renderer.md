@@ -176,6 +176,10 @@ dashboard host. That change begins or updates the owning dashboard draft; it
 never reloads the project or bypasses Save/Cancel.
 The popover is rendered in a document-level fixed overlay with viewport
 clamping, so isolated or overflowing component frames cannot paint over it.
+The dashboard outline reuses the same five component actions and keyboard
+behavior; its menu opens at the pointer, while frame menus also open from the
+ellipsis control. Outline actions that edit presentation or run an agent are
+disabled when the owning dashboard is not active.
 Focusing a node builds a projection from the original resolved tree. Marked
 `persistOnFocus` ancestors on the target path become its effective parent
 chain, and marked direct siblings at each retained boundary keep their complete

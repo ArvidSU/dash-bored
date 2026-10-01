@@ -1,18 +1,13 @@
 import { createPortal } from "react-dom";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import type { ResolvedComponentNode } from "../../shared/contracts";
+import { ComponentActionsMenu, type ComponentActionsMenuAction } from "../lib/component-actions-menu";
 import { childNodes } from "../lib/component-children";
+import { useAnchoredMenu } from "../lib/use-anchored-menu";
 import { nodeLabel } from "../lib/virtual-root";
 
-export type DashboardOutlineNodeAction =
-  | "focus"
-  | "edit"
-  | "collapse"
-  | "copy"
-  | "agent";
-
-const OUTLINE_MENU_HEIGHT = 208;
+export type DashboardOutlineNodeAction = ComponentActionsMenuAction;
 
 interface OutlineBranchProps {
   node: ResolvedComponentNode;
@@ -36,51 +31,19 @@ function OutlineBranch({
   const children = childNodes(node);
   const label = nodeLabel(node, root);
   const [collapsed, setCollapsed] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const nodeButtonRef = useRef<HTMLButtonElement>(null);
-  const menuPopoverRef = useRef<HTMLDivElement>(null);
+  const {
+    open: menuOpen,
+    position: menuPosition,
+    triggerRef: nodeButtonRef,
+    popoverRef: menuPopoverRef,
+    openAt,
+    close: closeMenu,
+  } = useAnchoredMenu();
   const currentVirtualRoot = node.id === currentVirtualRootId;
   const componentCollapsed = collapsedNodeIds.has(node.id);
 
-  function positionMenu(anchorX: number, anchorY: number): void {
-    const width = Math.min(224, window.innerWidth - 24);
-    setMenuPosition({
-      left: Math.max(12, Math.min(anchorX, window.innerWidth - width - 12)),
-      top: Math.max(12, Math.min(anchorY, window.innerHeight - OUTLINE_MENU_HEIGHT - 12)),
-    });
-  }
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const closeOutside = (event: PointerEvent): void => {
-      const target = event.target as Node;
-      if (!menuPopoverRef.current?.contains(target)) setMenuOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setMenuOpen(false);
-      requestAnimationFrame(() => nodeButtonRef.current?.focus());
-    };
-    const closeOnViewportChange = (): void => setMenuOpen(false);
-    document.addEventListener("pointerdown", closeOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    window.addEventListener("resize", closeOnViewportChange);
-    window.addEventListener("scroll", closeOnViewportChange, true);
-    requestAnimationFrame(() => {
-      menuPopoverRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']:not(:disabled)")?.focus();
-    });
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-      window.removeEventListener("resize", closeOnViewportChange);
-      window.removeEventListener("scroll", closeOnViewportChange, true);
-    };
-  }, [menuOpen]);
-
   function choose(action: DashboardOutlineNodeAction): void {
-    setMenuOpen(false);
+    closeMenu();
     onAction(node, action);
   }
 
@@ -121,8 +84,7 @@ function OutlineBranch({
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            positionMenu(event.clientX, event.clientY);
-            setMenuOpen(true);
+            openAt(event.clientX, event.clientY);
           }}
         >
           <span className="sidebar-tree__node-label">{label}</span>
@@ -130,56 +92,15 @@ function OutlineBranch({
         </button>
       </div>
       {menuOpen && typeof document !== "undefined" ? createPortal(
-        <div
-          className="component-node__menu-popover"
-          ref={menuPopoverRef}
-          role="menu"
-          aria-label={`${label} component actions`}
+        <ComponentActionsMenu
+          popoverRef={menuPopoverRef}
           style={menuPosition}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            disabled={currentVirtualRoot}
-            title={currentVirtualRoot ? "This component is already focused." : undefined}
-            onClick={() => choose("focus")}
-          >
-            <span>Focus component</span>
-            {currentVirtualRoot ? <small>Focused</small> : null}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={!active}
-            title={!active ? "Open this dashboard before editing its component." : undefined}
-            onClick={() => choose("edit")}
-          >
-            Edit component
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            aria-expanded={active ? !componentCollapsed : undefined}
-            disabled={!active}
-            title={!active ? "Open this dashboard before changing its presentation." : undefined}
-            onClick={() => choose("collapse")}
-          >
-            <span>{componentCollapsed ? "Expand component" : "Collapse component"}</span>
-            {componentCollapsed ? <small>Collapsed</small> : null}
-          </button>
-          <button type="button" role="menuitem" onClick={() => choose("copy")}>
-            Copy component path
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={!active}
-            title={!active ? "Open this dashboard before asking the agent to change its component." : undefined}
-            onClick={() => choose("agent")}
-          >
-            Change with agent…
-          </button>
-        </div>,
+          label={label}
+          focused={currentVirtualRoot}
+          collapsed={componentCollapsed}
+          active={active}
+          onAction={choose}
+        />,
         document.body,
       ) : null}
       {children.length && !collapsed ? (
