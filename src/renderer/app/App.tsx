@@ -869,8 +869,7 @@ export function App(): ReactNode {
         if (change.themeMode) draft.themeMode = change.themeMode;
         else delete draft.themeMode;
       }
-      const nextSnapshot = await host.saveDashboardConfig(draft, source.configRevision, source.configPath);
-      if (nextSnapshot.configPath === snapshotRef.current?.configPath) setSnapshot(nextSnapshot);
+      await host.saveDashboardConfig(draft, source.configRevision, source.configPath);
       setDashboardSettings((current) => current.map((item) => item.configPath === dashboard.configPath
         ? { ...item, theme: draft.theme, themeMode: draft.themeMode, error: undefined }
         : item));
@@ -928,7 +927,6 @@ export function App(): ReactNode {
   async function repairInstalledTools(): Promise<void> {
     await perform("installed-tools-repair", async () => {
       const repaired = await host.repairInstalledTools();
-      setSnapshot(repaired);
       const hasConflicts = repaired.diagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT");
       showActionNotice(hasConflicts
         ? "Installed-tool repair needs attention; review the remaining warning."
