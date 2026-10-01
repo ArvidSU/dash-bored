@@ -1,4 +1,4 @@
-import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import type {
   FileReadRequest,
   FileWriteRequest,
@@ -13,6 +13,7 @@ import type {
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveContainedPath, resolveUncontainedPath } from "./paths";
 import { resolveEnvironment, type PublishedEnvironment } from "./environment";
+import { writeFileAtomically } from "./fs-atomic";
 
 const DEFAULT_FILE_LIMIT = 1024 * 1024;
 const DEFAULT_IMAGE_LIMIT = 2 * 1024 * 1024;
@@ -319,12 +320,9 @@ export class CapabilityService {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
 
-    const temporaryPath = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
     try {
-      await writeFile(temporaryPath, request.content, { encoding: "utf8", mode });
-      await rename(temporaryPath, path);
+      await writeFileAtomically(path, request.content, { mode });
     } catch (error) {
-      await rm(temporaryPath, { force: true }).catch(() => undefined);
       throw new CoreError("FILE_WRITE_FAILED", errorMessage(error), { cause: error });
     }
   }

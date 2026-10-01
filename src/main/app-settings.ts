@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { writeFileAtomically } from "../core/fs-atomic";
 import { CoreError } from "../core/diagnostics";
 import type { AppSettings } from "../shared/contracts";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
@@ -150,21 +150,17 @@ export class AppSettingsStore {
     return this.enqueueWrite(async () => {
       const previous = this.settings!;
       this.settings = next;
-      const temporaryPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
       try {
         await mkdir(dirname(this.path), { recursive: true });
-        await writeFile(
-          temporaryPath,
+        await writeFileAtomically(
+          this.path,
           `${JSON.stringify({ version: 2, ...next }, null, 2)}\n`,
           { mode: 0o600 },
         );
-        await rename(temporaryPath, this.path);
         return structuredClone(next);
       } catch (error) {
         this.settings = previous;
         throw error;
-      } finally {
-        await unlink(temporaryPath).catch(() => undefined);
       }
     });
   }

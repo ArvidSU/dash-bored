@@ -1,6 +1,5 @@
 import { execFile } from "node:child_process";
-import { rename, rm, stat, unlink, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { rm, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import type { DashboardLock, ExternalComponentLockEntry } from "../shared/contracts";
@@ -8,6 +7,7 @@ import { CoreError, errorMessage } from "./diagnostics";
 import { resolveProjectLocation, type ProjectLocation } from "./paths";
 import { EXTERNAL_NAME_PATTERN } from "./tree";
 import { parseDashboardLock, serializeDashboardLock } from "./yaml";
+import { writeFileAtomically } from "./fs-atomic";
 
 const execFileAsync = promisify(execFile);
 const FULL_SHA_PATTERN = /^[0-9a-fA-F]{40}$/;
@@ -151,12 +151,9 @@ async function readLock(location: ProjectLocation): Promise<DashboardLock> {
 }
 
 async function writeLock(location: ProjectLocation, lock: DashboardLock): Promise<void> {
-  const temporaryPath = `${location.lockPath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await writeFile(temporaryPath, serializeDashboardLock(lock), "utf8");
-    await rename(temporaryPath, location.lockPath);
+    await writeFileAtomically(location.lockPath, serializeDashboardLock(lock));
   } catch (error) {
-    await unlink(temporaryPath).catch(() => undefined);
     throw new CoreError(
       "COMPONENT_LOCK_WRITE_FAILED",
       `Could not write ${location.lockPath}: ${errorMessage(error)}`,

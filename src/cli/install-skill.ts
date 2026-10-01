@@ -1,21 +1,16 @@
-import { randomUUID } from "node:crypto";
 import {
   chmod,
-  constants,
-  link,
   lstat,
   mkdir,
-  open,
   readFile,
   realpath,
-  rename,
   stat,
   symlink,
-  unlink,
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DASH_BORED_SKILL_FILES, isExecutableSkillFile, skillContentHash } from "./skill-payload";
+import { writeFileAtomically } from "../core/fs-atomic";
 
 import { LEGACY_SKILL_PAYLOADS } from "./legacy-skill-hashes";
 
@@ -70,29 +65,19 @@ async function writeExclusiveAtomic(
   previous: string | null = null,
   mode = 0o644,
 ): Promise<void> {
-  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  const handle = await open(
-    temporaryPath,
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+  await writeFileAtomically(path, contents, {
     mode,
-  );
-  let closed = false;
-  try {
-    await handle.writeFile(contents, "utf8");
-    await handle.chmod(mode);
-    await handle.sync();
-    await handle.close();
-    closed = true;
-    if (previous === null) {
-      await link(temporaryPath, path);
-    } else {
-      if (await existingContents(path) !== previous) throw new Error(`Skill file changed during update: ${path}`);
-      await rename(temporaryPath, path);
-    }
-  } finally {
-    if (!closed) await handle.close().catch(() => undefined);
-    await unlink(temporaryPath).catch(() => undefined);
-  }
+    exactMode: true,
+    sync: true,
+    exclusive: previous === null,
+    ...(previous === null ? {} : {
+      beforePublish: async () => {
+        if (await existingContents(path) !== previous) {
+          throw new Error(`Skill file changed during update: ${path}`);
+        }
+      },
+    }),
+  });
 }
 
 async function existingSkillAlias(path: string, expectedTarget: string): Promise<boolean> {

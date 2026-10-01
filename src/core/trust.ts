@@ -1,7 +1,8 @@
-import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { Permission } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
+import { writeFileAtomically } from "./fs-atomic";
 
 interface TrustGrant {
   permissions: Permission[];
@@ -106,9 +107,7 @@ export class TrustStore {
 
   private async write(value: TrustFile): Promise<void> {
     await mkdir(dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-    await rename(temporaryPath, this.filePath);
+    await writeFileAtomically(this.filePath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
   }
 
   async getGrant(projectRoot: string): Promise<TrustGrantSnapshot | null> {

@@ -23,6 +23,13 @@ export function parseTheme(source: string): ThemeManifest {
   if (!validate(value)) throw new Error(`Invalid theme.yaml: ${new Ajv().errorsText(validate.errors)}`);
   return value as unknown as ThemeManifest;
 }
+export function parseThemeLock(source: string, file: string): { value: DashboardLock | null; diagnostics: string[]; invalidYaml: boolean } {
+  const doc = parseDocument(source, { uniqueKeys: true });
+  if (doc.errors.length || doc.warnings.length) return { value: null, diagnostics: [], invalidYaml: true };
+  const value = doc.toJS({ maxAliasCount: 0 }) as DashboardLock;
+  const diagnostics = validateDashboardLockValue(value, file).map((entry) => entry.message);
+  return diagnostics.length ? { value: null, diagnostics, invalidYaml: false } : { value, diagnostics: [], invalidYaml: false };
+}
 export async function readTheme(directory: string): Promise<ThemeManifest> {
   const root = await realpath(directory);
   const file = await realpath(join(directory, 'theme.yaml'));
@@ -39,40 +46,53 @@ async function itemAt(root: string, directory: string, reference: string): Promi
     return { reference, name: manifest.name, manifest };
   } catch (error) { return { reference, name: reference, error: error instanceof Error ? error.message : String(error) }; }
 }
+async function scanThemes(catalog: ThemeCatalogItem[], root: string, directory: string, prefix: string): Promise<void> {
+  let entries;
+  try { entries = await readdir(directory, { withFileTypes: true }); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; catalog.push({ reference: prefix, name: prefix, error: String(error) }); return; }
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(entry.name) || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
+    if (entry.name === 'external' && prefix === './themes/') { await scanThemes(catalog, root, join(directory, entry.name), './themes/external/'); continue; }
+    catalog.push(await itemAt(root, join(directory, entry.name), `${prefix}${entry.name}`));
+  }
+}
+
+// Read catalog pins and personal pins through one parser. Callers retain their
+// distinct user-facing error wrappers around its diagnostics.
+async function attachPins(catalog: ThemeCatalogItem[], root: string, filename: string, prefix: string): Promise<void> {
+  let parsed: ReturnType<typeof parseThemeLock>;
+  try { parsed = parseThemeLock(await readFile(join(root, filename), 'utf8'), filename); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    catalog.push({ reference: prefix, name: 'Theme pins unavailable', error: String(error) });
+    return;
+  }
+  if (!parsed.value) {
+    const message = parsed.invalidYaml ? 'Invalid theme lock file.' : parsed.diagnostics.join('; ');
+    catalog.push({ reference: prefix, name: 'Theme pins unavailable', error: `Error: ${message}` });
+    return;
+  }
+  for (const [name, pin] of Object.entries(parsed.value.themes ?? {})) {
+    const reference = `${prefix}${name}`;
+    let item = catalog.find((candidate) => candidate.reference === reference);
+    if (!item) { item = { reference, name, error: 'Theme checkout is missing. Run theme sync to restore the pinned revision.' }; catalog.push(item); }
+    item.git = { name, url: pin.url, commit: pin.commit };
+  }
+}
+
+async function loadProjectThemeCatalog(configDirectory: string): Promise<ThemeCatalogItem[]> {
+  const catalog: ThemeCatalogItem[] = [];
+  await scanThemes(catalog, configDirectory, join(configDirectory, 'themes'), './themes/');
+  await attachPins(catalog, configDirectory, 'dash-bored-lock.yaml', './themes/external/');
+  return catalog;
+}
+
 export async function loadThemeCatalog(configDirectory?: string, globalDirectory = personalThemesDirectory()): Promise<ThemeCatalogItem[]> {
   const catalog: ThemeCatalogItem[] = [BUILTIN_THEME];
-  async function scan(root: string, directory: string, prefix: string): Promise<void> {
-    let entries;
-    try { entries = await readdir(directory, { withFileTypes: true }); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; catalog.push({ reference: prefix, name: prefix, error: String(error) }); return; }
-    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(entry.name) || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
-      if (entry.name === 'external' && prefix === './themes/') { await scan(root, join(directory, entry.name), './themes/external/'); continue; }
-      catalog.push(await itemAt(root, join(directory, entry.name), `${prefix}${entry.name}`));
-    }
-  }
-  await scan(globalDirectory, globalDirectory, 'global:');
-  if (configDirectory) await scan(configDirectory, join(configDirectory, 'themes'), './themes/');
-  // Include pins even when their checkout is missing, so the UI can offer sync.
-  async function attachPins(root: string, filename: string, prefix: string) {
-    try {
-      const doc = parseDocument(await readFile(join(root, filename), 'utf8'), { uniqueKeys: true });
-      if (doc.errors.length || doc.warnings.length) throw new Error('Invalid theme lock file.');
-      const lock = doc.toJS({ maxAliasCount: 0 }) as DashboardLock;
-      const errors = validateDashboardLockValue(lock, filename);
-      if (errors.length) throw new Error(errors.map((error) => error.message).join('; '));
-      for (const [name, pin] of Object.entries(lock.themes ?? {})) {
-        const reference = `${prefix}${name}`;
-        let item = catalog.find((candidate) => candidate.reference === reference);
-        if (!item) { item = { reference, name, error: 'Theme checkout is missing. Run theme sync to restore the pinned revision.' }; catalog.push(item); }
-        item.git = { name, url: pin.url, commit: pin.commit };
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') catalog.push({ reference: prefix, name: 'Theme pins unavailable', error: String(error) });
-    }
-  }
-  await attachPins(globalDirectory, 'pins.yaml', 'global:');
-  if (configDirectory) await attachPins(configDirectory, 'dash-bored-lock.yaml', './themes/external/');
+  await scanThemes(catalog, globalDirectory, globalDirectory, 'global:');
+  if (configDirectory) await scanThemes(catalog, configDirectory, join(configDirectory, 'themes'), './themes/');
+  await attachPins(catalog, globalDirectory, 'pins.yaml', 'global:');
+  if (configDirectory) await attachPins(catalog, configDirectory, 'dash-bored-lock.yaml', './themes/external/');
   return catalog;
 }
 
@@ -88,7 +108,7 @@ export async function loadApplicationThemeCatalog(
   const catalog = await loadThemeCatalog(undefined, globalDirectory);
   const seen = new Set(catalog.map((item) => item.reference));
   for (const source of sources) {
-    const localCatalog = await loadThemeCatalog(source.configDirectory, globalDirectory);
+    const localCatalog = await loadProjectThemeCatalog(source.configDirectory);
     for (const item of localCatalog.filter((candidate) => /^\.\/themes(?:\/external)?\/[A-Za-z][A-Za-z0-9_-]*$/.test(candidate.reference))) {
       const reference = projectThemeReference(source.configPath, item.reference);
       if (seen.has(reference)) continue;

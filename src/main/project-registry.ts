@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import type { ProjectListItem, ProjectSnapshot } from "../shared/contracts";
 import { CONFIG_DIRECTORY, CONFIG_FILE } from "../shared/contracts";
+import { writeFileAtomically } from "../core/fs-atomic";
 
 interface StoredProjectRegistry {
   version: 1;
@@ -56,13 +56,11 @@ export class ProjectRegistry {
 
   private async persist(): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true });
-    const temporaryPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(
-      temporaryPath,
+    await writeFileAtomically(
+      this.path,
       `${JSON.stringify({ version: 1, projects: this.projects }, null, 2)}\n`,
       { mode: 0o600 },
     );
-    await rename(temporaryPath, this.path);
   }
 
   private load(): Promise<void> {

@@ -45,6 +45,8 @@ test('catalog reads local themes without executing anything and rejects escaping
 });
 test('application theme catalog aggregates project packages with stable references', async () => {
   const first = await temp(); const second = await temp(); const global = await temp();
+  await mkdir(join(global, 'ocean'), { recursive: true });
+  await writeFile(join(global, 'ocean', 'theme.yaml'), stringify({ ...manifest, name: 'Global Ocean' }));
   for (const [root, id, name] of [[first, 'retro', 'Retro'], [second, 'retro', 'Retro Other']] as const) {
     await mkdir(join(root, 'themes', id), { recursive: true });
     await writeFile(join(root, 'themes', id, 'theme.yaml'), stringify({ ...manifest, id, name }));
@@ -60,6 +62,22 @@ test('application theme catalog aggregates project packages with stable referenc
   expect(catalog.find((item) => item.reference === firstReference)).toMatchObject({ name: 'Retro', displayReference: 'First dashboard · ./themes/retro' });
   expect(catalog.find((item) => item.reference === secondReference)).toMatchObject({ name: 'Retro Other', displayReference: 'Second dashboard · ./themes/retro' });
   expect(catalog.filter((item) => item.reference.startsWith('project:'))).toHaveLength(2);
+  expect(catalog.filter((item) => item.reference === 'global:ocean')).toHaveLength(1);
+  expect(catalog.find((item) => item.reference === 'global:ocean')?.name).toBe('Global Ocean');
+});
+test('catalog discovery and global package operations share pins parsing with distinct error messages', async () => {
+  const global = await temp();
+  const pins = join(global, 'pins.yaml');
+  await writeFile(pins, 'lockfileVersion: 1\ncomponents: {}\nthemes: [\n');
+  const catalog = await loadThemeCatalog(undefined, global);
+  expect(catalog.find((item) => item.reference === 'global:')).toMatchObject({
+    name: 'Theme pins unavailable', error: 'Error: Invalid theme lock file.',
+  });
+  await expect(statusThemes({ global: true, globalDirectory: global })).rejects.toThrow('Invalid personal theme pins.yaml.');
+  await writeFile(pins, 'lockfileVersion: 1\ncomponents: {}\nthemes:\n  ocean:\n    url: https://example.invalid/ocean.git\n    commit: "0123456789012345678901234567890123456789"\n    path: themes/external/other\n');
+  const invalidCatalog = await loadThemeCatalog(undefined, global);
+  expect(invalidCatalog.find((item) => item.reference === 'global:')?.error).toContain('Theme ocean must pin themes/external/ocean.');
+  await expect(statusThemes({ global: true, globalDirectory: global })).rejects.toThrow('Theme ocean must pin themes/external/ocean.');
 });
 test('generated public schema, CSS defaults and token reference are current', async () => {
   for (const [path, expected] of Object.entries(themeArtifacts)) expect(await readFile(path, 'utf8')).toBe(expected);

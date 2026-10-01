@@ -1,11 +1,6 @@
-import { randomUUID } from "node:crypto";
 import {
-  constants,
-  link,
   lstat,
   mkdir,
-  open,
-  rename,
   stat,
   unlink,
 } from "node:fs/promises";
@@ -27,6 +22,7 @@ import {
   type ProjectLocation,
   type ResolveProjectLocationOptions,
 } from "./paths";
+import { writeFileAtomically } from "./fs-atomic";
 
 export interface ProjectFilesResult {
   location: ProjectLocation;
@@ -94,25 +90,7 @@ async function existingFile(path: string, label: string): Promise<boolean> {
 }
 
 async function writeExclusiveAtomic(path: string, contents: string, mode = 0o644): Promise<void> {
-  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  const handle = await open(
-    temporaryPath,
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
-    mode,
-  );
-  let closed = false;
-  try {
-    await handle.writeFile(contents, "utf8");
-    await handle.sync();
-    await handle.close();
-    closed = true;
-    // A same-directory hard link publishes the complete file atomically and
-    // fails with EEXIST rather than replacing a file created concurrently.
-    await link(temporaryPath, path);
-  } finally {
-    if (!closed) await handle.close().catch(() => undefined);
-    await unlink(temporaryPath).catch(() => undefined);
-  }
+  await writeFileAtomically(path, contents, { mode, sync: true, exclusive: true });
 }
 
 export async function replaceDashboardConfigAtomic(
@@ -125,23 +103,11 @@ export async function replaceDashboardConfigAtomic(
     throw new Error(`dash-bored configuration must be a regular file: ${location.configPath}`);
   }
 
-  const temporaryPath = `${location.configPath}.${process.pid}.${randomUUID()}.tmp`;
-  const handle = await open(
-    temporaryPath,
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
-    0o644,
+  await writeFileAtomically(
+    location.configPath,
+    stringify(config, { lineWidth: 0 }),
+    { mode: 0o644, sync: true },
   );
-  let closed = false;
-  try {
-    await handle.writeFile(stringify(config, { lineWidth: 0 }), "utf8");
-    await handle.sync();
-    await handle.close();
-    closed = true;
-    await rename(temporaryPath, location.configPath);
-  } finally {
-    if (!closed) await handle.close().catch(() => undefined);
-    await unlink(temporaryPath).catch(() => undefined);
-  }
 }
 
 export function starterAgentPrompt(projectName: string, configPath?: string): string {

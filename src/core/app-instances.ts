@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AppInstanceRecord } from "../shared/agent-control";
 import { CoreError } from "./diagnostics";
+import { writeFileAtomically } from "./fs-atomic";
 
 /** Unix socket paths are limited to roughly 104 bytes on macOS. */
 const MAX_SOCKET_PATH_BYTES = 100;
@@ -33,9 +34,7 @@ function recordPath(identifier: string, homeDirectory: string): string {
 }
 
 async function atomicWrite(path: string, contents: string): Promise<void> {
-  const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, contents, { mode: 0o600 });
-  await rename(temporary, path);
+  await writeFileAtomically(path, contents, { mode: 0o600 });
 }
 
 export async function publishAppInstance(record: AppInstanceRecord, homeDirectory = homedir()): Promise<void> {

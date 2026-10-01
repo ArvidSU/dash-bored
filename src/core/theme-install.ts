@@ -1,14 +1,14 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, lstat, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, lstat, realpath } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { parseDocument } from 'yaml';
 import type { DashboardLock } from '../shared/contracts';
-import { parseDashboardLock, serializeDashboardLock, validateDashboardLockValue } from './yaml';
+import { parseDashboardLock, serializeDashboardLock } from './yaml';
 import { resolveProjectLocation } from './paths';
 import { resolveRemoteCommit } from './external-components';
-import { parseTheme, personalThemesDirectory, readTheme } from './themes';
+import { parseTheme, parseThemeLock, personalThemesDirectory, readTheme } from './themes';
+import { writeFileAtomically } from './fs-atomic';
 
 const exec = promisify(execFile);
 export async function themeGit(cwd: string, args: string[]): Promise<string> {
@@ -40,28 +40,31 @@ async function storeFor(target: ThemeInstallTarget): Promise<Store> {
   const lockPath = join(root, global ? 'pins.yaml' : 'dash-bored-lock.yaml');
   let lock: DashboardLock;
   if (global) {
-    try {
-      const doc = parseDocument(await readFile(lockPath, 'utf8'), { uniqueKeys: true });
-      if (doc.errors.length || doc.warnings.length) throw new Error('Invalid personal theme pins.yaml.');
-      lock = doc.toJS({ maxAliasCount: 0 }) as DashboardLock;
-      const errors = validateDashboardLockValue(lock, lockPath);
-      if (errors.length) throw new Error(errors.map((e) => e.message).join('; '));
-    } catch (error) {
+    let source: string | undefined;
+    try { source = await readFile(lockPath, 'utf8'); }
+    catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    if (source === undefined) {
       lock = { lockfileVersion: 1, components: {}, themes: {} };
+    } else {
+      const parsed = parseThemeLock(source, lockPath);
+      if (!parsed.value) {
+        if (parsed.invalidYaml) throw new Error('Invalid personal theme pins.yaml.');
+        throw new Error(parsed.diagnostics.join('; '));
+      }
+      lock = parsed.value;
     }
   } else {
     const parsed = await parseDashboardLock(lockPath);
-    if (!parsed.value) throw new Error(parsed.diagnostics.map((e) => e.message).join('; '));
+    if (!parsed.value) throw new Error(parsed.diagnostics.map((entry) => entry.message).join('; '));
     lock = parsed.value;
   }
   return { root, lockPath, global, lock };
 }
 async function exists(path: string): Promise<boolean> { try { await lstat(path); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false; throw e; } }
 async function writePins(store: Store, themes: NonNullable<DashboardLock['themes']>): Promise<void> {
-  const temporary = `${store.lockPath}.${randomUUID()}.tmp`;
-  try { await writeFile(temporary, serializeDashboardLock({ ...store.lock, themes }), { mode: 0o600 }); await rename(temporary, store.lockPath); }
-  finally { await rm(temporary, { force: true }); }
+  await writeFileAtomically(store.lockPath, serializeDashboardLock({ ...store.lock, themes }), { mode: 0o600 });
 }
 async function checkoutPath(store: Store, name: string): Promise<string> {
   const path = join(store.root, store.global ? '' : 'themes/external', themeName(name));

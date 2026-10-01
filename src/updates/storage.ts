@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { UpdateSettings } from "../shared/updates";
+import { writeFileAtomically } from "../core/fs-atomic";
 
 /** Shared by all release app/CLI entrypoints; never inside a replaced bundle. */
 export function updateDirectory(): string { return join(homedir(), ".config", "dash-bored", "updates"); }
@@ -12,9 +12,7 @@ export async function readJson(path: string): Promise<unknown | null> {
 }
 export async function atomicJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temp = `${path}.${randomUUID()}.tmp`;
-  try { await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 }); await rename(temp, path); }
-  finally { await rm(temp, { force: true }); }
+  await writeFileAtomically(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 }
 export function validateUpdateSettings(value: unknown): UpdateSettings {
   const s = value as UpdateSettings;

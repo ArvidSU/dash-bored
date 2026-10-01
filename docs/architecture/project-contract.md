@@ -62,6 +62,9 @@ without discarding project state.
 README and installer helper files are project-owned and never overwritten,
 including during explicit initialization. They use the same exclusive atomic
 publication and rollback as the configuration, lock, and environment files.
+Atomic writes use a unique sibling temporary file and publish by hard link for
+create-only files or rename for replacements; the owning operation retains
+directory creation, mode selection, validation, and rollback.
 The README explains the portable bundle and links to GitHub Releases. Its
 command runs the adjacent helper from the project root; named bundles receive
 their own correct path and chooser instructions. The helper reads the adjacent
