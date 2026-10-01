@@ -56,9 +56,13 @@ Pure helpers and their contracts:
   resizing, drag/drop affordances.
 - `render/NodeRenderer.tsx` — recursive node rendering plus the staggered
   update-polish batch hook.
-- `app/use-dashboard-view-state.ts` — renderer-owned presentation state
-  (collapse, split ratios, height caps, focused target, selected managed child) with per-dashboard
-  localStorage persistence; never part of a draft.
+- `lib/dashboard-view-state.ts` — the one keyed store for renderer-owned
+  presentation state (collapse, split ratios, height caps, focused target,
+  selected managed child) per dashboard config path, with one localStorage
+  codec. Reads prune IDs the tree no longer contains; a new tree or focus
+  expands the focus path once, so later collapses inside the focus stand.
+  `app/use-dashboard-view-state.ts` subscribes to it with
+  `useSyncExternalStore`. Never part of a draft.
 - `panels/DiagnosticsPanel.tsx`, `panels/TrustPanel.tsx`, `panels/EmptyProject.tsx`,
   `panels/AgentPromptPanel.tsx`, `panels/SettingsPanel.tsx` — app-level panels.
 - `app/AppDialogs.tsx` — all dashboard modals (composition, removal, agent,

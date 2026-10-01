@@ -12,13 +12,10 @@ import type {
   ResolvedComponentNode,
 } from "../../shared/contracts";
 import { childEdges } from "../lib/component-children";
-import type { ComponentHeightOverrides } from "../lib/component-height";
 import type { SplitRatioOverrides } from "../render/split-layout";
 import type { ThemeCatalogItem } from "../../shared/themes";
 
-export const EMPTY_COLLAPSED_COMPONENT_IDS = new Set<string>();
 export const EMPTY_SPLIT_RATIO_OVERRIDES: Readonly<SplitRatioOverrides> = Object.freeze({});
-export const EMPTY_COMPONENT_HEIGHT_OVERRIDES: Readonly<ComponentHeightOverrides> = Object.freeze({});
 
 export function replaceProcess(
   snapshot: ProjectSnapshot,
