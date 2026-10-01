@@ -75,6 +75,27 @@ function childContract(manifest: ComponentManifest): ReactNode {
   );
 }
 
+function ManifestSummary({ manifest }: { manifest: ComponentManifest | null }): ReactNode {
+  return (
+    <>
+      <p style={{ margin: 0 }}>{manifest?.description ?? "Manifest metadata is unavailable."}</p>
+      {manifest ? (
+        <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
+          <span>
+            Sizing: {manifest.renderMode === "layout" ? "organizational layout" : "resizable surface"}
+          </span>
+          {childContract(manifest)}
+          <span>
+            Permissions: {manifest.permissions?.length
+              ? manifest.permissions.map((permission) => PERMISSION_LABELS[permission]).join(", ")
+              : "none"}
+          </span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 const cardStyle: CSSProperties = {
   display: "grid",
   gap: "0.55rem",
@@ -372,20 +393,7 @@ export function CompositionFlyout({
           </div>
           <span style={{ whiteSpace: "nowrap" }}>{provenanceLabels[entry.source] ?? entry.source}</span>
         </div>
-        <p style={{ margin: 0 }}>{manifest?.description ?? "Manifest metadata is unavailable."}</p>
-        {manifest ? (
-          <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
-            <span>
-              Sizing: {manifest.renderMode === "layout" ? "organizational layout" : "resizable surface"}
-            </span>
-            {childContract(manifest)}
-            <span>
-              Permissions: {manifest.permissions?.length
-                ? manifest.permissions.map((permission) => PERMISSION_LABELS[permission]).join(", ")
-                : "none"}
-            </span>
-          </div>
-        ) : null}
+        <ManifestSummary manifest={manifest} />
         {externalInfo ? (
           <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
             {externalInfo.url ? (
@@ -678,22 +686,7 @@ export function CompositionFlyout({
         onDismiss={closeManagedExternal}
       >
         <div style={{ display: "grid", gap: "0.75rem", padding: "1rem" }}>
-          <p style={{ margin: 0 }}>
-            {managedExternal.manifest?.description ?? "Manifest metadata is unavailable."}
-          </p>
-          {managedExternal.manifest ? (
-            <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
-              <span>
-                Sizing: {managedExternal.manifest.renderMode === "layout" ? "organizational layout" : "resizable surface"}
-              </span>
-              {childContract(managedExternal.manifest)}
-              <span>
-                Permissions: {managedExternal.manifest.permissions?.length
-                  ? managedExternal.manifest.permissions.map((permission) => PERMISSION_LABELS[permission]).join(", ")
-                  : "none"}
-              </span>
-            </div>
-          ) : null}
+          <ManifestSummary manifest={managedExternal.manifest} />
           <div style={{ display: "grid", gap: "0.25rem", color: "var(--muted)" }}>
             {managedExternalInfo.url ? (
               <span>Source: <code style={{ overflowWrap: "anywhere" }}>{managedExternalInfo.url}</code></span>

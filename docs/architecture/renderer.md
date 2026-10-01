@@ -410,7 +410,9 @@ keyboard focus can reveal a focused control independently. Hidden ancestor
 controls do not intercept pointer input, and component content has no drag
 semantics. Composition drags use pointer sessions and carry their payload in
 renderer state; native HTML5 drag remains limited to dashboard reordering and
-the temporary DashboardEditor workbench. Custom components do not need special
+the temporary DashboardEditor workbench. Catalog cards and the external-component
+management dialog share a manifest summary for description, sizing, child
+contract, and requested permissions. Custom components do not need special
 markup.
 External-component add, update, remove, and sync run in the app through the
 `manageExternalComponent` RPC; the flyout does not present commands to copy.

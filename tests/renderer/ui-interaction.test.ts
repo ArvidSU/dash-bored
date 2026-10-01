@@ -97,6 +97,21 @@ afterAll(async () => {
 });
 
 describe("renderer fixture interactions", () => {
+  test("component cards show their manifest summary", async () => {
+    const active = currentPage();
+    await active.getByRole("button", { name: "Open component library" }).click();
+    try {
+      const conditional = active.locator(".right-drawer li").filter({ hasText: "@dash-bored/conditional" });
+      await conditional.getByText("Fixture conditional component.").waitFor();
+      const summary = await conditional.innerText();
+      expect(summary).toContain("Sizing: organizational layout");
+      expect(summary).toContain("Children: minimum 1, maximum 1; tiled horizontally or vertically");
+      expect(summary).toContain("Permissions: Run project commands");
+    } finally {
+      await active.getByRole("button", { name: "Close Component library", exact: true }).click();
+    }
+  });
+
   test("right drawer keeps normal Tab navigation instead of trapping focus", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open component library" }).click();
