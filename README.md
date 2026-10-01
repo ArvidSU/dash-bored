@@ -193,7 +193,10 @@ With those tools an agent can:
   read its state (`app status`), list and run the same command-palette actions
   you can (`app actions [<filter>]`, `app run <action>`), open a dashboard
   (`app open <dashboard>`), and capture the app window to check the result
-  visually (`app screenshot [--focus <node-id>]`).
+  visually (`app screenshot [--focus <node-id>]`). `app run` and `app screenshot`
+  wait up to ten seconds for views to finish loading their sources, so a
+  refresh is complete when the command returns; `--timeout <ms>` changes the
+  bound and `app run --no-wait` skips the wait. Started commands keep running.
 
 The control channel never widens what an action can do. Trust, starting,
 saving, or cancelling a dashboard edit, the Add dashboard chooser, and any

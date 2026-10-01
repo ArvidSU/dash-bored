@@ -29,7 +29,7 @@ modules under feature directories:
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
   `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
   `clipboard.ts`, `state-visual.tsx` (shared semantic state shapes and action verbs), `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
-  `selection-actions.ts` (core select/reveal actions), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
+  `selection-actions.ts` (core select/reveal actions), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
 - `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one

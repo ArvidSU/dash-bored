@@ -1,4 +1,5 @@
 import { Electroview } from "electrobun/view";
+import { whenIdle } from "./activity";
 import type {
   AppSettings,
   ComponentAgentLaunch,
@@ -136,6 +137,7 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
         await nextPaint();
         return {};
       },
+      agentIdle: async ({ timeoutMs }) => ({ idle: await whenIdle(timeoutMs, nextPaint) }),
     },
     messages: {
       themes: (catalog) => emit({ type: "themes", catalog }),

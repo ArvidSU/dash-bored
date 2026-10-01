@@ -1,11 +1,13 @@
 import { chmod, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
-import type {
-  AgentActionDescriptor,
-  AgentRunActionRequest,
-  AgentRunActionResult,
-  AgentViewState,
-  AppInstanceRecord,
+import {
+  DEFAULT_IDLE_TIMEOUT_MS,
+  MAX_IDLE_TIMEOUT_MS,
+  type AgentActionDescriptor,
+  type AgentRunActionRequest,
+  type AgentRunActionResult,
+  type AgentViewState,
+  type AppInstanceRecord,
 } from "../shared/agent-control";
 import { CoreError } from "../core/index";
 import { publishAppInstance, withdrawAppInstance } from "../core/app-instances";
@@ -16,6 +18,11 @@ export interface AgentControlBridge {
   runAction(request: AgentRunActionRequest): Promise<AgentRunActionResult>;
   /** Resolves after the renderer has painted pending updates. */
   settle(): Promise<void>;
+  /**
+   * Resolves true once no source fetches are in flight for mounted views
+   * (then after a paint), or false when `timeoutMs` elapses first.
+   */
+  idle(timeoutMs: number): Promise<boolean>;
   capture(): Promise<Uint8Array<ArrayBuffer>>;
   openDashboard(configPath: string): Promise<void>;
 }
@@ -30,6 +37,9 @@ const MAX_BODY_BYTES = 64 * 1024;
 const SETTLE_TIMEOUT_MS = 5_000;
 const NOT_RENDERING =
   "The dash-bored window is not rendering, usually because it is minimized or hidden. Ask the user to show it, then retry.";
+
+const IDLE_TIMED_OUT = (timeoutMs: number) =>
+  `The app was still loading after ${timeoutMs} ms; the state may not be final. Re-read status or retry with a larger --timeout.`;
 
 function json(value: unknown, status = 200): Response {
   return new Response(`${JSON.stringify(value)}\n`, { status, headers: { "content-type": "application/json" } });
@@ -53,6 +63,14 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
     throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "The request body must be a JSON object.");
   }
   return value as Record<string, unknown>;
+}
+
+function idleTimeout(value: unknown): number {
+  if (value === undefined) return DEFAULT_IDLE_TIMEOUT_MS;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > MAX_IDLE_TIMEOUT_MS) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", `timeoutMs must be between 0 and ${MAX_IDLE_TIMEOUT_MS}.`);
+  }
+  return Math.floor(value);
 }
 
 function selections(value: unknown): Record<string, string> | undefined {
@@ -88,6 +106,19 @@ export async function startAgentControlServer(
     }
   }
 
+  /** The renderer bounds the wait itself; the extra margin only guards a stuck paint. */
+  async function idle(timeoutMs: number): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const backstop = new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs + (options.settleTimeoutMs ?? SETTLE_TIMEOUT_MS));
+    });
+    try {
+      return await Promise.race([bridge.idle(timeoutMs), backstop]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   const server = Bun.serve({
     unix: identity.socketPath,
     async fetch(request) {
@@ -106,8 +137,17 @@ export async function startAgentControlServer(
           }
           const selected = selections(body.selections);
           const result = await bridge.runAction({ reference: body.reference, ...(selected ? { selections: selected } : {}) });
-          const warning = await settled() ? {} : { warning: NOT_RENDERING };
-          return json({ result, state: await bridge.viewState(), ...warning }, result.status === "completed" ? 200 : 409);
+          if (body.wait !== undefined && typeof body.wait !== "boolean") {
+            throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "wait must be true or false.");
+          }
+          const timeoutMs = idleTimeout(body.timeoutMs);
+          let wait: { idle?: boolean; warning?: string } = {};
+          if (!await settled()) wait = { warning: NOT_RENDERING };
+          else if (body.wait !== false) {
+            const quiet = await idle(timeoutMs);
+            wait = quiet ? { idle: true } : { idle: false, warning: IDLE_TIMED_OUT(timeoutMs) };
+          }
+          return json({ result, state: await bridge.viewState(), ...wait }, result.status === "completed" ? 200 : 409);
         }
         if (request.method === "POST" && pathname === "/v1/open") {
           const body = await readBody(request);
@@ -122,9 +162,14 @@ export async function startAgentControlServer(
           return json({ state: await bridge.viewState(), ...warning });
         }
         if (request.method === "POST" && pathname === "/v1/screenshot") {
+          const body = await readBody(request);
+          const timeoutMs = idleTimeout(body.timeoutMs);
           if (!await settled()) throw new CoreError("APP_WINDOW_NOT_RENDERING", NOT_RENDERING);
+          const quiet = await idle(timeoutMs);
           const png = await bridge.capture();
-          return new Response(png, { headers: { "content-type": "image/png" } });
+          return new Response(png, {
+            headers: { "content-type": "image/png", ...(quiet ? {} : { "x-dash-bored-idle": "false" }) },
+          });
         }
         throw new CoreError("AGENT_CONTROL_NOT_FOUND", `Unknown agent-control route ${request.method} ${pathname}.`);
       } catch (error) {

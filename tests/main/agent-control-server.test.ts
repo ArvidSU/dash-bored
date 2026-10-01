@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { instanceSocketPath, listAppInstances, selectAppInstance } from "../../src/core/app-instances";
 import { startAgentControlServer, type AgentControlBridge } from "../../src/main/agent-control-server";
-import { agentActionRefusal, type AgentRunActionRequest, type AgentViewState } from "../../src/shared/agent-control";
+import { agentActionRefusal, suggestActions, unknownActionReason, type AgentRunActionRequest, type AgentViewState } from "../../src/shared/agent-control";
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -30,6 +30,7 @@ function fakeBridge() {
   };
   const runs: AgentRunActionRequest[] = [];
   const opened: string[] = [];
+  const idleCalls: number[] = [];
   const bridge: AgentControlBridge = {
     viewState: async () => ({ ...state }),
     listActions: async () => [
@@ -39,14 +40,19 @@ function fakeBridge() {
     runAction: async (request) => {
       runs.push(request);
       if (request.reference === "project:trust") return { status: "refused", id: request.reference, reason: "reserved" };
+      if (request.reference === "focus:missing") {
+        const suggestions = ["focus:logs"];
+        return { status: "unavailable", reason: unknownActionReason(request.reference, suggestions), suggestions };
+      }
       state.focusedNodeId = decodeURIComponent(request.reference.replace(/^focus:/, ""));
       return { status: "completed", id: request.reference };
     },
     settle: async () => undefined,
+    idle: async (timeoutMs) => { idleCalls.push(timeoutMs); return true; },
     capture: async () => PNG,
     openDashboard: async (configPath) => { opened.push(configPath); },
   };
-  return { bridge, state, runs, opened };
+  return { bridge, state, runs, opened, idleCalls };
 }
 
 async function cli(homeDirectory: string, ...args: string[]) {
@@ -195,4 +201,94 @@ test("trust, draft lifecycle, and confirmations are reserved for the user", () =
   expect(agentActionRefusal({ id: "component:x:y", confirmation: { title: "Deploy?" } })).toBeDefined();
   expect(agentActionRefusal({ id: "focus:logs" })).toBeUndefined();
   expect(agentActionRefusal({ id: "agent:prompt" })).toContain("user review");
+});
+
+test("run waits for the renderer to go idle, and --no-wait skips it", async () => {
+  const homeDirectory = await home();
+  let finished = false;
+  const { idleCalls } = await serve(homeDirectory, undefined, {
+    idle: async () => { await Bun.sleep(150); finished = true; return true; },
+  });
+
+  const waited = await cli(homeDirectory, "run", "focus:logs");
+  expect(finished).toBe(true);
+  expect(JSON.parse(waited.stdout)).toMatchObject({ result: { status: "completed" }, idle: true });
+  expect(JSON.parse(waited.stdout).warning).toBeUndefined();
+
+  finished = false;
+  const skipped = await cli(homeDirectory, "run", "focus:logs", "--no-wait");
+  expect(finished).toBe(false);
+  expect(JSON.parse(skipped.stdout).idle).toBeUndefined();
+  expect(idleCalls).toEqual([]);
+});
+
+test("the idle wait defaults to ten seconds and a timeout returns idle false with a warning", async () => {
+  const homeDirectory = await home();
+  const calls: number[] = [];
+  await serve(homeDirectory, undefined, { idle: async (timeoutMs) => { calls.push(timeoutMs); return calls.length > 1; } });
+
+  const timedOut = await cli(homeDirectory, "run", "focus:logs");
+  expect(timedOut.exitCode).toBe(0);
+  expect(JSON.parse(timedOut.stdout)).toMatchObject({ idle: false, warning: expect.stringContaining("still loading") });
+
+  await cli(homeDirectory, "run", "focus:logs", "--timeout", "250");
+  expect(calls).toEqual([10_000, 250]);
+});
+
+test("a hung renderer idle request is cut off after the timeout plus the paint backstop", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory, undefined, { idle: () => new Promise<boolean>(() => undefined) }, 50);
+  const run = await cli(homeDirectory, "run", "focus:logs", "--timeout", "20");
+  expect(JSON.parse(run.stdout)).toMatchObject({ result: { status: "completed" }, idle: false });
+});
+
+test("screenshots wait for idle but still capture, noting a timeout", async () => {
+  const homeDirectory = await home();
+  const { idleCalls } = await serve(homeDirectory);
+  const output = join(homeDirectory, "idle.png");
+  const shot = await cli(homeDirectory, "screenshot", "--output", output, "--timeout", "500");
+  expect(shot.exitCode).toBe(0);
+  expect(idleCalls).toEqual([500]);
+  expect(JSON.parse(shot.stdout).idle).toBeUndefined();
+
+  const stuck = await serve(await home(), "dev.dash-bored.other", { idle: async () => false });
+  const response = await fetch("http://dash-bored/v1/screenshot", { method: "POST", unix: stuck.server.record.socketPath, body: "{}" } as RequestInit);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("x-dash-bored-idle")).toBe("false");
+});
+
+test("unknown focus targets name the missing node and suggest close matches", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory);
+  const result = await cli(homeDirectory, "screenshot", "--focus", "missing", "--output", join(homeDirectory, "x.png"));
+  expect(result.exitCode).toBe(1);
+  const { result: outcome } = JSON.parse(result.stdout);
+  expect(outcome.reason).toContain("Node missing is not in the active dashboard");
+  expect(outcome.reason).toContain("focus:logs");
+  expect(outcome.reason).toContain("app actions focus");
+});
+
+test("action suggestions rank substring and near matches and unknown ids point to app actions", () => {
+  const known = [
+    { id: "focus:logs", reference: "focus:logs" },
+    { id: "focus:build", reference: "focus:build" },
+    { id: "component:workspace-status:refresh", reference: "component:workspace-status:refresh" },
+    { id: "theme:dark" },
+    ...Array.from({ length: 8 }, (_, index) => ({ id: `focus:no-such-node-${index}` })),
+  ];
+  expect(suggestActions("focus:log", known)).toEqual(["focus:logs"]);
+  expect(suggestActions("focus:bulid", known)).toContain("focus:build");
+  expect(suggestActions("workspace-status", known)).toEqual(["component:workspace-status:refresh"]);
+  expect(suggestActions("focus:no-such", known)).toHaveLength(5);
+  expect(suggestActions("zzzzzzzz", known)).toEqual([]);
+  const reason = unknownActionReason("focus:no-such-node", ["focus:logs"]);
+  expect(reason).toContain("No action matches focus:no-such-node.");
+  expect(reason).toContain("Close matches: focus:logs.");
+  expect(reason).toContain("dash-bored app actions <filter>");
+  expect(unknownActionReason("x", [])).not.toContain("Close matches");
+});
+
+test("user-only ids are refused by id alone, even when the action is not registered", () => {
+  expect(agentActionRefusal({ id: "project:trust" })).toContain("reserved for the user");
+  expect(agentActionRefusal({ id: "app:add-dashboard" })).toContain("reserved for the user");
 });

@@ -1,4 +1,5 @@
 import type { LocalComponentHost } from "../../shared/contracts";
+import { trackActivity } from "./activity";
 
 export type DashboardSource = {
   shell?: string; file?: string; http?: string; process?: string; inline?: unknown;
@@ -9,7 +10,11 @@ export function decodeSourceText(text: string): unknown {
   try { return JSON.parse(text) as unknown; } catch { return text; }
 }
 
-export async function readDashboardSource(source: DashboardSource, host: LocalComponentHost): Promise<unknown> {
+export function readDashboardSource(source: DashboardSource, host: LocalComponentHost): Promise<unknown> {
+  return trackActivity(readSource(source, host));
+}
+
+async function readSource(source: DashboardSource, host: LocalComponentHost): Promise<unknown> {
   const kinds = (["shell", "file", "http", "process", "inline"] as const).filter((kind) => kind in source);
   if (kinds.length !== 1) throw new Error("Source must define exactly one of shell, file, http, process, or inline.");
   switch (kinds[0]) {

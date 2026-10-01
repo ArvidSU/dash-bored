@@ -83,6 +83,7 @@ export type DashboardRPC = {
       agentListActions: { params: {}; response: import("./agent-control").AgentActionDescriptor[] };
       agentRunAction: { params: import("./agent-control").AgentRunActionRequest; response: import("./agent-control").AgentRunActionResult };
       agentSettle: { params: {}; response: {} };
+      agentIdle: { params: { timeoutMs: number }; response: { idle: boolean } };
     };
     messages: {
       themes: import("./themes").ThemeCatalogItem[];

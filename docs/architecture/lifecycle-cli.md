@@ -182,9 +182,24 @@ instances therefore never answer for the release app by accident.
 | --- | --- |
 | `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, diagnostic counts. |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
-| `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for two animation frames. |
+| `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
-| `POST /v1/screenshot` | Waits for the renderer to paint and returns the app window as PNG. |
+| `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. |
+
+Idle means no source fetch is in flight for a mounted view. Every
+`readDashboardSource` call registers with `src/renderer/lib/activity.ts`, and
+`agentIdle` (renderer request, `timeoutMs`) paints two frames so effects that
+a refresh, `select:`, or `reveal:` triggered have started their fetches, waits
+for the in-flight count to reach zero, and repeats until a frame passes with
+nothing pending or the timeout elapses. `app run` reports `idle: true`, or
+`idle: false` with a `warning` when still loading at the timeout (default ten
+seconds, `--timeout <ms>`, at most 60 seconds); `--no-wait` keeps the
+paint-only behavior and omits `idle`. Supervised `command` processes are not
+waited for, however long they run: a completed `process:*` run carries
+`"process": "started"`, and the agent observes the process through its
+view or `status`. `app screenshot --focus <missing-node>` reports that the node
+is not in the active dashboard and suggests close matches, `inspect`, and
+`app actions focus`.
 
 Agents usually drive the app while it sits behind their own terminal. WebKit
 pauses animation frames and painting for an occluded window, which would stall
@@ -205,7 +220,8 @@ touched and the reader is slow, which truncated large `inspect` and
 The channel refuses all `agent:*` actions. In particular, `agent:prompt` requires the desktop composer to show the resolved command and configured prompt and wait for the user's explicit Send.
 
 Main owns the socket and relays to the renderer through `webview.requests`
-(`agentViewState`, `agentListActions`, `agentRunAction`, `agentSettle`); the
+(`agentViewState`, `agentListActions`, `agentRunAction`, `agentSettle`,
+`agentIdle`); the
 renderer shell registers the handler because it owns action, focus, and view
 state. `app screenshot --focus <node-id>` first runs `focus:<node-id>` unless
 that node is already focused. The action policy and capture boundary are

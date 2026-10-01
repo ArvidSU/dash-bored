@@ -641,6 +641,7 @@ interface AgentControlRendererRequests {
   agentListActions(params: {}): Promise<AgentActionDescriptor[]>;
   agentRunAction(params: AgentRunActionRequest): Promise<AgentRunActionResult>;
   agentSettle(params: {}): Promise<{}>;
+  agentIdle(params: { timeoutMs: number }): Promise<{ idle: boolean }>;
 }
 
 function rendererRequests(): AgentControlRendererRequests {
@@ -660,6 +661,7 @@ const agentControl: AgentControlServer | null = await startAgentControlServer({
   listActions: () => rendererRequests().agentListActions({}),
   runAction: (request) => rendererRequests().agentRunAction(request),
   settle: async () => { await rendererRequests().agentSettle({}); },
+  idle: async (timeoutMs) => (await rendererRequests().agentIdle({ timeoutMs })).idle,
   capture: () => {
     if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
     return captureWindowPng({ windowPointer: mainWindow.ptr, frame: mainWindow.getFrame() }, Utils.screenCapture);

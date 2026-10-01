@@ -36,8 +36,14 @@ export interface AgentRunActionRequest {
 }
 
 export type AgentRunActionResult =
-  | { status: "completed"; id: string }
-  | { status: "refused" | "unavailable" | "running" | "failed"; id?: string; reason: string };
+  /** `process: "started"` marks a command start; it keeps running after the run returns. */
+  | { status: "completed"; id: string; process?: "started" }
+  | { status: "refused" | "running" | "failed"; id?: string; reason: string }
+  | { status: "unavailable"; id?: string; reason: string; suggestions?: string[] };
+
+/** Bounds of the idle wait that follows a run or precedes a capture. */
+export const DEFAULT_IDLE_TIMEOUT_MS = 10_000;
+export const MAX_IDLE_TIMEOUT_MS = 60_000;
 
 export interface AgentActionPolicyInput {
   id: string;
@@ -77,4 +83,60 @@ export interface AppInstanceRecord {
   socketPath: string;
   toolPath: string | null;
   startedAt: string;
+}
+
+function editDistance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      current[column] = Math.min(
+        previous[column]! + 1,
+        current[column - 1]! + 1,
+        previous[column - 1]! + (left[row - 1] === right[column - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length]!;
+}
+
+/** Up to `limit` known action ids or references close to a mistyped one. */
+export function suggestActions(
+  reference: string,
+  candidates: readonly { id: string; reference?: string }[],
+  limit = 5,
+): string[] {
+  const wanted = reference.toLowerCase();
+  const tail = wanted.slice(wanted.indexOf(":") + 1);
+  const scored: { name: string; score: number }[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const name = candidate.reference ?? candidate.id;
+    if (seen.has(name)) continue;
+    const values = [candidate.id, candidate.reference]
+      .filter((value): value is string => value !== undefined)
+      .map((value) => value.toLowerCase());
+    let score = Number.POSITIVE_INFINITY;
+    for (const value of values) {
+      if (value.includes(wanted) || (wanted.length >= 4 && wanted.includes(value))) {
+        score = Math.min(score, Math.abs(value.length - wanted.length));
+        continue;
+      }
+      const distance = Math.min(
+        editDistance(wanted, value),
+        editDistance(tail, value.slice(value.indexOf(":") + 1)),
+      );
+      if (distance <= Math.max(3, Math.floor(wanted.length / 3))) score = Math.min(score, 1000 + distance);
+    }
+    if (score === Number.POSITIVE_INFINITY) continue;
+    seen.add(name);
+    scored.push({ name, score });
+  }
+  return scored.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name)).slice(0, limit).map(({ name }) => name);
+}
+
+export function unknownActionReason(reference: string, suggestions: readonly string[]): string {
+  const close = suggestions.length ? ` Close matches: ${suggestions.join(", ")}.` : "";
+  return `No action matches ${reference}.${close} Run \`dash-bored app actions <filter>\` to search the available actions.`;
 }

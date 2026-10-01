@@ -8,9 +8,9 @@ import type { AgentActionDescriptor, AgentViewState, AppInstanceRecord } from ".
 
 export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app actions [<filter>] [--all] [--instance <identifier>]
-  dash-bored app run <action> [--select <choice>=<option> ...] [--instance <identifier>]
+  dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--instance <identifier>]
   dash-bored app open <dashboard> [--instance <identifier>]
-  dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--instance <identifier>]`;
+  dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]`;
 
 interface AppArguments {
   verb: string | undefined;
@@ -19,11 +19,13 @@ interface AppArguments {
   output?: string;
   focus?: string;
   all: boolean;
+  timeout?: number;
+  wait: boolean;
   selections: Record<string, string>;
 }
 
 function parseAppArguments(args: string[]): AppArguments {
-  const parsed: AppArguments = { verb: undefined, positional: [], all: false, selections: {} };
+  const parsed: AppArguments = { verb: undefined, positional: [], all: false, wait: true, selections: {} };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
     const value = () => {
@@ -36,6 +38,12 @@ function parseAppArguments(args: string[]): AppArguments {
     else if (argument === "--output") parsed.output = value();
     else if (argument === "--focus") parsed.focus = value();
     else if (argument === "--all") parsed.all = true;
+    else if (argument === "--no-wait") parsed.wait = false;
+    else if (argument === "--timeout") {
+      const timeout = Number(value());
+      if (!Number.isInteger(timeout) || timeout < 0) throw new Error("--timeout expects a number of milliseconds.");
+      parsed.timeout = timeout;
+    }
     else if (argument === "--select") {
       const selection = value();
       const separator = selection.indexOf("=");
@@ -78,12 +86,26 @@ function defaultScreenshotPath(instance: AppInstanceRecord): string {
   return join(tmpdir(), "dash-bored-screenshots", `${instance.identifier}-${stamp}.png`);
 }
 
-async function runAction(instance: AppInstanceRecord, reference: string, selections: Record<string, string>) {
+interface RunOutcome {
+  result: { status: string; reason?: string; suggestions?: string[] };
+  state: unknown;
+  idle?: boolean;
+  warning?: string;
+}
+
+async function runAction(
+  instance: AppInstanceRecord,
+  reference: string,
+  selections: Record<string, string>,
+  wait: { wait?: boolean; timeoutMs?: number } = {},
+): Promise<RunOutcome> {
   const response = await call(instance, "/v1/actions/run", {
     reference,
     ...(Object.keys(selections).length ? { selections } : {}),
+    ...(wait.wait === false ? { wait: false } : {}),
+    ...(wait.timeoutMs === undefined ? {} : { timeoutMs: wait.timeoutMs }),
   });
-  return await response.json() as { result: { status: string; reason?: string }; state: unknown };
+  return await response.json() as RunOutcome;
 }
 
 /**
@@ -119,7 +141,10 @@ export async function runAppCommand(args: string[]): Promise<number> {
 
   if (parsed.verb === "run" && parsed.positional.length === 1) {
     const instance = await selectedInstance(parsed.instance);
-    const outcome = await runAction(instance, parsed.positional[0]!, parsed.selections);
+    const outcome = await runAction(instance, parsed.positional[0]!, parsed.selections, {
+      wait: parsed.wait,
+      ...(parsed.timeout === undefined ? {} : { timeoutMs: parsed.timeout }),
+    });
     print(outcome);
     return outcome.result.status === "completed" ? 0 : 1;
   }
@@ -136,19 +161,30 @@ export async function runAppCommand(args: string[]): Promise<number> {
     if (parsed.focus !== undefined) {
       const { state } = await (await call(instance, "/v1/status")).json() as { state: AgentViewState };
       if (state.focusedNodeId !== parsed.focus) {
-        const focused = await runAction(instance, `focus:${encodeURIComponent(parsed.focus)}`, {});
+        const focused = await runAction(instance, `focus:${encodeURIComponent(parsed.focus)}`, {}, { wait: false });
         if (focused.result.status !== "completed") {
+          if (focused.result.status === "unavailable" && focused.result.suggestions !== undefined) {
+            const close = focused.result.suggestions.length ? ` Close matches: ${focused.result.suggestions.join(", ")}.` : "";
+            focused.result.reason = `Node ${parsed.focus} is not in the active dashboard.${close} Find node ids with \`dash-bored inspect . --summary\` or \`dash-bored app actions focus\`.`;
+          }
           print(focused);
           return 1;
         }
       }
     }
-    const png = new Uint8Array(await (await call(instance, "/v1/screenshot", {})).arrayBuffer());
+    const shot = await call(instance, "/v1/screenshot", parsed.timeout === undefined ? {} : { timeoutMs: parsed.timeout });
+    const idle = shot.headers.get("x-dash-bored-idle") !== "false";
+    const png = new Uint8Array(await shot.arrayBuffer());
     const output = resolve(parsed.output ?? defaultScreenshotPath(instance));
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, png);
     const { state } = await (await call(instance, "/v1/status")).json() as { state: unknown };
-    print({ path: output, bytes: png.byteLength, state });
+    print({
+      path: output,
+      bytes: png.byteLength,
+      state,
+      ...(idle ? {} : { idle: false, warning: "The app was still loading when captured; retry with a larger --timeout." }),
+    });
     return 0;
   }
 

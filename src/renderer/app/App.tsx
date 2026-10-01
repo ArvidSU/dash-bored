@@ -67,7 +67,7 @@ import { CompositionFlyout } from "../composition/CompositionFlyout";
 import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout";
 import { useLocalComponents } from "../render/local-components";
 import { host, registerAgentControlHandler } from "../lib/rpc-client";
-import { agentActionRefusal, type AgentViewState } from "../../shared/agent-control";
+import { agentActionRefusal, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
 import { resolveVirtualRoot } from "../lib/virtual-root";
 import { actionInvocation } from "../../shared/action-invocation";
 import {
@@ -1540,11 +1540,20 @@ export function App(): ReactNode {
     listActions: () => actionStore.getIndexedActions().map(describeAgentAction),
     async runAction({ reference, selections }) {
       const action = actionStore.get(reference);
-      if (!action) return { status: "unavailable", reason: `No action matches ${reference}.` };
+      if (!action) {
+        // Trust and draft actions are not registered in every state; the
+        // agent should still learn that they are the user's to run.
+        const reserved = agentActionRefusal({ id: reference });
+        if (reserved) return { status: "refused", id: reference, reason: reserved };
+        const suggestions = suggestActions(reference, actionStore.getIndexedActions());
+        return { status: "unavailable", reason: unknownActionReason(reference, suggestions), suggestions };
+      }
       const refusal = agentActionRefusal(action);
       if (refusal) return { status: "refused", id: action.id, reason: refusal };
       const result = await actionStore.run(action.id, selections);
-      if (result.status === "completed") return { status: "completed", id: action.id };
+      if (result.status === "completed") {
+        return { status: "completed", id: action.id, ...(action.invocationOutcome === "started" ? { process: "started" as const } : {}) };
+      }
       if (result.status === "running") return { status: "running", id: action.id, reason: "That action is already running." };
       if (result.status === "unavailable") return { status: "unavailable", id: action.id, reason: result.reason };
       return { status: "failed", id: action.id, reason: errorMessage(result.error) };

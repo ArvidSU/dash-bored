@@ -360,6 +360,11 @@ root:
                             done: false
                             tags:
                               - chore
+                          - id: todo-agent-run-idle-live
+                            description: "Live-verify the app run idle wait in the desktop app (time component:workspace-status:refresh, screenshot right after); it was not verified live where it was added because Hutch prepare was blocked."
+                            done: false
+                            tags:
+                              - chore
                           - id: todo-atoms-schema-migration
                             description: "Complete atoms WP9: add source-bound edge visibility and ship the schema-v4 migration for retired builtins and positional references."
                             done: false
