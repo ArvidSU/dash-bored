@@ -88,6 +88,11 @@ symlinks that escape that bundle's component directory, and reserved-namespace
 collisions. Those restrictions do not apply to standalone dashboard paths,
 which intentionally allow absolute references.
 
+Catalog discovery and local manifest loading live in `src/core/tree-catalog.ts`.
+It scans packaged and project components, reports unavailable entries and
+ambiguities, and resolves contained local manifests. `src/core/tree.ts` uses
+that catalog boundary while resolving component and linked-dashboard trees.
+
 A local component is a directory with this shape:
 
 ```text
