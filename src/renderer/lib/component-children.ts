@@ -1,4 +1,5 @@
 import type {
+  ComponentChildLocator,
   ComponentChildEdge,
   ComponentChildLayout,
   ComponentChildren,
@@ -8,18 +9,18 @@ import type {
 
 export type LayoutBranch = "first" | "second";
 
-export interface ManagedChildLocator {
-  type: "managed";
-  index: number;
-}
+export type ManagedChildLocator = Extract<ComponentChildLocator, { type: "managed" }>;
+export type TiledChildLocator = Extract<ComponentChildLocator, { type: "tiled" }>;
+export type ChildLocator = ComponentChildLocator;
+export type ComponentPath = ComponentChildLocator[];
 
-export interface TiledChildLocator {
-  type: "tiled";
-  path: LayoutBranch[];
+export function sameLocator(left: ComponentChildLocator, right: ComponentChildLocator): boolean {
+  if (left.type !== right.type) return false;
+  if (left.type === "managed" && right.type === "managed") return left.index === right.index;
+  return left.type === "tiled" && right.type === "tiled"
+    && left.path.length === right.path.length
+    && left.path.every((branch, index) => branch === right.path[index]);
 }
-
-export type ChildLocator = ManagedChildLocator | TiledChildLocator;
-export type ComponentPath = ChildLocator[];
 
 export function layoutEdges<Node>(
   layout: ComponentChildLayout<Node>,

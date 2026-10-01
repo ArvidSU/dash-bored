@@ -8,8 +8,12 @@ import type {
 import {
   childEdges,
   childLocators,
+  sameLocator,
   type LayoutBranch,
 } from "../lib/component-children";
+import type { DashboardRootReplacementTarget } from "./dashboard-editor";
+
+export type { DashboardRootReplacementTarget } from "./dashboard-editor";
 
 type TiledPlacement = Extract<ComponentChildPlacement, { type: "tiled" }>;
 
@@ -25,11 +29,6 @@ export interface CompositionPlacementContext {
   currentChildCount?: number;
   /** Optional existing child around which insertion targets should be derived. */
   targetChildPath?: ComponentChildLocator | readonly LayoutBranch[];
-}
-
-export interface DashboardRootReplacementTarget {
-  type: "root-replacement";
-  path: [];
 }
 
 export type DashboardCompositionPlacementTarget =
@@ -49,16 +48,6 @@ function normalizeTargetChildPath(
   return Array.isArray(value)
     ? { type: "tiled", path: [...value] }
     : cloneLocator(value as ComponentChildLocator);
-}
-
-function sameLocator(left: ComponentChildLocator, right: ComponentChildLocator): boolean {
-  if (left.type !== right.type) return false;
-  if (left.type === "managed" && right.type === "managed") {
-    return left.index === right.index;
-  }
-  return left.type === "tiled" && right.type === "tiled"
-    && left.path.length === right.path.length
-    && left.path.every((branch, index) => branch === right.path[index]);
 }
 
 function cardinalityIsUsable(manifest: ComponentManifest, count: number): boolean {

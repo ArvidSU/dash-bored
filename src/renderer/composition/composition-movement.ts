@@ -1,23 +1,13 @@
 import type {
   ComponentChildLayout,
-  ComponentChildLocator,
   ComponentNode,
 } from "../../shared/contracts";
-import { childLocators } from "../lib/component-children";
+import { childLocators, sameLocator } from "../lib/component-children";
 import {
   nodeAtPath,
   type InsertionTarget,
   type NodePath,
 } from "./dashboard-editor";
-
-function sameLocator(left: ComponentChildLocator, right: ComponentChildLocator): boolean {
-  if (left.type !== right.type) return false;
-  if (left.type === "managed" && right.type === "managed") return left.index === right.index;
-  return left.type === "tiled"
-    && right.type === "tiled"
-    && left.path.length === right.path.length
-    && left.path.every((segment, index) => segment === right.path[index]);
-}
 
 function axisAtLeaf(
   layout: ComponentChildLayout,

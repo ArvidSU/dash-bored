@@ -1,12 +1,12 @@
 import type {
   ComponentCatalogItem,
-  ComponentChildLocator,
   ComponentNode,
   DashboardConfig,
   DashboardInsertionTarget,
 } from "../../shared/contracts";
-import { childEdges, edgeAtLocator } from "../lib/component-children";
+import { childEdges, edgeAtLocator, sameLocator } from "../lib/component-children";
 import {
+  type DashboardRootReplacementTarget,
   createNode,
   insertNode,
   moveNode,
@@ -17,11 +17,7 @@ import {
 } from "./dashboard-editor";
 import { deriveInsertionTargets } from "./composition-placement";
 
-/** A replacement is deliberately separate from a child insertion boundary. */
-export interface DashboardRootReplacementTarget {
-  type: "root-replacement";
-  path: [];
-}
+export type { DashboardRootReplacementTarget } from "./dashboard-editor";
 
 export type CompositionOperationTarget = DashboardInsertionTarget | DashboardRootReplacementTarget;
 
@@ -75,14 +71,6 @@ function rejected(
 
 function isRootTarget(target: CompositionOperationTarget): target is DashboardRootReplacementTarget {
   return "type" in target && target.type === "root-replacement";
-}
-
-function sameLocator(left: ComponentChildLocator, right: ComponentChildLocator): boolean {
-  if (left.type !== right.type) return false;
-  if (left.type === "managed" && right.type === "managed") return left.index === right.index;
-  return left.type === "tiled" && right.type === "tiled"
-    && left.path.length === right.path.length
-    && left.path.every((branch, index) => branch === right.path[index]);
 }
 
 function sameInsertionTarget(left: DashboardInsertionTarget, right: DashboardInsertionTarget): boolean {

@@ -17,6 +17,7 @@ import {
   edgeAtLayoutPath,
   edgeAtLocator,
   layoutEdges,
+  sameLocator,
   type LayoutBranch,
 } from "../lib/component-children";
 import { DEFAULT_SPLIT_RATIO, normalizeSplitRatio } from "../render/split-layout";
@@ -25,14 +26,9 @@ export type NodePath = ComponentChildLocator[];
 export type InsertionTarget = DashboardInsertionTarget;
 export type ChildPlacement = ComponentChildPlacement;
 
-function sameLocator(left: ComponentChildLocator, right: ComponentChildLocator): boolean {
-  if (left.type !== right.type) return false;
-  if (left.type === "managed" && right.type === "managed") return left.index === right.index;
-  if (left.type === "tiled" && right.type === "tiled") {
-    return left.path.length === right.path.length
-      && left.path.every((segment, index) => segment === right.path[index]);
-  }
-  return false;
+export interface DashboardRootReplacementTarget {
+  type: "root-replacement";
+  path: [];
 }
 
 export function pathEquals(left: NodePath, right: NodePath): boolean {
