@@ -619,10 +619,8 @@ export function App(): ReactNode {
     const activeProjectIndex = projects.findIndex(
       (project) => project.configPath === request.project.configPath,
     );
-    setDeletionDialog(null);
-    setPendingAction(`delete:${dashboardKey(request.project)}`);
-    setActionError(null);
-    try {
+    await perform(`delete:${dashboardKey(request.project)}`, async () => {
+      setDeletionDialog(null);
       await host.deleteProject(request.project, request.removeFiles);
       const remaining = await host.listProjects();
       setProjects(remaining);
@@ -653,11 +651,7 @@ export function App(): ReactNode {
         const nextProject = remaining[nextIndex];
         if (nextProject) await host.openProject(nextProject);
       }
-    } catch (error) {
-      setActionError(errorMessage(error));
-    } finally {
-      setPendingAction(null);
-    }
+    });
   }
 
   async function loadCompositionSource(): Promise<void> {
@@ -889,31 +883,22 @@ export function App(): ReactNode {
   }
 
   async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
-    setActionError(null);
-    setActionNotice(null);
-    const locator = componentPath(node);
-    try {
+    await perform(`copy-component:${node.id}`, async () => {
+      const locator = componentPath(node);
       await writeClipboardText(locator);
       showActionNotice(`Copied ${locator}`);
-    } catch (error) {
-      setActionError(errorMessage(error));
-    }
+    });
   }
 
   async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
     const action = `component-agent:${node.id}`;
-    setPendingAction(action);
-    setActionError(null);
-    setActionNotice(null);
-    try {
+    await perform(action, async () => {
       const launched = await host.runComponentAgent({ nodeId: node.id, prompt });
       setAgentDialog(null);
       setAgentPromptDraft("");
       setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
-    } finally {
-      setPendingAction(null);
-    }
+    });
   }
 
   async function runDiagnosticsAgent(): Promise<void> {
@@ -939,20 +924,13 @@ export function App(): ReactNode {
     target: InsertionTarget,
     prompt: string,
   ): Promise<void> {
-    setPendingAction("component-agent:create");
-    setActionError(null);
-    setActionNotice(null);
-    try {
+    await perform("component-agent:create", async () => {
       const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
       setEditSession(null);
       resetCompositionUi();
       setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
-    } catch (error) {
-      setActionError(errorMessage(error));
-    } finally {
-      setPendingAction(null);
-    }
+    });
   }
 
   function requestComponentCreationAgent(target: InsertionTarget, description: string): void {
