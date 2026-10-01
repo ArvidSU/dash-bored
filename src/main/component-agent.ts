@@ -258,6 +258,3 @@ export class DashboardAgentHarness {
     await this.manager.close();
   }
 }
-
-/** @deprecated Use DashboardAgentHarness. */
-export const ComponentAgentRunner = DashboardAgentHarness;

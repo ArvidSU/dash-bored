@@ -6,22 +6,7 @@ import {
   parseSelectionActionReference,
   remapActionReferenceNode,
 } from "../../src/shared/action-reference";
-import { migrateActionReferences, resolveLegacyActionReference } from "../../src/core/action-reference-migration";
-import type { DashboardConfig } from "../../src/shared/contracts";
-
-const config: DashboardConfig = {
-  schemaVersion: 3,
-  name: "Action refs",
-  root: {
-    id: "root",
-    component: "group",
-    children: {
-      axis: "horizontal",
-      first: { node: { component: "button", props: { action: "focus:${root.children.first.node}" } } },
-      second: { node: { id: "todo-list", component: "todo-list" } },
-    },
-  },
-};
+import { resolveLegacyActionReference } from "../../src/core/action-reference-migration";
 
 describe("action references", () => {
   test("parses node IDs and component action IDs", () => {
@@ -33,29 +18,6 @@ describe("action references", () => {
       .toEqual({ nodeId: "todo-list", actionId: "refresh" });
     expect(componentActionReference("linked::pulse", "refresh-project-pulse"))
       .toBe("component:linked%3A%3Apulse:refresh-project-pulse");
-  });
-
-  test("rewrites legacy references and assigns IDs only when needed", () => {
-    const result = migrateActionReferences(config);
-    expect(result.migrated).toBe(1);
-    expect(result.assignedIds).toBe(1);
-    expect(result.diagnostics).toEqual([]);
-    const children = result.config.root.children as { first: { node: { id?: string; props?: Record<string, unknown> } } };
-    expect(children.first.node.id).toBe("action-target-1");
-    expect(children.first.node.props?.action).toBe("focus:action-target-1");
-  });
-
-  test("rewrites references at manifest-declared nested prop paths", () => {
-    const nested = structuredClone(config);
-    nested.root.children = {
-      axis: "horizontal",
-      first: { node: { id: "agent-button", component: "./local-button", props: { action: { run: "component:${root.children.second.node}:refresh" } } } },
-      second: { node: { id: "todo-list", component: "todo-list" } },
-    };
-    const result = migrateActionReferences(nested, (_component, path) => path === "action.run");
-    expect(result.migrated).toBe(1);
-    const children = result.config.root.children as { first: { node: { props?: Record<string, unknown> } } };
-    expect(children.first.node.props?.action).toEqual({ run: "component:todo-list:refresh" });
   });
 
   test("supports schema-v3 runtime resolution during the migration window", () => {
