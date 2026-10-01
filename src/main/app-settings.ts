@@ -3,29 +3,26 @@ import { dirname } from "node:path";
 import { writeFileAtomically } from "../core/fs-atomic";
 import { CoreError } from "../core/diagnostics";
 import type { AppSettings } from "../shared/contracts";
+import {
+  cloneDefaultAppSettings,
+  DEFAULT_DASH_BORED_AGENT,
+} from "../shared/app-settings";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
 import { isAppThemeReference } from "../shared/themes";
 
-export const DEFAULT_DASH_BORED_AGENT = "codex exec";
+export { DEFAULT_DASH_BORED_AGENT };
 const MAX_AGENT_COMMAND_LENGTH = 1_024;
 
 interface StoredAppSettings extends Partial<AppSettings> {
   version: 1 | 2;
 }
 
-export const DEFAULT_COMMAND_PALETTE_SHORTCUT = "Mod+K";
-export const DEFAULT_ACTION_SHORTCUTS = { "app:reload": "Mod+Shift+R" } as const;
+export { DEFAULT_COMMAND_PALETTE_SHORTCUT, DEFAULT_ACTION_SHORTCUTS } from "../shared/app-settings";
 
 function defaults(dashBoredAgent: string): AppSettings {
   return {
-    theme: "builtin:default",
-    themeMode: "dark",
+    ...cloneDefaultAppSettings(),
     dashBoredAgent,
-    sidebarExpandedByDefault: false,
-    favoriteActionIds: [],
-    commandPaletteShortcut: DEFAULT_COMMAND_PALETTE_SHORTCUT,
-    clearPaletteInputOnKeepOpen: true,
-    actionShortcuts: { ...DEFAULT_ACTION_SHORTCUTS },
   };
 }
 
@@ -63,8 +60,8 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
   return {
     // Legacy ./themes references remain readable and are upgraded by the
     // renderer once their owning dashboard is known.
-    theme: typeof value.theme === "string" && isAppThemeReference(value.theme) ? value.theme : "builtin:default",
-    themeMode: value.themeMode === "light" || value.themeMode === "system" ? value.themeMode : "dark",
+    theme: typeof value.theme === "string" && isAppThemeReference(value.theme) ? value.theme : fallback.theme,
+    themeMode: value.themeMode === "light" || value.themeMode === "system" ? value.themeMode : fallback.themeMode,
     dashBoredAgent: value.dashBoredAgent === null
       ? null
       : normalizeDashBoredAgent(value.dashBoredAgent ?? defaultAgent),

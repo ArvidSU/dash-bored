@@ -22,6 +22,7 @@ import type {
   ProjectTarget,
   ResolvedComponentNode,
 } from "../../shared/contracts";
+import { cloneDefaultAppSettings, DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
 import { componentPath, findResolvedNode } from "../../shared/component-agent";
 import { processRun } from "../../shared/process-state";
 import {
@@ -107,14 +108,7 @@ export function App(): ReactNode {
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettingsItem[]>([]);
-  const [appSettings, setAppSettings] = useState<AppSettings>({
-    dashBoredAgent: "codex exec",
-    sidebarExpandedByDefault: false,
-    favoriteActionIds: [],
-    commandPaletteShortcut: "Mod+K",
-    clearPaletteInputOnKeepOpen: true,
-    actionShortcuts: { "app:reload": "Mod+Shift+R" },
-  });
+  const [appSettings, setAppSettings] = useState<AppSettings>(cloneDefaultAppSettings);
   const appSettingsRevision = useRef(0);
   const appSettingsWrite = useRef<Promise<void>>(Promise.resolve());
   const [loading, setLoading] = useState(true);
@@ -1708,7 +1702,7 @@ export function App(): ReactNode {
     const environmentValue = nodeId === undefined
       ? undefined
       : snapshot?.environmentByNode?.[nodeId]?.values.find((entry) => entry.key === "DASH_BORED_AGENT")?.value.trim();
-    return environmentValue || appSettings.dashBoredAgent || "codex exec";
+    return environmentValue || appSettings.dashBoredAgent || DEFAULT_DASH_BORED_AGENT;
   }
   const effectiveAgentCommand = effectiveAgentCommandForNode(snapshot?.tree?.id);
   const visibleVirtualRoot = editingComposition ? compositionVirtualRoot : virtualRoot;

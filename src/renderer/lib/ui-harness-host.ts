@@ -1,4 +1,5 @@
 import { BUILTIN_THEME, projectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
+import { cloneDefaultAppSettings, DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
 import Ajv, { type ErrorObject } from "ajv";
 import { permissionsForComponent } from "../../shared/component-permissions";
 import { listBuiltinManifests } from "../../core/builtins";
@@ -426,14 +427,7 @@ export interface UiHarnessHost extends DashboardHost {
 
 export function createUiHarnessHost(): UiHarnessHost {
   const listeners = new Set<(event: HostEvent) => void>();
-  let settings: AppSettings = {
-    dashBoredAgent: "codex exec",
-    sidebarExpandedByDefault: false,
-    favoriteActionIds: [],
-    commandPaletteShortcut: "Mod+K",
-    clearPaletteInputOnKeepOpen: true,
-    actionShortcuts: { "app:reload": "Mod+Shift+R" },
-  };
+  let settings: AppSettings = cloneDefaultAppSettings();
   let persistedConfig = structuredClone(initialConfig);
   let configRevision = 1;
   let snapshotRevision = 1;
@@ -492,7 +486,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   const launch = (request?: { prompt: string; componentPath?: string }): ComponentAgentLaunch => {
     const task: DashboardAgentTask = {
       id: `agent-task-${agentTasks.length + 1}`,
-      command: "codex exec",
+      command: DEFAULT_DASH_BORED_AGENT,
       prompt: request?.prompt ?? "Fixture agent request",
       componentPath: request?.componentPath ?? "harness.root",
       request: request?.prompt ?? "Fixture agent request",

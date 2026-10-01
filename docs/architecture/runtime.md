@@ -28,6 +28,11 @@ the tool for agents. This is distribution of the first boundary, not a fourth
 runtime authority: tool validation uses the same core loader, and the skill
 tells agents to discover the live component catalog from that tool.
 
+App-wide setting defaults live in `src/shared/app-settings.ts` so the main
+process and renderer start from the same values. Consumers clone its mutable
+collections before updating settings; the main process still normalizes and
+persists the authoritative settings record.
+
 Desktop launchers commonly inherit only a system PATH. Before resolving or
 launching dashboard commands, the main process appends conventional user CLI
 locations for the current platform (including user-local, Bun, Cargo, Homebrew,

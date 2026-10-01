@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppSettingsStore, resolveDashBoredAgent } from "../../src/main/app-settings";
+import { cloneDefaultAppSettings } from "../../src/shared/app-settings";
 import { projectThemeReference } from "../../src/shared/themes";
 import {
   removeTemporaryDirectory,
@@ -12,6 +13,17 @@ const cleanup: string[] = [];
 
 afterEach(async () => {
   await Promise.all(cleanup.splice(0).map(removeTemporaryDirectory));
+});
+
+test("shared app settings clones mutable collections", () => {
+  const first = cloneDefaultAppSettings();
+  const second = cloneDefaultAppSettings();
+  expect(first.favoriteActionIds).not.toBe(second.favoriteActionIds);
+  expect(first.actionShortcuts).not.toBe(second.actionShortcuts);
+  first.favoriteActionIds.push("app:reload");
+  first.actionShortcuts["app:test"] = "Mod+T";
+  expect(second.favoriteActionIds).toEqual([]);
+  expect(second.actionShortcuts).toEqual({ "app:reload": "Mod+Shift+R" });
 });
 
 describe("AppSettingsStore", () => {
