@@ -339,7 +339,7 @@ export function useDashboardViewState(
   }
 
   function updateComponentHeight(nodeId: string, height: number | null): void {
-    if (!dashboardPath) return;
+    if (!dashboardPath || componentHeightDashboardPath !== dashboardPath) return;
     setComponentHeightOverrides((current) => {
       const next = Object.fromEntries(Object.entries(current));
       const normalized = normalizeComponentHeight(height);
@@ -363,6 +363,7 @@ export function useDashboardViewState(
     });
     try {
       window.localStorage.removeItem(virtualRootStorageKey(configPath));
+      window.localStorage.removeItem(collapsedComponentsStorageKey(configPath));
       window.localStorage.removeItem(splitRatioOverridesStorageKey(configPath));
       window.localStorage.removeItem(componentHeightOverridesStorageKey(configPath));
       window.localStorage.removeItem(childSelectionsStorageKey(configPath));
