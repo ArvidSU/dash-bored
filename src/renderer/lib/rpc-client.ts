@@ -28,6 +28,7 @@ import type {
 } from "../../shared/contracts";
 import type {
   AgentActionDescriptor,
+  AgentNodeMeasurement,
   AgentRunActionRequest,
   AgentRunActionResult,
   AgentViewState,
@@ -103,6 +104,8 @@ export interface AgentControlHandler {
   viewState(): AgentViewState;
   listActions(): AgentActionDescriptor[];
   runAction(request: AgentRunActionRequest): Promise<AgentRunActionResult>;
+  beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
+  endNodeCapture(): Promise<void>;
 }
 
 let agentControlHandler: AgentControlHandler | null = null;
@@ -132,6 +135,11 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
       agentViewState: () => requireAgentControl().viewState(),
       agentListActions: () => requireAgentControl().listActions(),
       agentRunAction: (request) => requireAgentControl().runAction(request),
+      agentBeginNodeCapture: ({ nodeId }) => requireAgentControl().beginNodeCapture(nodeId),
+      agentEndNodeCapture: async () => {
+        await requireAgentControl().endNodeCapture();
+        return {};
+      },
       agentSettle: async () => {
         await nextPaint();
         return {};

@@ -57,10 +57,10 @@ dash-bored migrate inspect <dashboard>
 dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
 dash-bored app status [--instance <identifier>]
-dash-bored app actions [--all] [--instance <identifier>]
+dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
 dash-bored app run <action> [--select <choice>=<option> ...] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
-dash-bored app screenshot [--focus <node-id>] [--output <file.png>] [--instance <identifier>]
+dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--instance <identifier>]
 ```
 
 ### Resolution and version matching
@@ -181,19 +181,46 @@ instances therefore never answer for the release app by accident.
 | Route | Behavior |
 | --- | --- |
 | `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, diagnostic counts. |
-| `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed. |
+| `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` hides unavailable and refused actions unless `--all` is passed, narrows by an optional id, label, or group substring, and prints each choice as `{id, label, optionCount}`; `--choices` (alias `--full`) includes the options, which can run to tens of kilobytes. `app run --select` is unaffected. |
 | `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for two animation frames. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
-| `POST /v1/screenshot` | Waits for the renderer to paint and returns the app window as PNG. |
+| `POST /v1/screenshot` | Waits for the renderer to paint and returns the app window as PNG. With `{nodeId}` it returns that node's bounds cropped from the capture and describes the node in an `x-dash-bored-node` header (see below). |
 
 The channel refuses all `agent:*` actions. In particular, `agent:prompt` requires the desktop composer to show the resolved command and configured prompt and wait for the user's explicit Send.
 
 Main owns the socket and relays to the renderer through `webview.requests`
-(`agentViewState`, `agentListActions`, `agentRunAction`, `agentSettle`); the
+(`agentViewState`, `agentListActions`, `agentRunAction`, `agentSettle`, `agentBeginNodeCapture`, `agentEndNodeCapture`); the
 renderer shell registers the handler because it owns action, focus, and view
-state. `app screenshot --focus <node-id>` first runs `focus:<node-id>` unless
-that node is already focused. The action policy and capture boundary are
+state. The action policy and capture boundary are
 described in [Security](./security.md#agent-control-channel).
+
+#### Screenshots of a node
+
+`app screenshot --node <node-id>` captures one node without taking over the
+user's view. The renderer's `NodeCaptureSession` finds the node's frame
+(`[data-node-id]`); a node that is already visible is measured where it
+stands. Otherwise it runs `reveal:<node-id>` (unmounted nodes in collapsed
+sections or unselected tabs) and/or scrolls the node into view without
+animation. It reports the node's visible rectangle in CSS pixels, clipped to the
+viewport and to scrolling ancestors, plus the viewport size and
+`devicePixelRatio`. Main captures the window and crops it in process
+(`src/main/png-crop.ts`, no external tool): the capture contains the title bar,
+and the webview is anchored to the window's bottom and horizontal centre, so the
+offsets follow from the difference between the image size and the viewport size
+at that scale. After the capture, `agentEndNodeCapture` restores whatever the
+session changed: the active view, the dashboard's presentation state (focus,
+collapse, selected children, split ratios, heights) and scroll positions. One
+node capture runs at a time. The CLI prints the node's measurement:
+`truncated: true` with `fullHeight`/`fullWidth` when the node is larger than
+the visible area (the visible part is captured; nodes are not stitched), and
+`changes: {revealed, scrolled}` for the temporary view changes it made and
+undid. Scroll positions inside a panel the reveal unmounted again may reset.
+
+`app screenshot --focus <node-id>` remains for capturing the window with a node
+focused. It records the previous `focusedNodeId`, restores it afterwards by
+default (`--keep-focus` leaves the new focus), and prints
+`previousFocusedNodeId` and `focusRestored`. Focus also expands and selects the
+node's ancestors; only the focus itself is restored, so prefer `--node`.
 
 At application startup, the main process refreshes only previously installed
 global and registered-project skills. It skips absent installations, keeps

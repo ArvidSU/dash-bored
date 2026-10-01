@@ -56,7 +56,7 @@ import { startAgentControlServer, type AgentControlServer } from "./agent-contro
 import { captureWindowPng } from "./window-capture";
 import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { APP_VERSION } from "../shared/app-metadata";
-import type { AgentActionDescriptor, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
+import type { AgentActionDescriptor, AgentNodeMeasurement, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
 
 configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
@@ -638,6 +638,8 @@ interface AgentControlRendererRequests {
   agentListActions(params: {}): Promise<AgentActionDescriptor[]>;
   agentRunAction(params: AgentRunActionRequest): Promise<AgentRunActionResult>;
   agentSettle(params: {}): Promise<{}>;
+  agentBeginNodeCapture(params: { nodeId: string }): Promise<AgentNodeMeasurement>;
+  agentEndNodeCapture(params: {}): Promise<{}>;
 }
 
 function rendererRequests(): AgentControlRendererRequests {
@@ -661,6 +663,8 @@ const agentControl: AgentControlServer | null = await startAgentControlServer({
     if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
     return captureWindowPng({ windowPointer: mainWindow.ptr, frame: mainWindow.getFrame() }, Utils.screenCapture);
   },
+  beginNodeCapture: (nodeId) => rendererRequests().agentBeginNodeCapture({ nodeId }),
+  endNodeCapture: async () => { await rendererRequests().agentEndNodeCapture({}); },
   openDashboard: async (configPath) => {
     // Loading registers the dashboard through onSnapshot, as an app launch for
     // that path did before; trust remains a separate user decision.

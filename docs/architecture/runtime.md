@@ -53,7 +53,7 @@ socket at `~/.config/dash-bored/run/<identifier>.sock`, advertised by
 the renderer and run through the shared `ActionStore`; trust, edit-mode,
 add-dashboard, and confirmation-requiring actions are refused, and `/v1/open`
 is refused while a draft is open. Screenshots capture the app window with
-`screencapture` and require Screen Recording permission. See
+`screencapture` (optionally cropped to a node's bounds in process) and require Screen Recording permission. See
 [Security](./security.md).
 
 ## Runtime topology

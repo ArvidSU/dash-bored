@@ -83,6 +83,8 @@ export type DashboardRPC = {
       agentListActions: { params: {}; response: import("./agent-control").AgentActionDescriptor[] };
       agentRunAction: { params: import("./agent-control").AgentRunActionRequest; response: import("./agent-control").AgentRunActionResult };
       agentSettle: { params: {}; response: {} };
+      agentBeginNodeCapture: { params: { nodeId: string }; response: import("./agent-control").AgentNodeMeasurement };
+      agentEndNodeCapture: { params: {}; response: {} };
     };
     messages: {
       themes: import("./themes").ThemeCatalogItem[];

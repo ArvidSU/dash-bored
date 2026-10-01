@@ -2,12 +2,14 @@ import { chmod, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
   AgentActionDescriptor,
+  AgentNodeMeasurement,
   AgentRunActionRequest,
   AgentRunActionResult,
   AgentViewState,
   AppInstanceRecord,
 } from "../shared/agent-control";
 import { CoreError } from "../core/index";
+import { cropNodeCapture } from "./png-crop";
 import { publishAppInstance, withdrawAppInstance } from "../core/app-instances";
 
 export interface AgentControlBridge {
@@ -17,6 +19,13 @@ export interface AgentControlBridge {
   /** Resolves after the renderer has painted pending updates. */
   settle(): Promise<void>;
   capture(): Promise<Uint8Array<ArrayBuffer>>;
+  /**
+   * Makes a node visible (revealing and scrolling only when needed) and
+   * measures it. Every call is paired with `endNodeCapture`, which undoes any
+   * view change the renderer made.
+   */
+  beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
+  endNodeCapture(): Promise<void>;
   openDashboard(configPath: string): Promise<void>;
 }
 
@@ -74,6 +83,23 @@ export async function startAgentControlServer(
   await chmod(dirname(identity.socketPath), 0o700);
   await rm(identity.socketPath, { force: true });
 
+  let capturingNode = false;
+  async function captureNode(nodeId: string): Promise<Response> {
+    if (capturingNode) throw new CoreError("AGENT_CONTROL_BUSY", "Another node screenshot is in progress.");
+    capturingNode = true;
+    try {
+      const node = await bridge.beginNodeCapture(nodeId);
+      try {
+        const png = cropNodeCapture(await bridge.capture(), node);
+        return new Response(png, { headers: { "content-type": "image/png", "x-dash-bored-node": JSON.stringify(node) } });
+      } finally {
+        await bridge.endNodeCapture();
+      }
+    } finally {
+      capturingNode = false;
+    }
+  }
+
   const server = Bun.serve({
     unix: identity.socketPath,
     async fetch(request) {
@@ -108,9 +134,15 @@ export async function startAgentControlServer(
           return json({ state: await bridge.viewState() });
         }
         if (request.method === "POST" && pathname === "/v1/screenshot") {
-          await bridge.settle();
-          const png = await bridge.capture();
-          return new Response(png, { headers: { "content-type": "image/png" } });
+          const body = await readBody(request);
+          if (body.nodeId !== undefined && (typeof body.nodeId !== "string" || body.nodeId === "")) {
+            throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "nodeId must be a node id.");
+          }
+          if (body.nodeId === undefined) {
+            await bridge.settle();
+            return new Response(await bridge.capture(), { headers: { "content-type": "image/png" } });
+          }
+          return await captureNode(body.nodeId);
         }
         throw new CoreError("AGENT_CONTROL_NOT_FOUND", `Unknown agent-control route ${request.method} ${pathname}.`);
       } catch (error) {

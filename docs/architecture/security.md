@@ -178,7 +178,10 @@ automation surface for the user's own agents, not a new capability.
   falls back to the window's frame region, which includes anything covering
   it. Capture requires macOS Screen Recording permission; without it the app
   asks macOS once and returns `SCREEN_RECORDING_PERMISSION_REQUIRED`. The PNG
-  is returned to the caller and not retained by the app.
+  is returned to the caller and not retained by the app. A node screenshot is
+  the same window capture cropped in process to the node's rectangle; it never
+  captures anything outside the app's own window, and the temporary reveal it
+  may perform runs through the same action path and is undone afterwards.
 
 ## Declarative process resources
 

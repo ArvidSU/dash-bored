@@ -192,7 +192,10 @@ With those tools an agent can:
   read its state (`app status`), list and run the same command-palette actions
   you can (`app actions`, `app run <action>`), open a dashboard
   (`app open <dashboard>`), and capture the app window to check the result
-  visually (`app screenshot [--focus <node-id>]`).
+  visually (`app screenshot [--node <node-id>]`). `--node` crops to one node,
+  restoring any view change it made, and `--focus <node-id>` restores your
+  previous focus afterwards unless `--keep-focus` is given. `app actions` lists
+  choices by option count; `--choices` includes their options.
 
 The control channel never widens what an action can do. Trust, starting,
 saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
