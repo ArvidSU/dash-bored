@@ -60,6 +60,11 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** The header and region name: the configured dashboard name, else the project folder. */
+export function dashboardTitle(snapshot: Pick<ProjectSnapshot, "dashboardName" | "projectRoot"> | null): string {
+  return snapshot?.dashboardName?.trim() || (snapshot?.projectRoot ? basename(snapshot.projectRoot) : "dash-bored");
+}
+
 export function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
 }

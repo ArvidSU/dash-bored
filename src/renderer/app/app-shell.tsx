@@ -5,6 +5,7 @@ import {
   DashboardOutlineTree,
   type DashboardOutlineNodeAction,
 } from "../composition/DashboardOutlineTree";
+import { dashboardTitle, type ActionNotice } from "./app-utils";
 
 export interface ProjectOutlineState {
   tree: ProjectSnapshot["tree"];
@@ -86,11 +87,8 @@ export interface AppShellProps {
   expandedProjectOutlines: Readonly<Record<string, boolean>>;
   pendingAction: string | null;
   projectOutlines: Readonly<Record<string, ProjectOutlineState>>;
-  currentVirtualRootProjectPath: string | null;
   currentVirtualRootId: string | null;
   collapsedNodeIds: ReadonlySet<string>;
-  title: string;
-  dashboardPath: string | null;
   shortcutLabel: string;
   editing: boolean;
   componentLibraryOpen: boolean;
@@ -98,7 +96,7 @@ export interface AppShellProps {
   activeAgentTaskCount: number;
   editorToolbar: ReactNode;
   actionError: string | null;
-  actionNotice: ReactNode;
+  actionNotice: ActionNotice | null;
   children: ReactNode;
   onToggleSidebar(): void;
   showDashboardNumbers: boolean;
@@ -118,6 +116,7 @@ export interface AppShellProps {
   onToggleLibrary(): void;
   onToggleAgentActivity(): void;
   onDismissError(): void;
+  onDismissNotice(): void;
 }
 
 /** Window chrome, navigation, and header only. Dashboard state stays with its workspace. */
@@ -129,11 +128,8 @@ export function AppShell({
   expandedProjectOutlines,
   pendingAction,
   projectOutlines,
-  currentVirtualRootProjectPath,
   currentVirtualRootId,
   collapsedNodeIds,
-  title,
-  dashboardPath,
   shortcutLabel,
   editing,
   componentLibraryOpen,
@@ -157,7 +153,10 @@ export function AppShell({
   onToggleLibrary,
   onToggleAgentActivity,
   onDismissError,
+  onDismissNotice,
 }: AppShellProps): ReactNode {
+  const title = dashboardTitle(snapshot);
+  const dashboardPath = snapshot?.configPath ?? snapshot?.projectRoot ?? null;
   const [draggedProject, setDraggedProject] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ path: string; before: boolean } | null>(null);
   const clearDrag = () => { setDraggedProject(null); setDropTarget(null); };
@@ -220,7 +219,7 @@ export function AppShell({
                       : undefined
                   }
                   currentVirtualRootId={
-                    project.configPath === currentVirtualRootProjectPath
+                    project.configPath === snapshot?.configPath
                       ? currentVirtualRootId
                       : null
                   }
@@ -366,10 +365,31 @@ export function AppShell({
               </button>
             </div>
           ) : null}
-          {actionNotice}
+          {actionNotice ? <GlobalNotice notice={actionNotice} onDismiss={onDismissNotice} /> : null}
           {children}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A transient confirmation; the ring counts down the notice's five seconds. */
+function GlobalNotice({ notice, onDismiss }: { notice: ActionNotice; onDismiss(): void }): ReactNode {
+  return (
+    <div className="global-notice" role="status">
+      <span>{notice.message}</span>
+      <button
+        className="global-notice__close"
+        type="button"
+        aria-label="Dismiss message"
+        onClick={onDismiss}
+      >
+        <svg className="global-notice__countdown" viewBox="0 0 28 28" aria-hidden="true">
+          <circle className="global-notice__countdown-track" cx="14" cy="14" r="11" />
+          <circle className="global-notice__countdown-progress" cx="14" cy="14" r="11" pathLength="1" />
+        </svg>
+        <span aria-hidden="true">×</span>
+      </button>
     </div>
   );
 }

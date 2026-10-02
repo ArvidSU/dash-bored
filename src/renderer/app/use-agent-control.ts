@@ -1,7 +1,10 @@
 import { useEffect, useMemo } from "react";
 import { activeSelections, agentActionRefusal, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
+import type { ResolvedComponentNode } from "../../shared/contracts";
+import type { AppView } from "../lib/action-providers";
 import { describeAgentAction, type ActionStore } from "../lib/actions";
 import { NodeCaptureSession, type NodeCaptureHooks } from "../lib/agent-node-capture";
+import { dashboardViewStateStore } from "../lib/dashboard-view-state";
 import { registerAgentControlHandler } from "../lib/rpc-client";
 import { errorMessage } from "./app-utils";
 import { useLatestRef } from "./use-latest-ref";
@@ -14,10 +17,28 @@ import { useLatestRef } from "./use-latest-ref";
 export function useAgentControl(
   store: ActionStore,
   view: Omit<AgentViewState, "selections">,
-  captureHooks: NodeCaptureHooks,
+  tree: ResolvedComponentNode | null | undefined,
+  setActiveView: (view: AppView) => void,
 ): void {
   const viewRef = useLatestRef(view);
-  const captureHooksRef = useLatestRef(captureHooks);
+  // A node capture reveals its node through the reveal action, then restores
+  // the view and presentation state it found.
+  const captureHooksRef = useLatestRef<NodeCaptureHooks>({
+    reveal: async (nodeId) => {
+      const action = store.get(`reveal:${encodeURIComponent(nodeId)}`);
+      if (!action) throw new Error(`No node ${nodeId} in the active dashboard.`);
+      const result = await store.run(action.id);
+      if (result.status !== "completed") throw new Error(`Could not reveal ${nodeId}.`);
+    },
+    snapshotView: () => {
+      const shown = view.view;
+      const presentation = dashboardViewStateStore.getSnapshot(view.configPath, tree);
+      return () => {
+        setActiveView(shown);
+        dashboardViewStateStore.update(view.configPath, tree, () => presentation);
+      };
+    },
+  });
   const captureSession = useMemo(() => new NodeCaptureSession(), []);
   useEffect(() => registerAgentControlHandler({
     viewState: () => ({ ...viewRef.current, selections: activeSelections(store.getIndexedActions()) }),

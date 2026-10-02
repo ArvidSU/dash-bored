@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ComponentEnvironmentSnapshot, ProcessSnapshot, ResolvedComponentAction, ResolvedComponentNode } from "../../shared/contracts";
 import type { ComponentHeightOverrides } from "../lib/component-height";
@@ -15,8 +15,12 @@ import type { ActionStore } from "../lib/actions";
 import { ComponentFrame } from "./ComponentFrame";
 import { createLocalHost } from "./local-host";
 
-export interface NodeRendererProps {
-  node: ResolvedComponentNode;
+/**
+ * Everything a dashboard node needs besides itself: trust, host state, the
+ * action store, presentation state, and frame callbacks. One provider wraps
+ * the rendered tree, so recursion passes only the node.
+ */
+export interface DashboardRenderContextValue {
   trusted: boolean;
   environmentByNode?: Readonly<Record<string, ComponentEnvironmentSnapshot>>;
   /**
@@ -50,9 +54,11 @@ export interface NodeRendererProps {
   onEditComponent: (node: ResolvedComponentNode) => void;
   onOpenAgent: (node: ResolvedComponentNode) => void;
   onUpdateProps: (node: ResolvedComponentNode, props: Record<string, unknown>) => Promise<void>;
-  focusedNodeId?: string | null;
-  childSelections?: Readonly<Record<string, string>>;
+  focusedNodeId: string | null;
+  childSelections: Readonly<Record<string, string>>;
 }
+
+export const DashboardRenderContext = createContext<DashboardRenderContextValue | null>(null);
 
 export interface ComponentUpdateBatch {
   generation: number;
@@ -78,30 +84,32 @@ function ComponentUpdatePolish({
   );
 }
 
-export function NodeRenderer({
-  node,
-  trusted,
-  environmentByNode,
-  processesRef,
-  localComponents,
-  actionStore,
-  actionScope,
-  actionController,
-  updateBatch,
-  collapsedNodeIds,
-  splitRatioOverrides,
-  componentHeightOverrides,
-  onFocus,
-  onToggleCollapse,
-  onSplitRatioChange,
-  onComponentHeightChange,
-  onCopyPath,
-  onEditComponent,
-  onOpenAgent,
-  onUpdateProps,
-  focusedNodeId = null,
-  childSelections = {},
-}: NodeRendererProps): ReactNode {
+export function NodeRenderer({ node }: { node: ResolvedComponentNode }): ReactNode {
+  const context = useContext(DashboardRenderContext);
+  if (!context) throw new Error("NodeRenderer must render inside a DashboardRenderContext.");
+  const {
+    trusted,
+    environmentByNode,
+    processesRef,
+    localComponents,
+    actionStore,
+    actionScope,
+    actionController,
+    updateBatch,
+    collapsedNodeIds,
+    splitRatioOverrides,
+    componentHeightOverrides,
+    onFocus,
+    onToggleCollapse,
+    onSplitRatioChange,
+    onComponentHeightChange,
+    onCopyPath,
+    onEditComponent,
+    onOpenAgent,
+    onUpdateProps,
+    focusedNodeId,
+    childSelections,
+  } = context;
   const permissionsKey = (node.manifest?.permissions ?? []).join("\u0000");
   const nodeRef = useRef(node);
   useLayoutEffect(() => {
@@ -123,10 +131,18 @@ export function NodeRenderer({
     [actionStore, actionScope, node.id],
   );
   const collapsed = collapsedNodeIds.has(node.id);
-  const frameHeightProps = {
+  const frameProps = {
+    node,
     height: componentHeightOverrides[node.id],
     heightResizable: componentRendersSurface(node),
     onHeightChange: (height: number | null) => onComponentHeightChange(node.id, height),
+    isVirtualRoot: node.id === focusedNodeId,
+    collapsed,
+    onFocus,
+    onToggleCollapse: () => onToggleCollapse(node.id),
+    onCopyPath,
+    onEditComponent,
+    onOpenAgent,
   };
   const renderedChildren = collapsed
     ? undefined
@@ -135,49 +151,15 @@ export function NodeRenderer({
         splitRatioOverrides,
         onSplitRatioChange,
         selectedChildId: selectedChildId(node, childSelections),
-        renderNode: (child) => (
-          <NodeRenderer
-            key={child.id}
-            node={child}
-            trusted={trusted}
-            processesRef={processesRef}
-            environmentByNode={environmentByNode}
-            localComponents={localComponents}
-            actionStore={actionStore}
-            actionScope={actionScope}
-            actionController={actionController}
-            updateBatch={updateBatch}
-            collapsedNodeIds={collapsedNodeIds}
-            splitRatioOverrides={splitRatioOverrides}
-            componentHeightOverrides={componentHeightOverrides}
-            onFocus={onFocus}
-            onToggleCollapse={onToggleCollapse}
-            onSplitRatioChange={onSplitRatioChange}
-            onComponentHeightChange={onComponentHeightChange}
-            onCopyPath={onCopyPath}
-            onEditComponent={onEditComponent}
-            onOpenAgent={onOpenAgent}
-            onUpdateProps={onUpdateProps}
-            focusedNodeId={focusedNodeId}
-            childSelections={childSelections}
-          />
-        ),
+        renderNode: (child) => <NodeRenderer key={child.id} node={child} />,
       });
 
   if (node.source === "builtin") {
     const Component = packagedComponent(node.component);
     return (
       <ComponentFrame
-        {...frameHeightProps}
-        node={node}
+        {...frameProps}
         className="component-node"
-        isVirtualRoot={node.id === focusedNodeId}
-        collapsed={collapsed}
-        onFocus={onFocus}
-        onToggleCollapse={() => onToggleCollapse(node.id)}
-        onCopyPath={onCopyPath}
-        onEditComponent={onEditComponent}
-        onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
@@ -199,17 +181,9 @@ export function NodeRenderer({
     const name = node.configName?.trim() || node.component;
     return (
       <ComponentFrame
-        {...frameHeightProps}
+        {...frameProps}
         as="section"
-        node={node}
         className="component-node config-link"
-        isVirtualRoot={node.id === focusedNodeId}
-        collapsed={collapsed}
-        onFocus={onFocus}
-        onToggleCollapse={() => onToggleCollapse(node.id)}
-        onCopyPath={onCopyPath}
-        onEditComponent={onEditComponent}
-        onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
@@ -235,16 +209,8 @@ export function NodeRenderer({
   if (!trusted) {
     return (
       <ComponentFrame
-        {...frameHeightProps}
-        node={node}
+        {...frameProps}
         className="component-node component-state component-state--locked"
-        isVirtualRoot={node.id === focusedNodeId}
-        collapsed={collapsed}
-        onFocus={onFocus}
-        onToggleCollapse={() => onToggleCollapse(node.id)}
-        onCopyPath={onCopyPath}
-        onEditComponent={onEditComponent}
-        onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
@@ -263,17 +229,9 @@ export function NodeRenderer({
   if (!componentId) {
     return (
       <ComponentFrame
-        {...frameHeightProps}
-        node={node}
+        {...frameProps}
         className="component-node component-state component-state--error"
-        isVirtualRoot={node.id === focusedNodeId}
-        collapsed={collapsed}
         role="alert"
-        onFocus={onFocus}
-        onToggleCollapse={() => onToggleCollapse(node.id)}
-        onCopyPath={onCopyPath}
-        onEditComponent={onEditComponent}
-        onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
@@ -288,17 +246,9 @@ export function NodeRenderer({
   if (!loaded || (loaded.loading && !loaded.component)) {
     return (
       <ComponentFrame
-        {...frameHeightProps}
-        node={node}
+        {...frameProps}
         className="component-node component-state"
-        isVirtualRoot={node.id === focusedNodeId}
-        collapsed={collapsed}
         ariaLive="polite"
-        onFocus={onFocus}
-        onToggleCollapse={() => onToggleCollapse(node.id)}
-        onCopyPath={onCopyPath}
-        onEditComponent={onEditComponent}
-        onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
@@ -314,17 +264,9 @@ export function NodeRenderer({
   if (!loaded.component) {
     return (
       <ComponentFrame
-        {...frameHeightProps}
-        node={node}
+        {...frameProps}
         className="component-node component-state component-state--error"
-        isVirtualRoot={node.id === focusedNodeId}
-        collapsed={collapsed}
         role="alert"
-        onFocus={onFocus}
-        onToggleCollapse={() => onToggleCollapse(node.id)}
-        onCopyPath={onCopyPath}
-        onEditComponent={onEditComponent}
-        onOpenAgent={onOpenAgent}
       >
         {!collapsed ? (
           <>
@@ -340,16 +282,8 @@ export function NodeRenderer({
   const Component = loaded.component;
   return (
     <ComponentFrame
-      {...frameHeightProps}
-      node={node}
+      {...frameProps}
       className="component-node component-node--local"
-      isVirtualRoot={node.id === focusedNodeId}
-      collapsed={collapsed}
-      onFocus={onFocus}
-      onToggleCollapse={() => onToggleCollapse(node.id)}
-      onCopyPath={onCopyPath}
-      onEditComponent={onEditComponent}
-      onOpenAgent={onOpenAgent}
     >
       {!collapsed ? (
         <>

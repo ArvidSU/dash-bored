@@ -9,6 +9,8 @@ Everything else lives in focused modules under feature directories:
 
 - `app/` — shell and orchestration: `App.tsx`, `app-shell.tsx`,
   `AppDialogs.tsx` (all dashboard modals and the `AppDialog` union),
+  `DashboardWorkspace.tsx` (trust, diagnostics, breadcrumbs, and the rendered
+  tree with its render context),
   `app-utils.ts` (pure snapshot/task/project helpers, edit-session types),
   `main.tsx` (entry), and one hook per concern:
   - `use-host-session.ts` — everything the host pushes: the snapshot, the
@@ -40,8 +42,10 @@ Everything else lives in focused modules under feature directories:
   `composition-*.ts(x)` (targets, labels, placement, movement,
   operation, preview, interaction-controller), `ComponentCompositor.tsx`,
   `CompositionFlyout.tsx`, `DashboardEditor.tsx`, `DashboardOutlineTree.tsx`.
-- `render/` — node rendering: `NodeRenderer.tsx` (recursive rendering plus
-  the staggered update-polish batch hook), `ComponentFrame.tsx` (per-node
+- `render/` — node rendering: `NodeRenderer.tsx` (recursive rendering of
+  `{ node }` from one `DashboardRenderContext` that carries trust, host state,
+  the action store, presentation state, and frame callbacks, plus the
+  staggered update-polish batch hook), `ComponentFrame.tsx` (per-node
   frame: menu, collapse shell, single-click collapse / double-click edit on
   frame chrome, height resizing, pointer drag affordances),
   `ComponentWebviewSurface.tsx`, `SplitLayout.tsx` + `split-layout.ts`,
@@ -77,8 +81,8 @@ Pure helpers and their contracts:
 - `render/ComponentFrame.tsx` — per-node frame: menu, collapse shell,
   single-click collapse / double-click edit on frame chrome, height
   resizing, drag/drop affordances.
-- `render/NodeRenderer.tsx` — recursive node rendering plus the staggered
-  update-polish batch hook.
+- `render/NodeRenderer.tsx` — recursive node rendering from
+  `DashboardRenderContext` plus the staggered update-polish batch hook.
 - `lib/dashboard-view-state.ts` — the one keyed store for renderer-owned
   presentation state (collapse, split ratios, height caps, focused target,
   selected managed child) per dashboard config path, with one localStorage

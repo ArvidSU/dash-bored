@@ -15,28 +15,24 @@ import { buildRevealActions, buildSelectionActions } from "../lib/selection-acti
 import { highlightRevealedItem, revealScrollBehavior } from "../lib/reveal-item";
 import { writeClipboardText } from "../lib/clipboard";
 import { CommandPalette } from "../panels/CommandPalette";
-import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
 import { AppShell } from "./app-shell";
 import type { DashboardOutlineNodeAction } from "../composition/DashboardOutlineTree";
 import { AgentActivity, activeDashboardAgentTaskCount } from "../panels/AgentActivity";
 import { DashboardEditor, DashboardEditorToolbar } from "../composition/DashboardEditor";
 import { CompositionFlyout } from "../composition/CompositionFlyout";
 import { useCompositionInteractionController } from "../composition/composition-interaction-controller";
-import { CompositionContext } from "../composition/composition-context";
 import { compositionPayloadLabel } from "../composition/composition-labels";
 import { CompositionDragChip } from "../composition/CompositionDragChip";
 import { useLocalComponents } from "../render/local-components";
-import { NodeRenderer, useComponentUpdateBatch } from "../render/NodeRenderer";
+import { useComponentUpdateBatch } from "../render/NodeRenderer";
 import { host } from "../lib/rpc-client";
-import { dashboardViewStateStore } from "../lib/dashboard-view-state";
 import { resolveVirtualRoot } from "../lib/virtual-root";
 import { useDashboardViewState } from "./use-dashboard-view-state";
-import { basename, mergeThemeCatalog, EMPTY_SPLIT_RATIO_OVERRIDES } from "./app-utils";
-import { Diagnostics } from "../panels/DiagnosticsPanel";
-import { TrustPanel } from "../panels/TrustPanel";
+import { mergeThemeCatalog, EMPTY_SPLIT_RATIO_OVERRIDES } from "./app-utils";
 import { EmptyProject } from "../panels/EmptyProject";
 import { SettingsPanel } from "../panels/SettingsPanel";
 import { AppDialogs, type AppDialog } from "./AppDialogs";
+import { DashboardWorkspace } from "./DashboardWorkspace";
 import { useNotices } from "./use-notices";
 import { useHostSession } from "./use-host-session";
 import { useAppSettings, useDashboardSettings } from "./use-app-settings";
@@ -270,22 +266,7 @@ export function App(): ReactNode {
       trusted: snapshot?.trusted ?? false,
       pendingPermissions: snapshot && !snapshot.trusted ? snapshot.requestedPermissions : [],
     },
-  }, {
-    reveal: async (nodeId) => {
-      const action = actions.store.get(`reveal:${encodeURIComponent(nodeId)}`);
-      if (!action) throw new Error(`No node ${nodeId} in the active dashboard.`);
-      const result = await actions.store.run(action.id);
-      if (result.status !== "completed") throw new Error(`Could not reveal ${nodeId}.`);
-    },
-    snapshotView: () => {
-      const view = activeView;
-      const presentation = dashboardViewStateStore.getSnapshot(dashboardPath, snapshot?.tree);
-      return () => {
-        setActiveView(view);
-        dashboardViewStateStore.update(dashboardPath, snapshot?.tree, () => presentation);
-      };
-    },
-  });
+  }, snapshot?.tree, setActiveView);
 
   if (session.loading) {
     return (
@@ -314,8 +295,6 @@ export function App(): ReactNode {
     || dialog !== null
     || actions.palette.open
     || (composition.editing && (draft.dirty || interaction.dragging !== null));
-  const title = snapshot?.dashboardName?.trim() || (snapshot?.projectRoot ? basename(snapshot.projectRoot) : "dash-bored");
-  const headerDashboardPath = snapshot?.configPath ?? snapshot?.projectRoot ?? null;
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
   }\u0000${snapshot?.trusted ? "trusted" : "restricted"}`;
@@ -344,93 +323,54 @@ export function App(): ReactNode {
           onChoose={() => void navigation.addDashboard()}
         />
       ) : (
-        <main className="workspace">
-            {editSession && editSession.projectRoot === snapshot.projectRoot && !composition.previewTree ? (
-              <DashboardEditor
-                config={editSession.draft}
-                catalog={editSession.componentCatalog}
-                diagnostics={editSession.validation.diagnostics}
-                projectRoot={editSession.projectRoot}
-                configPath={editSession.configPath}
-                agentCommand={effectiveAgentCommand}
-                agentPending={pendingAction === "component-agent:create"}
-                onBuildWithAgent={composition.requestCreationAgent}
-                onChange={(next) => draft.setDraft(next)}
-              />
-            ) : (
-              <>
-            {!snapshot.trusted ? (
-              <TrustPanel snapshot={snapshot} pending={pendingAction === "trust"} onTrust={() => void notices.perform("trust", host.trustProject)} />
-            ) : null}
-
-            <Diagnostics
-              diagnostics={visibleDiagnostics}
-              pending={pendingAction === "diagnostics-agent"}
-              repairPending={pendingAction === "installed-tools-repair"}
-              onFixWithAgent={() => void agent.runDiagnosticsAgent()}
-              onRepairInstalledTools={() => void repairInstalledTools()}
+        <DashboardWorkspace
+          snapshot={snapshot}
+          virtualRoot={visibleVirtualRoot}
+          draftEditor={editSession && editSession.projectRoot === snapshot.projectRoot && !composition.previewTree ? (
+            <DashboardEditor
+              config={editSession.draft}
+              catalog={editSession.componentCatalog}
+              diagnostics={editSession.validation.diagnostics}
+              projectRoot={editSession.projectRoot}
+              configPath={editSession.configPath}
+              agentCommand={effectiveAgentCommand}
+              agentPending={pendingAction === "component-agent:create"}
+              onBuildWithAgent={composition.requestCreationAgent}
+              onChange={(next) => draft.setDraft(next)}
             />
-
-            {snapshot.tree ? (
-              <section className="dashboard" aria-label={`${title} dashboard`}>
-                {visibleVirtualRoot && visibleVirtualRoot.crumbs.length > 1 ? (
-                  <nav className="dashboard-breadcrumbs" aria-label="Focused component path">
-                    {visibleVirtualRoot.crumbs.map((crumb, index) => (
-                      <span className="dashboard-breadcrumbs__item" key={crumb.id}>
-                        {index < visibleVirtualRoot.crumbs.length - 1 ? (
-                          <button type="button" onClick={() => viewState.focusComponent(crumb.id)}>{crumb.label}</button>
-                        ) : <span aria-current="page">{crumb.label}</span>}
-                        {index < visibleVirtualRoot.crumbs.length - 1 ? <span aria-hidden="true">/</span> : null}
-                      </span>
-                    ))}
-                  </nav>
-                ) : null}
-                <ComponentVisibilityContext.Provider value={!compositionUiActive}>
-                  <CompositionContext.Provider value={composition.contextValue}>
-                    <NodeRenderer
-                      node={visibleVirtualRoot?.node ?? snapshot.tree}
-                      trusted={snapshot.trusted}
-                      processesRef={session.processesRef}
-                      environmentByNode={snapshot.environmentByNode}
-                      localComponents={localComponents}
-                      actionStore={actions.store}
-                      actionScope={actionScope}
-                      actionController={actions.controller}
-                      updateBatch={componentUpdateBatch}
-                      collapsedNodeIds={viewState.activeCollapsedComponentIds}
-                      splitRatioOverrides={composition.editing ? EMPTY_SPLIT_RATIO_OVERRIDES : viewState.activeSplitRatioOverrides}
-                      componentHeightOverrides={viewState.activeComponentHeightOverrides}
-                      childSelections={viewState.activeChildSelections}
-                      onFocus={viewState.focusComponent}
-                      onToggleCollapse={viewState.toggleComponentCollapse}
-                      onSplitRatioChange={composition.changeSplitRatio}
-                      onComponentHeightChange={viewState.updateComponentHeight}
-                      onCopyPath={(node) => void copyComponentPath(node)}
-                      onEditComponent={(node) => void composition.editNode(node)}
-                      onOpenAgent={agent.openChangeWithAgent}
-                      onUpdateProps={draft.updateComponentProps}
-                      focusedNodeId={visibleVirtualRoot?.target.id ?? snapshot.tree.id}
-                    />
-                  </CompositionContext.Provider>
-                </ComponentVisibilityContext.Provider>
-              </section>
-            ) : (
-              <section className="empty-dashboard">
-                <span className="eyebrow">Configuration unavailable</span>
-                <h1>The dashboard could not be rendered.</h1>
-                <p>Fix the diagnostics above, then reload the project.</p>
-                <button className="button button--secondary" type="button" disabled={pendingAction !== null} onClick={() => void notices.perform("reload", host.reloadProject)}>Try again</button>
-              </section>
-            )}
-
-              </>
-            )}
-
-            <footer className="workspace__footer">
-              <span>Revision {snapshot.revision}</span>
-              <span>{snapshot.trusted ? "Capabilities enabled" : "Restricted mode"}</span>
-            </footer>
-        </main>
+          ) : null}
+          diagnostics={visibleDiagnostics}
+          pendingAction={pendingAction}
+          componentsVisible={!compositionUiActive}
+          composition={composition.contextValue}
+          render={{
+            trusted: snapshot.trusted,
+            processesRef: session.processesRef,
+            environmentByNode: snapshot.environmentByNode,
+            localComponents,
+            actionStore: actions.store,
+            actionScope,
+            actionController: actions.controller,
+            updateBatch: componentUpdateBatch,
+            collapsedNodeIds: viewState.activeCollapsedComponentIds,
+            splitRatioOverrides: composition.editing ? EMPTY_SPLIT_RATIO_OVERRIDES : viewState.activeSplitRatioOverrides,
+            componentHeightOverrides: viewState.activeComponentHeightOverrides,
+            childSelections: viewState.activeChildSelections,
+            onFocus: viewState.focusComponent,
+            onToggleCollapse: viewState.toggleComponentCollapse,
+            onSplitRatioChange: composition.changeSplitRatio,
+            onComponentHeightChange: viewState.updateComponentHeight,
+            onCopyPath: (node) => void copyComponentPath(node),
+            onEditComponent: (node) => void composition.editNode(node),
+            onOpenAgent: agent.openChangeWithAgent,
+            onUpdateProps: draft.updateComponentProps,
+          }}
+          onFocus={viewState.focusComponent}
+          onTrust={() => void notices.perform("trust", host.trustProject)}
+          onReload={() => void notices.perform("reload", host.reloadProject)}
+          onFixWithAgent={() => void agent.runDiagnosticsAgent()}
+          onRepairInstalledTools={() => void repairInstalledTools()}
+        />
       )}
     </>
   );
@@ -444,11 +384,8 @@ export function App(): ReactNode {
         expandedProjectOutlines={navigation.expandedOutlines}
         pendingAction={pendingAction}
         projectOutlines={session.outlines}
-        currentVirtualRootProjectPath={snapshot?.configPath ?? null}
         currentVirtualRootId={virtualRoot?.target.id ?? null}
         collapsedNodeIds={viewState.activeCollapsedComponentIds}
-        title={title}
-        dashboardPath={headerDashboardPath}
         shortcutLabel={shortcutLabel}
         editing={draft.editingActiveProject}
         componentLibraryOpen={interaction.libraryOpen}
@@ -468,40 +405,7 @@ export function App(): ReactNode {
           ) : null
         }
         actionError={notices.error}
-        actionNotice={
-          notices.notice ? (
-            <div className="global-notice" role="status">
-              <span>{notices.notice.message}</span>
-              <button
-                className="global-notice__close"
-                type="button"
-                aria-label="Dismiss message"
-                onClick={notices.dismissNotice}
-              >
-                <svg
-                  className="global-notice__countdown"
-                  viewBox="0 0 28 28"
-                  aria-hidden="true"
-                >
-                  <circle
-                    className="global-notice__countdown-track"
-                    cx="14"
-                    cy="14"
-                    r="11"
-                  />
-                  <circle
-                    className="global-notice__countdown-progress"
-                    cx="14"
-                    cy="14"
-                    r="11"
-                    pathLength="1"
-                  />
-                </svg>
-                <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          ) : null
-        }
+        actionNotice={notices.notice}
         onToggleSidebar={() => settings.setSidebarExpanded((expanded) => !expanded)}
         showDashboardNumbers={commandHeld && !actions.palette.open}
         onMoveProject={navigation.moveProject}
@@ -516,6 +420,7 @@ export function App(): ReactNode {
         onToggleLibrary={toggleCompositionLibrary}
         onToggleAgentActivity={agent.toggleActivity}
         onDismissError={() => notices.setError(null)}
+        onDismissNotice={notices.dismissNotice}
       >
         <ThemeNotice />
         {workspace}
@@ -545,16 +450,12 @@ export function App(): ReactNode {
         onToggleFavorite={settings.toggleFavoriteAction}
       />
       <CompositionFlyout
-        dashboardAppearance={snapshot?.configPath ? <details className="dashboard-appearance">
-          <summary>Dashboard appearance</summary>
-          <label className="props-field"><span>Window theme</span><ThemeSelect inherit
-            value={editSession?.configPath === snapshot.configPath ? editSession?.draft.theme : snapshot.config?.theme}
-            onChange={(theme) => draft.updateAppearance({ theme })} /></label>
-          <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={editSession?.configPath === snapshot.configPath ? editSession?.draft.themeMode ?? "" : snapshot.config?.themeMode ?? ""} onChange={(event) => draft.updateAppearance({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>
-            <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
-          </select></label>
-          <p>Applies to the whole window. Save dashboard to keep the selection.</p>
-        </details> : undefined}
+        dashboardAppearance={snapshot?.configPath ? (
+          <DashboardAppearanceFields
+            config={editSession?.configPath === snapshot.configPath ? editSession.draft : snapshot.config}
+            onChange={draft.updateAppearance}
+          />
+        ) : undefined}
         open={interaction.libraryOpen}
         dragging={interaction.dragging}
         catalog={composition.catalog}
@@ -600,5 +501,27 @@ export function App(): ReactNode {
         onConfirmDeletion={() => void navigation.confirmDeletion()}
       />
     </>
+  );
+}
+
+/** The library's window-appearance fields; changes land in the dashboard draft. */
+function DashboardAppearanceFields({
+  config,
+  onChange,
+}: {
+  config: DashboardConfig | null | undefined;
+  onChange(change: Pick<DashboardConfig, "theme" | "themeMode">): void;
+}): ReactNode {
+  return (
+    <details className="dashboard-appearance">
+      <summary>Dashboard appearance</summary>
+      <label className="props-field"><span>Window theme</span><ThemeSelect inherit
+        value={config?.theme}
+        onChange={(theme) => onChange({ theme })} /></label>
+      <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={config?.themeMode ?? ""} onChange={(event) => onChange({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>
+        <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
+      </select></label>
+      <p>Applies to the whole window. Save dashboard to keep the selection.</p>
+    </details>
   );
 }
