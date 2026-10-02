@@ -1,5 +1,7 @@
+import { useCallback } from "react";
 import type { ReactNode } from "react";
 import type {
+  ComponentAgentPreview,
   DashboardConfig,
   ProjectDeletionPreview,
   ProjectListItem,
@@ -13,7 +15,7 @@ import { projectLabel } from "../lib/action-providers";
 import { basename } from "./app-utils";
 import type { DashboardEditSession } from "./app-utils";
 import type { CompositionDialogState } from "../composition/composition-interaction-controller";
-import { AgentPromptPanel } from "../panels/AgentPromptPanel";
+import { AgentPromptPanel, type AgentPromptDraft } from "../panels/AgentPromptPanel";
 
 export interface AppDialogsProps {
   compositionDialog: CompositionDialogState | null;
@@ -21,7 +23,7 @@ export interface AppDialogsProps {
   editSession: DashboardEditSession | null;
   editingActiveProject: boolean;
   agentDialog: ResolvedComponentNode | null;
-  agentPromptDraft?: string;
+  agentPromptDraft: AgentPromptDraft;
   pendingAction: string | null;
   discardConfirmation: { message: string; continueAction: () => void } | null;
   deletionDialog: {
@@ -38,9 +40,11 @@ export interface AppDialogsProps {
   onConfirmRemoval: () => void;
   onBuildWithAgent: (target: InsertionTarget, description: string) => void;
   onRunComponentAgent: (node: ResolvedComponentNode, prompt: string) => Promise<void>;
+  onPreviewComponentAgent: (node: ResolvedComponentNode, prompt: string) => Promise<ComponentAgentPreview>;
   onDismissAgentDialog: () => void;
   onDismissDiscard: () => void;
   onConfirmDiscard: (continueAction: () => void) => void;
+  onSaveDiscard: (continueAction: () => void) => void;
   onDismissDeletion: () => void;
   onToggleDeletionFiles: (removeFiles: boolean) => void;
   onConfirmDeletion: () => void;
@@ -66,13 +70,21 @@ export function AppDialogs({
   onConfirmRemoval,
   onBuildWithAgent,
   onRunComponentAgent,
+  onPreviewComponentAgent,
   onDismissAgentDialog,
   onDismissDiscard,
   onConfirmDiscard,
+  onSaveDiscard,
   onDismissDeletion,
   onToggleDeletionFiles,
   onConfirmDeletion,
 }: AppDialogsProps): ReactNode {
+  const previewAgent = useCallback(
+    (prompt: string) => agentDialog
+      ? onPreviewComponentAgent(agentDialog, prompt)
+      : Promise.reject(new Error("The agent prompt target is no longer available.")),
+    [agentDialog, onPreviewComponentAgent],
+  );
   const compositionExisting = compositionDialog?.mode === "configure"
     && editSession
     && compositionDialog.path
@@ -145,7 +157,7 @@ export function AppDialogs({
   ) : null}
   {agentDialog ? (
     <EditorModal
-      title={`Change ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
+      title={`${agentPromptDraft.template === "dashboard" ? "Change" : "Agent work from"} ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
       onDismiss={() => {
         if (pendingAction !== `component-agent:${agentDialog.id}`) onDismissAgentDialog();
       }}
@@ -154,9 +166,10 @@ export function AppDialogs({
         key={agentDialog.id}
         node={agentDialog}
         agentCommand={agentCommandForNode?.(agentDialog) ?? agentCommand}
-        initialPrompt={agentPromptDraft}
+        draft={agentPromptDraft}
         pending={pendingAction === `component-agent:${agentDialog.id}`}
         onDismiss={() => onDismissAgentDialog()}
+        onPreview={previewAgent}
         onSend={(prompt) => onRunComponentAgent(agentDialog, prompt)}
       />
     </EditorModal>
@@ -168,6 +181,7 @@ export function AppDialogs({
         <p>This draft has not been written to dash-bored.yaml.</p>
         <footer className="editor-modal__actions">
           <button className="button button--quiet" type="button" onClick={() => onDismissDiscard()}>Keep editing</button>
+          <button className="button button--primary" type="button" onClick={() => onSaveDiscard(discardConfirmation.continueAction)}>Save dashboard</button>
           <button className="button button--danger" type="button" onClick={() => onConfirmDiscard(discardConfirmation.continueAction)}>Discard changes</button>
         </footer>
       </div>

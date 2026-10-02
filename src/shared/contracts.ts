@@ -195,8 +195,29 @@ export interface AppSettings {
   actionShortcuts: Record<string, string>;
 }
 
+/** What a dispatched agent works on; decides the follow-up review, not the wording. */
+export type AgentPromptScope = "project" | "dashboard";
+
+export interface AgentPromptTemplateSummary {
+  name: string;
+  description: string;
+  scope: AgentPromptScope;
+  input: "required" | "optional";
+  builtin: boolean;
+}
+
 export interface ComponentAgentRequest {
   nodeId: string;
+  /** The user's reviewed input; rendered into the template as `{{input}}`. */
+  prompt: string;
+  /** Prompt template name; Change with agent uses `dashboard`, `agent:prompt` defaults to `project`. */
+  template?: string;
+  vars?: Record<string, string | number | boolean>;
+}
+
+export interface ComponentAgentPreview {
+  template: AgentPromptTemplateSummary;
+  /** The complete prompt the configured agent would receive. */
   prompt: string;
 }
 
@@ -241,10 +262,12 @@ export interface ComponentAgentLaunch {
   pid: number | null;
 }
 
-/** A dashboard-only invocation of the user's configured CLI agent. */
+/** One invocation of the user's configured CLI agent, for dashboard or project work. */
 export interface DashboardAgentTask {
   id: string;
-  purpose?: "setup" | "setup-repair" | "edit" | "migration" | "repair";
+  purpose?: "setup" | "setup-repair" | "edit" | "migration" | "repair" | "project";
+  /** Prompt template the request was rendered from, when it came from one. */
+  template?: string;
   command: string;
   /** Fully contextualized prompt passed as the configured command's argument. */
   prompt: string;

@@ -9,7 +9,10 @@ These are renderer/app state, never YAML — do not try to configure them:
   first insertion, move, removal, replacement, metadata edit, or ratio resize
   starts a draft. Save validates and atomically publishes the owning bundle's
   YAML; Cancel discards it. The per-node Edit dialog edits declared props and
-  child metadata through the same boundary.
+  child metadata through the same boundary. When switching dashboards with a
+  dirty draft, the confirmation offers Keep editing, Save dashboard, and
+  Discard changes. Save validates and writes the draft before continuing the
+  requested navigation; a failed save leaves the draft and confirmation open.
 - **Presentation state.** Collapse/expand, the selected Focus target (with
   breadcrumbs back), runtime split-ratio drags, and surface height caps are
   per-user, keyed by config path and node ID, persisted locally. The target
@@ -36,7 +39,10 @@ These are renderer/app state, never YAML — do not try to configure them:
   General; starter `.env` holds an editable default) selects the CLI used by
   Change-with-agent, Fix-with-agent (in diagnostics details), the Agent work
   drawer (Working/Not working items with terminal / bundle-diff / full-command
-  tabs), and the flyout's natural-language "build a component" fallback. Agent
+  tabs), and the flyout's natural-language "build a component" fallback.
+  Change with agent and `agent:prompt` render a prompt template (`dashboard`,
+  `project`, or the bundle's `prompts/<name>.md`); the composer shows the full
+  rendered prompt before Send. Agent
 context travels in `DASH_BORED_AGENT_PROMPT` as one quoted argument. Saving an
 empty app setting field lets the owning bundle's `.env` command select the CLI. This
   is a narrow harness around the user's CLI, not a provider integration.

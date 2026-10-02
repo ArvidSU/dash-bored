@@ -56,6 +56,17 @@ describe("DashboardSetupSupervisor", () => {
     }
   });
 
+  test("project work skips dashboard validation and keeps its template", async () => {
+    const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
+    await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launchRequest({
+      purpose: "project", followUp: false, template: "project", prompt: "Implement todo-022", configPath: location.configPath,
+      componentPath: `${location.configPath}#id=yaml-todo`, request: "Implement todo-022",
+    });
+    expect(h.launches[0].options).toMatchObject({ purpose: "project", template: "project" });
+    expect(h.launches[0].options.onFinished).toBeUndefined();
+    expect(h.launches[0].options.followUp).toBeUndefined();
+  });
+
   test("passes resolved launch environment and validates a successful fresh config", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);

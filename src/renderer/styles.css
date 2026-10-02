@@ -3349,6 +3349,47 @@ html:has(.editor-modal) {
   font-size: 9px !important;
 }
 
+.agent-prompt__template {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-prompt__scope {
+  padding: 2px 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.agent-prompt__preview summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-prompt__preview pre {
+  max-height: min(36vh, 22rem);
+  margin: 8px 0 0;
+  padding: 9px 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .agent-prompt__error {
   padding: 9px 10px;
   border: 1px solid color-mix(in srgb, var(--negative) 24%, transparent);

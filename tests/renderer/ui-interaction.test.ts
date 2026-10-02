@@ -715,6 +715,31 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Collapse sidebar" }).click();
   }, 20_000);
 
+  test("Change with agent previews the dashboard template before sending", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      const frame = proof.locator('[data-node-id="responsive-card"]');
+      await frame.waitFor();
+      await frame.locator("header").first().click({ button: "right" });
+      await proof.getByRole("menuitem", { name: "Change with agent…", exact: true }).click();
+      const composer = proof.getByRole("dialog", { name: /^Change / });
+      await composer.waitFor();
+      await composer.getByText("Dashboard change", { exact: true }).waitFor();
+      expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
+      await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Add a status beside this tile.");
+      await composer.getByText("Full prompt", { exact: true }).click();
+      const preview = composer.getByLabel("Full agent prompt");
+      await preview.getByText("Add a status beside this tile.", { exact: false }).waitFor();
+      const rendered = await preview.textContent();
+      expect(rendered).toContain("Target component id: responsive-card");
+      expect(rendered).toContain("User request:\nAdd a status beside this tile.");
+      expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(true);
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("agent work keeps a dashboard-only request visible after dispatch", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open agent work" }).click();
@@ -993,6 +1018,16 @@ describe("renderer fixture interactions", () => {
     await currentPage().getByRole("button", { name: "Discard changes", exact: true }).click();
     await currentPage().getByRole("button", { name: "Open component library" }).waitFor();
     expect(await persistedGroupCount()).toBe(1);
+  }, 20_000);
+
+  test("discard confirmation can save the draft before continuing", async () => {
+    const before = await persistedGroupCount();
+    await addGroupDraft();
+    await currentPage().getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    const confirmation = currentPage().getByRole("dialog", { name: "Discard dashboard changes?" });
+    await confirmation.getByRole("button", { name: "Save dashboard", exact: true }).click();
+    await confirmation.waitFor({ state: "detached" });
+    expect(await persistedGroupCount()).toBe(before + 1);
   }, 20_000);
 
   test("an incompatible pointer drop does not mutate the draft or persisted fixture", async () => {

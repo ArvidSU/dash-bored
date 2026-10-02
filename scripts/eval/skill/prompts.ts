@@ -4,8 +4,8 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { starterAgentPrompt } from "../../../src/core/project-files";
+import { builtinPromptTemplates, prepareAgentPrompt } from "../../../src/shared/prompt-templates";
 import {
-  buildComponentAgentPrompt,
   buildComponentCreationAgentPrompt,
   type DashboardInsertion,
 } from "../../../src/shared/component-agent";
@@ -20,13 +20,20 @@ for (const { name } of runs) {
   if (name.startsWith("acme-api-")) {
     prompt = starterAgentPrompt("acme-api", configPath);
   } else if (name.startsWith("ledger-tools-")) {
-    prompt = buildComponentAgentPrompt({
+    // Change with agent renders the shipped dashboard template.
+    prompt = prepareAgentPrompt({ templates: builtinPromptTemplates(), diagnostics: [] }, {
+      template: "dashboard",
+      input: "This always says healthy, even when the API is down. Make it show whether the API on port 8000 actually responds. Also put something next to it that lists the files I've changed but not committed yet, and lets me open the diff for one of them.",
       projectRoot: root,
       configPath,
-      componentPath: `${configPath}#id=service-status`,
-      componentId: "service-status",
-      componentReference: "@dash-bored/status",
-    }, "This always says healthy, even when the API is down. Make it show whether the API on port 8000 actually responds. Also put something next to it that lists the files I've changed but not committed yet, and lets me open the diff for one of them.");
+      configDirectory: join(root, ".dash-bored"),
+      component: {
+        id: "service-status",
+        reference: "@dash-bored/status",
+        path: `${configPath}#id=service-status`,
+        name: "service-status",
+      },
+    }).prompt;
   } else if (name.startsWith("field-notes-")) {
     // Hand-built to match what resolveDashboardInsertion returns for a
     // horizontal split to the right of serve-docs; keep in sync with its type.

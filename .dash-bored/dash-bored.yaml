@@ -195,11 +195,14 @@ root:
                       props:
                         title: Project backlog
                         itemActions:
-                          - name: Remediate with agent
+                          - name: Implement with agent
                             action:
                               run: agent:prompt
                               with:
+                                template: implement-todo
                                 prompt: ${item.description}
+                                vars:
+                                  id: ${item.id}
                         todos:
                           - id: todo-001
                             description: Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path.
@@ -237,12 +240,12 @@ root:
                             tags:
                               - agent-tools
                           - id: todo-agent-tab-attention
-                            description: "Add an agent summary of a tab (app read <selection-child> --summary) listing every nested status, list, and command panel with its state, so asking whether anything on a tab needs attention is one call."
+                            description: Add an agent summary of a tab (app read <selection-child> --summary) listing every nested status, list, and command panel with its state, so asking whether anything on a tab needs attention is one call.
                             done: false
                             tags:
                               - agent-tools
                           - id: todo-command-read-only-hint
-                            description: "Let command nodes declare whether they are read-only checks (validate, status) or side-effecting (build, release), and expose it in app actions, so agents know what they may run without asking."
+                            description: Let command nodes declare whether they are read-only checks (validate, status) or side-effecting (build, release), and expose it in app actions, so agents know what they may run without asking.
                             done: false
                             tags:
                               - agent-tools
@@ -317,24 +320,19 @@ root:
                               - feature
                           - id: todo-020
                             description: Agent work modal not showing diff
-                            done: false
+                            done: true
                             tags:
                               - bug
                           - id: todo-021
                             description: Remove Agent work modal redundant "Recent agent output” dropdown
-                            done: false
+                            done: true
                             tags:
                               - chore
                           - id: todo-022
                             description: Add “Save dashboard” button to alert that is shown when navigating away from dashboard with unsaved changes
-                            done: false
+                            done: true
                             tags:
                               - improvement
-                          - id: todo-023
-                            description: Drag and dropping component between, or creating new, tabs needs support
-                            done: false
-                            tags:
-                              - chore
                           - id: todo-024
                             description: "Drag targeting: let edge distance escalate to ancestor boundaries so a drop can tile beside a whole split pane or at the dashboard edge, not only beside the deepest hovered node's siblings."
                             done: false
@@ -351,7 +349,7 @@ root:
                             tags:
                               - chore
                           - id: todo-027
-                            description: "Replace the remaining App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, processesRef, agentControlStateRef) with effect-synced refs or store reads. The L1 ActionStore already removed actionsByIdRef and runningActionIdsRef (react-doctor no-ref-current-in-render)."
+                            description: Replace the remaining App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, processesRef, agentControlStateRef) with effect-synced refs or store reads. The L1 ActionStore already removed actionsByIdRef and runningActionIdsRef (react-doctor no-ref-current-in-render).
                             done: false
                             tags:
                               - chore
@@ -376,7 +374,7 @@ root:
                             tags:
                               - chore
                           - id: todo-agent-run-idle-live
-                            description: "Live-verify the app run idle wait in the desktop app (time component:workspace-status:refresh, screenshot right after); it was not verified live where it was added because Hutch prepare was blocked."
+                            description: Live-verify the app run idle wait in the desktop app (time component:workspace-status:refresh, screenshot right after); it was not verified live where it was added because Hutch prepare was blocked.
                             done: true
                             tags:
                               - chore
@@ -487,6 +485,27 @@ root:
                               - onboarding
                               - visual
                               - qa
+                          - id: todo-prompt-templates-builtin-flows
+                            description: Render Build with agent, Fix with agent, setup, and migration prompts from overridable built-in templates (component-build, diagnostics-fix, setup) so a bundle can customize every agent entry point, not only project and dashboard.
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-prompt-templates-ask-agent
+                            description: Add an "Ask agent…" panel-menu entry beside Change with agent that opens the composer with the project template and the panel as context.
+                            done: false
+                            tags:
+                              - agent-tools
+                              - renderer
+                          - id: todo-prompt-templates-discovery
+                            description: "Make prompt templates discoverable: list them in `inspect --summary` for agents and let the command palette's Send prompt to agent pick a template."
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-prompt-templates-whole-item
+                            description: "Let an item action pass the whole list item as prompt context (for example `vars: ${item}`) instead of naming each field."
+                            done: false
+                            tags:
+                              - agent-tools
                   second:
                     node:
                       id: checks
@@ -1056,6 +1075,7 @@ root:
                           action:
                             run: agent:prompt
                             with:
+                              template: dashboard
                               prompt: Inspect this project and propose a scoped dashboard improvement. Use the dash-bored skill and validate any saved dashboard changes.
                   second:
                     axis: vertical

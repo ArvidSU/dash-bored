@@ -2,6 +2,7 @@ import type { RPCSchema } from "electrobun/main";
 import type {
   AppSettings,
   ComponentAgentLaunch,
+  ComponentAgentPreview,
   ComponentAgentRequest,
   DashboardSetupAgentRequest,
   ComponentCreationAgentRequest,
@@ -39,6 +40,7 @@ export type DashboardRPC = {
       getAppSettings: { params: {}; response: AppSettings };
       updateAppSettings: { params: AppSettings; response: AppSettings };
       runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
+      previewComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentPreview };
       runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
       runDiagnosticsAgent: { params: {}; response: ComponentAgentLaunch };
       repairInstalledTools: { params: {}; response: ProjectSnapshot };

@@ -118,9 +118,22 @@ collapse or expand it to keep large dashboards compact, copy an exact
 config-and-tree locator, or describe a wanted change and send it to the app-wide configured
 `DASH_BORED_AGENT`. The app enriches that request with dash-bored, project, and
 component context; it does not hide which external CLI command will run.
-Dashboard-change requests are first-class in the application through a small
+
+The cockpit dispatches agents to two kinds of work: changing the dashboard, and
+doing work in the project itself (implementing a backlog item, reviewing a
+change, fixing a red check). Both are prompt templates. The app ships a
+`dashboard` and a `project` template as defaults, and a bundle may add its own
+or override the defaults with plain Markdown files, so a project decides how
+its agents are briefed. A template is filled from the user's reviewed input,
+typed values from the invoking button or list item, declared environment
+values, and the app's context. The user sees the complete prompt before
+sending it. A template's scope, not its wording, decides what the app reviews
+afterwards: dashboard work is validated, project work is shown as a project
+diff.
+
+Agent requests are first-class in the application through a small
 agent-work surface that reports the configured CLI's launch, output, exit, and
-observed dashboard changes. This is deliberately a narrow harness around the
+observed changes. This is deliberately a narrow harness around the
 user's agent, not a general-purpose agent runtime or provider integration.
 The agent terminal accepts direct input and keeps a project shell available
 after the agent finishes, until the user closes it. The agent result and setup

@@ -311,10 +311,10 @@ export function AgentActivity({
               aria-labelledby={`${tabsId}-diff-tab`}
               hidden={activeTab !== "diff"}
             >
-              {diffState.loading ? <p className="editor-muted">Loading dash-bored diff…</p> : null}
+              {diffState.loading ? <p className="editor-muted">{selectedTask?.purpose === "project" ? "Loading project diff…" : "Loading dash-bored diff…"}</p> : null}
               {diffState.error ? <p className="inline-error" role="alert">{diffState.error}</p> : null}
               {!diffState.loading && !diffState.error ? (
-                diffState.value ? <pre className="agent-task-modal__diff">{diffState.value}</pre> : <p className="editor-muted">No changes in the dash-bored folder.</p>
+                diffState.value ? <pre className="agent-task-modal__diff">{diffState.value}</pre> : <p className="editor-muted">{selectedTask?.purpose === "project" ? "No changes in the project." : "No changes in the dash-bored folder."}</p>
               ) : null}
             </div>
             <div

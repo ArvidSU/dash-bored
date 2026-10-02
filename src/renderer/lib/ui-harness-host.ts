@@ -36,6 +36,8 @@ import type {
 import type { DashboardHost, HostEvent } from "./rpc-client";
 import type { UpdateState } from "../../shared/updates";
 import { envEntries, parseEnv } from "../../shared/env";
+import { componentPath, findResolvedNode } from "../../shared/component-agent";
+import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummary } from "../../shared/prompt-templates";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
 
@@ -536,6 +538,22 @@ export function createUiHarnessHost(): UiHarnessHost {
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
+    async previewComponentAgent(request: ComponentAgentRequest) {
+      // The fixture has no bundle templates; it renders the shipped defaults.
+      const node = findResolvedNode(snapshot().tree!, request.nodeId);
+      if (!node) throw new Error("That component is no longer present.");
+      const { template, prompt } = prepareAgentPrompt({ templates: builtinPromptTemplates(), diagnostics: [] }, {
+        ...(request.template ? { template: request.template } : {}),
+        input: request.prompt,
+        ...(request.vars ? { vars: request.vars } : {}),
+        projectRoot: "/ui-harness",
+        configPath: CONFIG_PATH,
+        configDirectory: PROJECT_ROOT,
+        component: { id: node.id, reference: node.component, path: componentPath(node), name: node.configName?.trim() || node.manifest?.name || node.component },
+        allowEmptyInput: true,
+      });
+      return { template: promptTemplateSummary(template), prompt };
+    },
     async runComponentCreationAgent(request: ComponentCreationAgentRequest) { return launch(request); },
     async runDiagnosticsAgent() {
       return launch({

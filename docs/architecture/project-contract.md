@@ -14,6 +14,8 @@ project/
     ├── README.md
     ├── install-app.sh
     ├── .env
+    ├── prompts/
+    │   └── implement-todo.md
     └── components/
         └── external/
             └── service-health/
@@ -214,10 +216,56 @@ An action-bearing prop may keep the argument-free string form or use
 `{ run: <reference>, with: { ... } }`. The loader validates `with` against the
 target action's declared `args` schema. A button passes those typed values through
 the shared action executor; matching string values prefill choice steps, while
-unmatched choices remain interactive. The app action `agent:prompt` accepts a
-required `prompt` string. A button invocation opens the existing agent composer
-with the resolved command and configured prompt for review; the user must press
-Send.
+unmatched choices remain interactive. The app action `agent:prompt` accepts an
+optional `prompt` string (the composer's editable input), an optional
+`template` name, and optional `vars` of strings, numbers, or booleans; list item
+templates must still be whole values. A button invocation opens the existing
+agent composer with the resolved command, template, and rendered prompt for
+review; the user must press Send.
+
+### Prompt templates
+
+Agent requests are rendered from prompt templates. The app ships two:
+`project` (work in the project, requested from a component; the `agent:prompt`
+default) and `dashboard` (change the dashboard from a component; used by Change
+with agent). A bundle adds templates as `prompts/<name>.md` beside its
+`dash-bored.yaml`; a file named like a shipped template replaces it for that
+bundle, and `dash-bored/<name>` always means the shipped one. Names are
+lowercase letters, digits, and hyphens. Files are regular files of at most
+32 KiB, at most 64 per bundle; symlinks are rejected.
+
+```markdown
+---
+description: Implement a backlog item
+scope: project        # or dashboard; default project
+input: optional       # or required (default): Send needs user text
+vars:
+  id: Backlog item ID
+env: [LINEAR_TEAM]
+---
+{{> dash-bored/project}}
+
+Implement backlog item {{vars.id}}, then mark it done.
+```
+
+The body is a logic-less Mustache subset: `{{name}}`, sections
+`{{#name}}…{{/name}}` (render when truthy, once per array entry),
+inverted sections `{{^name}}…{{/name}}`, and includes `{{> name}}`. Values are
+inserted verbatim, and a section or include tag alone on its line removes that
+line. Templates see `input`, `vars.<name>`, `varList` (`name`/`value` entries),
+`hasVars`, `env.<KEY>`, `project.root`/`name`, `dashboard.config`/`directory`,
+and `component.id`/`reference`/`path`/`name`. A bundle template must declare
+every var it uses or accepts and every environment key it reads; shipped
+templates accept any vars and list them as context. Only declared environment
+keys are rendered, and the user sees their values in the composer preview
+before sending.
+
+Loading reports `PROMPT_TEMPLATE_INVALID` for malformed files, unknown fields,
+undeclared references, and unknown includes, and
+`COMPONENT_ACTION_ARGUMENTS_INVALID` when an `agent:prompt` names an unknown
+template or passes undeclared vars. Scope decides the app's follow-up, not the
+wording: `dashboard` requests are validated with at most one repair and diff
+the bundle; `project` requests diff the whole project.
 
 The same representation is used for YAML, drafts, resolved trees, and saved
 configuration. There is no shorthand expansion or alternate topology model.

@@ -3,6 +3,7 @@ import { whenIdle } from "./activity";
 import type {
   AppSettings,
   ComponentAgentLaunch,
+  ComponentAgentPreview,
   ComponentAgentRequest,
   DashboardSetupAgentRequest,
   ComponentCreationAgentRequest,
@@ -56,6 +57,7 @@ export interface DashboardHost {
   getAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
+  previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview>;
   runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
   runDiagnosticsAgent(): Promise<ComponentAgentLaunch>;
   repairInstalledTools(): Promise<ProjectSnapshot>;
@@ -209,6 +211,11 @@ const liveHost: DashboardHost = {
   async runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
     ensureTransport();
     return await rpc.request.runComponentAgent(request);
+  },
+
+  async previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview> {
+    ensureTransport();
+    return await rpc.request.previewComponentAgent(request);
   },
 
   async runComponentCreationAgent(

@@ -58,6 +58,21 @@ describe("dashboard agent diff", () => {
     expect(await git(root, "status", "--porcelain=v1", "-z")).toBe(status);
   });
 
+  test("project work covers the whole project but still skips ignored files", async () => {
+    const { root, folder } = await repository();
+    await writeFile(join(folder, "dash-bored.yaml"), "name: After\n");
+    await mkdir(join(root, "src"));
+    await writeFile(join(root, "src", "alert.ts"), "export const save = true;\n");
+    await writeFile(join(folder, "ignored.txt"), "ignored secret\n");
+
+    const diff = await readDashboardAgentDiff(root, folder, "project");
+
+    expect(diff).toContain("+name: After");
+    expect(diff).toContain("src/alert.ts");
+    expect(diff).toContain("+export const save = true;");
+    expect(diff).not.toContain("ignored secret");
+  });
+
   test("shows symlink targets and binary summaries without reading through links", async () => {
     const { root, folder } = await repository();
     const outside = join(root, "outside.txt");

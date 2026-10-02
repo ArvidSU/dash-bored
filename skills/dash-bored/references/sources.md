@@ -190,11 +190,57 @@ How item actions resolve:
   variable named `DASH_ITEM_` plus the upper-cased argument name. Quote it in
   the command text. `${item.…}` inside a `command` string fails validation.
 - `agent:prompt` opens the agent composer prefilled; the user reviews and
-  sends it. Agents cannot trigger it through `app run`.
+  sends it. Agents cannot trigger it through `app run`. Pass item fields the
+  agent needs to act on as `vars` (`vars: { id: "${item.id}" }`) rather than
+  only in the prompt text, so it can find the item again.
 - `sort` defaults to `open-first`, which moves items with `done: true` or a
   `state` of done, completed, or closed to the end; `source-order` keeps the
   script's order. A tag filter appears when items have tags;
   `filterByTags: false` hides it.
+
+### Agent prompt templates
+
+`agent:prompt` renders a prompt template. The shipped `project` template (the
+default) briefs work in the project and names the button or list it came from;
+`dashboard` briefs a dashboard change, like the panel menu's Change with agent.
+When several actions brief the agent the same way, add a template beside the
+dashboard as `prompts/<name>.md` and reference it by name:
+
+```markdown
+---
+description: Implement a backlog item
+scope: project
+input: optional
+vars:
+  id: Backlog item ID
+---
+{{> dash-bored/project}}
+
+Implement backlog item {{vars.id}} from node `yaml-todo` in
+{{dashboard.config}}, then mark it done there.
+```
+
+```yaml
+itemActions:
+  - name: Implement with agent
+    action:
+      run: agent:prompt
+      with: { template: implement-todo, prompt: "${item.description}", vars: { id: "${item.id}" } }
+```
+
+- Values: `{{input}}` (the reviewed composer text), `{{vars.<name>}}`,
+  `{{env.<KEY>}}`, `{{project.root}}`, `{{dashboard.config}}`, and
+  `{{component.id}}`/`reference`/`path`/`name`. `{{#x}}…{{/x}}` renders when
+  `x` is set, `{{^x}}…{{/x}}` when it is not, and `{{> name}}` includes another
+  template; `dash-bored/project` and `dash-bored/dashboard` are the shipped ones.
+- Declare every var the template uses or receives, and every `env` key it
+  reads; validation rejects the rest. Only declared env keys are rendered, and
+  the user sees them in the preview, so never template secrets.
+- `scope: dashboard` makes the app validate the dashboard after the run;
+  `project` (the default) shows a whole-project diff instead.
+- A file named `project.md` or `dashboard.md` replaces that shipped template for
+  this bundle, including the panel menu's Change with agent; include
+  `{{> dash-bored/project}}` to keep the shipped briefing and add to it.
 
 ### A list the user edits
 

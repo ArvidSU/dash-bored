@@ -14,7 +14,7 @@ export interface DashboardSetupRuntime {
 }
 
 export interface DashboardSetupHarness {
-  launch(options: { command: string; prompt: string; projectRoot: string; componentPath: string; configPath: string; request: string; purpose?: DashboardAgentTask["purpose"]; env?: Record<string, string>; onFinished?: (task: DashboardAgentTask) => void | Promise<void> }): Promise<ComponentAgentLaunch>;
+  launch(options: { command: string; prompt: string; projectRoot: string; componentPath: string; configPath: string; request: string; purpose?: DashboardAgentTask["purpose"]; template?: string; env?: Record<string, string>; onFinished?: (task: DashboardAgentTask) => void | Promise<void> }): Promise<ComponentAgentLaunch>;
   setValidation(id: string, validation: DashboardAgentTask["validation"]): void;
   isCancelled?(id: string): boolean;
 }
@@ -65,13 +65,18 @@ export class DashboardSetupSupervisor {
     return this.launchRequest({ prompt, configPath, componentPath: componentPath(node), request: "Set up this dashboard", purpose: "setup" });
   }
 
-  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: DashboardAgentTask["purpose"] }): Promise<ComponentAgentLaunch> {
+  /**
+   * Launch one request. `followUp: false` skips post-run dashboard validation
+   * and repair, for project work whose result is reviewed as a project diff.
+   */
+  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: DashboardAgentTask["purpose"]; template?: string; followUp?: boolean }): Promise<ComponentAgentLaunch> {
     const { runtime, harness, command, location, preflight } = this.options;
+    const { followUp = true, ...launch } = request;
     const env = await runtime.getLaunchEnvironment(request.configPath);
     preflight?.(command, env, location.projectRoot);
     if (!this.stillHere() || !runtime.getSnapshot().trusted) throw new Error("The active dashboard or its trust changed before agent work started.");
-    return harness.launch({ ...request, command, projectRoot: location.projectRoot, env,
-      onFinished: (task) => this.finish(task, request.prompt, request.configPath, false),
+    return harness.launch({ ...launch, command, projectRoot: location.projectRoot, env,
+      ...(followUp ? { onFinished: (task: DashboardAgentTask) => this.finish(task, request.prompt, request.configPath, false) } : {}),
     });
   }
 

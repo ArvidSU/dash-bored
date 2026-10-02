@@ -88,10 +88,12 @@ examples, not privileged component types:
   invocations. Typed arguments and any remaining palette choices share the same
   action executor. `agent:prompt` is how the app knows what the agent is doing:
   every launch goes through the existing agent composer and the Agent activity
-  surface. From YAML the composer is prefilled and targets the invoking node;
+  surface. From YAML the composer is prefilled with the configured `prompt`,
+  `template`, and `vars` and names the invoking node as the request's origin;
   from the palette or a shortcut it opens empty on the current focus target.
-  The composer shows the resolved command and prompt and waits for an explicit
-  Send.
+  Without a `template` it uses `project`. The composer shows the resolved
+  command, the template and its scope, and the complete rendered prompt, and
+  waits for an explicit Send. See [prompt templates](./project-contract.md#prompt-templates).
 - `@dash-bored/markdown`, `@dash-bored/status`, and `@dash-bored/chart` display
   project information from inline configuration or bounded sources. Status
   sources expose a state/detail model or derive state from supervised process
@@ -250,26 +252,32 @@ overlay resize observer follows the resulting surface geometry while the
 existing explicit visibility synchronization remains in force.
 
 Change with agent opens a composer that visibly presents the resolved app-wide
-command, user text in quotes, and Send as one invocation. The renderer sends
-only the selected node ID and user text. The main process re-resolves that node
-from the authoritative tree, verifies its owning config is reachable, adds the
-project root, config path, component path, ID, reference, dash-bored guidance,
-and project-instruction reminder, then starts the configured CLI from the
-owning project root. The enriched prompt is passed in
+command, user text in quotes, and Send as one invocation, briefed with the
+`dashboard` prompt template. The renderer sends only the selected node ID, the
+template name, typed vars, and user text. The main process re-resolves that node
+from the authoritative tree, verifies its owning config is reachable, re-reads
+the owning bundle's prompt templates, and renders the chosen template with the
+project root, config path, component path, ID, reference, and name, then starts
+the configured CLI from the owning project root. A preview request renders the
+same way without launching, so the composer's Full prompt is exactly what Send
+passes. The enriched prompt is passed in
 `DASH_BORED_AGENT_PROMPT` and referenced as one quoted shell argument, so user
 text is not interpolated into shell syntax. This app-owned, explicit user
 action does not grant project component code a capability or embed an AI
 provider; dashboard file watching remains responsible for showing accepted
 agent edits.
 
-The app owns one dashboard-only agent harness around that same configured CLI.
-It records a bounded in-memory task for each component-change or component-build
-request and shows a compact item with a bounded first-sentence summary, start time, and a
+The app owns one agent harness around that same configured CLI.
+It records a bounded in-memory task for each component-change, component-build,
+or project-work request and shows a compact item with a bounded first-sentence summary, start time, and a
 Working/Not working state in an app-level Agent work drawer across dashboard
 navigation. Clicking an item opens a three-tab modal: the regular command
-component against that task's PTY-backed process, a bounded git diff for the
-owning `.dash-bored/` bundle, and the complete contextualized command with a copy
-action. The full prompt remains in the Command tab; neither the drawer row nor
+component against that task's PTY-backed process, a bounded git diff (the
+owning `.dash-bored/` bundle for dashboard work, the whole project for
+`project`-scope templates), and the complete contextualized command with a copy
+action. Only dashboard-scope requests receive the post-run validation and the
+single automatic repair; project work is reviewed through its diff, and the
+dashboard file watcher still reports any dashboard edits it made. The full prompt remains in the Command tab; neither the drawer row nor
 the terminal title repeats it. The modal reserves its remaining height for the
 active panel, with bounded, scrollable validation feedback. The shared modal overlay
 and panel contain scroll chaining; the document also disables page scrolling while
@@ -360,7 +368,11 @@ dashboard's sidebar row, or pressing its Command number again while the dashboar
 view is visible, toggles sidebar expansion without reopening the dashboard or
 prompting to discard a draft. From Settings, either gesture returns to the
 dashboard instead. Palette and agent dashboard actions keep their ordinary
-navigation behavior. Command alone reveals
+navigation behavior. When a dirty draft blocks navigation, the confirmation
+offers Keep editing, Save dashboard, and Discard changes. Save uses the normal
+validated, revision-checked draft write and resumes the pending navigation only
+after success; a failed write leaves the confirmation and draft available.
+Command alone reveals
 small overlaid numbers on the first nine icons without changing layout;
 release, blur, hidden document, or an open palette removes the hints.
 

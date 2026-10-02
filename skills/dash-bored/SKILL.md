@@ -92,7 +92,7 @@ with these and keep the ones the project gives you evidence for:
 | Which settings does it need? | `env` on the bundle's `.env`, for non-secret values (see Gotchas) |
 | What is next? | `markdown` on the repo's own tracking file; `list` with `todos` only for items nothing else tracks |
 | Numbers over time? | `chart` with a `source` |
-| Hand a judgment call to the agent? | A button or item action running `agent:prompt` |
+| Hand work or a judgment call to the agent? | A button or item action running `agent:prompt`; a `prompts/<name>.md` template when the briefing repeats |
 
 Group panels into tabs by workflow, with an **Overview** tab first that
 answers "where does this stand" without scrolling. Put explanations next to
@@ -187,8 +187,12 @@ Composition rules:
   (`with: { item: ${item.id} }` also focuses that item of a list inside it);
   `focus:<id>` makes it the page; `process:<command-id>` runs a `command`;
   `component:<node-id>:<action-id>` runs a declared action (a view's
-  `refresh`, a command's `run`); `agent:prompt` with `with: { prompt }`
-  prefills the agent composer for the user to send.
+  `refresh`, a command's `run`); `agent:prompt` with
+  `with: { prompt, template?, vars? }` prefills the agent composer for the
+  user to send. Without `template` it briefs project work (`project`);
+  `template: dashboard` briefs a dashboard change. A bundle's own
+  `prompts/<name>.md` templates declare their `vars`, `env`, and `scope` (see
+  [references/sources.md](references/sources.md#agent-prompt-templates)).
 - Managed-child labels live on the edge (`metadata: { label }`). Tiled
   children are one `{ node }` edge or a split: `axis`, `first`, `second`;
   nest splits for more than two. Horizontal splits may set `ratio`

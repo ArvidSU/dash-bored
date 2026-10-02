@@ -108,6 +108,9 @@ import { TrustPanel } from "../panels/TrustPanel";
 import { EmptyProject } from "../panels/EmptyProject";
 import { SettingsPanel } from "../panels/SettingsPanel";
 import { AppDialogs } from "./AppDialogs";
+import type { AgentPromptDraft } from "../panels/AgentPromptPanel";
+
+const EMPTY_AGENT_PROMPT_DRAFT: AgentPromptDraft = { input: "" };
 
 export function App(): ReactNode {
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
@@ -136,7 +139,7 @@ export function App(): ReactNode {
   const [paletteInvocationActionId, setPaletteInvocationActionId] = useState<string | null>(null);
   const [paletteCallerNodeId, setPaletteCallerNodeId] = useState<string | undefined>(undefined);
   const [paletteInvocationKey, setPaletteInvocationKey] = useState<string | undefined>(undefined);
-  const [agentPromptDraft, setAgentPromptDraft] = useState("");
+  const [agentPromptDraft, setAgentPromptDraft] = useState<AgentPromptDraft>(EMPTY_AGENT_PROMPT_DRAFT);
   const compositionInteraction = useCompositionInteractionController();
   const {
     libraryOpen: componentLibraryOpen,
@@ -822,12 +825,33 @@ export function App(): ReactNode {
     });
   }
 
+  /** Change with agent briefs the agent with the dashboard template. */
+  function openChangeWithAgent(node: ResolvedComponentNode): void {
+    setAgentPromptDraft({ input: "", template: "dashboard" });
+    setAgentDialog(node);
+  }
+
+  const previewComponentAgent = useCallback(
+    (node: ResolvedComponentNode, prompt: string) => host.previewComponentAgent({
+      nodeId: node.id,
+      prompt,
+      ...(agentPromptDraft.template ? { template: agentPromptDraft.template } : {}),
+      ...(agentPromptDraft.vars ? { vars: agentPromptDraft.vars } : {}),
+    }),
+    [host, agentPromptDraft],
+  );
+
   async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
     const action = `component-agent:${node.id}`;
     await perform(action, async () => {
-      const launched = await host.runComponentAgent({ nodeId: node.id, prompt });
+      const launched = await host.runComponentAgent({
+        nodeId: node.id,
+        prompt,
+        ...(agentPromptDraft.template ? { template: agentPromptDraft.template } : {}),
+        ...(agentPromptDraft.vars ? { vars: agentPromptDraft.vars } : {}),
+      });
       setAgentDialog(null);
-      setAgentPromptDraft("");
+      setAgentPromptDraft(EMPTY_AGENT_PROMPT_DRAFT);
       setAgentActivityOpen(true);
       showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
     });
@@ -881,8 +905,8 @@ export function App(): ReactNode {
     launch();
   }
 
-  async function saveDashboardDraft(): Promise<void> {
-    if (!editSession) return;
+  async function saveDashboardDraft(): Promise<boolean> {
+    if (!editSession) return false;
     setSavingDraft(true);
     setActionError(null);
     try {
@@ -893,8 +917,10 @@ export function App(): ReactNode {
       );
       setEditSession(null);
       resetCompositionUi();
+      return true;
     } catch (error) {
       setActionError(errorMessage(error));
+      return false;
     } finally {
       setSavingDraft(false);
     }
@@ -926,7 +952,7 @@ export function App(): ReactNode {
       addDashboard,
       openProject: selectProject,
       editDashboard: toggleCompositionLibrary,
-      saveDashboard: () => saveDashboardDraft(),
+      saveDashboard: async () => { await saveDashboardDraft(); },
       cancelDashboard: cancelDashboardEdit,
       reloadProject: () => perform("reload", host.reloadProject),
       trustProject: () => perform("trust", host.trustProject),
@@ -953,7 +979,14 @@ export function App(): ReactNode {
           setActionError("The configured agent prompt target is no longer available.");
           return;
         }
-        setAgentPromptDraft(prompt);
+        // Template and vars were validated at load; the main process re-checks them.
+        setAgentPromptDraft({
+          input: prompt,
+          ...(typeof args.template === "string" ? { template: args.template } : {}),
+          ...(args.vars !== null && typeof args.vars === "object" && !Array.isArray(args.vars)
+            ? { vars: args.vars as Record<string, string | number | boolean> }
+            : {}),
+        });
         setAgentDialog(target);
       },
     },
@@ -1442,9 +1475,13 @@ export function App(): ReactNode {
     }
     if (editSession && editSession.configPath !== targetProject.configPath && !requireDiscard(
       "Discard the unsaved dashboard changes and navigate to another dashboard node?",
-      () => void focusProjectNode(targetProject, nodeId),
+      () => void openProjectNode(targetProject, nodeId),
     )) return;
 
+    await openProjectNode(targetProject, nodeId);
+  }
+
+  async function openProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
     let opened = false;
     await perform(`open:${targetProject.configPath}`, async () => {
       await host.openProject(targetProject);
@@ -1479,8 +1516,7 @@ export function App(): ReactNode {
     } else if (action === "collapse") {
       toggleComponentCollapse(node.id);
     } else {
-      setAgentPromptDraft("");
-      setAgentDialog(node);
+      openChangeWithAgent(node);
     }
   }
 
@@ -1758,7 +1794,7 @@ export function App(): ReactNode {
                       onComponentHeightChange={updateComponentHeight}
                       onCopyPath={(node) => void copyComponentPath(node)}
                       onEditComponent={(node) => void editCompositionNode(node)}
-                      onOpenAgent={setAgentDialog}
+                      onOpenAgent={openChangeWithAgent}
                       onUpdateProps={updateComponentProps}
                       focusedNodeId={visibleVirtualRoot?.target.id ?? snapshot.tree.id}
                     />
@@ -1982,9 +2018,17 @@ export function App(): ReactNode {
         onConfirmRemoval={confirmCompositionRemoval}
         onBuildWithAgent={requestComponentCreationAgent}
         onRunComponentAgent={runComponentAgent}
-        onDismissAgentDialog={() => { setAgentDialog(null); setAgentPromptDraft(""); }}
+        onPreviewComponentAgent={previewComponentAgent}
+        onDismissAgentDialog={() => { setAgentDialog(null); setAgentPromptDraft(EMPTY_AGENT_PROMPT_DRAFT); }}
         onDismissDiscard={() => setDiscardConfirmation(null)}
         onConfirmDiscard={confirmDiscardChanges}
+        onSaveDiscard={(continueAction) => {
+          void saveDashboardDraft().then((saved) => {
+            if (!saved) return;
+            setDiscardConfirmation(null);
+            continueAction();
+          });
+        }}
         onDismissDeletion={() => setDeletionDialog(null)}
         onToggleDeletionFiles={(removeFiles) => setDeletionDialog((current) => current ? { ...current, removeFiles } : current)}
         onConfirmDeletion={() => void confirmDeletion()}

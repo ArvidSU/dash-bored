@@ -8,14 +8,6 @@ import type {
   ResolvedComponentNode,
 } from "./contracts";
 
-export interface ComponentAgentContext {
-  projectRoot: string;
-  configPath: string;
-  componentPath: string;
-  componentId: string;
-  componentReference: string;
-}
-
 /**
  * A validated insertion target restated as the YAML edit the structural editor
  * would make, so an agent can reproduce it without inferring split semantics.
@@ -334,24 +326,6 @@ export function describeDashboardInsertion(insertion: DashboardInsertion): strin
     edit = `Split the tile of ${describeNode(placement.existing)} so the new node sits ${side} it: replace the edge at ${placement.edgePath} with \`{ axis: ${placement.axis}, ${ratio}first: ${first}, second: ${second} }\`.${ratioNote}`;
   }
   return `${edit.charAt(0).toUpperCase()}${edit.slice(1)}${metadataNote}`;
-}
-
-export function buildComponentAgentPrompt(
-  context: ComponentAgentContext,
-  userPrompt: string,
-): string {
-  return [
-    "You are changing a dash-bored dashboard from its component context menu.",
-    "Interpret the request in the dash-bored product and component-tree model. Inspect the project and its instructions before editing, use the installed dash-bored skill when available, preserve unrelated changes, and validate the result.",
-    `Project root: ${context.projectRoot}`,
-    `Owning dashboard config: ${context.configPath}`,
-    `Target component path: ${context.componentPath}`,
-    `Target component id: ${context.componentId}`,
-    `Target component reference: ${context.componentReference}`,
-    "",
-    "User request:",
-    userPrompt.trim(),
-  ].join("\n");
 }
 
 export function buildComponentCreationAgentPrompt(

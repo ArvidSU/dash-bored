@@ -15,10 +15,12 @@ import Electrobun, {
 } from "electrobun/main";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { CoreError, ProjectRuntime, TrustStore, resolveProjectLocation } from "../core/index";
+import { CoreError, ProjectRuntime, TrustStore, loadPromptTemplates, prepareAgentPrompt, promptTemplateSummary, resolveProjectLocation, resolvePromptTemplate } from "../core/index";
 import { resolveEnvironment } from "../core/environment";
 import { isProcessRunActive } from "../shared/process-state";
 import type {
+  ComponentAgentPreview,
+  ComponentAgentRequest,
   Diagnostic,
   DashboardAgentTask,
   DashboardConfigSource,
@@ -27,7 +29,6 @@ import type {
   ProjectSnapshot,
 } from "../shared/contracts";
 import {
-  buildComponentAgentPrompt,
   buildComponentCreationAgentPrompt,
   buildDiagnosticsAgentPrompt,
   componentPath,
@@ -77,7 +78,7 @@ async function getDashboardAgentDiff(taskId: string): Promise<string> {
   const task = dashboardAgentHarness.list().find((candidate) => candidate.id === taskId);
   if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
   const location = await resolveProjectLocation(task.configPath);
-  return readDashboardAgentDiff(location.projectRoot, location.configDirectory);
+  return readDashboardAgentDiff(location.projectRoot, location.configDirectory, task.purpose === "project" ? "project" : "dashboard");
 }
 
 async function mainViewUrl(): Promise<string> {
@@ -316,12 +317,12 @@ async function resolveAgentCommand(configPath: string, settings: Awaited<ReturnT
   return resolveDashBoredAgent(settings.dashBoredAgent, await resolveEnvironment(configPath, publishedEnvironment));
 }
 
-async function runComponentAgent(nodeId: string, userPrompt: string) {
+async function prepareComponentAgent(request: ComponentAgentRequest, preview = false) {
   const snapshot = runtime.getSnapshot();
   if (!snapshot.tree || !snapshot.projectRoot) {
-    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to change it.");
+    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to work from it.");
   }
-  const node = findResolvedNode(snapshot.tree, nodeId);
+  const node = findResolvedNode(snapshot.tree, request.nodeId);
   if (!node) {
     throw new CoreError(
       "COMPONENT_NOT_FOUND",
@@ -331,22 +332,54 @@ async function runComponentAgent(nodeId: string, userPrompt: string) {
   const source = await runtime.getDashboardConfigSource(node.sourceConfigPath);
   const sourceLocation = await resolveProjectLocation(source.configPath);
   const locator = componentPath(node);
+  // Templates are re-read from the owning bundle so the renderer only names one.
+  const templates = await loadPromptTemplates(sourceLocation.configDirectory);
+  const declaresEnv = resolvePromptTemplate(templates.templates, request.template)?.env.length ?? 0;
+  const env = declaresEnv > 0 ? await runtime.getLaunchEnvironment(source.configPath) : {};
+  try {
+    const prepared = prepareAgentPrompt(templates, {
+      template: request.template,
+      input: request.prompt,
+      vars: request.vars,
+      env,
+      allowEmptyInput: preview,
+      projectRoot: sourceLocation.projectRoot,
+      configPath: source.configPath,
+      configDirectory: sourceLocation.configDirectory,
+      component: {
+        id: node.id,
+        reference: node.component,
+        path: locator,
+        name: node.configName?.trim() || node.manifest?.name || node.component,
+      },
+    });
+    return { ...prepared, source, sourceLocation, locator };
+  } catch (error) {
+    throw new CoreError("COMPONENT_AGENT_PROMPT_INVALID", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview> {
+  const { template, prompt } = await prepareComponentAgent(request, true);
+  return { template: promptTemplateSummary(template), prompt };
+}
+
+async function runComponentAgent(request: ComponentAgentRequest) {
+  const { template, prompt, source, sourceLocation, locator } = await prepareComponentAgent(request);
   const settings = await appSettingsStore.get();
   const command = await resolveAgentCommand(source.configPath, settings);
-  const prompt = buildComponentAgentPrompt({
-    projectRoot: sourceLocation.projectRoot,
-    configPath: source.configPath,
-    componentPath: locator,
-    componentId: node.id,
-    componentReference: node.component,
-  }, userPrompt);
+  const dashboardWork = template.scope === "dashboard";
   return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
     location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
     prompt,
-    purpose: "edit",
+    // Project work is reviewed as a project diff; only dashboard work is
+    // validated and may receive the single automatic repair.
+    purpose: dashboardWork ? "edit" : "project",
+    followUp: dashboardWork,
+    template: template.name,
     componentPath: locator,
     configPath: source.configPath,
-    request: userPrompt,
+    request: request.prompt.trim() || template.description,
   });
 }
 
@@ -487,7 +520,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
         await runtime.refreshEnvironment();
         return updated;
       },
-      runComponentAgent: ({ nodeId, prompt }) => runComponentAgent(nodeId, prompt),
+      runComponentAgent: (request) => runComponentAgent(request),
+      previewComponentAgent: (request) => previewComponentAgent(request),
       runComponentCreationAgent: ({ configPath, target, prompt }) =>
         runComponentCreationAgent(configPath, target, prompt),
       runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),

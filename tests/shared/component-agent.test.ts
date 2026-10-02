@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  buildComponentAgentPrompt,
   buildComponentCreationAgentPrompt,
   buildDiagnosticsAgentPrompt,
   componentPath,
@@ -102,20 +101,6 @@ describe("component agent context", () => {
       "/project/.dash-bored/dash-bored.yaml#root.children.node",
     );
     expect(findResolvedNode(tree(), "missing")).toBeNull();
-  });
-
-  test("enriches the request with dash-bored and exact component context", () => {
-    const prompt = buildComponentAgentPrompt({
-      projectRoot: "/project",
-      configPath: "/project/.dash-bored/dash-bored.yaml",
-      componentPath: "/project/.dash-bored/dash-bored.yaml#root.children.node",
-      componentId: "status",
-      componentReference: "@dash-bored/status",
-    }, "  Make the status green when healthy.  ");
-
-    expect(prompt).toContain("dash-bored product and component-tree model");
-    expect(prompt).toContain("Target component path: /project/.dash-bored/dash-bored.yaml#root.children.node");
-    expect(prompt).toEndWith("User request:\nMake the status green when healthy.");
   });
 
   test("passes the enriched prompt as one environment-backed shell argument", () => {

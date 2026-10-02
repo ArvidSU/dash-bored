@@ -310,19 +310,39 @@ agent created to decide whether they meet your needs.
 A button can invoke an action with typed YAML arguments, for example
 `action: { run: "agent:prompt", with: { prompt: "Review the failing checks." } }`.
 The app validates those arguments when it loads the dashboard. Agent prompts show
-the resolved command and prompt for review, then wait for the user's Send.
+the resolved command, the prompt template, and the full prompt for review, then
+wait for the user's Send.
+
+Agents are briefed with prompt templates. `agent:prompt` uses the built-in
+`project` template, which asks for work in the project and names the button or
+list item it came from; `template: dashboard` asks for a dashboard change
+instead, as Change with agent does. Add your own as Markdown files in
+`.dash-bored/prompts/<name>.md` and pass typed values from a list item:
+
+```yaml
+itemActions:
+  - name: Implement with agent
+    action:
+      run: agent:prompt
+      with: { template: implement-todo, prompt: "${item.description}", vars: { id: "${item.id}" } }
+```
+
+A file named `project.md` or `dashboard.md` replaces the built-in briefing for
+that bundle. The [project contract](./docs/architecture/project-contract.md#prompt-templates)
+documents the template syntax and the values available to it.
 
 Every rendered component has a context menu
 with Focus, Edit component, Copy component path, and Change with agent. The
 Edit component action opens the declared props and child metadata editor. The
 last action shows the resolved command before sending and enriches your request with the owning
-dashboard and exact component path. **Agent work** in the header keeps the
-dashboard-only launch visible while it runs, including its output, exit state,
+dashboard and exact component path. **Agent work** in the header keeps each
+launch visible while it runs, including its output, exit state,
 and an observed dashboard change; review the result rather than treating those
 signals as proof that an external agent completed the request. Each Agent work
 item shows the user's prompt, start time, and Working/Not working state; clicking
 it opens Terminal, Diff, and Command tabs. Diff is scoped to the owning
-`.dash-bored/` folder, while Command shows the full contextualized invocation
+`.dash-bored/` folder for dashboard changes and covers the project for project
+work, while Command shows the full contextualized invocation
 with a copy action. When configuration diagnostics are present, **Fix with
 agent** asks the configured CLI to repair the
 owning dashboard and includes the current reported issues, even when the tree
@@ -783,7 +803,9 @@ to switch to that dashboard. Drag a dashboard icon or row above or below another
 row to reorder the sidebar; the order is saved and determines these numbers.
 Click the active dashboard again, or press its Command number again, to toggle
 sidebar expansion. From Settings, that gesture returns to the dashboard.
-Switching still asks before discarding an unsaved dashboard draft.
+Switching with an unsaved dashboard draft offers **Keep editing**, **Save dashboard**,
+and **Discard changes**. Saving writes the validated draft first, then completes
+the requested navigation; a rejected save keeps the draft open.
 Hold <kbd>Command</kbd>
 while pressing <kbd>Enter</kbd> or clicking an action to run it and keep the
 palette open. This also works through component choices and confirmations.

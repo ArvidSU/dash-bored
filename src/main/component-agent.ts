@@ -19,6 +19,7 @@ export function componentAgentInvocation(command: string): string {
 
 export interface LaunchComponentAgentOptions {
   purpose?: DashboardAgentTask["purpose"];
+  template?: string;
   command: string;
   prompt: string;
   projectRoot: string;
@@ -35,8 +36,9 @@ export interface DashboardAgentHarnessOptions {
 
 /**
  * A deliberately small wrapper around the user's configured CLI. It manages
- * only dashboard-change requests so the app can show launch, output, exit,
- * and concurrent dashboard-change feedback without becoming an agent host.
+ * dashboard and project requests dispatched from the app so it can show
+ * launch, output, exit, and concurrent dashboard-change feedback without
+ * becoming an agent host.
  * Agent processes use the same PTY-backed process primitive as command nodes so
  * the activity detail view can attach the regular command terminal to them.
  */
@@ -209,6 +211,7 @@ export class DashboardAgentHarness {
       const task: DashboardAgentTask = {
         id,
         ...(options.purpose ? { purpose: options.purpose } : {}),
+        ...(options.template ? { template: options.template } : {}),
         command: options.command,
         prompt,
         componentPath: options.componentPath,

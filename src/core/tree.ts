@@ -25,6 +25,7 @@ import { validateDeclaredComponentActionReferences } from "./component-action-re
 import { actionInvocation } from "../shared/action-invocation";
 import { validateActionArgumentTemplates, validateActionArguments } from "./action-arguments";
 import { getBuiltinManifest } from "./builtins";
+import { loadPromptTemplates, validatePromptInvocation } from "./prompt-templates";
 import { diagnostic, errorMessage } from "./diagnostics";
 import {
   resolveProjectLocation,
@@ -116,8 +117,17 @@ export async function resolveConfigReferencePath(
 const AGENT_PROMPT_ARGS_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
-  properties: { prompt: { type: "string", minLength: 1, maxLength: 12000 } },
-  required: ["prompt"],
+  properties: {
+    // The editable input the composer opens with.
+    prompt: { type: "string", minLength: 1, maxLength: 12000 },
+    template: { type: "string", pattern: "^(?:dash-bored/)?[a-z0-9][a-z0-9-]{0,63}$" },
+    vars: {
+      type: "object",
+      maxProperties: 32,
+      propertyNames: { pattern: "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+      additionalProperties: { type: ["string", "number", "boolean"] },
+    },
+  },
 };
 
 function referenceLocations(
@@ -721,6 +731,10 @@ export async function resolveComponentTree(
       }
     }
 
+    // Each bundle owns its prompt templates; linked bundles load their own.
+    const promptTemplates = await loadPromptTemplates(location.configDirectory);
+    diagnostics.push(...promptTemplates.diagnostics);
+
     for (const node of allNodes) {
       // Linked dashboards resolve and validate their own references before
       // namespacing. Their IDs are intentionally private to that bundle.
@@ -755,9 +769,10 @@ export async function resolveComponentTree(
             continue;
           }
           if (targetId === "agent:prompt") {
-            const error = allowsItemTemplates
+            const error = (allowsItemTemplates
               ? validateActionArgumentTemplates(AGENT_PROMPT_ARGS_SCHEMA, invocation.with)
-              : validateActionArguments(AGENT_PROMPT_ARGS_SCHEMA, invocation.with);
+              : validateActionArguments(AGENT_PROMPT_ARGS_SCHEMA, invocation.with))
+              ?? validatePromptInvocation(promptTemplates.templates, invocation.with);
             if (error) diagnostics.push(diagnostic({
               code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
               message: `agent:prompt arguments are invalid: ${error}`,

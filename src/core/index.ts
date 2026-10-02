@@ -12,3 +12,4 @@ export * from "./tree";
 export * from "./trust";
 export * from "./external-components";
 export * from "./yaml";
+export * from "./prompt-templates";

@@ -75,7 +75,7 @@ occupied tile, severity and ID guidance) before the candidate was committed.
 - `setup.sh`: baseline/candidate skill copies, stubbed launchers, three
   deterministic fixtures, run directories, and prompts.
 - `prompts.ts`: app-accurate prompts from `starterAgentPrompt`,
-  `buildComponentAgentPrompt`, and `buildComponentCreationAgentPrompt`.
+  the shipped `dashboard` prompt template, and `buildComponentCreationAgentPrompt`.
 - `grade.ts`: the objective checks above, as a Markdown report per run.
 - `brief.md`: the instructions each eval agent receives, including the trace
   it must write.

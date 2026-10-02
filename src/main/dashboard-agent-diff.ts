@@ -62,12 +62,20 @@ async function runGit(
   }
 }
 
-/** Read tracked and non-ignored new files without modifying the Git index. */
-export async function readDashboardAgentDiff(projectRoot: string, configDirectory: string): Promise<string> {
-  const folder = relative(projectRoot, configDirectory).split(sep).join("/");
-  if (folder === "" || folder === ".." || folder.startsWith("../") || isAbsolute(folder)) {
+/**
+ * Read tracked and non-ignored new files without modifying the Git index.
+ * Dashboard work is limited to the owning bundle; project work covers the project.
+ */
+export async function readDashboardAgentDiff(
+  projectRoot: string,
+  configDirectory: string,
+  scope: "dashboard" | "project" = "dashboard",
+): Promise<string> {
+  const bundle = relative(projectRoot, configDirectory).split(sep).join("/");
+  if (bundle === "" || bundle === ".." || bundle.startsWith("../") || isAbsolute(bundle)) {
     throw new CoreError("DASHBOARD_AGENT_DIFF_PATH_INVALID", "The dashboard folder is outside the project.");
   }
+  const folder = scope === "project" ? "." : bundle;
 
   const tracked = await runGit(projectRoot,
     ["diff", "--no-ext-diff", "--no-textconv", "--no-color", "HEAD", "--", folder], MAX_AGENT_DIFF_BYTES);
