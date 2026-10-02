@@ -20,11 +20,8 @@ import {
   resolveProjectLocation,
   type ProjectLocation,
 } from "./paths";
-import {
-  discoverComponentCatalog,
-  resolveComponentTree,
-  type LocalComponentDefinition,
-} from "./tree";
+import { discoverComponentCatalog, type LocalComponentDefinition } from "./tree-catalog";
+import { resolveComponentTree } from "./tree-resolve";
 import {
   parseDashboardConfig,
   parseDashboardLock,

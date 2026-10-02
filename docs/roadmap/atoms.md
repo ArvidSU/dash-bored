@@ -76,7 +76,7 @@ WP1 and WP4 can run in parallel.
   `${root.children…}` legacy references until the WP9 schema migration can
   rewrite them; then
   remove interpolation from `src/shared/action-reference.ts` and its tree
-  resolution in `src/core/tree.ts`.
+  resolution in `src/core/action-reference-migration.ts`.
 - The button editor offers a target picker that assigns an explicit `id` to a
   target node that lacks one.
 - Prepare a deterministic migration helper that rewrites positional references

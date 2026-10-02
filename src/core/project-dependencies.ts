@@ -15,7 +15,7 @@ import {
   type ProjectLocation,
 } from "./paths";
 import { parseDashboardConfig } from "./yaml";
-import { isConfigReference, resolveConfigReferencePath } from "./tree";
+import { isConfigReference, resolveConfigReferencePath } from "./tree-links";
 
 interface ScanState {
   readonly targetDirectory: string;

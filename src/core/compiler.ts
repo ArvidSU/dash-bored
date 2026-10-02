@@ -4,7 +4,7 @@ import { realpath } from "node:fs/promises";
 import type { CompiledLocalComponent, Diagnostic } from "../shared/contracts";
 import { diagnostic, errorMessage } from "./diagnostics";
 import { isPathContained } from "./paths";
-import type { LocalComponentDefinition } from "./tree";
+import type { LocalComponentDefinition } from "./tree-catalog";
 
 const RUNTIME_GLOBAL = "__DASH_BORED_COMPONENT_RUNTIME__";
 const ALLOWED_SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".css"]);

@@ -88,10 +88,28 @@ symlinks that escape that bundle's component directory, and reserved-namespace
 collisions. Those restrictions do not apply to standalone dashboard paths,
 which intentionally allow absolute references.
 
-Catalog discovery and local manifest loading live in `src/core/tree-catalog.ts`.
-It scans packaged and project components, reports unavailable entries and
-ambiguities, and resolves contained local manifests. `src/core/tree.ts` uses
-that catalog boundary while resolving component and linked-dashboard trees.
+Tree handling in `src/core/` is split along its jobs:
+
+- `tree-catalog.ts` scans packaged and project components, reports
+  unavailable entries and ambiguities, and loads contained local manifests.
+- `tree-resolve.ts` owns `resolveComponentTree`: traversal limits (depth,
+  node count, cycles), node-ID assignment and duplicates, manifest lookup, and
+  the per-node and project permission union. It calls the other modules and
+  returns their diagnostics.
+- `tree-links.ts` owns config links (`isConfigReference`, path resolution,
+  link-cycle and depth limits, loading and namespacing a linked bundle) and
+  the manifest reference-path walker shared by namespacing, validation, and
+  the legacy action-reference migration.
+- `tree-validate.ts` holds the checks. Each is a small function that reads a
+  node and returns `Diagnostic[]`; none changes props. Per-node checks (props
+  schema, process resource props, children contract, layout ratio/axis, edge
+  metadata) run during traversal; reference checks (action and resource
+  references, process working directories, declared component actions) run
+  over the resolved bundle afterwards.
+
+The only prop rewrite during resolution is the schema-v3 positional action
+reference migration, which runs after reference validation as its own pass
+(see [Project contract](project-contract.md#dashboard-configuration)).
 
 A local component is a directory with this shape:
 

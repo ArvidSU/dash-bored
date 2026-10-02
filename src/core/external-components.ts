@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import type { DashboardLock, ExternalComponentLockEntry } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveProjectLocation, type ProjectLocation } from "./paths";
-import { EXTERNAL_NAME_PATTERN } from "./tree";
+import { EXTERNAL_NAME_PATTERN } from "./tree-catalog";
 import { parseDashboardLock, serializeDashboardLock } from "./yaml";
 import { writeFileAtomically } from "./fs-atomic";
 

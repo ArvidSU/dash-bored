@@ -8,7 +8,19 @@ export * from "./project";
 export * from "./project-dependencies";
 export * from "./project-files";
 export * from "./project-runtime";
-export * from "./tree";
+export {
+  EXTERNAL_NAME_PATTERN,
+  componentDirectoryFromReference,
+  componentDisplayName,
+  discoverComponentCatalog,
+  externalComponentNameFromReference,
+  isExternalReference,
+  isExternalRootReference,
+  localReferenceFromDirectory,
+  type LocalComponentDefinition,
+} from "./tree-catalog";
+export { isConfigReference, resolveConfigReferencePath } from "./tree-links";
+export { resolveComponentTree, type ResolvedTreeResult } from "./tree-resolve";
 export * from "./trust";
 export * from "./external-components";
 export * from "./yaml";
