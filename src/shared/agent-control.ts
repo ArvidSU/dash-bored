@@ -109,6 +109,8 @@ export interface AgentProcessLogs {
   id: string;
   label: string;
   state: AgentProcessState;
+  /** Exit code of the latest run; null while running or never run. */
+  exitCode: number | null;
   /** Lines retained for the process before the tail was taken. */
   totalLines: number;
   lines: string[];
@@ -129,7 +131,7 @@ export function agentProcessLogs(info: AgentProcessInfo, process: ProcessSnapsho
   const text = process.logs.map((entry) => entry.text).join("").replace(/\r\n/g, "\n");
   const all = text === "" ? [] : text.replace(/\n$/, "").split("\n");
   const lines = all.slice(-tail).map((line) => line.length > AGENT_LOG_LINE_LIMIT ? `${line.slice(0, AGENT_LOG_LINE_LIMIT)}...` : line);
-  return { id: info.id, label: info.label, state: info.state, totalLines: all.length, lines, truncated: all.length > lines.length };
+  return { id: info.id, label: info.label, state: info.state, exitCode: info.exitCode, totalLines: all.length, lines, truncated: all.length > lines.length };
 }
 
 export function agentProcessInfo(process: ProcessSnapshot, label: string): AgentProcessInfo {

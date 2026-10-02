@@ -385,5 +385,9 @@ export async function runAppCommand(args: string[]): Promise<number> {
     return 0;
   }
 
-  throw new Error(`Usage: ${APP_USAGE}`);
+  const verbs = ["status", "actions", "run", "open", "processes", "wait", "logs", "read", "screenshot"];
+  const problem = parsed.verb === undefined ? "Missing app command."
+    : verbs.includes(parsed.verb) ? `Wrong arguments for app ${parsed.verb}.`
+      : `Unknown app command: ${parsed.verb}. This tool supports ${verbs.join(", ")}; if the skill documents more, the installed app is older than the skill.`;
+  throw new Error(`${problem}\nUsage: ${APP_USAGE}`);
 }

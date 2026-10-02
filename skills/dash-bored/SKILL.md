@@ -342,7 +342,10 @@ Leave the user's view as you found it: `app read` and `--node` restore it
 After `app run select:` or `focus:`, run `select:<selection>/<child>` from the
 original `selections`, or `focus:<original focusedNodeId>`. When another
 agent is reading or capturing at the same time, `app read` and `--node` fail
-with "retry in a few seconds".
+with "retry in a few seconds"; `--node` also fails with "The view changed"
+when someone switches tabs mid-capture. Retry both. An unknown `app` command
+means the installed app is older than this skill: say which command is
+missing and fall back to screenshots and the YAML.
 
 ## Gotchas
 

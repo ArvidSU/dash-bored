@@ -126,6 +126,7 @@ function restoreScroll(positions: ScrollPosition[]): void {
 export class NodeCaptureSession {
   private restoreView: (() => void) | null = null;
   private scrolls: ScrollPosition[] | null = null;
+  private measured: { element: HTMLElement; box: Box; inset: number } | null = null;
 
   /** Finds the node's frame, revealing it (and recording the view to restore) when it is not mounted. */
   private async mount(nodeId: string, hooks: NodeCaptureHooks): Promise<{ element: HTMLElement; revealed: boolean }> {
@@ -189,6 +190,7 @@ export class NodeCaptureSession {
       const width = box.right - box.left;
       const height = box.bottom - box.top;
       if (width <= 0 || height <= 0) throw new Error(`Node ${nodeId} has no visible area.`);
+      this.measured = { element, box, inset };
       return {
         nodeId,
         rect: { x: box.left, y: box.top, width, height },
@@ -205,7 +207,21 @@ export class NodeCaptureSession {
     }
   }
 
+  /**
+   * Ends a capture, reporting whether the node was still where `begin`
+   * measured it. The user or another agent can switch tabs or scroll while
+   * the window is captured, which would crop the wrong content.
+   */
+  async finish(): Promise<boolean> {
+    const measured = this.measured;
+    const stable = measured !== null && measured.element.isConnected
+      && sameBox(visibleBox(measured.element, measured.inset), measured.box);
+    await this.end();
+    return stable;
+  }
+
   async end(): Promise<void> {
+    this.measured = null;
     const restoreView = this.restoreView;
     const scrolls = this.scrolls;
     this.restoreView = null;

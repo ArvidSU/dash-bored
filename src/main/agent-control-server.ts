@@ -36,7 +36,7 @@ export interface AgentControlBridge {
    * view change the renderer made.
    */
   beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
-  endNodeCapture(): Promise<void>;
+  endNodeCapture(): Promise<boolean>;
   /** Reads a node's rendered text after its sources load (bounded), restoring any view change. */
   readNode(nodeId: string, timeoutMs: number): Promise<AgentNodeText>;
   openDashboard(configPath: string): Promise<void>;
@@ -159,15 +159,23 @@ export async function startAgentControlServer(
     capturingNode = true;
     try {
       const node = await bridge.beginNodeCapture(nodeId);
+      let ended = false;
       try {
         // A reveal can mount views whose sources then load.
         const quiet = await idle(timeoutMs);
         const png = cropNodeCapture(await bridge.capture(), node);
+        ended = true;
+        if (!await bridge.endNodeCapture()) {
+          throw new CoreError(
+            "AGENT_CONTROL_VIEW_CHANGED",
+            `The view changed while ${nodeId} was captured (the user or another agent switched tabs or scrolled); retry.`,
+          );
+        }
         return new Response(png, { headers: {
           "content-type": "image/png", "x-dash-bored-node": JSON.stringify(node), ...(quiet ? {} : { "x-dash-bored-idle": "false" }),
         } });
       } finally {
-        await bridge.endNodeCapture();
+        if (!ended) await bridge.endNodeCapture();
       }
     } finally {
       capturingNode = false;

@@ -107,7 +107,8 @@ export interface AgentControlHandler {
   listActions(): AgentActionDescriptor[];
   runAction(request: AgentRunActionRequest): Promise<AgentRunActionResult>;
   beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
-  endNodeCapture(): Promise<void>;
+  /** Restores the view; false when the node moved after it was measured. */
+  endNodeCapture(): Promise<boolean>;
   /** Reads a node's rendered text once `waitForIdle` resolves, restoring the view. */
   readNode(nodeId: string, waitForIdle: () => Promise<boolean>): Promise<AgentNodeText>;
 }
@@ -140,10 +141,7 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
       agentListActions: () => requireAgentControl().listActions(),
       agentRunAction: (request) => requireAgentControl().runAction(request),
       agentBeginNodeCapture: ({ nodeId }) => requireAgentControl().beginNodeCapture(nodeId),
-      agentEndNodeCapture: async () => {
-        await requireAgentControl().endNodeCapture();
-        return {};
-      },
+      agentEndNodeCapture: async () => ({ stable: await requireAgentControl().endNodeCapture() }),
       agentSettle: async () => {
         await nextPaint();
         return {};

@@ -644,7 +644,7 @@ interface AgentControlRendererRequests {
   agentSettle(params: {}): Promise<{}>;
   agentIdle(params: { timeoutMs: number }): Promise<{ idle: boolean }>;
   agentBeginNodeCapture(params: { nodeId: string }): Promise<AgentNodeMeasurement>;
-  agentEndNodeCapture(params: {}): Promise<{}>;
+  agentEndNodeCapture(params: {}): Promise<{ stable: boolean }>;
   agentReadNode(params: { nodeId: string; timeoutMs: number }): Promise<AgentNodeText>;
 }
 
@@ -690,7 +690,7 @@ const agentControl: AgentControlServer | null = await startAgentControlServer({
     return found ? agentProcessLogs(found.info, found.snapshot, tail) : null;
   },
   beginNodeCapture: (nodeId) => rendererRequests().agentBeginNodeCapture({ nodeId }),
-  endNodeCapture: async () => { await rendererRequests().agentEndNodeCapture({}); },
+  endNodeCapture: async () => (await rendererRequests().agentEndNodeCapture({})).stable,
   readNode: (nodeId, timeoutMs) => rendererRequests().agentReadNode({ nodeId, timeoutMs }),
   openDashboard: async (configPath) => {
     // Loading registers the dashboard through onSnapshot, as an app launch for

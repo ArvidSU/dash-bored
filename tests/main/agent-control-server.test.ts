@@ -62,7 +62,7 @@ function fakeBridge() {
   const opened: string[] = [];
   const idleCalls: number[] = [];
   const tails: number[] = [];
-  const capture = { events: [] as string[], png: PNG as Uint8Array<ArrayBuffer>, failCapture: false };
+  const capture = { events: [] as string[], png: PNG as Uint8Array<ArrayBuffer>, failCapture: false, viewChanged: false };
   const measurement: AgentNodeMeasurement = {
     nodeId: "logs",
     rect: { x: 10, y: 5, width: 20, height: 10 },
@@ -107,7 +107,7 @@ function fakeBridge() {
       capture.events.push(`begin:${nodeId}`);
       return { ...measurement, nodeId };
     },
-    endNodeCapture: async () => { capture.events.push("end"); },
+    endNodeCapture: async () => { capture.events.push("end"); return !capture.viewChanged; },
     readNode: async (nodeId, timeoutMs) => {
       capture.events.push(`read:${nodeId}:${timeoutMs}`);
       if (nodeId === "missing") throw new Error("No node missing in the active dashboard.");
@@ -230,7 +230,7 @@ test("run --until-exit waits for the started run, then reports its exit and outp
 
   expect(result.exitCode).toBe(0);
   const outcome = JSON.parse(result.stdout);
-  expect(outcome).toMatchObject({ exited: true, process: { id: "tests", state: "exited", exitCode: 0 } });
+  expect(outcome).toMatchObject({ exited: true, process: { id: "tests", state: "exited", exitCode: 0 }, logs: { exitCode: 0 } });
   expect(outcome.logs.lines).toEqual(["all green", "Command exited with code 0."]);
 
   expect((await cli(homeDirectory, "run", "focus:logs", "--until-exit")).stderr).toContain("process:<command-id>");
@@ -377,6 +377,26 @@ test("concurrent node reads are refused with a retry hint", async () => {
   expect(second.stderr).toContain("retry in a few seconds");
   release();
   expect((await first).exitCode).toBe(0);
+});
+
+test("a node capture fails when the view changed while the window was captured", async () => {
+  const homeDirectory = await home();
+  const { capture } = await serve(homeDirectory);
+  capture.png = syntheticPng(200, 160) as Uint8Array<ArrayBuffer>;
+  capture.viewChanged = true;
+
+  const result = await cli(homeDirectory, "screenshot", "--node", "logs", "--output", join(homeDirectory, "moved.png"));
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("The view changed while logs was captured");
+  expect(capture.events).toEqual(["begin:logs", "capture", "end"]);
+});
+
+test("unknown app commands say so and hint at an older app", async () => {
+  const result = await cli(await home(), "frobnicate");
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("Unknown app command: frobnicate");
+  expect(result.stderr).toContain("older than the skill");
 });
 
 test("a failed node capture still ends the capture session", async () => {

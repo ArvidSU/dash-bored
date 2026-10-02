@@ -1560,7 +1560,7 @@ export function App(): ReactNode {
     viewState: () => ({ ...agentControlStateRef.current!, selections: activeSelections(actionStore.getIndexedActions()) }),
     beginNodeCapture: (nodeId) => nodeCaptureSession.begin(nodeId, nodeCaptureHooksRef.current!),
     readNode: (nodeId, waitForIdle) => nodeCaptureSession.read(nodeId, nodeCaptureHooksRef.current!, waitForIdle),
-    endNodeCapture: () => nodeCaptureSession.end(),
+    endNodeCapture: () => nodeCaptureSession.finish(),
     listActions: () => actionStore.getIndexedActions().map(describeAgentAction),
     async runAction({ reference, selections }) {
       const action = actionStore.get(reference);
