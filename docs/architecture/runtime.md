@@ -180,6 +180,23 @@ messages only on Linux, which dash-bored does not target.
 Command variants share one request: `processCommand` (start, open,
 quick-action, write, resize, stop), `agentTaskCommand` (stop, write, resize),
 `launchAgent` (component, creation, diagnostics, setup), and `setTrust`.
+
+`src/main/index.ts` only wires the main process. It creates the stores, the
+`ProjectRuntime`, and the window, and it routes pushes through one typed
+`send`. Each job lives in its own module:
+
+- `dashboard-rpc.ts`: the renderer's request handlers.
+- `agent-launch.ts`: every agent start, plus agent task commands and diffs.
+- `update-wiring.ts`: the update coordinator, the busy-work guard, and the
+  release-only continuation.
+- `app-themes.ts`: the app-level theme catalog and the personal theme watcher.
+- `installed-tools.ts`: installed-tool refresh, repair, and the warnings added
+  to every snapshot.
+- `app-menu.ts`: the native menu.
+- `agent-control-bridge.ts`: the window side of the agent control channel.
+
+`ProjectRuntime` builds every snapshot through `buildSnapshot()`, and it runs
+process commands only after the `requireProcess()` execute check.
 An item action may pass at most 32 bounded `DASH_ITEM_*` string overrides when
 starting a supervised command. The main process validates those names and
 values and adds them to that launch's environment; it never substitutes item

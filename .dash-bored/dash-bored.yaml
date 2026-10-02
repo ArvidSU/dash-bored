@@ -369,7 +369,12 @@ root:
                             tags:
                               - chore
                           - id: todo-031
-                            description: "Finish the inherent-complexity refactor (L3 and L7 landed on refactor/l3-app-split): L6 push-only host state, merged RPC commands, thin main/index.ts; L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            description: "Finish the inherent-complexity refactor (L3, L7, and L6 landed): L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-dashboard-editor-service
+                            description: "Split ProjectRuntime's editor operations (config source, draft and props validation, save) into a DashboardEditorService once L4 decides where drafts resolve; today save re-applies the definition through the runtime's queue, trust, and applyDefinition, so a split would only add a callback interface."
                             done: false
                             tags:
                               - chore

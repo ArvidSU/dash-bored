@@ -1,70 +1,25 @@
-import { DIRECT_UNSIGNED_UPDATES_VERIFIED, applyVerifiedNativeUpdate } from "../updates/native-updater";
-import { UpdateCoordinator } from "../updates/coordinator";
-import { bundledInstallation, openVerifiedDmg } from "../updates/installation";
-import { runMigrationAgent } from "../updates/migration-agent";
-import { atomicJson, updateDirectory, getUpdateSettings } from "../updates/storage";
-import { watch as watchThemes } from "node:fs";
-import { mkdir as mkdirThemes } from "node:fs/promises";
-import { loadApplicationThemeCatalog, personalThemesDirectory } from "../core/themes";
-import { isPackageWorkPath } from "../core/package-store";
-import Electrobun, {
-  ApplicationMenu,
-  BrowserView,
-  BrowserWindow,
-  Updater,
-  Utils,
-} from "electrobun/main";
-import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
-import { CoreError, ProjectRuntime, TrustStore, loadPromptTemplates, prepareAgentPrompt, promptTemplateSummary, resolveProjectLocation, resolvePromptTemplate } from "../core/index";
-import { resolveEnvironment } from "../core/environment";
-import { isProcessRunActive } from "../shared/process-state";
-import type {
-  AgentLaunchRequest,
-  AgentTaskCommand,
-  AppSettings,
-  ComponentAgentPreview,
-  ComponentAgentRequest,
-  Diagnostic,
-  DashboardAgentTask,
-  DashboardConfigSource,
-  DashboardInsertionTarget,
-  ProcessSnapshot,
-  ProjectSnapshot,
-} from "../shared/contracts";
-import {
-  buildComponentCreationAgentPrompt,
-  buildDiagnosticsAgentPrompt,
-  componentPath,
-  findResolvedNode,
-  resolveDashboardInsertion,
-  type DashboardInsertion,
-} from "../shared/component-agent";
-import type { DashboardRPC } from "../shared/rpc";
-import { keyboardShortcutAccelerator } from "../shared/keyboard-shortcut";
-import { AppSettingsStore, resolveDashBoredAgent } from "./app-settings";
-import { DashboardAgentHarness } from "./component-agent";
-import { readDashboardAgentDiff } from "./dashboard-agent-diff";
-import { assertAgentAvailable } from "./agent-preflight";
-import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
-import { getRegisteredProjectOutline } from "./project-outline";
-import { ProjectRegistry } from "./project-registry";
-import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
-import {
-  installedSkillPath,
-  repairInstalledTools as repairInstalledToolConflicts,
-  updateInstalledTools,
-} from "./installed-tools";
-import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
+import Electrobun, { BrowserWindow, Updater, Utils } from "electrobun/main";
+import { basename, dirname, join } from "node:path";
+import { ProjectRuntime, TrustStore } from "../core/index";
+import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { retireManagedCliLink } from "../migrations/cli-link";
 import { isLegacyAppThemeReference, upgradeLegacyAppThemeReference } from "../migrations/app-theme-reference";
-import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
-import { startAgentControlServer, type AgentControlServer } from "./agent-control-server";
-import { captureWindowPng, keepWindowRenderingWhenOccluded } from "./window-capture";
-import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { APP_VERSION } from "../shared/app-metadata";
-import { agentProcessInfo, agentProcessLogs, type AgentProcessInfo } from "../shared/agent-control";
-import type { AgentActionDescriptor, AgentNodeMeasurement, AgentNodeText, AgentRunActionRequest, AgentRunActionResult, AgentViewState } from "../shared/agent-control";
+import type { AppSettings } from "../shared/contracts";
+import type { DashboardRPC } from "../shared/rpc";
+import { windowAgentControlBridge } from "./agent-control-bridge";
+import { startAgentControlServer } from "./agent-control-server";
+import { AgentLauncher } from "./agent-launch";
+import { onApplicationMenuAction, setApplicationMenu } from "./app-menu";
+import { AppSettingsStore } from "./app-settings";
+import { loadApplicationThemes, watchPersonalThemes } from "./app-themes";
+import { DashboardAgentHarness } from "./component-agent";
+import { createDashboardRPC } from "./dashboard-rpc";
+import { InstalledToolDiagnostics } from "./installed-tools";
+import { ProjectRegistry } from "./project-registry";
+import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
+import { createAppUpdates } from "./update-wiring";
+import { keepWindowRenderingWhenOccluded } from "./window-capture";
 
 configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
@@ -78,13 +33,6 @@ const DEV_SERVER_URL = process.env.DASH_BORED_DEV_SERVER_URL
 const DEV_SERVER_ATTEMPTS = 40;
 const DEV_SERVER_RETRY_MS = 100;
 const MIN_WINDOW_WIDTH = 350;
-
-async function getDashboardAgentDiff(taskId: string): Promise<string> {
-  const task = dashboardAgentHarness.list().find((candidate) => candidate.id === taskId);
-  if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
-  const location = await resolveProjectLocation(task.configPath);
-  return readDashboardAgentDiff(location.projectRoot, location.configDirectory, task.purpose === "project" ? "project" : "dashboard");
-}
 
 async function mainViewUrl(): Promise<string> {
   if ((await Updater.localInfo.channel()) === "dev") {
@@ -107,562 +55,100 @@ async function mainViewUrl(): Promise<string> {
 
 let mainWindow: BrowserWindow | null = null;
 
-const installedToolDiagnostics: Diagnostic[] = [];
-const checkedSkillRoots = new Set<string>();
-function withInstalledToolDiagnostics(snapshot: ProjectSnapshot): ProjectSnapshot {
-  return { ...snapshot, diagnostics: [...snapshot.diagnostics, ...installedToolDiagnostics] };
+type WindowMessages = DashboardRPC["webview"]["messages"];
+/** Pushes host state to the renderer; a closed or loading window drops it. */
+function send<K extends keyof WindowMessages>(name: K, value: WindowMessages[K]): void {
+  (mainWindow?.webview.rpc as { send?: { [M in keyof WindowMessages]: (value: WindowMessages[M]) => void } } | undefined)
+    ?.send?.[name](value);
 }
 
-async function refreshInstalledTools(options: Parameters<typeof updateInstalledTools>[0]): Promise<Diagnostic[]> {
-  try {
-    return await updateInstalledTools(options);
-  } catch (error) {
-    // A refresh is maintenance work; an unexpected enumeration or path error
-    // must remain visible without preventing the dashboard from opening.
-    return [{
-      severity: "warning",
-      code: "INSTALLED_TOOL_UPDATE_FAILED",
-      file: options.homeDirectory,
-      message: `Could not refresh installed dash-bored tools: ${error instanceof Error ? error.message : String(error)}`,
-    }];
-  }
-}
-
-function installedSkillRootFromDiagnostic(file: string): string | null {
-  const resolvedFile = resolve(file);
-  const root = resolve(resolvedFile, "..", "..", "..");
-  return installedSkillPath(root) === resolvedFile ? root : null;
-}
-
-function replaceInstalledToolDiagnostics(paths: readonly string[], next: readonly Diagnostic[]): void {
-  const replaced = new Set(paths.map((path) => resolve(path)));
-  const retained = installedToolDiagnostics.filter((diagnostic) =>
-    diagnostic.file === undefined || !replaced.has(resolve(diagnostic.file)),
-  );
-  installedToolDiagnostics.splice(0, installedToolDiagnostics.length, ...retained, ...next);
-}
-
-async function repairInstalledToolConflictsForUser(): Promise<{ conflictsRemain: boolean }> {
-  const home = resolve(homedir());
-  const globalSkillTarget = installedSkillPath(home);
-  let repairGlobalSkill = false;
-  const projectRoots = new Set<string>();
-
-  for (const diagnostic of installedToolDiagnostics) {
-    if (diagnostic.code !== "INSTALLED_TOOL_UPDATE_CONFLICT" || !diagnostic.file) continue;
-    const file = resolve(diagnostic.file);
-    const skillRoot = installedSkillRootFromDiagnostic(file);
-    if (skillRoot === null) continue;
-    if (skillRoot === home || file === globalSkillTarget) repairGlobalSkill = true;
-    else projectRoots.add(skillRoot);
-  }
-
-  if (!repairGlobalSkill && projectRoots.size === 0) {
-    throw new CoreError(
-      "INSTALLED_TOOL_CONFLICTS_NOT_FOUND",
-      "There are no current installed-tool conflicts to repair.",
-    );
-  }
-  const repairedPaths = [
-    ...(repairGlobalSkill ? [globalSkillTarget] : []),
-    ...[...projectRoots].map((root) => installedSkillPath(root)),
-  ];
-  const diagnostics = await repairInstalledToolConflicts({
-    homeDirectory: home,
-    repairGlobalSkill,
-    projectRoots: [...projectRoots],
-    moveToTrash: async (path) => await Utils.moveToTrash(path),
-  });
-  replaceInstalledToolDiagnostics(repairedPaths, diagnostics);
-  sendSnapshot(runtime.getSnapshot());
-  return { conflictsRemain: installedToolDiagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT") };
-}
-
-function sendSnapshot(snapshot: ProjectSnapshot): void {
-  (mainWindow?.webview.rpc as { send?: { snapshot(value: ProjectSnapshot): void } } | undefined)
-    ?.send?.snapshot(withInstalledToolDiagnostics(snapshot));
-}
-
-function sendAgentTask(task: DashboardAgentTask): void {
-  (mainWindow?.webview.rpc as { send?: { agentTask(value: DashboardAgentTask): void } } | undefined)
-    ?.send?.agentTask(task);
-}
-
-function openCommandPalette(): void {
-  (
-    mainWindow?.webview.rpc as
-      | { send?: { openCommandPalette(value: {}): void } }
-      | undefined
-  )?.send?.openCommandPalette({});
-}
-
-function reloadApp(): void {
-  mainWindow?.webview.executeJavascript("window.location.reload()");
-}
-
+const installedTools = new InstalledToolDiagnostics({
+  moveToTrash: async (path) => await Utils.moveToTrash(path),
+  onChange: () => send("snapshot", installedTools.addTo(runtime.getSnapshot())),
+});
 const trustStore = new TrustStore(join(Utils.paths.userData, "trusted-projects-v1.json"));
 const projectRegistry = new ProjectRegistry(join(Utils.paths.userData, "projects-v1.json"));
-const registeredRoots = [...new Set((await projectRegistry.list().catch((error: unknown) => {
+await installedTools.refreshRegistered([...new Set((await projectRegistry.list().catch((error: unknown) => {
   console.error("Could not read projects for installed-tool updates.", error);
   return [];
-})).map((project) => project.projectRoot))];
-installedToolDiagnostics.push(...await refreshInstalledTools({ projectRoots: registeredRoots }));
+})).map((project) => project.projectRoot))]);
 await retireManagedCliLink().catch(() => false);
-for (const root of registeredRoots) checkedSkillRoots.add(root);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
-try {
-  await mkdirThemes(personalThemesDirectory(), { recursive: true });
-  let themeWatchTimer: ReturnType<typeof setTimeout> | undefined;
-  const themeWatcher = watchThemes(personalThemesDirectory(), { recursive: true }, (_event, filename) => {
-    if (filename && String(filename).split(/[\\/]/).some((part) => part === '.git' || isPackageWorkPath(part))) return;
-    clearTimeout(themeWatchTimer);
-    themeWatchTimer = setTimeout(() => {
-      void loadApplicationThemes().then((catalog) => {
-        (mainWindow?.webview.rpc as { send?: { themes(value: typeof catalog): void } } | undefined)?.send?.themes(catalog);
-      }).catch((error) => console.error('Could not reload personal themes.', error));
-    }, 150);
-  });
-  themeWatcher.on('error', (error) => console.error('Personal theme watcher unavailable; reload to refresh themes.', error));
-} catch (error) { console.error('Personal theme watcher unavailable; reload to refresh themes.', error); }
 
-let publishedEnvironment: Record<string, string> = initialAppSettings.dashBoredAgent === null
-  ? {}
-  : { DASH_BORED_AGENT: initialAppSettings.dashBoredAgent };
-const dashboardAgentHarness = new DashboardAgentHarness({ onTask: sendAgentTask });
+function agentEnvironment(settings: AppSettings): Record<string, string> {
+  return settings.dashBoredAgent === null ? {} : { DASH_BORED_AGENT: settings.dashBoredAgent };
+}
+let publishedEnvironment = agentEnvironment(initialAppSettings);
+
+const dashboardAgentHarness = new DashboardAgentHarness({ onTask: (task) => send("agentTask", task) });
 const runtime = new ProjectRuntime({
   trustStore,
   isConfigRegistered: async (configPath) => (await projectRegistry.list()).some((project) => project.configPath === configPath),
   getPublishedEnvironment: () => publishedEnvironment,
   onSnapshot(snapshot) {
-    sendSnapshot(snapshot);
-    if (snapshot.projectRoot && !checkedSkillRoots.has(snapshot.projectRoot)) {
-      checkedSkillRoots.add(snapshot.projectRoot);
-      void refreshInstalledTools({ projectRoots: [snapshot.projectRoot], includeGlobal: false }).then((diagnostics) => {
-        installedToolDiagnostics.push(...diagnostics);
-        if (diagnostics.length) sendSnapshot(runtime.getSnapshot());
-      });
-    }
+    send("snapshot", installedTools.addTo(snapshot));
+    if (snapshot.projectRoot) installedTools.checkProject(snapshot.projectRoot);
     if (snapshot.configPath) dashboardAgentHarness.markDashboardChanged(snapshot.configPath);
     void projectRegistry.remember(snapshot).catch((error: unknown) => {
       console.error("Could not persist the dashboard list.", error);
     });
   },
-  onProcess(process) {
-    (mainWindow?.webview.rpc as { send?: { process(value: typeof process): void } } | undefined)
-      ?.send?.process(process);
-  },
+  onProcess: (process) => send("process", process),
 });
 
-let nativeUpdateApplying = false;
-const updateCoordinator: UpdateCoordinator = new UpdateCoordinator({
-  listDashboards: async () => [...new Set([...(await projectRegistry.list()).map(p => p.configPath), ...runtime.getSnapshot().configPath ? [runtime.getSnapshot().configPath!] : []])],
-  install: async (receipt, method) => {
-    if (runtime.getSnapshot().processes.some(p => p.phase === "running" || p.phase === "stopping")
-      || dashboardAgentHarness.list().some(t => t.process.phase === "running" || t.process.phase === "stopping")) throw new Error("Finish running terminals and agent work before installation. No work has been stopped.");
-    await bundledInstallation(bundledTools ? bundledTools.toolPath : process.execPath);
-    if (DIRECT_UNSIGNED_UPDATES_VERIFIED && method !== "dmg") {
-      try { await applyVerifiedNativeUpdate(Updater, receipt, updateDirectory(), fetch, async () => {
-        if (await updateCoordinator.cancelled(receipt)) throw new Error("Update continuation cancelled before restart.");
-        if (runtime.getSnapshot().processes.some(p => p.phase === 'running' || p.phase === 'stopping')
-          || dashboardAgentHarness.list().some(t => t.process.phase === 'running' || t.process.phase === 'stopping')) throw new Error('New work started while staging. Finish it before restarting.');
-        nativeUpdateApplying = true;
-      }); }
-      finally { nativeUpdateApplying = false; }
-    } else await openVerifiedDmg(receipt);
-  },
-  migrate: async (configPath, receipt, report, snapshotReady) => {
-    if (runtime.getSnapshot().configPath === configPath && runtime.getSnapshot().processes.some(p => p.phase === 'running' || p.phase === 'stopping')
-      || dashboardAgentHarness.list().some(t => t.configPath === configPath && (t.process.phase === 'running' || t.process.phase === 'stopping'))) throw new Error('Finish running dashboard work before migration.');
-    const installation = await bundledInstallation(bundledTools ? bundledTools.toolPath : process.execPath);
-    return runMigrationAgent({ directory: updateDirectory(), configPath, receipt, report, snapshotReady,
-      toolPath: installation.cliPath, command: await resolveAgentCommand(configPath, await appSettingsStore.get()),
-      trustStore, harness: dashboardAgentHarness, stop: id => dashboardAgentHarness.stop(id),
-      cancelled: () => updateCoordinator.cancelled(receipt),
-    });
-  },
+const agents = new AgentLauncher({
+  runtime,
+  harness: dashboardAgentHarness,
+  settings: appSettingsStore,
+  publishedEnvironment: () => publishedEnvironment,
 });
-Updater.onStatusChange(entry => {
-  if (entry.status === 'error') {
-    updateCoordinator.problem(entry.message);
-    void updateCoordinator.recordInstallationProblem(entry.message).catch(() => undefined);
-  }
-});
-let updateOperation: Promise<unknown> | null = null;
-async function handleUpdateAction(action: import("../shared/updates").UpdateAction) {
-  if (action.type === 'prepare' || action.type === 'migrate' || action.type === 'install') {
-    if (action.type === 'prepare') await bundledInstallation(bundledTools ? bundledTools.toolPath : process.execPath);
-    if (updateOperation) throw new Error('An update operation is already running.');
-    updateOperation = updateCoordinator.action(action).catch(error => console.error('Update operation needs recovery:', error)).finally(() => { updateOperation = null; });
-    return updateCoordinator.state();
-  }
-  return updateCoordinator.action(action);
-}
-
-async function loadApplicationThemes() {
-  const current = runtime.getSnapshot();
-  const registered = await projectRegistry.list();
-  const candidates = new Map<string, { configPath: string; label?: string | null }>();
-  for (const project of registered) candidates.set(project.configPath, { configPath: project.configPath, label: project.dashboardName });
-  if (current.configPath) {
-    candidates.set(current.configPath, { configPath: current.configPath, label: current.dashboardName });
-  }
-  const sources = (await Promise.all([...candidates.values()].map(async (candidate) => {
-    try {
-      const location = await resolveProjectLocation(candidate.configPath);
-      return { ...candidate, configDirectory: location.configDirectory };
-    } catch {
-      return null;
-    }
-  }))).filter((source): source is NonNullable<typeof source> => source !== null);
-  return loadApplicationThemeCatalog(sources);
-}
-
-/** App settings as the renderer reads them, with a legacy theme pinned once its dashboard is active. */
-async function readAppSettings(): Promise<AppSettings> {
-  const settings = await appSettingsStore.get();
-  const activeConfigPath = runtime.getSnapshot().configPath;
-  if (!isLegacyAppThemeReference(settings.theme) || !activeConfigPath) return settings;
-  const theme = upgradeLegacyAppThemeReference(settings.theme, activeConfigPath, await loadApplicationThemes());
-  return theme === undefined ? settings : appSettingsStore.update({ ...settings, theme });
-}
-
-async function resolveAgentCommand(configPath: string, settings: Awaited<ReturnType<AppSettingsStore["get"]>>): Promise<string> {
-  if (settings.dashBoredAgent !== null) return settings.dashBoredAgent;
-  return resolveDashBoredAgent(settings.dashBoredAgent, await resolveEnvironment(configPath, publishedEnvironment));
-}
-
-async function prepareComponentAgent(request: ComponentAgentRequest, preview = false) {
-  const snapshot = runtime.getSnapshot();
-  if (!snapshot.tree || !snapshot.projectRoot) {
-    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to work from it.");
-  }
-  const node = findResolvedNode(snapshot.tree, request.nodeId);
-  if (!node) {
-    throw new CoreError(
-      "COMPONENT_NOT_FOUND",
-      "That component is no longer present. Reopen its menu and try again.",
-    );
-  }
-  const source = await runtime.getDashboardConfigSource(node.sourceConfigPath);
-  const sourceLocation = await resolveProjectLocation(source.configPath);
-  const locator = componentPath(node);
-  // Templates are re-read from the owning bundle so the renderer only names one.
-  const templates = await loadPromptTemplates(sourceLocation.configDirectory);
-  const declaresEnv = resolvePromptTemplate(templates.templates, request.template)?.env.length ?? 0;
-  const env = declaresEnv > 0 ? await runtime.getLaunchEnvironment(source.configPath) : {};
-  try {
-    const prepared = prepareAgentPrompt(templates, {
-      template: request.template,
-      input: request.prompt,
-      vars: request.vars,
-      env,
-      allowEmptyInput: preview,
-      projectRoot: sourceLocation.projectRoot,
-      configPath: source.configPath,
-      configDirectory: sourceLocation.configDirectory,
-      component: {
-        id: node.id,
-        reference: node.component,
-        path: locator,
-        name: node.configName?.trim() || node.manifest?.name || node.component,
-      },
-    });
-    return { ...prepared, source, sourceLocation, locator };
-  } catch (error) {
-    throw new CoreError("COMPONENT_AGENT_PROMPT_INVALID", error instanceof Error ? error.message : String(error));
-  }
-}
-
-async function previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview> {
-  const { template, prompt } = await prepareComponentAgent(request, true);
-  return { template: promptTemplateSummary(template), prompt };
-}
-
-async function runComponentAgent(request: ComponentAgentRequest) {
-  const { template, prompt, source, sourceLocation, locator } = await prepareComponentAgent(request);
-  const settings = await appSettingsStore.get();
-  const command = await resolveAgentCommand(source.configPath, settings);
-  const dashboardWork = template.scope === "dashboard";
-  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
-    location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
-    prompt,
-    // Project work is reviewed as a project diff; only dashboard work is
-    // validated and may receive the single automatic repair.
-    purpose: dashboardWork ? "edit" : "project",
-    followUp: dashboardWork,
-    template: template.name,
-    componentPath: locator,
-    configPath: source.configPath,
-    request: request.prompt.trim() || template.description,
-  });
-}
-
-function validatedInsertion(
-  source: DashboardConfigSource,
-  target: DashboardInsertionTarget,
-): DashboardInsertion {
-  const invalid = (): never => {
-    throw new CoreError(
-      "COMPONENT_INSERTION_TARGET_INVALID",
-      "That component insertion point is no longer present. Reopen the dashboard editor and try again.",
-    );
-  };
-  return resolveDashboardInsertion(source, target) ?? invalid();
-}
-
-async function runComponentCreationAgent(
-  configPath: string,
-  target: DashboardInsertionTarget,
-  userPrompt: string,
-) {
-  const source = await runtime.getDashboardConfigSource(configPath);
-  const sourceLocation = await resolveProjectLocation(source.configPath);
-  const insertion = validatedInsertion(source, target);
-  const locator = `${source.configPath}#${insertion.path}`;
-  const settings = await appSettingsStore.get();
-  const command = await resolveAgentCommand(source.configPath, settings);
-  const prompt = buildComponentCreationAgentPrompt({
-    projectRoot: sourceLocation.projectRoot,
-    configPath: source.configPath,
-    insertion,
-  }, userPrompt);
-  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
-    location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
-    prompt,
-    purpose: "edit",
-    componentPath: locator,
-    configPath: source.configPath,
-    request: userPrompt,
-  });
-}
-
-async function runDiagnosticsAgent() {
-  const snapshot = runtime.getSnapshot();
-  if (!snapshot.projectRoot || !snapshot.configPath) {
-    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to fix its diagnostics.");
-  }
-  if (snapshot.diagnostics.length === 0) {
-    throw new CoreError("DIAGNOSTICS_NOT_FOUND", "This dashboard has no current diagnostics to fix.");
-  }
-  const sourceLocation = await resolveProjectLocation(snapshot.configPath);
-  const locator = `${snapshot.configPath}#diagnostics`;
-  const settings = await appSettingsStore.get();
-  const command = await resolveAgentCommand(snapshot.configPath, settings);
-  const prompt = buildDiagnosticsAgentPrompt({
-    projectRoot: sourceLocation.projectRoot,
-    configPath: snapshot.configPath,
-    diagnostics: snapshot.diagnostics,
-  });
-  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command,
-    location: sourceLocation, preflight: assertAgentAvailable }).launchRequest({
-    prompt,
-    purpose: "edit",
-    componentPath: locator,
-    configPath: snapshot.configPath,
-    request: "Fix dashboard configuration diagnostics.",
-  });
-}
-
-async function setupDashboardWithAgent(nodeId: string) {
-  const snapshot = runtime.getSnapshot();
-  const session = runtime.getSessionToken();
-  if (!snapshot.projectRoot || !snapshot.configPath || !snapshot.tree) {
-    throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before running its setup agent.");
-  }
-  if (!snapshot.trusted) {
-    throw new CoreError("PROJECT_UNTRUSTED", "Trust this project before running its setup agent.");
-  }
-  const node = findSetupNode(runtime, nodeId);
-  if (!node) {
-    throw new CoreError("DASHBOARD_SETUP_NODE_INVALID", "That setup action is no longer present in the active dashboard.");
-  }
-  const configPath = node.sourceConfigPath ?? snapshot.configPath;
-  if (dashboardAgentHarness.list().some((task) => task.configPath === configPath
-    && task.purpose !== undefined
-    && (isProcessRunActive(task.process)
-      || task.validation?.status === "checking" || task.validation?.status === "repairing"))) {
-    throw new CoreError("DASHBOARD_SETUP_RUNNING", "Setup is already active for this dashboard. Open Agent work to view or stop it.");
-  }
-  const sourceLocation = await resolveProjectLocation(configPath);
-  const settings = await appSettingsStore.get();
-  const command = await resolveAgentCommand(configPath, settings);
-  if (runtime.getSessionToken() !== session) throw new CoreError("DASHBOARD_SETUP_STALE", "The active dashboard changed. Run setup from its current panel.");
-  return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command, location: sourceLocation, preflight: assertAgentAvailable }).launch(node);
-}
-
-async function chooseAndLoadProject(): Promise<{ opened: boolean }> {
-  const paths = await Utils.openFileDialog({
-    startingFolder: homedir(),
-    canChooseFiles: false,
-    canChooseDirectory: true,
-    allowsMultipleSelection: false,
-  });
-  const selected = paths[0];
-  if (!selected) return { opened: false };
-  await runtime.load(selected, { inputKind: "auto" });
-  runtime.watch();
-  return { opened: runtime.getSnapshot().projectRoot !== null };
-}
-
-async function openProject(projectRoot: string, configPath: string): Promise<void> {
-  if (!(await projectRegistry.contains(projectRoot, configPath))) {
-    throw new CoreError(
-      "PROJECT_NOT_REGISTERED",
-      "Choose this project through Add dashboard before opening it from the sidebar.",
-    );
-  }
-  await runtime.load(configPath, { inputKind: "auto" });
-  runtime.watch();
-}
-
-function launchAgent(request: AgentLaunchRequest) {
-  switch (request.kind) {
-    case "component": return runComponentAgent(request);
-    case "creation": return runComponentCreationAgent(request.configPath, request.target, request.prompt);
-    case "diagnostics": return runDiagnosticsAgent();
-    case "setup": return setupDashboardWithAgent(request.nodeId);
-  }
-}
-
-function agentTaskCommand(taskId: string, command: AgentTaskCommand): Promise<DashboardAgentTask> {
-  switch (command.type) {
-    case "stop": return dashboardAgentHarness.stop(taskId);
-    case "write": return dashboardAgentHarness.writeTerminal(taskId, command.input);
-    case "resize": return dashboardAgentHarness.resizeTerminal(taskId, command.cols, command.rows);
-  }
-}
-
-async function setTrust(trusted: boolean): Promise<void> {
-  if (trusted) {
-    await runtime.trust();
-    return;
-  }
-  const projectRoot = runtime.getSnapshot().projectRoot;
-  await runtime.revoke();
-  if (projectRoot) await dashboardAgentHarness.stopProject(projectRoot);
-}
-
-const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
-  maxRequestTime: 65_000,
-  handlers: {
-    requests: {
-      getSnapshot: () => withInstalledToolDiagnostics(runtime.getSnapshot()),
-      getThemes: () => loadApplicationThemes(),
-      getUpdateState: async () => ({ ...await updateCoordinator.state(), directInstallAvailable: DIRECT_UNSIGNED_UPDATES_VERIFIED && (await Updater.localInfo.channel()) === "canary" }),
-      updateAction: action => handleUpdateAction(action),
-      getAppSettings: () => readAppSettings(),
-      updateAppSettings: async (settings) => {
-        const updated = await appSettingsStore.update(settings);
-        publishedEnvironment = updated.dashBoredAgent === null
-          ? {}
-          : { DASH_BORED_AGENT: updated.dashBoredAgent };
-        setApplicationMenu(updated);
-        await runtime.refreshEnvironment();
-        return updated;
-      },
-      previewComponentAgent: (request) => previewComponentAgent(request),
-      launchAgent: (request) => launchAgent(request),
-      repairInstalledTools: (_request) => repairInstalledToolConflictsForUser(),
-      manageExternalComponent: async (operation) => {
-        const configPath = runtime.getSnapshot().configPath;
-        if (!configPath) throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before managing its external components.");
-        const result = await runExternalComponentOperation(configPath, operation);
-        await runtime.reload();
-        return result;
-      },
-      manageThemePackage: async (operation) => {
-        const result = await runThemePackageOperation(operation);
-        const catalog = await loadApplicationThemes();
-        (mainWindow?.webview.rpc as { send?: { themes(value: typeof catalog): void } } | undefined)?.send?.themes(catalog);
-        return result;
-      },
-      getDashboardAgentTasks: () => dashboardAgentHarness.list(),
-      getDashboardAgentDiff: ({ taskId }) => getDashboardAgentDiff(taskId),
-      agentTaskCommand: ({ taskId, command }) => agentTaskCommand(taskId, command),
-      listProjects: () => projectRegistry.list(),
-      moveProject: ({ configPath, targetConfigPath, before }) => projectRegistry.move(configPath, targetConfigPath, before),
-      getProjectOutline: ({ projectRoot, configPath }) =>
-        getRegisteredProjectOutline(projectRegistry, projectRoot, configPath),
-      chooseProject: () => chooseAndLoadProject(),
-      openProject: ({ projectRoot, configPath }) => openProject(projectRoot, configPath),
-      getProjectDeletionPreview: ({ projectRoot, configPath }) =>
-        getProjectDeletionPreview(projectRegistry, projectRoot, configPath),
-      deleteProject: async ({ projectRoot, configPath, removeFiles }) => {
-        await deleteRegisteredProject({
-          registry: projectRegistry,
-          runtime,
-          trustStore,
-          projectRoot,
-          configPath,
-          removeFiles,
-          moveToTrash: (path) => Utils.moveToTrash(path),
-        });
-      },
-      setTrust: ({ trusted }) => setTrust(trusted),
-      reloadProject: async () => { await runtime.reload(); },
-      getDashboardConfigSource: ({ configPath }) => runtime.getDashboardConfigSource(configPath),
-      validateDashboardDraft: ({ config, configPath }) => runtime.validateDashboardDraft(config, configPath),
-      validateComponentProps: ({ reference, props }) => runtime.validateComponentProps(reference, props),
-      saveDashboardConfig: async ({ config, expectedConfigRevision, configPath }) => {
-        await runtime.saveDashboardConfig(config, expectedConfigRevision, configPath);
-      },
-      processCommand: ({ nodeId, command }) => runtime.processCommand(nodeId, command),
-      readTextFile: (request) => runtime.readText(request),
-      writeTextFile: (request) => runtime.writeText(request),
-      httpRequest: (request) => runtime.http(request),
-      runShell: (request) => runtime.runShell(request),
-    },
-    messages: {},
-  },
+const updates = createAppUpdates({
+  runtime,
+  harness: dashboardAgentHarness,
+  registry: projectRegistry,
+  trustStore,
+  toolPath: bundledTools ? bundledTools.toolPath : process.execPath,
+  agentCommand: (configPath) => agents.command(configPath),
 });
 
-function setApplicationMenu(settings: Awaited<ReturnType<AppSettingsStore["get"]>>): void {
-  ApplicationMenu.setApplicationMenu([
-  {
-    label: "dash-bored",
-    submenu: [{ role: "about" }, { type: "separator" }, { role: "quit" }],
+const loadThemes = async () => loadApplicationThemes(await projectRegistry.list(), runtime.getSnapshot());
+const publishThemes = async () => send("themes", await loadThemes());
+await watchPersonalThemes(() => {
+  void publishThemes().catch((error) => console.error("Could not reload personal themes.", error));
+});
+
+const dashboardRPC = createDashboardRPC({
+  runtime,
+  registry: projectRegistry,
+  trustStore,
+  harness: dashboardAgentHarness,
+  agents,
+  installedTools,
+  updates,
+  loadThemes,
+  publishThemes,
+  /** App settings as the renderer reads them, with a legacy theme pinned once its dashboard is active. */
+  async readAppSettings() {
+    const settings = await appSettingsStore.get();
+    const activeConfigPath = runtime.getSnapshot().configPath;
+    if (!isLegacyAppThemeReference(settings.theme) || !activeConfigPath) return settings;
+    const theme = upgradeLegacyAppThemeReference(settings.theme, activeConfigPath, await loadThemes());
+    return theme === undefined ? settings : appSettingsStore.update({ ...settings, theme });
   },
-  {
-    label: "Edit",
-    submenu: [
-      { role: "undo" },
-      { role: "redo" },
-      { type: "separator" },
-      { role: "cut" },
-      { role: "copy" },
-      { role: "paste" },
-      { role: "selectAll" },
-    ],
+  async updateAppSettings(settings) {
+    const updated = await appSettingsStore.update(settings);
+    publishedEnvironment = agentEnvironment(updated);
+    setApplicationMenu(updated);
+    await runtime.refreshEnvironment();
+    return updated;
   },
-  {
-    label: "View",
-    submenu: [
-      {
-        label: "Show Command Palette",
-        action: "open-command-palette",
-        ...(keyboardShortcutAccelerator(settings.commandPaletteShortcut)
-          ? { accelerator: keyboardShortcutAccelerator(settings.commandPaletteShortcut) }
-          : {}),
-      },
-      {
-        label: "Reload App",
-        action: "reload-app",
-        ...(keyboardShortcutAccelerator(settings.actionShortcuts["app:reload"])
-          ? { accelerator: keyboardShortcutAccelerator(settings.actionShortcuts["app:reload"]) }
-          : {}),
-      },
-    ],
-  },
-  ]);
-}
+});
 
 setApplicationMenu(initialAppSettings);
-
-ApplicationMenu.on("application-menu-clicked", (event) => {
-  const action = (event as { data?: { action?: unknown } }).data?.action;
-  if (action === "open-command-palette") openCommandPalette();
-  if (action === "reload-app") reloadApp();
+onApplicationMenuAction({
+  openCommandPalette: () => send("openCommandPalette", {}),
+  reloadApp: () => mainWindow?.webview.executeJavascript("window.location.reload()"),
 });
 
 const configuredProject = process.env.DASH_BORED_PROJECT_ROOT;
@@ -694,72 +180,17 @@ mainWindow.on("resize", (event) => {
   mainWindow?.setSize(MIN_WINDOW_WIDTH, height);
 });
 
-mainWindow.webview.on("dom-ready", () => sendSnapshot(runtime.getSnapshot()));
+mainWindow.webview.on("dom-ready", () => send("snapshot", installedTools.addTo(runtime.getSnapshot())));
 // Agents drive and capture the app while it sits behind their terminal.
 keepWindowRenderingWhenOccluded(mainWindow.ptr);
 
-interface AgentControlRendererRequests {
-  agentViewState(params: {}): Promise<AgentViewState>;
-  agentListActions(params: {}): Promise<AgentActionDescriptor[]>;
-  agentRunAction(params: AgentRunActionRequest): Promise<AgentRunActionResult>;
-  agentSettle(params: {}): Promise<{}>;
-  agentIdle(params: { timeoutMs: number }): Promise<{ idle: boolean }>;
-  agentBeginNodeCapture(params: { nodeId: string }): Promise<AgentNodeMeasurement>;
-  agentEndNodeCapture(params: {}): Promise<{ stable: boolean }>;
-  agentReadNode(params: { nodeId: string; timeoutMs: number }): Promise<AgentNodeText>;
-}
-
-function rendererRequests(): AgentControlRendererRequests {
-  const request = (mainWindow?.webview.rpc as { request?: AgentControlRendererRequests } | undefined)?.request;
-  if (!request) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
-  return request;
-}
-
-/** Declared command processes with their node labels; ids are node ids. */
-function agentProcesses(): { info: AgentProcessInfo; snapshot: ProcessSnapshot }[] {
-  const { processes, tree } = runtime.getSnapshot();
-  return processes.map((snapshot) => {
-    const props = (tree ? findResolvedNode(tree, snapshot.id)?.props : undefined) ?? {};
-    const label = props.label ?? props.title;
-    return { snapshot, info: agentProcessInfo(snapshot, typeof label === "string" && label !== "" ? label : snapshot.id) };
-  });
-}
-
-const agentControl: AgentControlServer | null = await startAgentControlServer({
+const agentControl = await startAgentControlServer({
   identifier: appInstanceIdentifier,
   pid: process.pid,
   version: APP_VERSION,
   socketPath: instanceSocketPath(appInstanceIdentifier),
   toolPath: bundledTools?.toolPath ?? null,
-}, {
-  viewState: () => rendererRequests().agentViewState({}),
-  listActions: () => rendererRequests().agentListActions({}),
-  runAction: (request) => rendererRequests().agentRunAction(request),
-  settle: async () => {
-    // A relaunch behind other windows starts covered; re-assert before each wait.
-    if (mainWindow) keepWindowRenderingWhenOccluded(mainWindow.ptr);
-    await rendererRequests().agentSettle({});
-  },
-  idle: async (timeoutMs) => (await rendererRequests().agentIdle({ timeoutMs })).idle,
-  capture: () => {
-    if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
-    return captureWindowPng({ windowPointer: mainWindow.ptr, frame: mainWindow.getFrame() }, Utils.screenCapture);
-  },
-  processes: () => agentProcesses().map(({ info }) => info),
-  processLogs: (id, tail) => {
-    const found = agentProcesses().find(({ info }) => info.id === id);
-    return found ? agentProcessLogs(found.info, found.snapshot, tail) : null;
-  },
-  beginNodeCapture: (nodeId) => rendererRequests().agentBeginNodeCapture({ nodeId }),
-  endNodeCapture: async () => (await rendererRequests().agentEndNodeCapture({})).stable,
-  readNode: (nodeId, timeoutMs) => rendererRequests().agentReadNode({ nodeId, timeoutMs }),
-  openDashboard: async (configPath) => {
-    // Loading registers the dashboard through onSnapshot, as an app launch for
-    // that path did before; trust remains a separate user decision.
-    await runtime.load(resolve(configPath), { inputKind: "auto" });
-    runtime.watch();
-  },
-}).catch((error: unknown) => {
+}, windowAgentControlBridge(() => mainWindow, runtime)).catch((error: unknown) => {
   console.error("Agent control channel unavailable:", error);
   return null;
 });
@@ -774,7 +205,7 @@ let cleanupStarted = false;
 Electrobun.events.on("before-quit", (event) => {
   // Native apply already rejected running work. Its helper must receive quit
   // approval before any shutdown; the ordinary async cleanup veto would abort it.
-  if (nativeUpdateApplying) { event.response = { allow: true }; return; }
+  if (updates.isApplyingNativeUpdate()) { event.response = { allow: true }; return; }
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
@@ -783,14 +214,4 @@ Electrobun.events.on("before-quit", (event) => {
   });
 });
 
-// Release-only continuation: a development checkout must never consume a user's
-// persisted release authorization or impersonate the installed release host.
-if ((await Updater.localInfo.channel()) === 'canary') {
-  await atomicJson(join(updateDirectory(), 'app-host.json'), { pid: process.pid });
-  updateOperation = updateCoordinator.reconcile().catch(error => updateCoordinator.problem(error)).finally(() => { updateOperation = null; });
-  const scheduledCheck = async () => {
-    if ((await getUpdateSettings(updateDirectory())).automaticChecks && !updateOperation) await updateCoordinator.check();
-  };
-  void updateOperation.then(scheduledCheck).catch(error => console.error('Update check failed:', error));
-  setInterval(() => { void scheduledCheck().catch(error => console.error('Update check failed:', error)); }, 24 * 60 * 60_000);
-}
+await updates.continueRelease();
