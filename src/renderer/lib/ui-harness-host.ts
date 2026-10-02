@@ -33,6 +33,7 @@ import type {
   ShellRunRequest,
   ShellRunResult,
 } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 import type { DashboardHost, HostEvent } from "./rpc-client";
 import type { UpdateState } from "../../shared/updates";
 import { envEntries, parseEnv } from "../../shared/env";
@@ -283,15 +284,6 @@ function fixtureSchemaDiagnostic(error: ErrorObject, path: string, code: string)
   return fixtureDiagnostic(code, error.message ?? "Invalid value.", `${path}${error.instancePath.replaceAll("/", ".")}`);
 }
 
-function fixtureChildEdges(children: ComponentNode["children"]): ComponentChildEdge[] {
-  if (!children) return [];
-  if (Array.isArray(children)) return children;
-  const visit = (layout: ComponentChildLayout): ComponentChildEdge[] => "node" in layout
-    ? [layout]
-    : [...visit(layout.first), ...visit(layout.second)];
-  return visit(children);
-}
-
 /**
  * Browser-safe, conservative mirror of the DashboardHost draft boundary.
  * The main-process loader remains the source of truth for disk, lock, and
@@ -348,7 +340,7 @@ function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation
       diagnostics.push(...(validateProps.errors ?? []).map((error) => fixtureSchemaDiagnostic(error, `${path}.props`, "COMPONENT_PROPS_INVALID")));
     }
     const definition = manifest.children;
-    const edges = fixtureChildEdges(node.children);
+    const edges = childEdges(node.children);
     if (!definition && node.children) diagnostics.push(fixtureDiagnostic("COMPONENT_CHILDREN_UNSUPPORTED", `${manifest.name} does not accept children.`, `${path}.children`));
     if (definition && node.children && definition.presentation.type !== (Array.isArray(node.children) ? "managed" : "tiled")) {
       diagnostics.push(fixtureDiagnostic("COMPONENT_CHILD_PRESENTATION_INVALID", `${manifest.name} requires ${definition.presentation.type} children.`, `${path}.children`));
@@ -455,7 +447,7 @@ export function createUiHarnessHost(): UiHarnessHost {
         source: settings.dashBoredAgent !== null ? "app" : bundleAgent !== undefined ? "bundle" : "unset",
       }],
     };
-    for (const edge of fixtureChildEdges(node.children)) visitEnvironment(edge.node as ResolvedComponentNode);
+    for (const edge of childEdges(node.children)) visitEnvironment(edge.node as ResolvedComponentNode);
   };
   visitEnvironment(tree);
   return {

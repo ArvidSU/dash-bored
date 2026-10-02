@@ -12,7 +12,7 @@ import {
   type InsertionTarget,
   type NodePath,
 } from "./dashboard-editor";
-import { childEdges } from "../lib/component-children";
+import { childEdges } from "../../shared/child-edges";
 import { deriveInsertionTargets } from "./composition-placement";
 import { planCompositionOperation } from "./composition-operation";
 import type {

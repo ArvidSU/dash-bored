@@ -6,6 +6,7 @@ import type {
   ComponentNode,
   ResolvedComponentNode,
 } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 
 export type LayoutBranch = "first" | "second";
 
@@ -20,22 +21,6 @@ export function sameLocator(left: ComponentChildLocator, right: ComponentChildLo
   return left.type === "tiled" && right.type === "tiled"
     && left.path.length === right.path.length
     && left.path.every((branch, index) => branch === right.path[index]);
-}
-
-export function layoutEdges<Node>(
-  layout: ComponentChildLayout<Node>,
-): ComponentChildEdge<Node>[] {
-  if ("node" in layout) return [layout];
-  return [...layoutEdges(layout.first), ...layoutEdges(layout.second)];
-}
-
-export function childEdges<Node>(
-  children: ComponentChildren<Node> | undefined,
-): ComponentChildEdge<Node>[] {
-  if (!children) return [];
-  return Array.isArray(children)
-    ? children
-    : layoutEdges(children);
 }
 
 export function childNodes<Node extends ComponentNode | ResolvedComponentNode>(

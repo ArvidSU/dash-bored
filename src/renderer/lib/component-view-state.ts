@@ -1,4 +1,5 @@
-import type { ComponentChildEdge, ComponentChildLayout, ResolvedComponentNode } from "../../shared/contracts";
+import type { ResolvedComponentNode } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 import { childNodes } from "./component-children";
 
 const MAX_COLLAPSED_COMPONENTS = 2_000;
@@ -45,15 +46,10 @@ export function pruneChildSelections(selections: ChildSelections, node: Resolved
       const selected = selections[current.id];
       if (selected && childIds.has(selected)) result[current.id] = selected;
     }
-    for (const edge of Array.isArray(current.children) ? current.children : current.children ? layoutEdges(current.children) : []) visit(edge.node);
+    for (const edge of childEdges(current.children)) visit(edge.node);
   }
   visit(node);
   return result;
-}
-
-function layoutEdges(children: ComponentChildLayout<ResolvedComponentNode>): ComponentChildEdge<ResolvedComponentNode>[] {
-  if ("node" in children) return [children];
-  return [...layoutEdges(children.first), ...layoutEdges(children.second)];
 }
 
 export function collapsedComponentsStorageKey(configPath: string): string {

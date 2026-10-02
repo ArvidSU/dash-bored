@@ -10,7 +10,8 @@ import type {
   DashboardConfig,
   Diagnostic,
 } from "../../shared/contracts";
-import { childEdges, childLocators, edgeAtLocator, type LayoutBranch } from "../lib/component-children";
+import { childEdges } from "../../shared/child-edges";
+import { childLocators, edgeAtLocator, type LayoutBranch } from "../lib/component-children";
 import { EditorModal } from "../lib/editor-modal";
 import { PERMISSION_LABELS } from "../lib/action-providers";
 import { SplitLayout } from "../render/SplitLayout";

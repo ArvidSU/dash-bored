@@ -10,13 +10,12 @@ import type {
   DashboardConfig,
   DashboardInsertionTarget,
 } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 import {
-  childEdges,
   childLocators,
   componentPathKey,
   edgeAtLayoutPath,
   edgeAtLocator,
-  layoutEdges,
   sameLocator,
   type LayoutBranch,
 } from "../lib/component-children";
@@ -564,8 +563,4 @@ export function defaultChildMetadata(
 
 export function managedChildEdges(node: ComponentNode): ComponentChildEdge[] {
   return Array.isArray(node.children) ? node.children : [];
-}
-
-export function tiledChildEdges(node: ComponentNode): ComponentChildEdge[] {
-  return (node.children !== undefined && !Array.isArray(node.children)) ? layoutEdges(node.children) : [];
 }

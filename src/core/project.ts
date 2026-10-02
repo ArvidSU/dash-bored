@@ -13,6 +13,7 @@ import type {
   Permission,
   ResolvedComponentNode,
 } from "../shared/contracts";
+import { childEdges } from "../shared/child-edges";
 import { compileLocalComponents } from "./compiler";
 import { diagnostic, errorMessage, hasErrors } from "./diagnostics";
 import {
@@ -108,19 +109,7 @@ async function buildProjectDefinition(
               : [diagnostic({ code: "CONFIG_LINK_UNAVAILABLE", message: node.configError, path: node.component })],
           });
         }
-        const children = node.children;
-        if (Array.isArray(children)) {
-          for (const edge of children) visitConfigLinks(edge.node);
-        } else if (children !== undefined) {
-          const visitLayout = (layout: typeof children): void => {
-            if ("node" in layout) visitConfigLinks(layout.node);
-            else {
-              visitLayout(layout.first);
-              visitLayout(layout.second);
-            }
-          };
-          visitLayout(children);
-        }
+        for (const edge of childEdges(node.children)) visitConfigLinks(edge.node);
       };
       visitConfigLinks(resolvedTree.tree);
     }

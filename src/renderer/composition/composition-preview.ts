@@ -9,8 +9,8 @@ import type {
   DashboardConfig,
   ResolvedComponentNode,
 } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 import {
-  childEdges,
   edgeAtLocator,
   type LayoutBranch,
 } from "../lib/component-children";

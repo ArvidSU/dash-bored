@@ -5,8 +5,8 @@ import type {
   ComponentNode,
   DashboardInsertionTarget,
 } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 import {
-  childEdges,
   childLocators,
   sameLocator,
   type LayoutBranch,

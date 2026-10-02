@@ -5,7 +5,7 @@ import type {
   ComponentNode,
   DashboardConfig,
 } from "../../src/shared/contracts";
-import { childEdges } from "../../src/renderer/lib/component-children";
+import { childEdges } from "../../src/shared/child-edges";
 import {
   canPlanCompositionOperation,
   planCompositionOperation,

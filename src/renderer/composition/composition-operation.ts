@@ -4,7 +4,8 @@ import type {
   DashboardConfig,
   DashboardInsertionTarget,
 } from "../../shared/contracts";
-import { childEdges, edgeAtLocator, sameLocator } from "../lib/component-children";
+import { childEdges } from "../../shared/child-edges";
+import { edgeAtLocator, sameLocator } from "../lib/component-children";
 import {
   type DashboardRootReplacementTarget,
   createNode,

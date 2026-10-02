@@ -7,6 +7,7 @@ import type {
   Diagnostic,
   ResolvedComponentNode,
 } from "./contracts";
+import { childEdges } from "./child-edges";
 
 /**
  * A validated insertion target restated as the YAML edit the structural editor
@@ -58,23 +59,11 @@ export function findResolvedNode(
   nodeId: string,
 ): ResolvedComponentNode | null {
   if (root.id === nodeId) return root;
-  const edges = Array.isArray(root.children)
-    ? root.children
-    : root.children !== undefined
-      ? collectLayoutEdges(root.children)
-      : [];
-  for (const edge of edges) {
+  for (const edge of childEdges(root.children)) {
     const found = findResolvedNode(edge.node, nodeId);
     if (found) return found;
   }
   return null;
-}
-
-function collectLayoutEdges(
-  layout: ComponentChildLayout<ResolvedComponentNode>,
-): Array<{ node: ResolvedComponentNode }> {
-  if ("node" in layout) return [layout];
-  return [...collectLayoutEdges(layout.first), ...collectLayoutEdges(layout.second)];
 }
 
 export function componentPath(node: ResolvedComponentNode): string {
@@ -137,11 +126,7 @@ function childAtLayoutPath(
 }
 
 function childCount(node: ComponentNode): number {
-  if (node.children === undefined) return 0;
-  if (Array.isArray(node.children)) return node.children.length;
-  const countLayout = (layout: ComponentChildLayout): number =>
-    "node" in layout ? 1 : countLayout(layout.first) + countLayout(layout.second);
-  return countLayout(node.children);
+  return childEdges(node.children).length;
 }
 
 function childrenDefinition(

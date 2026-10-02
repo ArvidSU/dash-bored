@@ -12,6 +12,7 @@ import type {
 import { permissionsForComponent } from "../shared/component-permissions";
 import { migrateLegacyActionReferences } from "../migrations/action-references";
 import { getBuiltinManifest } from "./builtins";
+import { childEdges } from "../shared/child-edges";
 import { diagnostic } from "./diagnostics";
 import type { ProjectLocation } from "./paths";
 import { loadPromptTemplates } from "./prompt-templates";
@@ -22,7 +23,6 @@ import {
   type LocalComponentDefinition,
 } from "./tree-catalog";
 import {
-  childEdges,
   configLinkManifest,
   isConfigReference,
   resolveLinkedDashboard,

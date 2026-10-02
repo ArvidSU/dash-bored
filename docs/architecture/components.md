@@ -96,6 +96,10 @@ Tree handling in `src/core/` is split along its jobs:
   node count, cycles), node-ID assignment and duplicates, manifest lookup, and
   the per-node and project permission union. It calls the other modules and
   returns their diagnostics.
+- `src/shared/child-edges.ts` owns `childEdges`, the one walk from a node's
+  `children` (managed array or tiled split layout) to its edges in document
+  order. Core and renderer both use it; walks that need split paths or
+  rebuild the layout keep their own recursion.
 - `tree-links.ts` owns config links (`isConfigReference`, path resolution,
   link-cycle and depth limits, loading and namespacing a linked bundle) and
   the manifest reference-path walker shared by namespacing, validation, and

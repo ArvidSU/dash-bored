@@ -1,7 +1,6 @@
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { realpath, stat } from "node:fs/promises";
 import type {
-  ComponentChildEdge,
   ComponentChildLayout,
   ComponentChildren,
   ComponentManifest,
@@ -9,6 +8,7 @@ import type {
   ResolvedComponentNode,
 } from "../shared/contracts";
 import { CONFIG_FILE } from "../shared/contracts";
+import { childEdges } from "../shared/child-edges";
 import { remapActionReferenceNode } from "../shared/action-reference";
 import { actionInvocation } from "../shared/action-invocation";
 import { errorMessage } from "./diagnostics";
@@ -24,21 +24,6 @@ import type { ResolvedTreeResult } from "./tree-resolve";
  */
 
 const MAX_CONFIG_LINK_DEPTH = 16;
-
-export function childEdges<Node>(children: ComponentChildren<Node> | undefined): ComponentChildEdge<Node>[] {
-  if (children === undefined) return [];
-  if (Array.isArray(children)) return children;
-  const edges: ComponentChildEdge<Node>[] = [];
-  const collect = (layout: ComponentChildLayout<Node>): void => {
-    if ("node" in layout) edges.push(layout);
-    else {
-      collect(layout.first);
-      collect(layout.second);
-    }
-  };
-  collect(children);
-  return edges;
-}
 
 export function isConfigReference(reference: string): boolean {
   return !reference.startsWith("@dash-bored/") && !isLocalReference(reference);

@@ -11,7 +11,7 @@ import type {
   ProjectSnapshot,
   ResolvedComponentNode,
 } from "../../shared/contracts";
-import { childEdges } from "../lib/component-children";
+import { childEdges } from "../../shared/child-edges";
 import type { SplitRatioOverrides } from "../render/split-layout";
 import type { ThemeCatalogItem } from "../../shared/themes";
 import type { DashboardCompositionSource } from "../composition/composition-interaction-controller";

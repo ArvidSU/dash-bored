@@ -19,6 +19,7 @@ import type {
   ShellRunRequest,
   ShellRunResult,
 } from "../shared/contracts";
+import { childEdges } from "../shared/child-edges";
 import { CapabilityService } from "./capabilities";
 import { compileLocalComponents } from "./compiler";
 import { CoreError, diagnostic, errorMessage, hasErrors } from "./diagnostics";
@@ -107,30 +108,10 @@ function processDefinitions(
           : {}),
       });
     }
-    visitResolvedChildren(node, visit);
+    for (const edge of childEdges(node.children)) visit(edge.node);
   };
   visit(tree);
   return definitions;
-}
-
-function visitResolvedChildren(
-  node: ResolvedComponentNode,
-  visit: (child: ResolvedComponentNode) => void,
-): void {
-  const children = node.children;
-  if (Array.isArray(children)) {
-    for (const edge of children) visit(edge.node);
-    return;
-  }
-  if (children === undefined) return;
-  const visitLayout = (layout: typeof children): void => {
-    if ("node" in layout) visit(layout.node);
-    else {
-      visitLayout(layout.first);
-      visitLayout(layout.second);
-    }
-  };
-  visitLayout(children);
 }
 
 function cloneSnapshot(snapshot: ProjectSnapshot): ProjectSnapshot {
@@ -256,7 +237,7 @@ export class ProjectRuntime {
     const configPathsByNode = new Map<string, string>();
     const collectConfigPaths = (node: ResolvedComponentNode): void => {
       configPathsByNode.set(node.id, node.sourceConfigPath ?? definition.location.configPath);
-      visitResolvedChildren(node, collectConfigPaths);
+      for (const edge of childEdges(node.children)) collectConfigPaths(edge.node);
     };
     collectConfigPaths(definition.tree);
     this.capabilities.configure({
@@ -316,7 +297,7 @@ export class ProjectRuntime {
         result[node.id] = { ...environmentSnapshot({}, published, explicit), error: errorMessage(error) };
       }
       const pending: Promise<void>[] = [];
-      visitResolvedChildren(node, (child) => { pending.push(visit(child)); });
+      for (const edge of childEdges(node.children)) pending.push(visit(edge.node));
       await Promise.all(pending);
     };
     await visit(this.snapshot.tree);
@@ -432,7 +413,7 @@ export class ProjectRuntime {
     const reachable = new Set<string>();
     const visit = (node: ResolvedComponentNode): void => {
       if (node.sourceConfigPath) reachable.add(node.sourceConfigPath);
-      visitResolvedChildren(node, visit);
+      for (const edge of childEdges(node.children)) visit(edge.node);
     };
     if (this.snapshot.tree) visit(this.snapshot.tree);
     if (!reachable.has(requested)) {

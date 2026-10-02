@@ -5,6 +5,7 @@ import type {
   ComponentNode,
   DashboardConfig,
 } from "../../src/shared/contracts";
+import { childEdges } from "../../src/shared/child-edges";
 import {
   collapsibleNodePaths,
   countDiscardedRootNodes,
@@ -19,7 +20,6 @@ import {
   removeNode,
   replaceRoot,
   switchablePanelsNode,
-  tiledChildEdges,
   updateChildMetadata,
   updateDashboardMetadata,
   updateNodeProps,
@@ -133,7 +133,7 @@ describe("dashboard editor tree operations", () => {
     });
     if (!("axis" in added.root.children)) throw new Error("expected split");
     expect(added.root.children.second).not.toHaveProperty("ratio");
-    expect(tiledChildEdges(added.root).map((edge) => edge.node.id)).toEqual([
+    expect(childEdges(added.root.children).map((edge) => edge.node.id)).toEqual([
       "nested-group",
       "above-second",
       "second",
@@ -150,7 +150,7 @@ describe("dashboard editor tree operations", () => {
 
   test("collapses tiled branches after removal and supports cross-parent moves", () => {
     const removed = removeNode(config(), [{ type: "tiled", path: ["second"] }]);
-    expect(tiledChildEdges(removed.root).map((edge) => edge.node.id)).toEqual(["nested-group"]);
+    expect(childEdges(removed.root.children).map((edge) => edge.node.id)).toEqual(["nested-group"]);
 
     const moved = moveNode(
       config(),
@@ -162,8 +162,8 @@ describe("dashboard editor tree operations", () => {
       catalog,
     );
     const nested = nodePathById(moved.root, "nested-group")!;
-    expect(tiledChildEdges(moved.root).map((edge) => edge.node.id)).toEqual(["nested-group"]);
-    expect(tiledChildEdges(tiledChildEdges(moved.root)[0]!.node).map((edge) => edge.node.id)).toEqual([
+    expect(childEdges(moved.root.children).map((edge) => edge.node.id)).toEqual(["nested-group"]);
+    expect(childEdges(childEdges(moved.root.children)[0]!.node.children).map((edge) => edge.node.id)).toEqual([
       "nested", "second",
     ]);
     expect(nested).toEqual([{ type: "tiled", path: [] }]);
@@ -236,7 +236,7 @@ describe("dashboard editor tree operations", () => {
     expect(() => updateTiledSplitRatio(vertical, [], ["second"], 0.7))
       .toThrow("Only horizontal splits can be resized");
     expect(vertical).toEqual(beforeResize);
-    expect(tiledChildEdges(vertical.root).map((edge) => edge.node.id)).toEqual([
+    expect(childEdges(vertical.root.children).map((edge) => edge.node.id)).toEqual([
       "nested-group", "second", "below-second",
     ]);
   });
@@ -257,7 +257,7 @@ describe("dashboard editor tree operations", () => {
     const reset = updateTiledSplitRatio(inserted, [], [], 0.5);
     expect(reset.root.children).not.toHaveProperty("ratio");
     expect(inserted.root.children.ratio).toBe(0.4);
-    expect(tiledChildEdges(reset.root)).toEqual(tiledChildEdges(inserted.root));
+    expect(childEdges(reset.root.children)).toEqual(childEdges(inserted.root.children));
   });
 
   test("replaces roots only when child presentation is compatible", () => {
@@ -268,7 +268,7 @@ describe("dashboard editor tree operations", () => {
 
     const groupItem = catalog.find((item) => item.reference === "group")!;
     const groupRoot = replaceRoot(config(), groupItem, {});
-    expect(tiledChildEdges(groupRoot.root).map((edge) => edge.node.id)).toEqual([
+    expect(childEdges(groupRoot.root.children).map((edge) => edge.node.id)).toEqual([
       "nested-group", "second",
     ]);
     expect(countDiscardedRootNodes(config(), groupItem)).toBe(0);
