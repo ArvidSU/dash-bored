@@ -19,6 +19,7 @@ import { CoreError, ProjectRuntime, TrustStore, loadPromptTemplates, prepareAgen
 import { resolveEnvironment } from "../core/environment";
 import { isProcessRunActive } from "../shared/process-state";
 import type {
+  AppSettings,
   ComponentAgentPreview,
   ComponentAgentRequest,
   Diagnostic,
@@ -52,7 +53,8 @@ import {
   updateInstalledTools,
 } from "./installed-tools";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
-import { retireManagedCliLink } from "./retire-cli-link";
+import { retireManagedCliLink } from "../migrations/cli-link";
+import { isLegacyAppThemeReference, upgradeLegacyAppThemeReference } from "../migrations/app-theme-reference";
 import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
 import { startAgentControlServer, type AgentControlServer } from "./agent-control-server";
 import { captureWindowPng, keepWindowRenderingWhenOccluded } from "./window-capture";
@@ -312,6 +314,15 @@ async function loadApplicationThemes() {
   return loadApplicationThemeCatalog(sources);
 }
 
+/** App settings as the renderer reads them, with a legacy theme pinned once its dashboard is active. */
+async function readAppSettings(): Promise<AppSettings> {
+  const settings = await appSettingsStore.get();
+  const activeConfigPath = runtime.getSnapshot().configPath;
+  if (!isLegacyAppThemeReference(settings.theme) || !activeConfigPath) return settings;
+  const theme = upgradeLegacyAppThemeReference(settings.theme, activeConfigPath, await loadApplicationThemes());
+  return theme === undefined ? settings : appSettingsStore.update({ ...settings, theme });
+}
+
 async function resolveAgentCommand(configPath: string, settings: Awaited<ReturnType<AppSettingsStore["get"]>>): Promise<string> {
   if (settings.dashBoredAgent !== null) return settings.dashBoredAgent;
   return resolveDashBoredAgent(settings.dashBoredAgent, await resolveEnvironment(configPath, publishedEnvironment));
@@ -510,7 +521,7 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       getThemes: () => loadApplicationThemes(),
       getUpdateState: async () => ({ ...await updateCoordinator.state(), directInstallAvailable: DIRECT_UNSIGNED_UPDATES_VERIFIED && (await Updater.localInfo.channel()) === "canary" }),
       updateAction: action => handleUpdateAction(action),
-      getAppSettings: () => appSettingsStore.get(),
+      getAppSettings: () => readAppSettings(),
       updateAppSettings: async (settings) => {
         const updated = await appSettingsStore.update(settings);
         publishedEnvironment = updated.dashBoredAgent === null

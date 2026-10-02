@@ -1,10 +1,15 @@
+/**
+ * Legacy migration, scheduled for deletion at dashboard schema v4: schema-v3
+ * positional action targets (`focus:${root.children…}`). The v4 contract
+ * migration rewrites them to node IDs; then this file and its call in
+ * tree-resolve.ts go away.
+ */
 import type { Diagnostic, ResolvedComponentNode } from "../shared/contracts";
 import { parseSelectionActionReference } from "../shared/action-reference";
 import { actionInvocation } from "../shared/action-invocation";
-import { diagnostic, errorMessage } from "./diagnostics";
-import { referenceLocations } from "./tree-links";
+import { diagnostic, errorMessage } from "../core/diagnostics";
+import { referenceLocations } from "../core/tree-links";
 
-/** Transitional schema-v3 resolver. Remove when the v4 migration is mandatory. */
 export function resolveLegacyActionReference(
   reference: string,
   resolvePath: (path: string) => string | undefined,

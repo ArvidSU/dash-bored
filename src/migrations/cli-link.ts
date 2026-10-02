@@ -1,3 +1,7 @@
+/**
+ * Legacy migration, scheduled for deletion at dashboard schema v4: retire the
+ * CLI link earlier releases could create. Main runs it once per app start.
+ */
 import { lstat, readFile, readlink, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";

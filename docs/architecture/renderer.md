@@ -21,8 +21,8 @@ Everything else lives in focused modules under feature directories:
   - `use-app-settings.ts` — app settings with ordered optimistic writes, the
     sidebar expansion that follows its setting, and the Settings view's
     per-dashboard appearance rows;
-  - `use-app-theme.ts` — applies the window theme and rewrites legacy `./`
-    default-theme references;
+  - `use-app-theme.ts` — applies the window theme and re-reads app settings
+    so main can pin a legacy `./` default theme (`src/migrations/`);
   - `use-dashboard-draft.ts` — the single draft: open, edit, validate,
     save/cancel, and the discard guard;
   - `use-composition-session.ts` — composition preview, targets, pointer

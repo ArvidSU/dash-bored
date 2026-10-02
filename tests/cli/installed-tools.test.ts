@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installDashBoredSkill } from "../../src/cli/install-skill";
 import { DASH_BORED_SKILL_FILES, skillContentHash } from "../../src/cli/skill-payload";
-import { retireManagedCliLink } from "../../src/main/retire-cli-link";
+import { retireManagedCliLink } from "../../src/migrations/cli-link";
 import { repairInstalledTools, updateInstalledTools } from "../../src/main/installed-tools";
 import { APP_VERSION } from "../../src/shared/app-metadata";
 

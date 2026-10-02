@@ -11,8 +11,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DASH_BORED_SKILL_FILES, isExecutableSkillFile, skillContentHash } from "./skill-payload";
 import { writeFileAtomically } from "../core/fs-atomic";
-
-import { LEGACY_SKILL_PAYLOADS } from "./legacy-skill-hashes";
+import { adoptLegacySkillPayload } from "../migrations/skill-payloads";
 
 const SKILL_FILES = Object.entries(DASH_BORED_SKILL_FILES);
 
@@ -150,16 +149,7 @@ export async function installDashBoredSkill(
     }
   }
   if (receipt === null) {
-    for (const payload of LEGACY_SKILL_PAYLOADS) {
-      const legacyMatches = await Promise.all(Object.entries(payload.files).map(async ([path, hash]) => {
-        const contents = await existingContents(join(skillPath, path));
-        return contents !== null && skillContentHash(contents) === hash;
-      }));
-      if (legacyMatches.every(Boolean)) {
-        previousHashes = { ...payload.files };
-        break;
-      }
-    }
+    previousHashes = await adoptLegacySkillPayload((path) => existingContents(join(skillPath, path)));
   }
   const files = await Promise.all(SKILL_FILES.map(async ([relativePath, source]) => {
     const destination = join(skillPath, relativePath);

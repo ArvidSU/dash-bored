@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import type { AppSettings, ProjectSnapshot } from "../../shared/contracts";
-import { parseProjectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
+import type { ThemeCatalogItem } from "../../shared/themes";
+import { isLegacyAppThemeReference } from "../../migrations/app-theme-reference";
 import { applyTheme } from "../lib/theme";
 import { mergeThemeCatalog, type DashboardEditSession } from "./app-utils";
 import type { AppSettingsState } from "./use-app-settings";
@@ -28,18 +29,13 @@ export function useAppTheme(
 ): void {
   const systemDark = useSystemDark();
   const settings: AppSettings = appSettings.settings;
-  // Legacy `./` default-theme references point into one project; rewrite them
-  // to that project's catalog reference once the catalog can resolve them.
+  // Main pins a legacy default theme when settings are read; re-read them
+  // whenever the active dashboard or its themes could now provide it.
   useEffect(() => {
-    const legacyReference = settings.theme;
-    if (!legacyReference?.startsWith("./") || !snapshot?.configPath) return;
-    const replacement = themes.find((item) => {
-      const source = parseProjectThemeReference(item.reference);
-      return source?.configPath === snapshot.configPath && source?.localReference === legacyReference;
-    });
-    if (!replacement) return;
-    appSettings.update({ ...settings, theme: replacement.reference }, "Default theme reference updated.");
-  }, [themes, settings, snapshot?.configPath]);
+    if (!isLegacyAppThemeReference(settings.theme) || !snapshot?.configPath) return;
+    const legacy = settings.theme;
+    return appSettings.reloadIfChanged((next) => next.theme !== legacy, "Default theme reference updated.");
+  }, [themes, settings.theme, snapshot?.configPath]);
   useLayoutEffect(() => {
     const catalog = mergeThemeCatalog(themes, snapshot?.themeCatalog);
     const source = editSession?.configPath === snapshot?.configPath ? editSession?.draft : snapshot?.config;

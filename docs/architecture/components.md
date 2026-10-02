@@ -108,8 +108,9 @@ Tree handling in `src/core/` is split along its jobs:
   over the resolved bundle afterwards.
 
 The only prop rewrite during resolution is the schema-v3 positional action
-reference migration, which runs after reference validation as its own pass
-(see [Project contract](project-contract.md#dashboard-configuration)).
+reference migration in `src/migrations/action-references.ts`, which runs after
+reference validation as its own pass (see
+[legacy migrations](project-contract.md#legacy-migrations)).
 
 A local component is a directory with this shape:
 

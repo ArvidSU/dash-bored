@@ -9,6 +9,7 @@ import {
 } from "../shared/app-settings";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
 import { isAppThemeReference } from "../shared/themes";
+import { isLegacyAppThemeReference } from "../migrations/app-theme-reference";
 
 export { DEFAULT_DASH_BORED_AGENT };
 const MAX_AGENT_COMMAND_LENGTH = 1_024;
@@ -58,9 +59,11 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
     else seen.add(shortcut);
   }
   return {
-    // Legacy ./themes references remain readable and are upgraded by the
-    // renderer once their owning dashboard is known.
-    theme: typeof value.theme === "string" && isAppThemeReference(value.theme) ? value.theme : fallback.theme,
+    // Legacy ./themes references remain readable until main pins them to
+    // their owning dashboard (src/migrations/app-theme-reference.ts).
+    theme: typeof value.theme === "string" && (isAppThemeReference(value.theme) || isLegacyAppThemeReference(value.theme))
+      ? value.theme
+      : fallback.theme,
     themeMode: value.themeMode === "light" || value.themeMode === "system" ? value.themeMode : fallback.themeMode,
     dashBoredAgent: value.dashBoredAgent === null
       ? null

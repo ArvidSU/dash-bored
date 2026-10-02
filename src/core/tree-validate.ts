@@ -15,7 +15,7 @@ import {
 } from "../shared/action-reference";
 import { actionInvocation } from "../shared/action-invocation";
 import { validateActionArgumentTemplates, validateActionArguments } from "./action-arguments";
-import { isLegacyActionTarget } from "./action-reference-migration";
+import { isLegacyActionTarget } from "../migrations/action-references";
 import { diagnostic, errorMessage } from "./diagnostics";
 import { resolveContainedPath } from "./paths";
 import { validatePromptInvocation, type PromptTemplate } from "./prompt-templates";

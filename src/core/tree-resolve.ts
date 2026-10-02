@@ -10,7 +10,7 @@ import type {
   ResolvedComponentNode,
 } from "../shared/contracts";
 import { permissionsForComponent } from "../shared/component-permissions";
-import { migrateLegacyActionReferences } from "./action-reference-migration";
+import { migrateLegacyActionReferences } from "../migrations/action-references";
 import { getBuiltinManifest } from "./builtins";
 import { diagnostic } from "./diagnostics";
 import type { ProjectLocation } from "./paths";

@@ -27,7 +27,6 @@ export type ThemeMode = ThemeAppearance | 'system';
 const THEME_PACKAGE_PATH = String.raw`\.\/themes(?:\/external)?\/[A-Za-z][A-Za-z0-9_-]*`;
 const THEME_PACKAGE_PATH_PATTERN = new RegExp(`^${THEME_PACKAGE_PATH}$`);
 const APP_THEME_REFERENCE_PATTERN = new RegExp(`^(?:builtin:[A-Za-z][A-Za-z0-9_-]*|global:[A-Za-z][A-Za-z0-9_-]*|project:[^:]+:${THEME_PACKAGE_PATH})$`);
-const LEGACY_APP_THEME_REFERENCE_PATTERN = new RegExp(`^${THEME_PACKAGE_PATH}$`);
 
 /** Stable app-level reference for a theme installed below a registered dashboard bundle. */
 export function projectThemeReference(configPath: string, localReference: string): string {
@@ -46,7 +45,7 @@ export function parseProjectThemeReference(reference: string): { configPath: str
 }
 
 export function isAppThemeReference(reference: string): boolean {
-  return APP_THEME_REFERENCE_PATTERN.test(reference) || LEGACY_APP_THEME_REFERENCE_PATTERN.test(reference);
+  return APP_THEME_REFERENCE_PATTERN.test(reference);
 }
 
 export interface ThemeManifest {

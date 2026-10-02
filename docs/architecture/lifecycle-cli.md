@@ -83,7 +83,8 @@ both. `PATH` is left unchanged.
 Earlier releases could link the CLI into `~/.local/bin`. At startup the app
 removes that link and its `.dash-bored-cli.json` receipt only when the receipt's
 source equals the link target and that target is a bundled
-`Contents/Resources/app/tools/dash-bored`; any other file is left alone.
+`Contents/Resources/app/tools/dash-bored`; any other file is left alone
+(`src/migrations/cli-link.ts`).
 
 ### Commands
 
@@ -137,7 +138,7 @@ source equals the link target and that target is a bundled
   preserving local edits. A receipt-free installation is adopted only when all
   three files exactly match the recorded hashes for one complete v0.2.2 or v0.2.3 release. Partial, mixed,
   or customized legacy payloads remain conflicts; individual matching files do
-  not confer ownership of the rest. An unchanged launcher that lost its
+  not confer ownership of the rest (`src/migrations/skill-payloads.ts`). An unchanged launcher that lost its
   executable bit is restored. `--check` performs the same ownership, freshness,
   and launcher-mode checks without creating or changing files. `--global` does
   not accept a project path.

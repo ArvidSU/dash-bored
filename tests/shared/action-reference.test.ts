@@ -6,7 +6,7 @@ import {
   parseSelectionActionReference,
   remapActionReferenceNode,
 } from "../../src/shared/action-reference";
-import { resolveLegacyActionReference } from "../../src/core/action-reference-migration";
+import { resolveLegacyActionReference } from "../../src/migrations/action-references";
 
 describe("action references", () => {
   test("parses node IDs and component action IDs", () => {

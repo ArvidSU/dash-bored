@@ -41,6 +41,21 @@ export function useAppSettings(notices: Notices) {
       });
   }
 
+  /**
+   * Re-reads settings the host may have rewritten and adopts them when
+   * `changed` says so, unless a local update started since. Returns a cancel.
+   */
+  function reloadIfChanged(changed: (next: AppSettings) => boolean, notice: string): () => void {
+    const current = revision.current;
+    let active = true;
+    void host.getAppSettings().then((next) => {
+      if (!active || current !== revision.current || !changed(next)) return;
+      setSettings(next);
+      notices.showNotice(notice);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }
+
   function saveAgent(command: string | null): void {
     update(
       { ...settings, dashBoredAgent: command },
@@ -72,6 +87,7 @@ export function useAppSettings(notices: Notices) {
     setSidebarExpanded,
     load,
     update,
+    reloadIfChanged,
     saveAgent,
     toggleFavoriteAction,
   };

@@ -39,7 +39,9 @@ References are `builtin:<id>` (`default`, `neon-dusk`), `global:<name>`, or `./t
 defaults use an app-level catalog containing global packages and packages found
 in registered dashboard bundles. Project-local app defaults use a stable
 `project:<encoded-config-path>:./themes/...` reference, so changing dashboards
-does not narrow or invalidate the app-level selection. The optional top-level
+does not narrow or invalidate the app-level selection. A bare `./themes/...`
+app default from earlier releases is pinned to the active dashboard by main
+when settings are read (see [legacy migrations](project-contract.md#legacy-migrations)). The optional top-level
 dashboard `theme` and `themeMode` override the corresponding app selections for
 the entire window. Either field may be omitted independently; an omitted field
 inherits the app setting. Application Settings loads every registered dashboard

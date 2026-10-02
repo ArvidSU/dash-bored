@@ -201,7 +201,8 @@ IDs and `resource: action` for stable action references. Action references use
 explicit node IDs (`focus:<node-id>`, `process:<node-id>`, or
 `component:<node-id>:<action-id>`), never a tree position. Schema-v3 dashboards
 temporarily resolve legacy `${root...}` references and report a deprecation
-warning; the v4 migration will rewrite them and remove that compatibility.
+warning (see [Legacy migrations](#legacy-migrations)); the v4 migration will
+rewrite them and remove that compatibility.
 Resolution is scoped to the owning YAML bundle, then linked-tree namespacing
 remaps the node-bearing segment of focus, process, and component-action IDs.
 
@@ -459,3 +460,18 @@ metadata. Each field inherits the app default independently when omitted.
 Application Settings can edit these fields for any registered dashboard without
 opening that dashboard or changing the active runtime.
 Bundle-local packages and the optional `themes` lock section follow the [theme contract](themes.md).
+
+### Legacy migrations
+
+Every rewrite of state written by an earlier release lives in
+`src/migrations/`, one file per legacy form, and each file is scheduled for
+deletion at dashboard schema v4. The directory is layer-neutral: files depend
+only on `shared/`, `core/`, and Node, so core, main, the agent tool, and the
+renderer call the same owner instead of carrying their own copies.
+
+| File | Legacy form | Runs in |
+| --- | --- | --- |
+| `action-references.ts` | Schema-v3 positional action targets (`focus:${root.children…}`). After reference validation, `resolveComponentTree` rewrites each one to the node ID it resolves to and reports `COMPONENT_ACTION_REFERENCE_DEPRECATED`; an unresolvable path reports `COMPONENT_ACTION_REFERENCE_INVALID`. The rewrite changes the loaded config's props in place, so edit sources and saves persist stable IDs. | core, every load |
+| `app-theme-reference.ts` | An app default theme saved as a bare `./themes/<name>`. Main's `getAppSettings` pins it to `project:<active-config>:./themes/<name>` once the active dashboard provides that package, and persists the result. Until then app settings keep it readable. The renderer holds no migration logic; it re-reads settings when the active dashboard or theme catalog changes while the default is still unpinned. | main, settings read |
+| `skill-payloads.ts` | Skill installs without a `skill-version.json` receipt. A complete exact match of one published payload is adopted as owned; anything else stays a conflict. | agent tool `install-skill`, app skill refresh |
+| `cli-link.ts` | The `~/.local/bin/dash-bored` link earlier releases created, removed only when its receipt proves ownership. | main, app start |
