@@ -350,7 +350,7 @@ root:
                               - chore
                           - id: todo-027
                             description: Replace the remaining App.tsx render-time latest-ref writes (snapshotRef, editSessionRef, processesRef, agentControlStateRef) with effect-synced refs or store reads. The L1 ActionStore already removed actionsByIdRef and runningActionIdsRef (react-doctor no-ref-current-in-render).
-                            done: false
+                            done: true
                             tags:
                               - chore
                           - id: todo-028
@@ -369,7 +369,7 @@ root:
                             tags:
                               - chore
                           - id: todo-031
-                            description: "Finish the inherent-complexity refactor on branch refactor/inherent-complexity: L3 split App.tsx into hooks and a render context; L6 push-only host state, merged RPC commands, thin main/index.ts; rest of L7 (tree-links and tree-validate split, src/migrations/, one PackageStore); L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            description: "Finish the inherent-complexity refactor (L3 App.tsx split landed on refactor/l3-app-split): L6 push-only host state, merged RPC commands, thin main/index.ts; rest of L7 (tree-links and tree-validate split, src/migrations/, one PackageStore); L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
                             done: false
                             tags:
                               - chore
