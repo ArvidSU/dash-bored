@@ -2343,3 +2343,39 @@ test('glance atoms show trend, proportion, changes, item reveal, and chart refre
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally { await proof.close(); }
 }, 30_000);
+
+test('list items keep a readable title beside many tags and actions in a half-width pane', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      const list = (id: string) => ({ node: { id, component: '@dash-bored/list', props: { title: 'Working tree', sort: 'source-order', source: { inline: [
+        { id: 'yaml', title: '.dash-bored/dash-bored.yaml', detail: 'Modified in the working tree', state: 'modified', tags: ['unstaged', '.dash-bored'] },
+      ] }, itemActions: [
+        { name: 'Diff', action: 'component:narrow-left:refresh' },
+        { name: 'Review with agent', action: 'component:narrow-left:refresh' },
+      ] } } });
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Narrow list', root: {
+        id: 'narrow', component: '@dash-bored/group', children: { axis: 'horizontal', first: list('narrow-left'), second: list('narrow-right') },
+      } }, snapshot.configRevision!);
+    });
+    const title = proof.locator('.source-list').first().locator('.source-list__item-text > strong');
+    await title.getByText('.dash-bored/dash-bored.yaml', { exact: true }).waitFor();
+    for (const width of [1280, 900, 640]) {
+      await proof.setViewportSize({ width, height: 900 });
+      const geometry = await title.evaluate((element) => ({
+        width: element.getBoundingClientRect().width,
+        lines: Math.round(element.getBoundingClientRect().height / parseFloat(getComputedStyle(element).lineHeight)),
+        overflows: [...document.querySelectorAll('.source-list__item')].some((item) => item.scrollWidth > item.clientWidth),
+      }));
+      // The path fits on at most two lines instead of collapsing to a column of single characters.
+      expect(geometry.width).toBeGreaterThan(150);
+      expect(geometry.lines).toBeLessThanOrEqual(2);
+      expect(geometry.overflows).toBe(false);
+    }
+  } finally { await proof.close(); }
+}, 20_000);
