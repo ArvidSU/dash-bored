@@ -536,6 +536,11 @@ root:
                             done: false
                             tags:
                               - agent-tools
+                          - id: todo-e28d57af-f9a5-4b15-8d8f-4966123c0bf3
+                            description: Add search to sub-actions/options, focus and reveal can have many many sub options
+                            done: false
+                            tags:
+                              - feature
                   second:
                     node:
                       id: checks
