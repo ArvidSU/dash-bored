@@ -143,9 +143,8 @@ export function App(): ReactNode {
 
   async function repairInstalledTools(): Promise<void> {
     await notices.perform("installed-tools-repair", async () => {
-      const repaired = await host.repairInstalledTools();
-      const hasConflicts = repaired.diagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT");
-      notices.showNotice(hasConflicts
+      const { conflictsRemain } = await host.repairInstalledTools();
+      notices.showNotice(conflictsRemain
         ? "Installed-tool repair needs attention; review the remaining warning."
         : "Moved the old installed tools to Trash and installed the current dash-bored tools.");
     });
@@ -197,13 +196,13 @@ export function App(): ReactNode {
       saveDashboard: async () => { await draft.save(); },
       cancelDashboard: draft.cancel,
       reloadProject: () => notices.perform("reload", host.reloadProject),
-      trustProject: () => notices.perform("trust", host.trustProject),
-      revokeTrust: () => notices.perform("revoke", host.revokeTrust),
+      trustProject: () => notices.perform("trust", () => host.setTrust(true)),
+      revokeTrust: () => notices.perform("revoke", () => host.setTrust(false)),
       runProcessQuickAction: async (nodeId) => {
-        await host.runProcessQuickAction(nodeId);
+        await host.processCommand(nodeId, { type: "quick-action" });
       },
       stopProcess: async (nodeId) => {
-        await host.stopProcess(nodeId);
+        await host.processCommand(nodeId, { type: "stop" });
       },
       setDashboardAppearance: (theme, themeMode) => draft.updateAppearance({ theme, themeMode }),
       setDefaultAppearance: (theme, themeMode) => settings.update(
@@ -366,7 +365,7 @@ export function App(): ReactNode {
             onUpdateProps: draft.updateComponentProps,
           }}
           onFocus={viewState.focusComponent}
-          onTrust={() => void notices.perform("trust", host.trustProject)}
+          onTrust={() => void notices.perform("trust", () => host.setTrust(true))}
           onReload={() => void notices.perform("reload", host.reloadProject)}
           onFixWithAgent={() => void agent.runDiagnosticsAgent()}
           onRepairInstalledTools={() => void repairInstalledTools()}
@@ -462,7 +461,7 @@ export function App(): ReactNode {
         onClose={interaction.closeLibrary}
         onInsert={composition.insert}
         onInsertSwitchablePanels={() => void composition.insertSwitchablePanels()}
-        onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).result.message}
+        onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).message}
         onBuildWithAgent={(description) => void composition.buildWithAgent(description)}
         onPointerDragMove={composition.libraryPointerDragMove}
         onPointerDrop={composition.libraryPointerDrop}

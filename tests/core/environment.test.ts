@@ -115,7 +115,7 @@ describe("environment contracts", () => {
       });
       const shell = await runtime.runShell({ nodeId: linkedNode!.id, command: "printf '%s' \"$DASH_BORED_AGENT\"" });
       expect(shell.stdout).toBe("named");
-      await runtime.startProcess(linkedNode!.id);
+      await runtime.processCommand(linkedNode!.id, { type: "start" });
       const runningPid = runtime.getSnapshot().processes.find((process) => process.id === linkedNode!.id)?.pid;
       expect(runningPid).toBeNumber();
       await writeFile(join(named, ".env"), "DASH_BORED_AGENT=refreshed\n", "utf8");

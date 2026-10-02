@@ -1,11 +1,11 @@
 import type { RPCSchema } from "electrobun/main";
 import type {
+  AgentLaunchRequest,
+  AgentTaskCommand,
   AppSettings,
   ComponentAgentLaunch,
   ComponentAgentPreview,
   ComponentAgentRequest,
-  DashboardSetupAgentRequest,
-  ComponentCreationAgentRequest,
   DashboardConfig,
   DashboardAgentTask,
   DashboardConfigSource,
@@ -15,6 +15,7 @@ import type {
   FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
+  ProcessCommand,
   ProcessSnapshot,
   ProjectOutline,
   ProjectListItem,
@@ -30,6 +31,12 @@ import type {
   ThemePackageOperation,
 } from "./contracts";
 
+/**
+ * Host state (the project snapshot, processes, agent tasks, themes) reaches
+ * the renderer only as `webview` messages. A mutation pushes what it changed
+ * before it resolves and answers with an ack or a command-specific result,
+ * never with a copy of that state.
+ */
 export type DashboardRPC = {
   bun: RPCSchema<{
     requests: {
@@ -39,39 +46,28 @@ export type DashboardRPC = {
       updateAction: { params: import("./updates").UpdateAction; response: import("./updates").UpdateState };
       getAppSettings: { params: {}; response: AppSettings };
       updateAppSettings: { params: AppSettings; response: AppSettings };
-      runComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentLaunch };
       previewComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentPreview };
-      runComponentCreationAgent: { params: ComponentCreationAgentRequest; response: ComponentAgentLaunch };
-      runDiagnosticsAgent: { params: {}; response: ComponentAgentLaunch };
-      repairInstalledTools: { params: {}; response: ProjectSnapshot };
-      manageExternalComponent: { params: ExternalComponentOperation; response: { result: PackageOperationResult; snapshot: ProjectSnapshot } };
+      launchAgent: { params: AgentLaunchRequest; response: ComponentAgentLaunch };
+      repairInstalledTools: { params: {}; response: { conflictsRemain: boolean } };
+      manageExternalComponent: { params: ExternalComponentOperation; response: PackageOperationResult };
       manageThemePackage: { params: ThemePackageOperation; response: PackageOperationResult };
-      setupDashboardWithAgent: { params: DashboardSetupAgentRequest; response: ComponentAgentLaunch };
       getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
       getDashboardAgentDiff: { params: { taskId: string }; response: string };
-      stopDashboardAgentTask: { params: { taskId: string }; response: DashboardAgentTask };
-      writeDashboardAgentTerminal: { params: { taskId: string; input: string }; response: DashboardAgentTask };
-      resizeDashboardAgentTerminal: { params: { taskId: string; cols: number; rows: number }; response: DashboardAgentTask };
+      agentTaskCommand: { params: { taskId: string; command: AgentTaskCommand }; response: DashboardAgentTask };
       listProjects: { params: {}; response: ProjectListItem[] };
       moveProject: { params: { configPath: string; targetConfigPath: string; before: boolean }; response: ProjectListItem[] };
       getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
-      chooseProject: { params: {}; response: ProjectSnapshot };
-      openProject: { params: ProjectTarget; response: ProjectSnapshot };
+      chooseProject: { params: {}; response: { opened: boolean } };
+      openProject: { params: ProjectTarget; response: void };
       getProjectDeletionPreview: { params: ProjectTarget; response: ProjectDeletionPreview };
-      deleteProject: { params: DeleteProjectRequest; response: ProjectSnapshot };
-      trustProject: { params: {}; response: ProjectSnapshot };
-      revokeTrust: { params: {}; response: ProjectSnapshot };
-      reloadProject: { params: {}; response: ProjectSnapshot };
+      deleteProject: { params: DeleteProjectRequest; response: void };
+      setTrust: { params: { trusted: boolean }; response: void };
+      reloadProject: { params: {}; response: void };
       getDashboardConfigSource: { params: { configPath?: string }; response: DashboardConfigSource };
       validateDashboardDraft: { params: { config: DashboardConfig; configPath?: string }; response: DashboardDraftValidation };
       validateComponentProps: { params: { reference: string; props: Record<string, unknown> }; response: ComponentPropsValidation };
-      saveDashboardConfig: { params: SaveDashboardConfigRequest; response: ProjectSnapshot };
-      startProcess: { params: { nodeId: string; itemEnvironment?: Record<string, string> }; response: ProcessSnapshot };
-      openProcessTerminal: { params: { nodeId: string }; response: ProcessSnapshot };
-      runProcessQuickAction: { params: { nodeId: string }; response: ProcessSnapshot };
-      writeProcessTerminal: { params: { nodeId: string; input: string }; response: ProcessSnapshot };
-      resizeProcessTerminal: { params: { nodeId: string; cols: number; rows: number }; response: ProcessSnapshot };
-      stopProcess: { params: { nodeId: string }; response: ProcessSnapshot };
+      saveDashboardConfig: { params: SaveDashboardConfigRequest; response: void };
+      processCommand: { params: { nodeId: string; command: ProcessCommand }; response: ProcessSnapshot };
       readTextFile: { params: FileReadRequest; response: string };
       writeTextFile: { params: FileWriteRequest; response: void };
       httpRequest: { params: HttpRequest; response: HttpResponsePayload };

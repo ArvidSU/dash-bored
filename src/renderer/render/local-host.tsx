@@ -35,7 +35,7 @@ export function createLocalHost(
         return onUpdateProps(props);
       },
       ...(trusted && permissions.has("process:execute")
-        ? { setupWithAgent: () => host.setupDashboardWithAgent({ nodeId: node.id }) }
+        ? { setupWithAgent: () => host.launchAgent({ kind: "setup", nodeId: node.id }) }
         : {}),
     },
     actions: {
@@ -91,22 +91,22 @@ export function createLocalHost(
       ...(permissions.has("process:execute")
         ? {
             start(itemEnvironment) {
-              return host.startProcess(node.id, itemEnvironment);
+              return host.processCommand(node.id, { type: "start", itemEnvironment });
             },
             open() {
-              return host.openProcessTerminal(node.id);
+              return host.processCommand(node.id, { type: "open" });
             },
             runQuickAction() {
-              return host.runProcessQuickAction(node.id);
+              return host.processCommand(node.id, { type: "quick-action" });
             },
             write(input) {
-              return host.writeProcessTerminal(node.id, input);
+              return host.processCommand(node.id, { type: "write", input });
             },
             resize(cols, rows) {
-              return host.resizeProcessTerminal(node.id, cols, rows);
+              return host.processCommand(node.id, { type: "resize", cols, rows });
             },
             stop() {
-              return host.stopProcess(node.id);
+              return host.processCommand(node.id, { type: "stop" });
             },
           }
         : {}),

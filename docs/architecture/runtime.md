@@ -163,6 +163,23 @@ The main process publishes a complete `ProjectSnapshot` at startup and after
 each accepted change. It also publishes individual process snapshots while a
 command is running. The renderer treats those snapshots as authoritative; it
 does not read project files or spawn commands directly.
+
+Host state reaches the renderer only by push: the `snapshot`, `process`,
+`agentTask`, and `themes` messages in `src/shared/rpc.ts`. The renderer reads
+the snapshot once at boot (`getSnapshot`). After that, a mutation pushes what
+it changed before it resolves, and it answers with an ack (`void`) or a
+command-specific result. Examples are `{ opened }` from `chooseProject`,
+`{ conflictsRemain }` from `repairInstalledTools`, and the package operation's
+message. A mutation never answers with a copy of host state. The one exception
+is `processCommand`, which answers with the touched process because
+components' `processes` API returns it to its caller. The renderer still takes
+the store's copy only from the push. This ordering relies on Electrobun's
+host-to-webview queue being FIFO on macOS. Electrobun lets responses overtake
+messages only on Linux, which dash-bored does not target.
+
+Command variants share one request: `processCommand` (start, open,
+quick-action, write, resize, stop), `agentTaskCommand` (stop, write, resize),
+`launchAgent` (component, creation, diagnostics, setup), and `setTrust`.
 An item action may pass at most 32 bounded `DASH_ITEM_*` string overrides when
 starting a supervised command. The main process validates those names and
 values and adds them to that launch's environment; it never substitutes item

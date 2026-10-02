@@ -55,9 +55,10 @@ describe("ui harness host", () => {
     const unsubscribe = host.subscribe((event) => {
       if (event.type === "snapshot") snapshots.push(event.snapshot.revision);
     });
-    const afterSave = await host.saveDashboardConfig(saved, source.configRevision);
+    await host.saveDashboardConfig(saved, source.configRevision);
     unsubscribe();
 
+    const afterSave = await host.getSnapshot();
     expect(afterSave.dashboardName).toBe("Saved fixture");
     expect(afterSave.configRevision).toBe("ui-harness-2");
     expect(host.getPersistedConfig().name).toBe("Saved fixture");

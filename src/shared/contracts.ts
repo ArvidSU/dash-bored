@@ -255,6 +255,28 @@ export interface ComponentCreationAgentRequest {
   prompt: string;
 }
 
+/** Every way the renderer can start agent work; one host command launches them all. */
+export type AgentLaunchRequest =
+  | ({ kind: "component" } & ComponentAgentRequest)
+  | ({ kind: "creation" } & ComponentCreationAgentRequest)
+  | { kind: "diagnostics" }
+  | ({ kind: "setup" } & DashboardSetupAgentRequest);
+
+/** One command to a supervised process; the host answers with that process afterwards. */
+export type ProcessCommand =
+  | { type: "start"; itemEnvironment?: Record<string, string> }
+  | { type: "open" }
+  | { type: "quick-action" }
+  | { type: "write"; input: string }
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "stop" };
+
+/** One command to a dashboard agent task's terminal. */
+export type AgentTaskCommand =
+  | { type: "stop" }
+  | { type: "write"; input: string }
+  | { type: "resize"; cols: number; rows: number };
+
 export interface ComponentAgentLaunch {
   taskId: string;
   command: string;

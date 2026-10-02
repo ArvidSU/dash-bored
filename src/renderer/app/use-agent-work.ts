@@ -56,18 +56,18 @@ export function useAgentWork({
   }
 
   function stopTask(taskId: string): Promise<ProcessSnapshot> {
-    if (taskId === STARTER_TASK_ID) return host.stopProcess(taskId);
-    return host.stopDashboardAgentTask(taskId).then((task) => task.process);
+    if (taskId === STARTER_TASK_ID) return host.processCommand(taskId, { type: "stop" });
+    return host.agentTaskCommand(taskId, { type: "stop" }).then((task) => task.process);
   }
 
   function writeTerminal(taskId: string, input: string): Promise<ProcessSnapshot> {
-    if (taskId === STARTER_TASK_ID) return host.writeProcessTerminal(taskId, input);
-    return host.writeDashboardAgentTerminal(taskId, input).then((task) => task.process);
+    if (taskId === STARTER_TASK_ID) return host.processCommand(taskId, { type: "write", input });
+    return host.agentTaskCommand(taskId, { type: "write", input }).then((task) => task.process);
   }
 
   function resizeTerminal(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
-    if (taskId === STARTER_TASK_ID) return host.resizeProcessTerminal(taskId, cols, rows);
-    return host.resizeDashboardAgentTerminal(taskId, cols, rows).then((task) => task.process);
+    if (taskId === STARTER_TASK_ID) return host.processCommand(taskId, { type: "resize", cols, rows });
+    return host.agentTaskCommand(taskId, { type: "resize", cols, rows }).then((task) => task.process);
   }
 
   /** Change with agent briefs the agent with the dashboard template. */
@@ -110,7 +110,8 @@ export function useAgentWork({
 
   async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
     await perform(`component-agent:${node.id}`, async () => {
-      const launched = await host.runComponentAgent({
+      const launched = await host.launchAgent({
+        kind: "component",
         nodeId: node.id,
         prompt,
         ...(promptDraft?.template ? { template: promptDraft.template } : {}),
@@ -124,7 +125,7 @@ export function useAgentWork({
 
   async function runDiagnosticsAgent(): Promise<void> {
     await perform("diagnostics-agent", async () => {
-      const launched = await host.runDiagnosticsAgent();
+      const launched = await host.launchAgent({ kind: "diagnostics" });
       setActivityOpen(true);
       showNotice(`Started ${launched.command} for ${launched.componentPath}.`);
     });
@@ -132,7 +133,7 @@ export function useAgentWork({
 
   async function runCreationAgent(configPath: string, target: InsertionTarget, prompt: string): Promise<void> {
     await perform("component-agent:create", async () => {
-      const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
+      const launched = await host.launchAgent({ kind: "creation", configPath, target, prompt });
       endDraft();
       setActivityOpen(true);
       showNotice(`Started ${launched.command} for ${launched.componentPath}.`);

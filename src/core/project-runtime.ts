@@ -12,6 +12,7 @@ import type {
   FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
+  ProcessCommand,
   ProcessSnapshot,
   ProjectSnapshot,
   ResolvedComponentNode,
@@ -203,19 +204,12 @@ export class ProjectRuntime {
     precompiled?: CompiledLocalComponent[],
   ): Promise<ProjectSnapshot> {
     if (!definition.ok || definition.tree === null || definition.config === null) {
-      this.snapshot = {
-        ...this.snapshot,
-        projectRoot: definition.location.projectRoot,
-        configPath: definition.location.configPath,
+      // An invalid definition keeps the last rendered tree on screen.
+      this.snapshot = this.buildSnapshot(definition, {
         dashboardName: this.snapshot.tree === null ? definition.config?.name ?? null : this.snapshot.dashboardName,
         iconDataUrl: null,
         config: definition.config ?? this.snapshot.config,
-        configRevision: definition.configRevision,
-        componentCatalog: definition.componentCatalog,
-        themeCatalog: definition.themeCatalog,
-        diagnostics: definition.diagnostics,
-        revision: this.snapshot.revision + 1,
-      };
+      });
       return this.emitSnapshot();
     }
 
@@ -238,19 +232,11 @@ export class ProjectRuntime {
         const compiled = await compileLocalComponents(definition.localComponents);
         definition.diagnostics.push(...compiled.diagnostics);
         if (hasErrors(compiled.diagnostics)) {
-          this.snapshot = {
-            ...this.snapshot,
-            projectRoot: definition.location.projectRoot,
-            configPath: definition.location.configPath,
+          this.snapshot = this.buildSnapshot(definition, {
             dashboardName: definition.config.name,
             iconDataUrl: await this.resolveProjectIcon(definition, trusted),
             config: definition.config,
-            configRevision: definition.configRevision,
-            componentCatalog: definition.componentCatalog,
-        themeCatalog: definition.themeCatalog,
-            diagnostics: definition.diagnostics,
-            revision: this.snapshot.revision + 1,
-          };
+          });
           return this.emitSnapshot();
         }
         compiledComponents = compiled.components;
@@ -282,25 +268,36 @@ export class ProjectRuntime {
       configDirectoriesByNode: new Map([...configPathsByNode].map(([id, path]) => [id, dirname(path)])),
       getPublishedEnvironment: this.getPublishedEnvironment,
     });
-    this.snapshot = {
-      projectRoot: definition.location.projectRoot,
-      configPath: definition.location.configPath,
+    this.snapshot = this.buildSnapshot(definition, {
       dashboardName: definition.config.name,
       iconDataUrl: await this.resolveProjectIcon(definition, trusted),
       config: definition.config,
-      configRevision: definition.configRevision,
-      componentCatalog: definition.componentCatalog,
-        themeCatalog: definition.themeCatalog,
       trusted,
       requestedPermissions: definition.permissions,
       tree: definition.tree,
       components: trusted ? compiledComponents : [],
       processes: this.processManager.list(),
-      diagnostics: definition.diagnostics,
-      revision: this.snapshot.revision + 1,
-    };
+    });
     this.snapshot.environmentByNode = await this.readEnvironmentSnapshots();
     return this.emitSnapshot();
+  }
+
+  /** The next snapshot for `definition`; fields it does not name carry over. */
+  private buildSnapshot(
+    definition: ProjectDefinition,
+    fields: Pick<ProjectSnapshot, "dashboardName" | "iconDataUrl" | "config"> & Partial<ProjectSnapshot>,
+  ): ProjectSnapshot {
+    return {
+      ...this.snapshot,
+      projectRoot: definition.location.projectRoot,
+      configPath: definition.location.configPath,
+      configRevision: definition.configRevision,
+      componentCatalog: definition.componentCatalog,
+      themeCatalog: definition.themeCatalog,
+      diagnostics: definition.diagnostics,
+      revision: this.snapshot.revision + 1,
+      ...fields,
+    };
   }
 
   private async readEnvironmentSnapshots(): Promise<Record<string, ComponentEnvironmentSnapshot>> {
@@ -618,40 +615,23 @@ export class ProjectRuntime {
     return cloneSnapshot(this.snapshot);
   }
 
-  async startProcess(nodeId: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
-    this.capabilities.assertAllowed(nodeId, "process:execute");
-    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.start(nodeId, itemEnvironment);
+  /** Runs one command against a declared process once `nodeId` may execute. */
+  async processCommand(nodeId: string, command: ProcessCommand): Promise<ProcessSnapshot> {
+    const processes = this.requireProcess(nodeId);
+    switch (command.type) {
+      case "start": return processes.start(nodeId, command.itemEnvironment);
+      case "open": return processes.open(nodeId);
+      case "quick-action": return processes.runQuickAction(nodeId);
+      case "write": return processes.write(nodeId, command.input);
+      case "resize": return processes.resize(nodeId, command.cols, command.rows);
+      case "stop": return processes.stop(nodeId);
+    }
   }
 
-  async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
+  private requireProcess(nodeId: string): ProcessManager {
     this.capabilities.assertAllowed(nodeId, "process:execute");
     if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.open(nodeId);
-  }
-
-  async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
-    this.capabilities.assertAllowed(nodeId, "process:execute");
-    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.runQuickAction(nodeId);
-  }
-
-  async writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot> {
-    this.capabilities.assertAllowed(nodeId, "process:execute");
-    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.write(nodeId, input);
-  }
-
-  async resizeProcessTerminal(nodeId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
-    this.capabilities.assertAllowed(nodeId, "process:execute");
-    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.resize(nodeId, cols, rows);
-  }
-
-  async stopProcess(nodeId: string): Promise<ProcessSnapshot> {
-    this.capabilities.assertAllowed(nodeId, "process:execute");
-    if (this.processManager === null) throw new CoreError("PROJECT_NOT_LOADED", "No project is loaded.");
-    return this.processManager.stop(nodeId);
+    return this.processManager;
   }
 
   readText(request: FileReadRequest): Promise<string> {

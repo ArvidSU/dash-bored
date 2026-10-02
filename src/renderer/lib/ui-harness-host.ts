@@ -11,7 +11,6 @@ import type {
   ComponentCatalogItem,
   ComponentChildEdge,
   ComponentChildLayout,
-  ComponentCreationAgentRequest,
   ComponentPropsValidation,
   ComponentNode,
   Diagnostic,
@@ -23,6 +22,7 @@ import type {
   FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
+  ProcessCommand,
   ProcessSnapshot,
   ProjectDeletionPreview,
   ProjectListItem,
@@ -537,7 +537,6 @@ export function createUiHarnessHost(): UiHarnessHost {
     setUpdateState(state) { updateOverride = state && structuredClone(state); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
-    async runComponentAgent(request: ComponentAgentRequest) { return launch(request); },
     async previewComponentAgent(request: ComponentAgentRequest) {
       // The fixture has no bundle templates; it renders the shipped defaults.
       const node = findResolvedNode(snapshot().tree!, request.nodeId);
@@ -554,32 +553,30 @@ export function createUiHarnessHost(): UiHarnessHost {
       });
       return { template: promptTemplateSummary(template), prompt };
     },
-    async runComponentCreationAgent(request: ComponentCreationAgentRequest) { return launch(request); },
-    async runDiagnosticsAgent() {
-      return launch({
-        prompt: "Fix dashboard configuration diagnostics.",
-        componentPath: `${CONFIG_PATH}#diagnostics`,
-      });
+    async launchAgent(request) {
+      if (request.kind === "diagnostics") {
+        return launch({ prompt: "Fix dashboard configuration diagnostics.", componentPath: `${CONFIG_PATH}#diagnostics` });
+      }
+      if (request.kind === "setup") {
+        return launch({ prompt: "Set up the fixture dashboard.", componentPath: `${CONFIG_PATH}#setup-agent` });
+      }
+      return launch(request);
     },
     async repairInstalledTools() {
       currentDiagnostics = [];
-      return emitSnapshot();
+      emitSnapshot();
+      return { conflictsRemain: false };
     },
     async manageExternalComponent(operation) {
       packageOperations.push({ kind: "external", ...operation });
-      return { result: { message: `Ran external ${operation.op}.` }, snapshot: emitSnapshot() };
+      emitSnapshot();
+      return { message: `Ran external ${operation.op}.` };
     },
     async manageThemePackage(operation) {
       packageOperations.push({ kind: "theme", ...operation });
       return { message: `Ran theme ${operation.op}.` };
     },
     getPackageOperations() { return structuredClone(packageOperations); },
-    async setupDashboardWithAgent(_request: { nodeId: string }) {
-      return launch({
-        prompt: "Set up the fixture dashboard.",
-        componentPath: `${CONFIG_PATH}#setup-agent`,
-      });
-    },
     async getDashboardAgentTasks() { return structuredClone(agentTasks); },
     async getDashboardAgentDiff(taskId: string) {
       const task = agentTasks.find((item) => item.id === taskId);
@@ -590,24 +587,18 @@ export function createUiHarnessHost(): UiHarnessHost {
       currentDiagnostics = structuredClone(next);
       emitSnapshot();
     },
-    async stopDashboardAgentTask(taskId: string) {
+    async agentTaskCommand(taskId, command) {
       const task = agentTasks.find((item) => item.id === taskId);
       if (!task) throw new Error("That dashboard agent task is no longer available.");
-      task.process = { ...task.process, phase: "exited", signal: "SIGTERM" };
-      emit({ type: "agent-task", task: structuredClone(task) });
-      return structuredClone(task);
-    },
-    async writeDashboardAgentTerminal(taskId: string, input: string) {
-      const task = agentTasks.find((item) => item.id === taskId);
-      if (!task) throw new Error("That dashboard agent task is no longer available.");
-      if (task.process.phase !== "running") throw new Error("That dashboard agent terminal is closed.");
-      agentTerminalInputs.push({ taskId, input });
-      return structuredClone(task);
-    },
-    async resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number) {
-      const task = agentTasks.find((item) => item.id === taskId);
-      if (!task) throw new Error("That dashboard agent task is no longer available.");
-      agentTerminalResizes.push({ taskId, cols, rows });
+      if (command.type === "stop") {
+        task.process = { ...task.process, phase: "exited", signal: "SIGTERM" };
+        emit({ type: "agent-task", task: structuredClone(task) });
+      } else if (command.type === "write") {
+        if (task.process.phase !== "running") throw new Error("That dashboard agent terminal is closed.");
+        agentTerminalInputs.push({ taskId, input: command.input });
+      } else {
+        agentTerminalResizes.push({ taskId, cols: command.cols, rows: command.rows });
+      }
       return structuredClone(task);
     },
     async listProjects() { return [project(persistedConfig)]; },
@@ -615,15 +606,14 @@ export function createUiHarnessHost(): UiHarnessHost {
     async getProjectOutline(_project: ProjectListItem): Promise<ProjectOutline> {
       return { ...project(persistedConfig), tree: resolveFixtureNode(persistedConfig.root), diagnostics: [] };
     },
-    async chooseProject() { return emitSnapshot(); },
-    async openProject(_project: ProjectTarget) { return emitSnapshot(); },
+    async chooseProject() { emitSnapshot(); return { opened: true }; },
+    async openProject(_project: ProjectTarget) { emitSnapshot(); },
     async getProjectDeletionPreview(_project: ProjectListItem): Promise<ProjectDeletionPreview> {
       return { ...project(persistedConfig), filesDirectory: PROJECT_ROOT, filesExist: false, dependencies: [], analysisComplete: true, analysisIssues: [] };
     },
-    async deleteProject(_project: ProjectListItem, _removeFiles: boolean) { return emitSnapshot(); },
-    async trustProject() { return emitSnapshot(); },
-    async revokeTrust() { return emitSnapshot(); },
-    async reloadProject() { return emitSnapshot(); },
+    async deleteProject(_project: ProjectListItem, _removeFiles: boolean) { emitSnapshot(); },
+    async setTrust(_trusted: boolean) { emitSnapshot(); },
+    async reloadProject() { emitSnapshot(); },
     async getDashboardConfigSource(_configPath?: string): Promise<DashboardConfigSource> {
       return {
         configPath: CONFIG_PATH,
@@ -652,42 +642,20 @@ export function createUiHarnessHost(): UiHarnessHost {
       persistedConfig = structuredClone(config);
       configRevision += 1;
       snapshotRevision += 1;
-      return emitSnapshot();
+      emitSnapshot();
     },
-    async startProcess(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: nodeId === "setup-dashboard-with-agent" ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
-      processSnapshots.set(nodeId, process);
-      emit({ type: "process", process });
-      return process;
-    },
-    async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: nodeId === "setup-dashboard-with-agent" ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
-      processSnapshots.set(nodeId, process);
-      emit({ type: "process", process });
-      return process;
-    },
-    async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = { id: nodeId, phase: nodeId === "setup-dashboard-with-agent" ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
-      processSnapshots.set(nodeId, process);
-      emit({ type: "process", process });
-      return process;
-    },
-    async writeProcessTerminal(nodeId: string, _input: string): Promise<ProcessSnapshot> {
-      const process = processSnapshots.get(nodeId)
-        ?? { id: nodeId, phase: "idle" as const, pid: null, exitCode: null, signal: null, logs: [] };
-      emit({ type: "process", process });
-      return process;
-    },
-    async resizeProcessTerminal(nodeId: string, _cols: number, _rows: number): Promise<ProcessSnapshot> {
-      const process = processSnapshots.get(nodeId)
-        ?? { id: nodeId, phase: "idle" as const, pid: null, exitCode: null, signal: null, logs: [] };
-      emit({ type: "process", process });
-      return process;
-    },
-    async stopProcess(nodeId: string): Promise<ProcessSnapshot> {
-      const process: ProcessSnapshot = nodeId === "setup-dashboard-with-agent"
-        ? { id: nodeId, phase: "exited", pid: null, exitCode: null, signal: "SIGTERM", logs: [] }
-        : { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+    async processCommand(nodeId: string, command: ProcessCommand): Promise<ProcessSnapshot> {
+      // Like the desktop host, only commands that change a process push it.
+      if (command.type === "write" || command.type === "resize") {
+        return processSnapshots.get(nodeId)
+          ?? { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      }
+      const starter = nodeId === "setup-dashboard-with-agent";
+      const process: ProcessSnapshot = command.type === "stop"
+        ? starter
+          ? { id: nodeId, phase: "exited", pid: null, exitCode: null, signal: "SIGTERM", logs: [] }
+          : { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] }
+        : { id: nodeId, phase: starter ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
       processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;

@@ -747,7 +747,7 @@ describe("renderer fixture interactions", () => {
     await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      await host.runComponentAgent({ nodeId: "status", prompt: "Show a clearer fixture state." });
+      await host.launchAgent({ kind: "component",  nodeId: "status", prompt: "Show a clearer fixture state." });
     });
     const task = activity.locator(".agent-task").first();
     await task.waitFor();
@@ -1394,7 +1394,7 @@ describe("renderer fixture interactions", () => {
     await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      await host.openProcessTerminal("terminal-stream");
+      await host.processCommand("terminal-stream", { type: "open" });
     });
 
     await active.waitForTimeout(100);
@@ -1487,7 +1487,7 @@ describe("renderer fixture interactions", () => {
     await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      await host.runProcessQuickAction("setup-dashboard-with-agent");
+      await host.processCommand("setup-dashboard-with-agent", { type: "quick-action" });
     });
     const activity = active.getByRole("dialog", { name: "Agent work" });
     await activity.waitFor();
@@ -1504,7 +1504,7 @@ describe("renderer fixture interactions", () => {
     const activeProcess = await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      await host.writeProcessTerminal("setup-dashboard-with-agent", "still running\n");
+      await host.processCommand("setup-dashboard-with-agent", { type: "write", input: "still running\n" });
       return (await host.getSnapshot()).processes.find((process) => process.id === "setup-dashboard-with-agent");
     });
     expect(activeProcess?.phase).toBe("running");
@@ -1577,7 +1577,7 @@ describe("renderer fixture interactions", () => {
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
-      const taskId = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.runComponentAgent({
+      const taskId = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.launchAgent({ kind: "component",
         nodeId: "status", prompt: "Interactive agent proof.",
       })).taskId);
       const row = proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first();
@@ -1626,7 +1626,7 @@ describe("renderer fixture interactions", () => {
         await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
         await proof.evaluate(async (prompt) => {
           const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-          const task = await host.runComponentAgent({ nodeId: "status", prompt });
+          const task = await host.launchAgent({ kind: "component",  nodeId: "status", prompt });
           await host.appendAgentOutput(task.taskId, Array.from({ length: 180 }, (_, i) => `Activity ${i}\r\n`).join("") + "LATEST BEFORE OPEN\r\n");
         }, prompt);
         const row = proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first();
@@ -1692,7 +1692,7 @@ describe("renderer fixture interactions", () => {
           await host.saveDashboardConfig({ schemaVersion: 3, name: "Scroll background", root: {
             id: "background", component: "@dash-bored/markdown", props: { content: "Background paragraph.\n\n".repeat(150) },
           } }, snapshot.configRevision!);
-          const task = await host.runComponentAgent({ nodeId: "background", prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
+          const task = await host.launchAgent({ kind: "component",  nodeId: "background", prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
           await host.appendAgentOutput(task.taskId, Array.from({ length: 120 }, (_, i) => `Activity ${i}\r\n`).join("") + "LAST ACTIVITY\r\n");
         });
         await proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first().click();
@@ -1815,7 +1815,7 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
                       second: { node: { id: 'theme-markdown', component: '@dash-bored/markdown', props: { content: '# Theme preview\n\nReadable text and `code` in both variants.' } } }
                   }
               } } }, snapshot.configRevision!);
-      await host.startProcess('theme-terminal');
+      await host.processCommand("theme-terminal", { type: "start" });
     });
     await proof.getByRole('button', { name: 'Open terminal', exact: true }).click();
     await proof.locator('.xterm').waitFor();

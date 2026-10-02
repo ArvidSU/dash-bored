@@ -3,7 +3,7 @@ import type { ProjectListItem, ProjectTarget } from "../../shared/contracts";
 import type { AppView } from "../lib/action-providers";
 import { host } from "../lib/rpc-client";
 import type { AppDialog } from "./AppDialogs";
-import { dashboardKey, rememberProject } from "./app-utils";
+import { dashboardKey } from "./app-utils";
 import type { DashboardDraft } from "./use-dashboard-draft";
 import type { HostSession } from "./use-host-session";
 import type { Notices } from "./use-notices";
@@ -48,9 +48,10 @@ export function useProjectNavigation({
 
   async function chooseDashboard(): Promise<void> {
     await perform("choose", async () => {
-      const nextSnapshot = await host.chooseProject();
-      setProjects(rememberProject(await host.listProjects(), nextSnapshot));
-      if (nextSnapshot.projectRoot) setActiveView("dashboard");
+      const { opened } = await host.chooseProject();
+      if (!opened) return;
+      setProjects(await host.listProjects());
+      setActiveView("dashboard");
     });
   }
 

@@ -101,7 +101,7 @@ describe("registered dashboard deletion", () => {
     const { canonicalRoot, registry, runtime, trustStore } = await setupRegisteredProject(root, "Running dashboard");
     await runtime.load(canonicalRoot);
     await runtime.trust();
-    await runtime.startProcess("server");
+    await runtime.processCommand("server", { type: "start" });
     expect(runtime.getSnapshot().processes[0]?.phase).toBe("running");
     const moved: string[] = [];
 

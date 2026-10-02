@@ -1,12 +1,12 @@
 import { Electroview } from "electrobun/view";
 import { whenIdle } from "./activity";
 import type {
+  AgentLaunchRequest,
+  AgentTaskCommand,
   AppSettings,
   ComponentAgentLaunch,
   ComponentAgentPreview,
   ComponentAgentRequest,
-  DashboardSetupAgentRequest,
-  ComponentCreationAgentRequest,
   DashboardConfig,
   DashboardAgentTask,
   DashboardConfigSource,
@@ -16,6 +16,7 @@ import type {
   FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
+  ProcessCommand,
   ProcessSnapshot,
   ProjectOutline,
   ProjectDeletionPreview,
@@ -56,39 +57,30 @@ export interface DashboardHost {
   updateAction(action: import("../../shared/updates").UpdateAction): Promise<import("../../shared/updates").UpdateState>;
   getAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
-  runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch>;
   previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview>;
-  runComponentCreationAgent(request: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch>;
-  runDiagnosticsAgent(): Promise<ComponentAgentLaunch>;
-  repairInstalledTools(): Promise<ProjectSnapshot>;
-  manageExternalComponent(operation: ExternalComponentOperation): Promise<{ result: PackageOperationResult; snapshot: ProjectSnapshot }>;
+  launchAgent(request: AgentLaunchRequest): Promise<ComponentAgentLaunch>;
+  repairInstalledTools(): Promise<{ conflictsRemain: boolean }>;
+  manageExternalComponent(operation: ExternalComponentOperation): Promise<PackageOperationResult>;
   manageThemePackage(operation: ThemePackageOperation): Promise<PackageOperationResult>;
-  setupDashboardWithAgent(request: DashboardSetupAgentRequest): Promise<ComponentAgentLaunch>;
   getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
   getDashboardAgentDiff(taskId: string): Promise<string>;
-  stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask>;
-  writeDashboardAgentTerminal(taskId: string, input: string): Promise<DashboardAgentTask>;
-  resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number): Promise<DashboardAgentTask>;
+  agentTaskCommand(taskId: string, command: AgentTaskCommand): Promise<DashboardAgentTask>;
   listProjects(): Promise<ProjectListItem[]>;
   moveProject(configPath: string, targetConfigPath: string, before: boolean): Promise<ProjectListItem[]>;
   getProjectOutline(project: ProjectListItem): Promise<ProjectOutline>;
-  chooseProject(): Promise<ProjectSnapshot>;
-  openProject(project: ProjectTarget): Promise<ProjectSnapshot>;
+  /** Opens the folder picker; `opened` is false when the user cancelled. */
+  chooseProject(): Promise<{ opened: boolean }>;
+  openProject(project: ProjectTarget): Promise<void>;
   getProjectDeletionPreview(project: ProjectListItem): Promise<ProjectDeletionPreview>;
-  deleteProject(project: ProjectListItem, removeFiles: boolean): Promise<ProjectSnapshot>;
-  trustProject(): Promise<ProjectSnapshot>;
-  revokeTrust(): Promise<ProjectSnapshot>;
-  reloadProject(): Promise<ProjectSnapshot>;
+  deleteProject(project: ProjectListItem, removeFiles: boolean): Promise<void>;
+  setTrust(trusted: boolean): Promise<void>;
+  reloadProject(): Promise<void>;
   getDashboardConfigSource(configPath?: string): Promise<DashboardConfigSource>;
   validateDashboardDraft(config: DashboardConfig, configPath?: string): Promise<DashboardDraftValidation>;
   validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
-  saveDashboardConfig(config: DashboardConfig, expectedConfigRevision: string, configPath?: string): Promise<ProjectSnapshot>;
-  startProcess(nodeId: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot>;
-  openProcessTerminal(nodeId: string): Promise<ProcessSnapshot>;
-  runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot>;
-  writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot>;
-  resizeProcessTerminal(nodeId: string, cols: number, rows: number): Promise<ProcessSnapshot>;
-  stopProcess(nodeId: string): Promise<ProcessSnapshot>;
+  saveDashboardConfig(config: DashboardConfig, expectedConfigRevision: string, configPath?: string): Promise<void>;
+  /** The process after the command; the store learns about it from the host's push. */
+  processCommand(nodeId: string, command: ProcessCommand): Promise<ProcessSnapshot>;
   readTextFile(request: FileReadRequest): Promise<string>;
   writeTextFile(request: FileWriteRequest): Promise<void>;
   httpRequest(request: HttpRequest): Promise<HttpResponsePayload>;
@@ -176,257 +168,72 @@ function ensureTransport(): void {
   electroview = new Electroview({ rpc });
 }
 
-async function snapshotRequest(
-  request: () => Promise<ProjectSnapshot>,
-): Promise<ProjectSnapshot> {
-  ensureTransport();
-  const snapshot = await request();
-  emit({ type: "snapshot", snapshot });
-  return snapshot;
-}
-
 const liveHost: DashboardHost = {
   subscribe(listener: HostEventListener): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
 
-  getSnapshot(): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.getSnapshot({}));
-  },
-
+  async getSnapshot() { ensureTransport(); return rpc.request.getSnapshot({}); },
   async getUpdateState() { ensureTransport(); return rpc.request.getUpdateState({}); },
   async updateAction(action) { ensureTransport(); return rpc.request.updateAction(action); },
   async getThemes() { ensureTransport(); return rpc.request.getThemes({}); },
-  async getAppSettings(): Promise<AppSettings> {
+  async getAppSettings() { ensureTransport(); return rpc.request.getAppSettings({}); },
+  async updateAppSettings(settings) { ensureTransport(); return rpc.request.updateAppSettings(settings); },
+  async previewComponentAgent(request) { ensureTransport(); return rpc.request.previewComponentAgent(request); },
+  async launchAgent(request) { ensureTransport(); return rpc.request.launchAgent(request); },
+  async repairInstalledTools() { ensureTransport(); return rpc.request.repairInstalledTools({}); },
+  async manageExternalComponent(operation) { ensureTransport(); return rpc.request.manageExternalComponent(operation); },
+  async manageThemePackage(operation) { ensureTransport(); return rpc.request.manageThemePackage(operation); },
+  async getDashboardAgentTasks() { ensureTransport(); return rpc.request.getDashboardAgentTasks({}); },
+  async getDashboardAgentDiff(taskId) { ensureTransport(); return rpc.request.getDashboardAgentDiff({ taskId }); },
+  async agentTaskCommand(taskId, command) { ensureTransport(); return rpc.request.agentTaskCommand({ taskId, command }); },
+  async listProjects() { ensureTransport(); return rpc.request.listProjects({}); },
+  async moveProject(configPath, targetConfigPath, before) {
     ensureTransport();
-    return await rpc.request.getAppSettings({});
+    return rpc.request.moveProject({ configPath, targetConfigPath, before });
   },
-
-  async updateAppSettings(settings: AppSettings): Promise<AppSettings> {
+  async getProjectOutline({ projectRoot, configPath }) {
     ensureTransport();
-    return await rpc.request.updateAppSettings(settings);
+    return rpc.request.getProjectOutline({ projectRoot, configPath });
   },
-
-  async runComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
+  async chooseProject() {
     ensureTransport();
-    return await rpc.request.runComponentAgent(request);
+    return rpc.request.chooseProject({}, { maxRequestTime: Infinity });
   },
-
-  async previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview> {
+  async openProject({ projectRoot, configPath }) {
     ensureTransport();
-    return await rpc.request.previewComponentAgent(request);
+    await rpc.request.openProject({ projectRoot, configPath });
   },
-
-  async runComponentCreationAgent(
-    request: ComponentCreationAgentRequest,
-  ): Promise<ComponentAgentLaunch> {
+  async getProjectDeletionPreview({ projectRoot, configPath }) {
     ensureTransport();
-    return await rpc.request.runComponentCreationAgent(request);
+    return rpc.request.getProjectDeletionPreview({ projectRoot, configPath });
   },
-
-  async runDiagnosticsAgent(): Promise<ComponentAgentLaunch> {
+  async deleteProject({ projectRoot, configPath }, removeFiles) {
     ensureTransport();
-    return await rpc.request.runDiagnosticsAgent({});
+    await rpc.request.deleteProject({ projectRoot, configPath, removeFiles });
   },
-
-  repairInstalledTools(): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.repairInstalledTools({}));
-  },
-
-  async manageExternalComponent(operation) {
+  async setTrust(trusted) { ensureTransport(); await rpc.request.setTrust({ trusted }); },
+  async reloadProject() { ensureTransport(); await rpc.request.reloadProject({}); },
+  async getDashboardConfigSource(configPath) { ensureTransport(); return rpc.request.getDashboardConfigSource({ configPath }); },
+  async validateDashboardDraft(config, configPath) {
     ensureTransport();
-    const response = await rpc.request.manageExternalComponent(operation);
-    emit({ type: "snapshot", snapshot: response.snapshot });
-    return response;
+    return rpc.request.validateDashboardDraft({ config, configPath });
   },
-
-  async manageThemePackage(operation) {
+  async validateComponentProps(reference, props) {
     ensureTransport();
-    return rpc.request.manageThemePackage(operation);
+    return rpc.request.validateComponentProps({ reference, props });
   },
-
-  async setupDashboardWithAgent(request: DashboardSetupAgentRequest): Promise<ComponentAgentLaunch> {
+  async saveDashboardConfig(config, expectedConfigRevision, configPath) {
     ensureTransport();
-    return await rpc.request.setupDashboardWithAgent(request);
+    await rpc.request.saveDashboardConfig({ config, expectedConfigRevision, configPath });
   },
+  async processCommand(nodeId, command) { ensureTransport(); return rpc.request.processCommand({ nodeId, command }); },
 
-  async getDashboardAgentTasks(): Promise<DashboardAgentTask[]> {
-    ensureTransport();
-    return await rpc.request.getDashboardAgentTasks({});
-  },
-
-  async getDashboardAgentDiff(taskId: string): Promise<string> {
-    ensureTransport();
-    return await rpc.request.getDashboardAgentDiff({ taskId });
-  },
-
-  async stopDashboardAgentTask(taskId: string): Promise<DashboardAgentTask> {
-    ensureTransport();
-    return await rpc.request.stopDashboardAgentTask({ taskId });
-  },
-
-  async writeDashboardAgentTerminal(taskId: string, input: string): Promise<DashboardAgentTask> {
-    ensureTransport();
-    return await rpc.request.writeDashboardAgentTerminal({ taskId, input });
-  },
-
-  async resizeDashboardAgentTerminal(taskId: string, cols: number, rows: number): Promise<DashboardAgentTask> {
-    ensureTransport();
-    return await rpc.request.resizeDashboardAgentTerminal({ taskId, cols, rows });
-  },
-
-  async listProjects(): Promise<ProjectListItem[]> {
-    ensureTransport();
-    return await rpc.request.listProjects({});
-  },
-
-  async moveProject(configPath: string, targetConfigPath: string, before: boolean): Promise<ProjectListItem[]> {
-    ensureTransport();
-    return await rpc.request.moveProject({ configPath, targetConfigPath, before });
-  },
-
-  async getProjectOutline(project: ProjectListItem): Promise<ProjectOutline> {
-    ensureTransport();
-    return await rpc.request.getProjectOutline({
-      projectRoot: project.projectRoot,
-      configPath: project.configPath,
-    });
-  },
-
-  chooseProject(): Promise<ProjectSnapshot> {
-    return snapshotRequest(() =>
-      rpc.request.chooseProject({}, { maxRequestTime: Infinity }),
-    );
-  },
-
-  openProject(project: ProjectTarget): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.openProject({
-      projectRoot: project.projectRoot,
-      configPath: project.configPath,
-    }));
-  },
-
-  async getProjectDeletionPreview(project: ProjectListItem): Promise<ProjectDeletionPreview> {
-    ensureTransport();
-    return await rpc.request.getProjectDeletionPreview({
-      projectRoot: project.projectRoot,
-      configPath: project.configPath,
-    });
-  },
-
-  deleteProject(project: ProjectListItem, removeFiles: boolean): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.deleteProject({
-      projectRoot: project.projectRoot,
-      configPath: project.configPath,
-      removeFiles,
-    }));
-  },
-
-  trustProject(): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.trustProject({}));
-  },
-
-  revokeTrust(): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.revokeTrust({}));
-  },
-
-  reloadProject(): Promise<ProjectSnapshot> {
-    return snapshotRequest(() => rpc.request.reloadProject({}));
-  },
-
-  async getDashboardConfigSource(configPath?: string): Promise<DashboardConfigSource> {
-    ensureTransport();
-    return await rpc.request.getDashboardConfigSource({ configPath });
-  },
-
-  async validateDashboardDraft(
-    config: DashboardConfig,
-    configPath?: string,
-  ): Promise<DashboardDraftValidation> {
-    ensureTransport();
-    return await rpc.request.validateDashboardDraft({ config, configPath });
-  },
-
-  async validateComponentProps(
-    reference: string,
-    props: Record<string, unknown>,
-  ): Promise<ComponentPropsValidation> {
-    ensureTransport();
-    return await rpc.request.validateComponentProps({ reference, props });
-  },
-
-  saveDashboardConfig(
-    config: DashboardConfig,
-    expectedConfigRevision: string,
-    configPath?: string,
-  ): Promise<ProjectSnapshot> {
-    return snapshotRequest(() =>
-      rpc.request.saveDashboardConfig({ config, expectedConfigRevision, configPath }),
-    );
-  },
-
-  async startProcess(nodeId: string, itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot> {
-    ensureTransport();
-    const process = await rpc.request.startProcess({ nodeId, itemEnvironment });
-    emit({ type: "process", process });
-    return process;
-  },
-
-  async openProcessTerminal(nodeId: string): Promise<ProcessSnapshot> {
-    ensureTransport();
-    const process = await rpc.request.openProcessTerminal({ nodeId });
-    emit({ type: "process", process });
-    return process;
-  },
-
-  async runProcessQuickAction(nodeId: string): Promise<ProcessSnapshot> {
-    ensureTransport();
-    const process = await rpc.request.runProcessQuickAction({ nodeId });
-    emit({ type: "process", process });
-    return process;
-  },
-
-  async writeProcessTerminal(nodeId: string, input: string): Promise<ProcessSnapshot> {
-    ensureTransport();
-    const process = await rpc.request.writeProcessTerminal({ nodeId, input });
-    emit({ type: "process", process });
-    return process;
-  },
-
-  async resizeProcessTerminal(nodeId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
-    ensureTransport();
-    const process = await rpc.request.resizeProcessTerminal({ nodeId, cols, rows });
-    emit({ type: "process", process });
-    return process;
-  },
-
-  async stopProcess(nodeId: string): Promise<ProcessSnapshot> {
-    ensureTransport();
-    const process = await rpc.request.stopProcess({ nodeId });
-    emit({ type: "process", process });
-    return process;
-  },
-
-  readTextFile(request: FileReadRequest): Promise<string> {
-    ensureTransport();
-    return rpc.request.readTextFile(request);
-  },
-
-  writeTextFile(request: FileWriteRequest): Promise<void> {
-    ensureTransport();
-    return rpc.request.writeTextFile(request);
-  },
-
-  httpRequest(request: HttpRequest): Promise<HttpResponsePayload> {
-    ensureTransport();
-    return rpc.request.httpRequest(request);
-  },
-
-  runShell(request: ShellRunRequest): Promise<ShellRunResult> {
-    ensureTransport();
-    return rpc.request.runShell(request);
-  },
+  async readTextFile(request) { ensureTransport(); return rpc.request.readTextFile(request); },
+  async writeTextFile(request) { ensureTransport(); return rpc.request.writeTextFile(request); },
+  async httpRequest(request) { ensureTransport(); return rpc.request.httpRequest(request); },
+  async runShell(request) { ensureTransport(); return rpc.request.runShell(request); },
 };
 
 declare global {

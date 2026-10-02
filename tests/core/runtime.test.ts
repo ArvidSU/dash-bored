@@ -339,12 +339,12 @@ describe("ProjectRuntime", () => {
     const loaded = await runtime.load(root);
     expect(loaded.trusted).toBeFalse();
     expect(loaded.tree).not.toBeNull();
-    await expect(runtime.startProcess("server")).rejects.toMatchObject({ code: "PROJECT_UNTRUSTED" });
+    await expect(runtime.processCommand("server", { type: "start" })).rejects.toMatchObject({ code: "PROJECT_UNTRUSTED" });
 
     const trusted = await runtime.trust();
     expect(trusted.trusted).toBeTrue();
     expect(trusted.processes.find((item) => item.id === "server")?.phase).toBe("idle");
-    await runtime.startProcess("server");
+    await runtime.processCommand("server", { type: "start" });
     expect(runtime.getSnapshot().processes[0]?.phase).toBe("running");
 
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), "not: valid: yaml");
@@ -445,14 +445,14 @@ describe("ProjectRuntime", () => {
     runtimes.push(runtime);
     await runtime.load(root);
     await runtime.trust();
-    await runtime.startProcess("server");
+    await runtime.processCommand("server", { type: "start" });
 
     const reload = runtime.reload();
     const revoke = runtime.revoke();
     await Promise.all([reload, revoke]);
     expect(runtime.getSnapshot().trusted).toBeFalse();
     expect(runtime.getSnapshot().processes).toEqual([]);
-    await expect(runtime.startProcess("server")).rejects.toMatchObject({
+    await expect(runtime.processCommand("server", { type: "start" })).rejects.toMatchObject({
       code: "PROJECT_UNTRUSTED",
     });
   });
@@ -633,7 +633,7 @@ describe("ProjectRuntime", () => {
     expect(loaded.diagnostics).toEqual([]);
     const trusted = await runtime.trust();
     expect(trusted.processes.map((process) => process.id)).toEqual(["local-runner"]);
-    const finished = await runtime.startProcess("local-runner");
+    const finished = await runtime.processCommand("local-runner", { type: "start" });
     await waitFor(() => runtime.getSnapshot().processes[0]?.phase === "exited");
     expect(finished.id).toBe("local-runner");
     expect(runtime.getSnapshot().processes[0]?.logs.map((entry) => entry.text).join(""))

@@ -616,7 +616,7 @@ Known actions remain searchable when unavailable and carry a reason. For
 example, configured commands remain visible before project trust, while
 manifest-declared component actions remain visible before their code mounts
 with the reason `Component is not mounted`. Process actions call
-the same typed `startProcess` and `stopProcess` RPC used by any component UI;
+the same typed `processCommand` RPC used by any component UI;
 the palette never executes a shell command directly.
 
 The store re-resolves an action by ID immediately before invocation, tracks

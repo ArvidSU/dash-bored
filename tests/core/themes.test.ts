@@ -184,7 +184,7 @@ test('theme reload updates token data without changing component revision, trust
     const restricted = await runtime.load(root);
     expect(restricted.themeCatalog?.find((item) => item.reference === './themes/ocean')?.manifest?.name).toBe('Ocean');
     await runtime.trust();
-    await runtime.startProcess('terminal');
+    await runtime.processCommand('terminal', { type: "start" });
     const before = runtime.getSnapshot();
     await writeFile(join(dir, 'theme.yaml'), stringify({ ...manifest, name: 'Changed' }));
     const after = await runtime.reload();

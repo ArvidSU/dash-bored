@@ -20,6 +20,8 @@ import { CoreError, ProjectRuntime, TrustStore, loadPromptTemplates, prepareAgen
 import { resolveEnvironment } from "../core/environment";
 import { isProcessRunActive } from "../shared/process-state";
 import type {
+  AgentLaunchRequest,
+  AgentTaskCommand,
   AppSettings,
   ComponentAgentPreview,
   ComponentAgentRequest,
@@ -140,7 +142,7 @@ function replaceInstalledToolDiagnostics(paths: readonly string[], next: readonl
   installedToolDiagnostics.splice(0, installedToolDiagnostics.length, ...retained, ...next);
 }
 
-async function repairInstalledToolConflictsForUser(): Promise<ProjectSnapshot> {
+async function repairInstalledToolConflictsForUser(): Promise<{ conflictsRemain: boolean }> {
   const home = resolve(homedir());
   const globalSkillTarget = installedSkillPath(home);
   let repairGlobalSkill = false;
@@ -172,7 +174,8 @@ async function repairInstalledToolConflictsForUser(): Promise<ProjectSnapshot> {
     moveToTrash: async (path) => await Utils.moveToTrash(path),
   });
   replaceInstalledToolDiagnostics(repairedPaths, diagnostics);
-  return withInstalledToolDiagnostics(runtime.getSnapshot());
+  sendSnapshot(runtime.getSnapshot());
+  return { conflictsRemain: installedToolDiagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT") };
 }
 
 function sendSnapshot(snapshot: ProjectSnapshot): void {
@@ -488,7 +491,7 @@ async function setupDashboardWithAgent(nodeId: string) {
   return new DashboardSetupSupervisor({ runtime, harness: dashboardAgentHarness, command, location: sourceLocation, preflight: assertAgentAvailable }).launch(node);
 }
 
-async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
+async function chooseAndLoadProject(): Promise<{ opened: boolean }> {
   const paths = await Utils.openFileDialog({
     startingFolder: homedir(),
     canChooseFiles: false,
@@ -496,13 +499,13 @@ async function chooseAndLoadProject(): Promise<ProjectSnapshot> {
     allowsMultipleSelection: false,
   });
   const selected = paths[0];
-  if (!selected) return withInstalledToolDiagnostics(runtime.getSnapshot());
+  if (!selected) return { opened: false };
   await runtime.load(selected, { inputKind: "auto" });
   runtime.watch();
-  return withInstalledToolDiagnostics(runtime.getSnapshot());
+  return { opened: runtime.getSnapshot().projectRoot !== null };
 }
 
-async function openProject(projectRoot: string, configPath: string): Promise<ProjectSnapshot> {
+async function openProject(projectRoot: string, configPath: string): Promise<void> {
   if (!(await projectRegistry.contains(projectRoot, configPath))) {
     throw new CoreError(
       "PROJECT_NOT_REGISTERED",
@@ -511,7 +514,33 @@ async function openProject(projectRoot: string, configPath: string): Promise<Pro
   }
   await runtime.load(configPath, { inputKind: "auto" });
   runtime.watch();
-  return withInstalledToolDiagnostics(runtime.getSnapshot());
+}
+
+function launchAgent(request: AgentLaunchRequest) {
+  switch (request.kind) {
+    case "component": return runComponentAgent(request);
+    case "creation": return runComponentCreationAgent(request.configPath, request.target, request.prompt);
+    case "diagnostics": return runDiagnosticsAgent();
+    case "setup": return setupDashboardWithAgent(request.nodeId);
+  }
+}
+
+function agentTaskCommand(taskId: string, command: AgentTaskCommand): Promise<DashboardAgentTask> {
+  switch (command.type) {
+    case "stop": return dashboardAgentHarness.stop(taskId);
+    case "write": return dashboardAgentHarness.writeTerminal(taskId, command.input);
+    case "resize": return dashboardAgentHarness.resizeTerminal(taskId, command.cols, command.rows);
+  }
+}
+
+async function setTrust(trusted: boolean): Promise<void> {
+  if (trusted) {
+    await runtime.trust();
+    return;
+  }
+  const projectRoot = runtime.getSnapshot().projectRoot;
+  await runtime.revoke();
+  if (projectRoot) await dashboardAgentHarness.stopProject(projectRoot);
 }
 
 const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
@@ -532,17 +561,15 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
         await runtime.refreshEnvironment();
         return updated;
       },
-      runComponentAgent: (request) => runComponentAgent(request),
       previewComponentAgent: (request) => previewComponentAgent(request),
-      runComponentCreationAgent: ({ configPath, target, prompt }) =>
-        runComponentCreationAgent(configPath, target, prompt),
-      runDiagnosticsAgent: (_request) => runDiagnosticsAgent(),
+      launchAgent: (request) => launchAgent(request),
       repairInstalledTools: (_request) => repairInstalledToolConflictsForUser(),
       manageExternalComponent: async (operation) => {
         const configPath = runtime.getSnapshot().configPath;
         if (!configPath) throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before managing its external components.");
         const result = await runExternalComponentOperation(configPath, operation);
-        return { result, snapshot: withInstalledToolDiagnostics(await runtime.reload()) };
+        await runtime.reload();
+        return result;
       },
       manageThemePackage: async (operation) => {
         const result = await runThemePackageOperation(operation);
@@ -550,12 +577,9 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
         (mainWindow?.webview.rpc as { send?: { themes(value: typeof catalog): void } } | undefined)?.send?.themes(catalog);
         return result;
       },
-      setupDashboardWithAgent: ({ nodeId }) => setupDashboardWithAgent(nodeId),
       getDashboardAgentTasks: () => dashboardAgentHarness.list(),
       getDashboardAgentDiff: ({ taskId }) => getDashboardAgentDiff(taskId),
-      stopDashboardAgentTask: ({ taskId }) => dashboardAgentHarness.stop(taskId),
-      writeDashboardAgentTerminal: ({ taskId, input }) => dashboardAgentHarness.writeTerminal(taskId, input),
-      resizeDashboardAgentTerminal: ({ taskId, cols, rows }) => dashboardAgentHarness.resizeTerminal(taskId, cols, rows),
+      agentTaskCommand: ({ taskId, command }) => agentTaskCommand(taskId, command),
       listProjects: () => projectRegistry.list(),
       moveProject: ({ configPath, targetConfigPath, before }) => projectRegistry.move(configPath, targetConfigPath, before),
       getProjectOutline: ({ projectRoot, configPath }) =>
@@ -564,8 +588,8 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
       openProject: ({ projectRoot, configPath }) => openProject(projectRoot, configPath),
       getProjectDeletionPreview: ({ projectRoot, configPath }) =>
         getProjectDeletionPreview(projectRegistry, projectRoot, configPath),
-      deleteProject: ({ projectRoot, configPath, removeFiles }) =>
-        deleteRegisteredProject({
+      deleteProject: async ({ projectRoot, configPath, removeFiles }) => {
+        await deleteRegisteredProject({
           registry: projectRegistry,
           runtime,
           trustStore,
@@ -573,26 +597,17 @@ const dashboardRPC = BrowserView.defineRPC<DashboardRPC>({
           configPath,
           removeFiles,
           moveToTrash: (path) => Utils.moveToTrash(path),
-        }).then(withInstalledToolDiagnostics),
-      trustProject: () => runtime.trust().then(withInstalledToolDiagnostics),
-      revokeTrust: async () => {
-        const projectRoot = runtime.getSnapshot().projectRoot;
-        const snapshot = await runtime.revoke();
-        if (projectRoot) await dashboardAgentHarness.stopProject(projectRoot);
-        return withInstalledToolDiagnostics(snapshot);
+        });
       },
-      reloadProject: () => runtime.reload().then(withInstalledToolDiagnostics),
+      setTrust: ({ trusted }) => setTrust(trusted),
+      reloadProject: async () => { await runtime.reload(); },
       getDashboardConfigSource: ({ configPath }) => runtime.getDashboardConfigSource(configPath),
       validateDashboardDraft: ({ config, configPath }) => runtime.validateDashboardDraft(config, configPath),
       validateComponentProps: ({ reference, props }) => runtime.validateComponentProps(reference, props),
-      saveDashboardConfig: ({ config, expectedConfigRevision, configPath }) =>
-        runtime.saveDashboardConfig(config, expectedConfigRevision, configPath).then(withInstalledToolDiagnostics),
-      startProcess: ({ nodeId, itemEnvironment }) => runtime.startProcess(nodeId, itemEnvironment),
-      openProcessTerminal: ({ nodeId }) => runtime.openProcessTerminal(nodeId),
-      runProcessQuickAction: ({ nodeId }) => runtime.runProcessQuickAction(nodeId),
-      writeProcessTerminal: ({ nodeId, input }) => runtime.writeProcessTerminal(nodeId, input),
-      resizeProcessTerminal: ({ nodeId, cols, rows }) => runtime.resizeProcessTerminal(nodeId, cols, rows),
-      stopProcess: ({ nodeId }) => runtime.stopProcess(nodeId),
+      saveDashboardConfig: async ({ config, expectedConfigRevision, configPath }) => {
+        await runtime.saveDashboardConfig(config, expectedConfigRevision, configPath);
+      },
+      processCommand: ({ nodeId, command }) => runtime.processCommand(nodeId, command),
       readTextFile: (request) => runtime.readText(request),
       writeTextFile: (request) => runtime.writeText(request),
       httpRequest: (request) => runtime.http(request),
