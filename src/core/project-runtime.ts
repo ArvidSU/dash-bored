@@ -33,6 +33,7 @@ import {
 import { ProcessManager, type ProcessDefinition } from "./process-manager";
 import { TrustStore } from "./trust";
 import { validatePropsSchema } from "./yaml";
+import { isPackageWorkPath } from "./package-store";
 import { environmentSnapshot, readBundleEnvironment, resolveEnvironment, type PublishedEnvironment } from "./environment";
 
 const DEFAULT_WATCH_DEBOUNCE_MS = 120;
@@ -44,7 +45,7 @@ const DEFAULT_WATCH_DEBOUNCE_MS = 120;
  * dashboard, so the watcher skips them but keeps watching working-tree files.
  */
 function isGitInternalPath(filename: string): boolean {
-  return filename.split(/[\\/]/).some((segment) => segment === ".git" || segment.startsWith(".theme-"));
+  return filename.split(/[\\/]/).some((segment) => segment === ".git" || isPackageWorkPath(segment));
 }
 
 export interface ProjectRuntimeOptions {

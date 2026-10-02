@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { stringify } from "yaml";
 import {
@@ -16,6 +16,7 @@ import {
   serializeDashboardLock,
 } from "../../src/core";
 import { parseComponentArguments } from "../../src/cli/component";
+import { syncThemes } from "../../src/core/theme-install";
 import type { DashboardConfig } from "../../src/shared/contracts";
 import {
   createProject,
@@ -342,6 +343,23 @@ describe("external component submodule operations", () => {
     await expect(updateComponent(parent, "missing", {})).rejects.toThrow(/Unknown external component/);
     await expect(statusComponents(parent, "missing")).rejects.toThrow(/Unknown external component/);
     await expect(syncComponents(parent)).resolves.toEqual([]);
+  });
+
+  test("component and theme operations on one bundle share a guard and leave no stages", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const source = await makeSourceRepo(root, "widgets", ["filesystem:read"]);
+    const parent = await makeParentRepo(root, "parent");
+    const bundle = join(parent, ".dash-bored");
+    const guard = join(bundle, ".package-operation.lock");
+    await mkdir(guard);
+    await expect(addComponent(parent, source.url, { name: "widgets" })).rejects.toThrow(/Another package operation is active/);
+    await expect(syncThemes({ project: parent })).rejects.toThrow(/Another package operation is active/);
+    expect((await parseDashboardLock(join(bundle, "dash-bored-lock.yaml"))).value?.components).toEqual({});
+
+    await rm(guard, { recursive: true });
+    await addComponent(parent, source.url, { name: "widgets" });
+    expect((await readdir(bundle)).filter((entry) => entry.startsWith(".package-"))).toEqual([]);
   });
 
   test("discovers components nested below the submodule root", async () => {

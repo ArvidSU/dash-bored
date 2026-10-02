@@ -6,6 +6,7 @@ import { atomicJson, updateDirectory, getUpdateSettings } from "../updates/stora
 import { watch as watchThemes } from "node:fs";
 import { mkdir as mkdirThemes } from "node:fs/promises";
 import { loadApplicationThemeCatalog, personalThemesDirectory } from "../core/themes";
+import { isPackageWorkPath } from "../core/package-store";
 import Electrobun, {
   ApplicationMenu,
   BrowserView,
@@ -211,7 +212,7 @@ try {
   await mkdirThemes(personalThemesDirectory(), { recursive: true });
   let themeWatchTimer: ReturnType<typeof setTimeout> | undefined;
   const themeWatcher = watchThemes(personalThemesDirectory(), { recursive: true }, (_event, filename) => {
-    if (filename && String(filename).split(/[\\/]/).some((part) => part === '.git' || part.startsWith('.theme-'))) return;
+    if (filename && String(filename).split(/[\\/]/).some((part) => part === '.git' || isPackageWorkPath(part))) return;
     clearTimeout(themeWatchTimer);
     themeWatchTimer = setTimeout(() => {
       void loadApplicationThemes().then((catalog) => {

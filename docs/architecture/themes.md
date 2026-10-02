@@ -88,12 +88,17 @@ instance IDs. Personal git installs use managed clones and `pins.yaml`, with
 the same lock shape; the entry path is a logical package identifier while the
 physical clone is directly under the personal theme directory.
 
-Mutations serialize through a per-store operation lock. Adds validate a staged
-checkout before registering a package. Updates validate the target revision,
+Git mechanics come from the shared package store
+([component system](components.md#package-store)): personal packages use its
+`clone` strategy and project packages its `submodule` strategy. Mutations
+serialize through the store's operation guard, which a bundle shares with
+external-component commands. Adds validate a staged checkout (`theme.yaml`)
+before registering a package. Updates validate the target revision,
 protect dirty checkouts, and restore the prior checkout if validation or pin
 publication fails. Sync restores pinned revisions only; no dashboard load runs
-Git fetch/update. Interrupted operation lock directories require explicit
-removal after verifying no theme operation is running. Git-managed package
+Git fetch/update. An interrupted operation leaves a
+`.package-operation.lock` directory that requires explicit removal after
+verifying no package operation is running. Git-managed package
 removal protects local changes; authored local directories are not removed by
 package management.
 

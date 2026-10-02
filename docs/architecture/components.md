@@ -260,6 +260,38 @@ path and then reloads, so pin changes pass the normal permission-union trust
 check. Agents use the tool's equivalent `component add|update|remove|sync`
 commands.
 
+### Package store
+
+External components and theme packages share one package store,
+`src/core/package-store.ts`. A store is a directory holding a lock file; each
+package is a checkout at its pinned commit, placed by one of two strategies:
+`submodule` (a submodule of the repository around a bundle, pinned in
+`dash-bored-lock.yaml`) or `clone` (a plain clone in the personal themes
+directory, pinned in `pins.yaml`). The store owns:
+
+- one `git()` helper (local file transport allowed, bounded time and output)
+  and remote ref resolution;
+- lock I/O: reading a bundle lock or optional personal pins, and writing
+  them atomically (personal pins with owner-only permissions);
+- the operation guard: a `.package-operation.lock` directory in the store
+  root, so add, update, remove, and sync of components and themes in one
+  bundle run one at a time, each starting from the latest lock;
+- staged installs: an add clones the package into a `.package-stage-*`
+  directory, checks out the exact commit, and runs the kind's validation
+  before the submodule is added or the clone moved into place; a failure
+  after placement (including the lock write) removes the checkout again;
+- submodule removal, including the object store below the git common
+  directory that would otherwise block re-adding the same path.
+
+File watchers ignore `.package-*` entries. Package kinds keep their own
+policy: components resolve refs only to advertised commits, tolerate a failed
+opportunistic fetch on update, force-remove their submodule, and report
+`COMPONENT_*` error codes; themes validate `theme.yaml` at every checkout,
+refuse to touch dirty checkouts, and roll an update or sync back to the prior
+commit. Store-level failures use `PACKAGE_GIT_REQUIRED`,
+`PACKAGE_LOCK_INVALID`, `PACKAGE_LOCK_WRITE_FAILED`, and
+`PACKAGE_OPERATION_ACTIVE`.
+
 ## Local React contract and compilation
 
 Local TSX imports its supported API from a virtual module:

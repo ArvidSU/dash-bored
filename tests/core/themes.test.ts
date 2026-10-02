@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { stringify } from 'yaml';
 import { parseTheme, loadApplicationThemeCatalog, loadThemeCatalog, readTheme } from '../../src/core/themes';
 import { BUILTIN_THEMES, DARK_TOKENS, isAppThemeReference, LIGHT_TOKENS, projectThemeReference, resolveTheme, themeTokens } from '../../src/shared/themes';
-import { addTheme, updateTheme, removeTheme, syncThemes, statusThemes, themeGit } from '../../src/core/theme-install';
+import { addTheme, updateTheme, removeTheme, syncThemes, statusThemes } from '../../src/core/theme-install';
+import { git } from '../../src/core/package-store';
 import { parseDashboardLock, serializeDashboardLock } from '../../src/core/yaml';
 import { temporaryDirectory, removeTemporaryDirectory } from './helpers';
 import { themeArtifacts } from '../../scripts/generate-themes';
@@ -114,13 +115,13 @@ test('generated public schema, CSS defaults and token reference are current', as
   for (const [path, expected] of Object.entries(themeArtifacts)) expect(await readFile(path, 'utf8')).toBe(expected);
 });
 async function repo(path: string) {
-  await themeGit(path, ['init']);
-  await themeGit(path, ['config', 'user.email', 'test@example.invalid']);
-  await themeGit(path, ['config', 'user.name', 'Theme Test']);
+  await git(path, ['init']);
+  await git(path, ['config', 'user.email', 'test@example.invalid']);
+  await git(path, ['config', 'user.name', 'Theme Test']);
 }
 async function commit(path: string) {
-  await themeGit(path, ['add', '.']); await themeGit(path, ['commit', '-m', 'fixture']);
-  return themeGit(path, ['rev-parse', 'HEAD']);
+  await git(path, ['add', '.']); await git(path, ['commit', '-m', 'fixture']);
+  return git(path, ['rev-parse', 'HEAD']);
 }
 for (const global of [true, false]) test(`git theme lifecycle, rollback and dirty protection (${global ? 'global' : 'project'})`, async () => {
   const source = await temp(); await repo(source); await writeFile(join(source, 'theme.yaml'), stringify(manifest)); const first = await commit(source);
@@ -142,7 +143,7 @@ for (const global of [true, false]) test(`git theme lifecycle, rollback and dirt
   await writeFile(join(source, 'theme.yaml'), stringify({ ...manifest, name: 'Ocean Two' })); const second = await commit(source);
   expect((await statusThemes(target))[0]?.commit).toBe(first);
   expect((await updateTheme(target, 'ocean')).commit).toBe(second);
-  await themeGit(checkout, ['checkout', '--detach', first]);
+  await git(checkout, ['checkout', '--detach', first]);
   await syncThemes(target);
   expect((await statusThemes(target))[0]?.inSync).toBe(true);
   await writeFile(join(source, 'theme.yaml'), 'invalid: yes'); await commit(source);
@@ -152,7 +153,7 @@ for (const global of [true, false]) test(`git theme lifecycle, rollback and dirt
   expect((await statusThemes(target)).map((i) => i.name)).toEqual(['ocean']);
   if (!global) { expect((await parseDashboardLock(join(root, '.dash-bored', 'dash-bored-lock.yaml'))).value?.components.keep).toEqual(component); await commit(root); }
   if (global) await rm(checkout, { recursive: true });
-  else await themeGit(root, ['submodule', 'deinit', '--', '.dash-bored/themes/external/ocean']);
+  else await git(root, ['submodule', 'deinit', '--', '.dash-bored/themes/external/ocean']);
   const missingCatalog = await loadThemeCatalog(join(root, '.dash-bored'), join(root, 'personal'));
   const missing = missingCatalog.find((item) => item.reference === (global ? 'global:ocean' : './themes/external/ocean'));
   expect(missing?.git).toEqual({ name: 'ocean', url: source, commit: second });

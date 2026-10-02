@@ -1,18 +1,29 @@
-import { execFile } from "node:child_process";
-import { rm, stat } from "node:fs/promises";
-import { isAbsolute, join, relative, sep } from "node:path";
-import { promisify } from "node:util";
+import { stat } from "node:fs/promises";
+import { join } from "node:path";
 import type { DashboardLock, ExternalComponentLockEntry } from "../shared/contracts";
-import { CoreError, errorMessage } from "./diagnostics";
+import { CoreError } from "./diagnostics";
+import {
+  checkedOutCommit,
+  git,
+  gitErrorDetail,
+  installPackage,
+  readPackageStore,
+  readRemoteHead,
+  removeSubmodule,
+  repositoryRoot,
+  resolveRemoteCommit,
+  submoduleLocation,
+  withPackageStore,
+  writePackageLock,
+} from "./package-store";
 import { resolveProjectLocation, type ProjectLocation } from "./paths";
 import { EXTERNAL_NAME_PATTERN } from "./tree-catalog";
-import { parseDashboardLock, serializeDashboardLock } from "./yaml";
-import { writeFileAtomically } from "./fs-atomic";
 
-const execFileAsync = promisify(execFile);
-const FULL_SHA_PATTERN = /^[0-9a-fA-F]{40}$/;
-const GIT_TIMEOUT_MS = 120_000;
-const LS_REMOTE_TIMEOUT_MS = 30_000;
+/**
+ * External components: submodule packages below `components/external/`,
+ * pinned in the bundle lock's `components` section. Git, lock I/O, the
+ * operation guard, and staged installs come from the package store.
+ */
 
 export interface ExternalComponentAddOptions {
   name?: string;
@@ -54,58 +65,16 @@ export interface ExternalComponentRemoveResult {
   name: string;
 }
 
-interface GitRunOptions {
-  timeoutMs?: number;
-}
-
-function gitErrorDetail(error: unknown): string {
-  const withOutput = error as { stdout?: unknown; stderr?: unknown };
-  const stderr = typeof withOutput.stderr === "string" ? withOutput.stderr.trim() : "";
-  if (stderr) return stderr.slice(0, 2_000);
-  return errorMessage(error).slice(0, 2_000);
-}
-
-async function runGit(args: string[], cwd: string, options: GitRunOptions = {}): Promise<string> {
+/** git through the package store, reported with the component error code. */
+async function componentGit(cwd: string, args: string[], timeoutMs?: number): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["-c", "protocol.file.allow=always", ...args],
-      { cwd, timeout: options.timeoutMs ?? GIT_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
-    );
-    return stdout;
+    return await git(cwd, args, timeoutMs);
   } catch (error) {
     throw new CoreError(
       "COMPONENT_GIT_FAILED",
       `git ${args.join(" ")} failed: ${gitErrorDetail(error)}`,
     );
   }
-}
-
-async function repoRootFor(configDirectory: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["-c", "protocol.file.allow=always", "rev-parse", "--show-toplevel"],
-      { cwd: configDirectory, timeout: 15_000 },
-    );
-    return stdout.trim();
-  } catch {
-    throw new CoreError(
-      "COMPONENT_GIT_REQUIRED",
-      `External components require git: ${configDirectory} is not inside a git checkout. Initialize one (git init, then commit the bundle) before running component commands.`,
-    );
-  }
-}
-
-function submoduleGitPath(repoRoot: string, targetDirectory: string): string {
-  const value = relative(repoRoot, targetDirectory).split(sep).join("/");
-  if (value === "" || value.startsWith("../") || value === ".." || isAbsolute(value)) {
-    throw new CoreError(
-      "COMPONENT_GIT_REQUIRED",
-      `External component directory escapes its git checkout: ${targetDirectory}.`,
-    );
-  }
-  return value;
 }
 
 function targetDirectoryFor(location: ProjectLocation, name: string): string {
@@ -138,38 +107,10 @@ function deriveNameFromUrl(url: string): string {
   return base;
 }
 
-async function readLock(location: ProjectLocation): Promise<DashboardLock> {
-  const parsed = await parseDashboardLock(location.lockPath);
-  if (parsed.value === null) {
-    const detail = parsed.diagnostics[0]?.message ?? "unknown error";
-    throw new CoreError(
-      "COMPONENT_LOCK_INVALID",
-      `Cannot manage external components: ${location.lockPath} is invalid (${detail}). Fix the lock file and retry.`,
-    );
-  }
-  return parsed.value;
-}
-
-async function repoRootAndLock(location: ProjectLocation): Promise<[string, DashboardLock]> {
-  const [repoResult, lockResult] = await Promise.allSettled([
-    repoRootFor(location.configDirectory),
-    readLock(location),
-  ]);
-  // Keep the old sequential error precedence: repository validation ran first.
-  if (repoResult.status === "rejected") throw repoResult.reason;
-  if (lockResult.status === "rejected") throw lockResult.reason;
-  return [repoResult.value, lockResult.value];
-}
-
-async function writeLock(location: ProjectLocation, lock: DashboardLock): Promise<void> {
-  try {
-    await writeFileAtomically(location.lockPath, serializeDashboardLock(lock));
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_LOCK_WRITE_FAILED",
-      `Could not write ${location.lockPath}: ${errorMessage(error)}`,
-    );
-  }
+/** Resolve the bundle and require its git checkout before the lock is read. */
+async function componentBundle(projectInput: string): Promise<{ location: ProjectLocation; repoRoot: string }> {
+  const location = await resolveProjectLocation(projectInput);
+  return { location, repoRoot: await repositoryRoot(location.configDirectory) };
 }
 
 function pinnedNames(lock: DashboardLock): string {
@@ -188,89 +129,6 @@ function lockEntryOrThrow(lock: DashboardLock, name: string): ExternalComponentL
   return entry;
 }
 
-interface RemoteRef {
-  sha: string;
-  ref: string;
-}
-
-function parseLsRemote(output: string): RemoteRef[] {
-  return output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      const [sha = "", ref = ""] = line.split(/\s+/);
-      return { sha: sha.toLowerCase(), ref };
-    })
-    .filter((entry) => FULL_SHA_PATTERN.test(entry.sha));
-}
-
-async function listRemoteRefs(url: string): Promise<RemoteRef[]> {
-  let output: string;
-  try {
-    // ls-remote needs no repository; run it from the process directory.
-    output = await runGit(["ls-remote", url], process.cwd(), { timeoutMs: LS_REMOTE_TIMEOUT_MS });
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_REF_UNRESOLVED",
-      `Could not reach ${url}: ${gitErrorDetail(error)} Check the URL and network access.`,
-    );
-  }
-  return parseLsRemote(output);
-}
-
-/** Resolve a branch, tag, full SHA, or empty ref (remote HEAD) to an exact commit SHA. */
-export async function resolveRemoteCommit(url: string, ref?: string): Promise<string> {
-  if (ref === undefined) {
-    const refs = await listRemoteRefs(url);
-    const head = refs.find((entry) => entry.ref === "HEAD");
-    if (head === undefined) {
-      throw new CoreError(
-        "COMPONENT_REF_UNRESOLVED",
-        `Could not resolve HEAD in ${url}: the remote advertises no HEAD. Pass --ref explicitly.`,
-      );
-    }
-    return head.sha;
-  }
-  if (FULL_SHA_PATTERN.test(ref)) {
-    const wanted = ref.toLowerCase();
-    const refs = await listRemoteRefs(url);
-    if (!refs.some((entry) => entry.sha === wanted)) {
-      throw new CoreError(
-        "COMPONENT_REF_UNRESOLVED",
-        `Commit ${ref} was not found in ${url}. Push it or pass a branch or tag name.`,
-      );
-    }
-    return wanted;
-  }
-  let output: string;
-  try {
-    output = await runGit(
-      ["ls-remote", url, ref, `refs/heads/${ref}`, `refs/tags/${ref}`],
-      process.cwd(),
-      { timeoutMs: LS_REMOTE_TIMEOUT_MS },
-    );
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_REF_UNRESOLVED",
-      `Could not resolve ${ref} in ${url}: ${gitErrorDetail(error)} Check the ref and network access.`,
-    );
-  }
-  const refs = parseLsRemote(output);
-  const peeledTag = refs.find((entry) => entry.ref === `refs/tags/${ref}^{}`);
-  const branch = refs.find((entry) => entry.ref === `refs/heads/${ref}`);
-  const tag = refs.find((entry) => entry.ref === `refs/tags/${ref}`);
-  const peeled = refs.find((entry) => entry.ref.endsWith("^{}"));
-  const resolved = peeledTag ?? branch ?? tag ?? peeled ?? refs[0];
-  if (resolved === undefined) {
-    throw new CoreError(
-      "COMPONENT_REF_UNRESOLVED",
-      `Could not resolve ${ref} in ${url}: no such branch, tag, or commit.`,
-    );
-  }
-  return resolved.sha;
-}
-
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);
@@ -281,33 +139,8 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function readCheckedOutCommit(targetDirectory: string): Promise<string | null> {
-  // The `.git` entry (a gitfile for submodules, a directory for full clones)
-  // proves the probe stays inside the component checkout: without it git
-  // discovery would walk up and resolve the parent repository instead.
-  try {
-    await stat(join(targetDirectory, ".git"));
-  } catch {
-    return null;
-  }
-  try {
-    const output = await runGit(["rev-parse", "HEAD"], targetDirectory, { timeoutMs: 15_000 });
-    const sha = output.trim().toLowerCase();
-    return FULL_SHA_PATTERN.test(sha) ? sha : null;
-  } catch {
-    return null;
-  }
-}
-
-async function readRemoteHead(url: string, cwd: string): Promise<string | null> {
-  try {
-    const output = await runGit(["ls-remote", url, "HEAD"], cwd, { timeoutMs: LS_REMOTE_TIMEOUT_MS });
-    const refs = parseLsRemote(output);
-    return refs[0]?.sha ?? null;
-  } catch {
-    // A status report must survive an unreachable remote; callers show "unknown".
-    return null;
-  }
+async function isDirty(checkout: string): Promise<boolean> {
+  return (await componentGit(checkout, ["status", "--porcelain"], 15_000)).length > 0;
 }
 
 export async function addComponent(
@@ -320,50 +153,49 @@ export async function addComponent(
   }
   const name = options.name ?? deriveNameFromUrl(url);
   validateComponentName(name);
-  const location = await resolveProjectLocation(projectInput);
-  const [repoRoot, lock] = await repoRootAndLock(location);
-  if (lock.components[name] !== undefined) {
-    throw new CoreError(
-      "COMPONENT_ALREADY_PINNED",
-      `External component ${name} is already pinned. ${pinnedNames(lock)}`,
-    );
-  }
-  const targetDirectory = targetDirectoryFor(location, name);
-  if (await pathExists(targetDirectory)) {
-    throw new CoreError(
-      "COMPONENT_TARGET_EXISTS",
-      `${targetDirectory} already exists. Remove it or pick another name with --name.`,
-    );
-  }
-  const commit = await resolveRemoteCommit(url, options.ref);
-  const gitPath = submoduleGitPath(repoRoot, targetDirectory);
-  try {
-    await runGit(["submodule", "add", url, gitPath], repoRoot);
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_ADD_FAILED",
-      `Could not add ${name} from ${url}: ${gitErrorDetail(error)}`,
-    );
-  }
-  try {
-    await runGit(["checkout", commit], targetDirectory);
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_ADD_FAILED",
-      `Added the ${name} submodule but could not check out ${commit}: ${gitErrorDetail(error)} Remove it from the component library to start over.`,
-    );
-  }
-  const next: DashboardLock = {
-    ...lock,
-    components: { ...lock.components, [name]: { url, commit, path: lockPathFor(name) } },
-  };
-  await writeLock(location, next);
-  return { name, commit };
+  const { location } = await componentBundle(projectInput);
+  return withPackageStore(location.configDirectory, "submodule", async (store) => {
+    if (store.lock.components[name] !== undefined) {
+      throw new CoreError(
+        "COMPONENT_ALREADY_PINNED",
+        `External component ${name} is already pinned. ${pinnedNames(store.lock)}`,
+      );
+    }
+    const targetDirectory = targetDirectoryFor(location, name);
+    if (await pathExists(targetDirectory)) {
+      throw new CoreError(
+        "COMPONENT_TARGET_EXISTS",
+        `${targetDirectory} already exists. Remove it or pick another name with --name.`,
+      );
+    }
+    const commit = await resolveRemoteCommit(url, options.ref);
+    const next: DashboardLock = {
+      ...store.lock,
+      components: { ...store.lock.components, [name]: { url, commit, path: lockPathFor(name) } },
+    };
+    try {
+      // The pinned commit is verified in a stage before the submodule is added;
+      // a later failure removes the submodule again.
+      await installPackage(store, {
+        url,
+        commit,
+        checkout: targetDirectory,
+        commitLock: () => writePackageLock(store, next),
+      });
+    } catch (error) {
+      if (error instanceof CoreError) throw error;
+      throw new CoreError(
+        "COMPONENT_ADD_FAILED",
+        `Could not add ${name} from ${url}: ${gitErrorDetail(error)}`,
+      );
+    }
+    return { name, commit };
+  });
 }
 
 export async function listComponents(projectInput: string): Promise<ExternalComponentSummary[]> {
   const location = await resolveProjectLocation(projectInput);
-  const lock = await readLock(location);
+  const { lock } = await readPackageStore(location.configDirectory, "submodule");
   return Object.entries(lock.components)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, entry]) => ({ name, url: entry.url, commit: entry.commit, path: entry.path }));
@@ -373,18 +205,17 @@ export async function statusComponents(
   projectInput: string,
   name?: string,
 ): Promise<ExternalComponentStatus[]> {
-  const location = await resolveProjectLocation(projectInput);
-  const [repoRoot, lock] = await repoRootAndLock(location);
+  const { location, repoRoot } = await componentBundle(projectInput);
+  const { lock } = await readPackageStore(location.configDirectory, "submodule");
   const entries = name === undefined
     ? Object.entries(lock.components).sort(([left], [right]) => left.localeCompare(right))
     : [[name, lockEntryOrThrow(lock, name)] as const];
   const readStatus = async ([entryName, entry]: readonly [string, ExternalComponentLockEntry]): Promise<ExternalComponentStatus> => {
     const targetDirectory = targetDirectoryFor(location, entryName);
-    const checkedOutCommit = await readCheckedOutCommit(targetDirectory);
-    const initialized = checkedOutCommit !== null;
-    const dirty = initialized
-      ? (await runGit(["status", "--porcelain"], targetDirectory, { timeoutMs: 15_000 })).trim().length > 0
-      : false;
+    const checkedOut = await checkedOutCommit(targetDirectory);
+    const initialized = checkedOut !== null;
+    const dirty = initialized ? await isDirty(targetDirectory) : false;
+    // A status report must survive an unreachable remote; callers show "unknown".
     const remoteHead = await readRemoteHead(entry.url, repoRoot);
     return {
       name: entryName,
@@ -392,9 +223,9 @@ export async function statusComponents(
       commit: entry.commit,
       path: entry.path,
       initialized,
-      checkedOutCommit,
+      checkedOutCommit: checkedOut,
       dirty,
-      inSync: initialized && checkedOutCommit === entry.commit.toLowerCase(),
+      inSync: initialized && checkedOut === entry.commit.toLowerCase(),
       updateAvailable: remoteHead === null ? null : remoteHead !== entry.commit.toLowerCase(),
     };
   };
@@ -416,62 +247,61 @@ export async function updateComponent(
   options: ExternalComponentUpdateOptions = {},
 ): Promise<ExternalComponentUpdateResult> {
   validateComponentName(name);
-  const location = await resolveProjectLocation(projectInput);
-  const [, lock] = await repoRootAndLock(location);
-  const entry = lockEntryOrThrow(lock, name);
-  const targetDirectory = targetDirectoryFor(location, name);
-  const checkedOutCommit = await readCheckedOutCommit(targetDirectory);
-  if (checkedOutCommit === null) {
-    throw new CoreError(
-      "COMPONENT_NOT_INITIALIZED",
-      `External component ${name} is not initialized. Sync external components first.`,
-    );
-  }
-  const porcelain = await runGit(["status", "--porcelain"], targetDirectory, { timeoutMs: 15_000 });
-  if (porcelain.trim().length > 0) {
-    throw new CoreError(
-      "COMPONENT_DIRTY",
-      `External component ${name} has local changes. Commit, stash, or discard them inside ${targetDirectory} before updating.`,
-    );
-  }
-  let commit: string;
-  try {
-    commit = await resolveRemoteCommit(entry.url, options.to);
-  } catch (error) {
-    if (error instanceof CoreError && error.code === "COMPONENT_REF_UNRESOLVED" && options.to === undefined) {
+  const { location } = await componentBundle(projectInput);
+  return withPackageStore(location.configDirectory, "submodule", async (store) => {
+    const entry = lockEntryOrThrow(store.lock, name);
+    const targetDirectory = targetDirectoryFor(location, name);
+    const checkedOut = await checkedOutCommit(targetDirectory);
+    if (checkedOut === null) {
       throw new CoreError(
-        "COMPONENT_REMOTE_UNREACHABLE",
-        `Could not determine the latest commit for ${name} in ${entry.url}: ${gitErrorDetail(error)} Pass --to explicitly or check network access.`,
+        "COMPONENT_NOT_INITIALIZED",
+        `External component ${name} is not initialized. Sync external components first.`,
       );
     }
-    throw error;
-  }
-  if (commit === entry.commit.toLowerCase() && checkedOutCommit === entry.commit.toLowerCase()) {
-    return { name, commit: entry.commit, changed: false };
-  }
-  let fetchDetail: string | null = null;
-  try {
-    await runGit(["fetch", "origin"], targetDirectory);
-  } catch (error) {
-    // A SHA checkout is content-addressed: stale objects fail below with a clear
-    // error, so a failed opportunistic fetch must not block an update that the
-    // local clone can already satisfy.
-    fetchDetail = gitErrorDetail(error);
-  }
-  try {
-    await runGit(["checkout", commit], targetDirectory);
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_UPDATE_FAILED",
-      `Could not check out ${commit} for ${name}: ${gitErrorDetail(error)}${fetchDetail ? ` (fetch also failed: ${fetchDetail})` : ""} Sync external components to restore the pinned checkout.`,
-    );
-  }
-  const next: DashboardLock = {
-    ...lock,
-    components: { ...lock.components, [name]: { ...entry, commit } },
-  };
-  await writeLock(location, next);
-  return { name, commit, changed: commit !== entry.commit.toLowerCase() };
+    if (await isDirty(targetDirectory)) {
+      throw new CoreError(
+        "COMPONENT_DIRTY",
+        `External component ${name} has local changes. Commit, stash, or discard them inside ${targetDirectory} before updating.`,
+      );
+    }
+    let commit: string;
+    try {
+      commit = await resolveRemoteCommit(entry.url, options.to);
+    } catch (error) {
+      if (error instanceof CoreError && error.code === "COMPONENT_REF_UNRESOLVED" && options.to === undefined) {
+        throw new CoreError(
+          "COMPONENT_REMOTE_UNREACHABLE",
+          `Could not determine the latest commit for ${name} in ${entry.url}: ${gitErrorDetail(error)} Pass --to explicitly or check network access.`,
+        );
+      }
+      throw error;
+    }
+    if (commit === entry.commit.toLowerCase() && checkedOut === entry.commit.toLowerCase()) {
+      return { name, commit: entry.commit, changed: false };
+    }
+    let fetchDetail: string | null = null;
+    try {
+      await componentGit(targetDirectory, ["fetch", "origin"]);
+    } catch (error) {
+      // A SHA checkout is content-addressed: stale objects fail below with a clear
+      // error, so a failed opportunistic fetch must not block an update that the
+      // local clone can already satisfy.
+      fetchDetail = gitErrorDetail(error);
+    }
+    try {
+      await componentGit(targetDirectory, ["checkout", commit]);
+    } catch (error) {
+      throw new CoreError(
+        "COMPONENT_UPDATE_FAILED",
+        `Could not check out ${commit} for ${name}: ${gitErrorDetail(error)}${fetchDetail ? ` (fetch also failed: ${fetchDetail})` : ""} Sync external components to restore the pinned checkout.`,
+      );
+    }
+    await writePackageLock(store, {
+      ...store.lock,
+      components: { ...store.lock.components, [name]: { ...entry, commit } },
+    });
+    return { name, commit, changed: commit !== entry.commit.toLowerCase() };
+  });
 }
 
 export async function removeComponent(
@@ -479,69 +309,50 @@ export async function removeComponent(
   name: string,
 ): Promise<ExternalComponentRemoveResult> {
   validateComponentName(name);
-  const location = await resolveProjectLocation(projectInput);
-  const [repoRoot, lock] = await repoRootAndLock(location);
-  lockEntryOrThrow(lock, name);
-  const targetDirectory = targetDirectoryFor(location, name);
-  const gitPath = submoduleGitPath(repoRoot, targetDirectory);
-  // Best effort: a hand-edited .gitmodules may already lack the entry, in which
-  // case `git rm` below still performs the removal.
-  try {
-    await runGit(["submodule", "deinit", "-f", "--", gitPath], repoRoot);
-  } catch {
-    // Fall through to `git rm`, which reports the actionable error if the path
-    // is genuinely not a registered submodule.
-  }
-  try {
-    await runGit(["rm", "-f", "--", gitPath], repoRoot);
-  } catch (error) {
-    throw new CoreError(
-      "COMPONENT_REMOVE_FAILED",
-      `Could not detach ${name}: ${gitErrorDetail(error)}`,
-    );
-  }
-  // `git rm` keeps the submodule's object store below .git/modules when the
-  // submodule was never committed; that residue blocks re-adding the same
-  // name, so remove the entry that belongs to exactly this submodule.
-  try {
-    const gitDir = join(repoRoot, ".git");
-    if ((await stat(gitDir)).isDirectory()) {
-      await rm(join(gitDir, "modules", ...gitPath.split("/")), { recursive: true, force: true });
+  const { location } = await componentBundle(projectInput);
+  return withPackageStore(location.configDirectory, "submodule", async (store) => {
+    lockEntryOrThrow(store.lock, name);
+    try {
+      await removeSubmodule(store, targetDirectoryFor(location, name), { force: true });
+    } catch (error) {
+      if (error instanceof CoreError) throw error;
+      throw new CoreError(
+        "COMPONENT_REMOVE_FAILED",
+        `Could not detach ${name}: ${gitErrorDetail(error)}`,
+      );
     }
-  } catch {
-    // The lock entry below is the source of truth; a leftover object store
-    // only costs disk space and never affects resolution.
-  }
-  const { [name]: _removed, ...remaining } = lock.components;
-  await writeLock(location, { ...lock, components: remaining });
-  return { name };
+    const { [name]: _removed, ...remaining } = store.lock.components;
+    await writePackageLock(store, { ...store.lock, components: remaining });
+    return { name };
+  });
 }
 
 export async function syncComponents(projectInput: string): Promise<ExternalComponentSummary[]> {
-  const location = await resolveProjectLocation(projectInput);
-  const [repoRoot, lock] = await repoRootAndLock(location);
-  const entries = Object.entries(lock.components).sort(([left], [right]) => left.localeCompare(right));
-  const synced: ExternalComponentSummary[] = [];
-  for (const [name, entry] of entries) {
-    const targetDirectory = targetDirectoryFor(location, name);
-    const gitPath = submoduleGitPath(repoRoot, targetDirectory);
-    try {
-      await runGit(["submodule", "update", "--init", "--checkout", "--", gitPath], repoRoot);
-    } catch (error) {
-      throw new CoreError(
-        "COMPONENT_SYNC_FAILED",
-        `Could not initialize ${name} from ${entry.url}: ${gitErrorDetail(error)} Remove it and add ${entry.url} again as ${name}.`,
-      );
+  const { location, repoRoot } = await componentBundle(projectInput);
+  return withPackageStore(location.configDirectory, "submodule", async (store) => {
+    const entries = Object.entries(store.lock.components).sort(([left], [right]) => left.localeCompare(right));
+    const synced: ExternalComponentSummary[] = [];
+    for (const [name, entry] of entries) {
+      const targetDirectory = targetDirectoryFor(location, name);
+      const { gitPath } = await submoduleLocation(store, targetDirectory);
+      try {
+        await componentGit(repoRoot, ["submodule", "update", "--init", "--checkout", "--", gitPath]);
+      } catch (error) {
+        throw new CoreError(
+          "COMPONENT_SYNC_FAILED",
+          `Could not initialize ${name} from ${entry.url}: ${gitErrorDetail(error)} Remove it and add ${entry.url} again as ${name}.`,
+        );
+      }
+      try {
+        await componentGit(targetDirectory, ["checkout", entry.commit]);
+      } catch (error) {
+        throw new CoreError(
+          "COMPONENT_SYNC_FAILED",
+          `Initialized ${name} but could not check out the pinned ${entry.commit}: ${gitErrorDetail(error)} Discard local changes inside ${targetDirectory} and retry.`,
+        );
+      }
+      synced.push({ name, url: entry.url, commit: entry.commit, path: entry.path });
     }
-    try {
-      await runGit(["checkout", entry.commit], targetDirectory);
-    } catch (error) {
-      throw new CoreError(
-        "COMPONENT_SYNC_FAILED",
-        `Initialized ${name} but could not check out the pinned ${entry.commit}: ${gitErrorDetail(error)} Discard local changes inside ${targetDirectory} and retry.`,
-      );
-    }
-    synced.push({ name, url: entry.url, commit: entry.commit, path: entry.path });
-  }
-  return synced;
+    return synced;
+  });
 }
