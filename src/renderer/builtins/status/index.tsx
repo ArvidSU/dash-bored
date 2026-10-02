@@ -1,23 +1,13 @@
-import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import "./status.css";
 import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
 import type { DashboardSource } from "../../lib/source";
-import { useDashboardSource } from "../../lib/use-dashboard-source";
+import { useSourceComponent } from "../../lib/use-dashboard-source";
 import { StateGlyph, stateTone } from "../../lib/state-visual";
 import { parseStatusValue, type StatusSegment } from "../../lib/view-shapes";
 import { SegmentMeter, Sparkline } from "../../lib/glance-visual";
 import { useObservationChange } from "../../lib/observation-changes";
-
-function sourceUnavailable(source: DashboardSource | null, host: ComponentRendererProps["host"]): string | undefined {
-  if (!source) return undefined;
-  if (source.shell && !host.shell) return "process:execute";
-  if (source.file && !host.filesystem) return "filesystem:read";
-  if (source.http && !host.http) return "network:http";
-  if (source.process && !host.processes) return "process:observe";
-  return undefined;
-}
 
 /** A short, escaped excerpt so invisible bytes such as ANSI color codes are visible. */
 function receivedPreview(value: unknown): string {
@@ -29,17 +19,10 @@ export default function Status({ props, host }: ComponentRendererProps): ReactNo
   const label = stringProp(props, ["label", "name"], "Status");
   const source = props.source && typeof props.source === "object" && !Array.isArray(props.source)
     ? props.source as DashboardSource : null;
-  const [refresh, setRefresh] = useState(0);
-  const unavailable = sourceUnavailable(source, host);
-  const sourceState = useDashboardSource(unavailable ? null : source, host, refresh);
-
-  useEffect(() => host.actions.register({
-    id: "refresh",
+  const { state: sourceState, unavailable } = useSourceComponent(source, host, {
     label: "Refresh status",
-    enabled: source !== null && unavailable === undefined,
-    disabledReason: !source ? "This status uses a hand-written state." : unavailable ? `Trust this project to grant ${unavailable}.` : undefined,
-    run: () => setRefresh((value) => value + 1),
-  }), [host.actions, source !== null, unavailable]);
+    withoutSource: "This status uses a hand-written state.",
+  });
 
   let value = stringProp(props, ["state", "status", "value"], "unknown");
   let detail = stringProp(props, ["detail", "description"]);

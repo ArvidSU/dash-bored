@@ -1,10 +1,10 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext } from "react";
 import type { ReactNode } from "react";
 import "./chart.css";
 import type { ComponentRendererProps } from "../types";
 import { stringProp } from "../shared";
 import type { DashboardSource } from "../../lib/source";
-import { useDashboardSource } from "../../lib/use-dashboard-source";
+import { useSourceComponent } from "../../lib/use-dashboard-source";
 import { parseSourceChart } from "../../lib/view-shapes";
 import { ActionGlyph } from "../../lib/state-visual";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
@@ -268,21 +268,11 @@ export function ChartPanel({
 export default function Chart({ props, host }: ComponentRendererProps): ReactNode {
   const source = props.source && typeof props.source === "object" && !Array.isArray(props.source)
     ? props.source as DashboardSource : null;
-  const [refresh, setRefresh] = useState(0);
   const panelVisible = useContext(ComponentVisibilityContext);
-  const unavailable = source?.shell && !host.shell ? "process:execute"
-    : source?.file && !host.filesystem ? "filesystem:read"
-      : source?.http && !host.http ? "network:http"
-        : source?.process && !host.processes ? "process:observe" : undefined;
-  const sourceState = useDashboardSource(unavailable ? null : source, host, refresh);
-
-  useEffect(() => host.actions.register({
-    id: "refresh",
+  const { state: sourceState, unavailable, refresh } = useSourceComponent(source, host, {
     label: "Refresh chart",
-    enabled: source !== null && unavailable === undefined,
-    disabledReason: !source ? "This chart uses static YAML data." : unavailable ? `Trust this project to grant ${unavailable}.` : undefined,
-    run: () => setRefresh((value) => value + 1),
-  }), [host.actions, source !== null, unavailable]);
+    withoutSource: "This chart uses static YAML data.",
+  });
 
   const sourceValue = source && typeof props.dataPath === "string"
     ? readChartDataPath(sourceState.value, props.dataPath)
@@ -306,7 +296,7 @@ export default function Chart({ props, host }: ComponentRendererProps): ReactNod
       data={data}
       error={error}
       loading={source !== null && sourceState.loading}
-      onRefresh={source && !unavailable ? () => setRefresh((value) => value + 1) : undefined}
+      onRefresh={source && !unavailable ? refresh : undefined}
       status={status}
       title={chartTitle(props, source ? "Chart source" : "Chart")}
       type={chartType(props)}

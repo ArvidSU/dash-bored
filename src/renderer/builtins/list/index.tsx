@@ -8,7 +8,7 @@ import { CapabilityGate, stringProp } from "../shared";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
 import { listTags, parseDashboardList, parseListItemActions, resolveListItemAction, sortListItems, filterListItems } from "../../lib/list-data";
 import type { DashboardSource } from "../../lib/source";
-import { useDashboardSource } from "../../lib/use-dashboard-source";
+import { useSourceComponent } from "../../lib/use-dashboard-source";
 import { TodoList } from "../todo-list";
 import { processRun, processRunFailed, processRunOutcome } from "../../../shared/process-state";
 
@@ -37,28 +37,12 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   const title = stringProp(props, ["title"], "List");
   const filterByTags = props.filterByTags !== false;
   const sortMode = props.sort === "source-order" ? "source-order" : "open-first";
-  const [refresh, setRefresh] = useState(0);
   const [filterTag, setFilterTag] = useState("");
-  const permission = source?.shell ? "process:execute"
-    : source?.http ? "network:http"
-      : source?.process ? "process:observe"
-        : source?.file ? "filesystem:read" : undefined;
-  const canRead = permission === undefined
-    || permission === "process:execute" && Boolean(host.shell)
-    || permission === "network:http" && Boolean(host.http)
-    || permission === "process:observe" && Boolean(host.processes)
-    || permission === "filesystem:read" && Boolean(host.filesystem);
-
-  useEffect(() => host.actions.register({
-    id: "refresh",
+  const { state, unavailable, refresh } = useSourceComponent(source ?? null, host, {
     label: `Refresh ${title}`,
-    enabled: Boolean(source) && canRead,
-    disabledReason: !source ? "Configure a source before refreshing."
-      : canRead ? undefined : `Trust this project and grant ${permission} to read this source.`,
-    run: () => setRefresh((current) => current + 1),
-  }), [canRead, host.actions, permission, source, title]);
-
-  const state = useDashboardSource(source && canRead ? source : null, host, refresh);
+    withoutSource: "Configure a source before refreshing.",
+    unavailableReason: (missing) => `Trust this project and grant ${missing} to read this source.`,
+  });
 
   const parsed = useMemo(
     () => state.value === undefined ? { items: [], diagnostics: [] } : parseDashboardList(state.value),
@@ -90,7 +74,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   );
 
   if (!source) return <p className="component-state component-state--error" role="alert">List needs a source.</p>;
-  if (!canRead) return <CapabilityGate title={title}>Trust this project and grant {permission} to read this source.</CapabilityGate>;
+  if (unavailable) return <CapabilityGate title={title}>Trust this project and grant {unavailable} to read this source.</CapabilityGate>;
 
   return <section className="source-list" data-refreshing={state.loading && state.value !== undefined || undefined} aria-label={title}>
     <header className="source-list__header">
@@ -103,7 +87,7 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
             {tags.map((tag) => <option value={tag} key={tag}>{tag}</option>)}
           </select>
         </label> : null}
-        <button className="button button--quiet" type="button" onClick={() => setRefresh((current) => current + 1)} disabled={state.loading}>Refresh</button>
+        <button className="button button--quiet" type="button" onClick={refresh} disabled={state.loading}>Refresh</button>
       </div>
     </header>
     {state.loading && state.value === undefined ? <p className="component-state" role="status">Loading…</p> : null}

@@ -7,46 +7,20 @@ import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { safeMarkdownUrl } from "../../lib/safe-url";
 import { ComponentVisibilityContext } from "../../composition/ComponentCompositor";
-import { readDashboardSource, type DashboardSource } from "../../lib/source";
+import type { DashboardSource } from "../../lib/source";
+import { useSourceComponent, type DashboardSourceState } from "../../lib/use-dashboard-source";
 
 type MarkdownView = "preview" | "raw";
 
-function MarkdownSourceView({ props, source, host, refresh, onRefresh }: {
+function MarkdownSourceView({ props, state, unavailable, onRefresh }: {
   props: Record<string, unknown>;
-  source: DashboardSource;
-  host: ComponentRendererProps["host"];
-  refresh: number;
+  state: DashboardSourceState;
+  unavailable: string | undefined;
   onRefresh: () => void;
 }): ReactNode {
   const visible = useContext(ComponentVisibilityContext);
-  const every = typeof source.every === "number" ? Math.max(1000, Math.min(300000, source.every)) : undefined;
   const title = stringProp(props, ["title"], "Markdown source");
-  const [state, setState] = useState<{ value?: unknown; error?: string; loading: boolean }>({ loading: true });
-  const processSnapshot = source.process ? host.processes?.get(source.process) : undefined;
-  useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
-    let timer: number | undefined;
-    const load = async (): Promise<void> => {
-      setState((old) => ({ ...old, loading: true, error: undefined }));
-      try {
-        const value = await readDashboardSource(source, host);
-        if (!cancelled) setState({ value, loading: false });
-      } catch (cause) {
-        if (!cancelled) setState((old) => ({ ...old, loading: false, error: cause instanceof Error ? cause.message : String(cause) }));
-      } finally {
-        if (!cancelled && every !== undefined) timer = window.setTimeout(() => void load(), every);
-      }
-    };
-    void load();
-    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
-  }, [every, host, refresh, source, visible]);
-  useEffect(() => {
-    if (source.process && processSnapshot !== undefined) setState({ value: processSnapshot, loading: false });
-  }, [processSnapshot, source.process]);
-  const permission = source.shell ? "process:execute" : source.http ? "network:http" : source.process ? "process:observe" : source.file ? "filesystem:read" : undefined;
-  const missing = permission === "process:execute" && !host.shell || permission === "network:http" && !host.http || permission === "process:observe" && !host.processes || permission === "filesystem:read" && !host.filesystem;
-  if (missing) return <CapabilityGate title={title}>Trust this project and grant {permission} to read this source.</CapabilityGate>;
+  if (unavailable) return <CapabilityGate title={title}>Trust this project and grant {unavailable} to read this source.</CapabilityGate>;
   const text = typeof state.value === "string" ? state.value : state.value === undefined ? "" : `\`\`\`json\n${JSON.stringify(state.value, null, 2)}\n\`\`\``;
   return <section className="markdown-viewer" data-refreshing={state.loading && state.value !== undefined || undefined} aria-label={title}>
     <header className="markdown-viewer__header"><strong>{title}</strong><button className="button button--quiet" type="button" onClick={onRefresh} disabled={state.loading}>Refresh</button></header>
@@ -95,25 +69,12 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [refresh, setRefresh] = useState(0);
-  const sourcePermissionAvailable = !sourceSpec
-    || (sourceSpec.shell ? Boolean(componentHost.shell)
-      : sourceSpec.http ? Boolean(componentHost.http)
-        : sourceSpec.process ? Boolean(componentHost.processes)
-          : sourceSpec.file ? Boolean(filesystem)
-            : true);
-
-  useEffect(() => componentHost.actions.register({
-    id: "refresh",
+  const { state: sourceState, unavailable, refresh, refreshes } = useSourceComponent(sourceSpec ?? null, componentHost, {
     label: "Refresh Markdown",
-    enabled: sourceSpec ? sourcePermissionAvailable : Boolean(path && filesystem),
-    disabledReason: sourceSpec
-      ? sourcePermissionAvailable ? undefined : "Trust this project to read the configured source."
-      : path ? filesystem ? undefined : "Trust this project to read the Markdown file."
-        : "Inline Markdown has no source to refresh.",
+    withoutSource: path ? filesystem ? null : "Trust this project to read the Markdown file." : "Inline Markdown has no source to refresh.",
+    unavailableReason: () => "Trust this project to read the configured source.",
     confirmation: source !== savedSource ? { title: "Discard Markdown edits and reload?" } : undefined,
-    run: () => setRefresh((current) => current + 1),
-  }), [componentHost.actions, filesystem, path, sourcePermissionAvailable, sourceSpec, source, savedSource]);
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -160,7 +121,7 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
     return () => {
       cancelled = true;
     };
-  }, [filesystem, inlineContent, path, refresh]);
+  }, [filesystem, inlineContent, path, refreshes]);
 
   const dirty = source !== savedSource;
 
@@ -204,7 +165,7 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
     return () => unregister.forEach((remove) => remove());
   }, [componentHost.actions, componentHost.dashboard, filesystem, sourceSpec, path, loading, saving, dirty, view, source, savedSource, props, save, cancelEdit]);
 
-  if (sourceSpec !== undefined) return <MarkdownSourceView host={componentHost} props={props} source={sourceSpec} refresh={refresh} onRefresh={() => setRefresh((current) => current + 1)} />;
+  if (sourceSpec !== undefined) return <MarkdownSourceView props={props} state={sourceState} unavailable={unavailable} onRefresh={refresh} />;
 
   const title = path ? "Markdown file" : "Markdown";
   const label = path ? `Markdown preview for ${path}` : "Markdown preview";
@@ -248,7 +209,7 @@ export default function Markdown({ props, host: componentHost }: ComponentRender
               className="button button--quiet"
               type="button"
               disabled={loading || saving || dirty}
-              onClick={() => setRefresh((value) => value + 1)}
+              onClick={refresh}
             >
               {loading ? "Reading…" : "Reload"}
             </button>

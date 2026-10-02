@@ -129,8 +129,17 @@ examples, not privileged component types:
   project information from inline configuration or bounded sources. Status
   sources expose a state/detail model or derive state from supervised process
   snapshots; chart sources require `{ labels, series }` and surface shape
-  diagnostics. Polling pauses while hidden, and source views expose a declared
-  refresh action. Status keeps the last observed value during refresh and
+  diagnostics. Source-backed built-ins (markdown, status, chart, list) call the
+  one `useSourceComponent(source, host, options)` hook in
+  `lib/use-dashboard-source.ts`. It owns the permission check (the missing
+  `process:execute`, `filesystem:read`, `network:http`, or `process:observe`;
+  the source is not read while one is missing), the load, `every` polling,
+  process-snapshot binding, pausing while hidden, the refresh counter, and the
+  declared `refresh` action, whose label, no-source reason, missing-permission
+  reason, and confirmation each built-in supplies. It returns
+  `{ state, unavailable, refresh, refreshes }`; on-screen Refresh buttons call
+  `refresh`. Conditional and the environment editor run their own checks and
+  files, not dashboard sources, and keep their own `refresh` actions. Status keeps the last observed value during refresh and
   indicates the pending read on its existing dot, with a screen-reader
   announcement; refresh feedback adds no grid row or height. A status source
   may add `trend` (2–60 numbers or `null` gaps, oldest first) and `segments`
