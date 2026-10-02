@@ -67,7 +67,7 @@ import { CompositionFlyout } from "../composition/CompositionFlyout";
 import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout";
 import { useLocalComponents } from "../render/local-components";
 import { host, registerAgentControlHandler } from "../lib/rpc-client";
-import { agentActionRefusal, summarizeAgentDiagnostics, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
+import { activeSelections, agentActionRefusal, summarizeAgentDiagnostics, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
 import { NodeCaptureSession, type NodeCaptureHooks } from "../lib/agent-node-capture";
 import { dashboardViewStateStore } from "../lib/dashboard-view-state";
 import { resolveVirtualRoot } from "../lib/virtual-root";
@@ -1525,7 +1525,7 @@ export function App(): ReactNode {
     () => new Set(appSettings.favoriteActionIds),
     [appSettings.favoriteActionIds],
   );
-  const agentControlStateRef = useRef<AgentViewState | null>(null);
+  const agentControlStateRef = useRef<Omit<AgentViewState, "selections"> | null>(null);
   agentControlStateRef.current = {
     view: activeView,
     configPath: snapshot?.configPath ?? null,
@@ -1557,8 +1557,9 @@ export function App(): ReactNode {
     },
   };
   useEffect(() => registerAgentControlHandler({
-    viewState: () => agentControlStateRef.current!,
+    viewState: () => ({ ...agentControlStateRef.current!, selections: activeSelections(actionStore.getIndexedActions()) }),
     beginNodeCapture: (nodeId) => nodeCaptureSession.begin(nodeId, nodeCaptureHooksRef.current!),
+    readNode: (nodeId, waitForIdle) => nodeCaptureSession.read(nodeId, nodeCaptureHooksRef.current!, waitForIdle),
     endNodeCapture: () => nodeCaptureSession.end(),
     listActions: () => actionStore.getIndexedActions().map(describeAgentAction),
     async runAction({ reference, selections }) {

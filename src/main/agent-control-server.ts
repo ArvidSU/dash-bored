@@ -5,6 +5,7 @@ import {
   MAX_IDLE_TIMEOUT_MS,
   type AgentActionDescriptor,
   type AgentNodeMeasurement,
+  type AgentNodeText,
   type AgentProcessInfo,
   type AgentProcessLogs,
   type AgentRunActionRequest,
@@ -36,6 +37,8 @@ export interface AgentControlBridge {
    */
   beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
   endNodeCapture(): Promise<void>;
+  /** Reads a node's rendered text after its sources load (bounded), restoring any view change. */
+  readNode(nodeId: string, timeoutMs: number): Promise<AgentNodeText>;
   openDashboard(configPath: string): Promise<void>;
   /** Command processes of the active dashboard; main owns their state. */
   processes(): AgentProcessInfo[];
@@ -135,9 +138,24 @@ export async function startAgentControlServer(
     }
   }
 
+  // Node screenshots and reads temporarily reveal nodes; one at a time keeps
+  // each restore from undoing another's reveal.
   let capturingNode = false;
+  const busy = () => new CoreError(
+    "AGENT_CONTROL_BUSY",
+    "Another node screenshot or read is in progress, probably from another agent; retry in a few seconds.",
+  );
+  async function readNode(nodeId: string, timeoutMs: number): Promise<AgentNodeText> {
+    if (capturingNode) throw busy();
+    capturingNode = true;
+    try {
+      return await bridge.readNode(nodeId, timeoutMs);
+    } finally {
+      capturingNode = false;
+    }
+  }
   async function captureNode(nodeId: string, timeoutMs: number): Promise<Response> {
-    if (capturingNode) throw new CoreError("AGENT_CONTROL_BUSY", "Another node screenshot is in progress.");
+    if (capturingNode) throw busy();
     capturingNode = true;
     try {
       const node = await bridge.beginNodeCapture(nodeId);
@@ -211,6 +229,15 @@ export async function startAgentControlServer(
           await bridge.openDashboard(body.configPath);
           const warning = await settled() ? {} : { warning: NOT_RENDERING };
           return json({ state: await bridge.viewState(), ...warning });
+        }
+        if (request.method === "POST" && pathname === "/v1/read") {
+          const body = await readBody(request);
+          if (typeof body.nodeId !== "string" || body.nodeId === "") {
+            throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "nodeId must be a node id.");
+          }
+          const timeoutMs = idleTimeout(body.timeoutMs);
+          if (!await settled()) throw new CoreError("APP_WINDOW_NOT_RENDERING", NOT_RENDERING);
+          return json({ node: await readNode(body.nodeId, timeoutMs) });
         }
         if (request.method === "POST" && pathname === "/v1/screenshot") {
           const body = await readBody(request);

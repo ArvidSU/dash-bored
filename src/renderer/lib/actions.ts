@@ -40,7 +40,8 @@ export function describeAgentAction(action: PaletteAction): AgentActionDescripto
   const refusal = agentActionRefusal(action);
   return {
     id: action.id,
-    ...(action.reference ? { reference: action.reference } : {}),
+    // Agents pass this back to `app run`; ids are references too.
+    reference: action.reference ?? action.id,
     label: action.label,
     ...(action.description ? { description: action.description } : {}),
     group: action.group,

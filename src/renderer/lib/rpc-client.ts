@@ -30,6 +30,7 @@ import type {
 import type {
   AgentActionDescriptor,
   AgentNodeMeasurement,
+  AgentNodeText,
   AgentRunActionRequest,
   AgentRunActionResult,
   AgentViewState,
@@ -107,6 +108,8 @@ export interface AgentControlHandler {
   runAction(request: AgentRunActionRequest): Promise<AgentRunActionResult>;
   beginNodeCapture(nodeId: string): Promise<AgentNodeMeasurement>;
   endNodeCapture(): Promise<void>;
+  /** Reads a node's rendered text once `waitForIdle` resolves, restoring the view. */
+  readNode(nodeId: string, waitForIdle: () => Promise<boolean>): Promise<AgentNodeText>;
 }
 
 let agentControlHandler: AgentControlHandler | null = null;
@@ -146,6 +149,7 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
         return {};
       },
       agentIdle: async ({ timeoutMs }) => ({ idle: await whenIdle(timeoutMs, nextPaint) }),
+      agentReadNode: ({ nodeId, timeoutMs }) => requireAgentControl().readNode(nodeId, () => whenIdle(timeoutMs, nextPaint)),
     },
     messages: {
       themes: (catalog) => emit({ type: "themes", catalog }),

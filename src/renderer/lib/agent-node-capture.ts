@@ -1,4 +1,4 @@
-import type { AgentNodeMeasurement } from "../../shared/agent-control";
+import { AGENT_NODE_TEXT_LIMIT, type AgentNodeMeasurement, type AgentNodeText } from "../../shared/agent-control";
 
 interface Box {
   left: number;
@@ -127,23 +127,51 @@ export class NodeCaptureSession {
   private restoreView: (() => void) | null = null;
   private scrolls: ScrollPosition[] | null = null;
 
+  /** Finds the node's frame, revealing it (and recording the view to restore) when it is not mounted. */
+  private async mount(nodeId: string, hooks: NodeCaptureHooks): Promise<{ element: HTMLElement; revealed: boolean }> {
+    let element = nodeElement(nodeId);
+    if (element) return { element, revealed: false };
+    this.restoreView = hooks.snapshotView();
+    await hooks.reveal(nodeId);
+    for (let frame = 0; frame < 30 && !element; frame += 1) {
+      await nextFrame();
+      element = nodeElement(nodeId);
+    }
+    if (!element) throw new Error(`Node ${nodeId} is not shown after revealing it; it may not exist or may be hidden by the current focus.`);
+    await frames(3);
+    return { element, revealed: true };
+  }
+
+  /**
+   * Reads the node's rendered text, all of it rather than the visible part,
+   * after its sources finish loading, then restores the user's view.
+   */
+  async read(nodeId: string, hooks: NodeCaptureHooks, waitForIdle: () => Promise<boolean>): Promise<AgentNodeText> {
+    await this.end();
+    this.scrolls = scrollPositions();
+    try {
+      const { revealed } = await this.mount(nodeId, hooks);
+      const idle = await waitForIdle();
+      const element = nodeElement(nodeId);
+      if (!element) throw new Error(`Node ${nodeId} was unmounted while it loaded.`);
+      const text = element.innerText.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+      return {
+        nodeId,
+        text: text.length > AGENT_NODE_TEXT_LIMIT ? `${text.slice(0, AGENT_NODE_TEXT_LIMIT)}...` : text,
+        truncated: text.length > AGENT_NODE_TEXT_LIMIT,
+        idle,
+        changes: { revealed },
+      };
+    } finally {
+      await this.end();
+    }
+  }
+
   async begin(nodeId: string, hooks: NodeCaptureHooks): Promise<AgentNodeMeasurement> {
     await this.end();
     this.scrolls = scrollPositions();
     try {
-      let element = nodeElement(nodeId);
-      let revealed = false;
-      if (!element) {
-        this.restoreView = hooks.snapshotView();
-        await hooks.reveal(nodeId);
-        revealed = true;
-        for (let frame = 0; frame < 30 && !element; frame += 1) {
-          await nextFrame();
-          element = nodeElement(nodeId);
-        }
-        if (!element) throw new Error(`Node ${nodeId} is not shown after revealing it; it may not exist or may be hidden by the current focus.`);
-        await frames(3);
-      }
+      const { element, revealed } = await this.mount(nodeId, hooks);
       const full = element.getBoundingClientRect();
       const inset = pinnedTopInset(element);
       let box = await settledBox(element, inset);

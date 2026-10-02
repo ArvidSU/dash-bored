@@ -86,6 +86,7 @@ export type DashboardRPC = {
       agentIdle: { params: { timeoutMs: number }; response: { idle: boolean } };
       agentBeginNodeCapture: { params: { nodeId: string }; response: import("./agent-control").AgentNodeMeasurement };
       agentEndNodeCapture: { params: {}; response: {} };
+      agentReadNode: { params: { nodeId: string; timeoutMs: number }; response: import("./agent-control").AgentNodeText };
     };
     messages: {
       themes: import("./themes").ThemeCatalogItem[];

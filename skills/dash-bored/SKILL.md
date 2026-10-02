@@ -268,8 +268,8 @@ When the app is running, check what the user will see:
    `trust`, and `diagnostics.items` (runtime errors validation cannot see).
 2. If a different bundle is open, `dash-bored app open .` (refused while the
    user has a draft open; then ask them to save or cancel it).
-3. `dash-bored app screenshot --node <node-id>` for each panel you changed,
-   then view the PNG path it prints. It crops to that node, even on another
+3. `dash-bored app screenshot --node <node-id>` for each panel you changed
+   (`--output <file.png>` picks the path), then view the PNG path it prints. It crops to that node, even on another
    tab, and puts the user's view back. Check that labels make sense, nothing
    is empty or truncated, no panel shows "Source shape" or "Command failed",
    and the Overview answers its questions. A plain `app screenshot` shows the
@@ -301,30 +301,48 @@ End with a short summary in this shape:
 ## Use the running app
 
 The user may ask you to drive their dashboard rather than change it. Read
-results instead of guessing from pixels:
+results instead of guessing from pixels, and read the dashboard YAML and its
+source scripts freely to learn what a panel shows and why; only writing them
+is out of scope here.
 
 1. `dash-bored app status`. `trust.trusted: false` means only layout renders
    and nothing runs: ask the user to trust the project (you cannot).
-   `diagnostics.items` holds each error's code, message, file, and path.
-2. `dash-bored app actions <word>` finds the action for a button, tab, or
-   command (`process:<command-id>`, `select:<selection>/<child>`,
-   `component:<node>:refresh`). Pass its `reference` or `id` to
-   `dash-bored app run`; an unknown one returns close `suggestions`. Choices
-   show as counts; `--choices` lists options for `--select <choice>=<option>`.
-3. `app run` returns when the views it touched have finished loading
+   `diagnostics.items` holds each error's code, message, file, and path;
+   `selections` maps each tab container to its selected child.
+2. Find the node: its `id` in the YAML, or `dash-bored app actions <word>`,
+   which also finds the action for a button, tab, or command
+   (`process:<command-id>`, `select:<selection>/<child>`,
+   `component:<node>:refresh`). Several panels can share a label; each
+   action's `description` shows where it sits, and you should say which one
+   you used. Pass an action's `reference` to `dash-bored app run`; an unknown
+   one returns close `suggestions`. Choices show as counts; `--choices` lists
+   options for `--select <choice>=<option>`.
+3. `dash-bored app read <node-id>` returns a panel's full rendered text (all of
+   it, even below the fold or on another tab) once its sources have loaded,
+   and leaves the user's view as it was. Use it to answer "what does it say",
+   count items, or read a status detail.
+4. `app run` returns when the views it touched have finished loading
    (`idle: true`; `idle: false` plus a `warning` after `--timeout`, default
    10 s). A refresh of a panel that is not mounted is `unavailable`:
-   `reveal:<node-id>` first, or screenshot it with `--node`.
-4. A command keeps running after `app run process:<id>` returns
-   `"process": "started"`. Poll `dash-bored app processes` until its `state`
-   is `exited`, then read `exitCode` and `dash-bored app logs <id> --tail 50`
-   (escapes stripped; the last lines can be the user's shell prompt).
-5. Show what you found with `app screenshot --node <id>`, and quote the
-   relevant log lines or diagnostic in your answer.
+   `reveal:<node-id>` first, or just `app read` it.
+5. To run a command and get its result in one call:
+   `dash-bored app run process:<command-id> --until-exit` waits for that run
+   to finish (default up to 10 minutes, `--timeout <ms>`) and returns its
+   `exitCode` and the last lines of output (`--tail <n>`); the tool's exit
+   status is nonzero when the command failed or is still running. Don't use it
+   for servers that never exit. `dash-bored app wait <command-id>` does the
+   same for a run already in progress, `app processes <command-id>` shows one
+   process, and `app logs <command-id> --tail <n>` reads more output.
+6. Show what you found with `app screenshot --node <id> --output <file.png>`
+   when a picture helps. A node taller than the window comes back
+   `truncated: true` with only its top; use `app read` for its content.
 
-Leave the user's view as you found it: `--node` restores it, and so does
-`--focus` unless you pass `--keep-focus`. After `app run select:` or
-`focus:`, run the action that restores the original tab or `focusedNodeId`.
+Leave the user's view as you found it: `app read` and `--node` restore it
+(`viewRestored: true`), and so does `--focus` unless you pass `--keep-focus`.
+After `app run select:` or `focus:`, run `select:<selection>/<child>` from the
+original `selections`, or `focus:<original focusedNodeId>`. When another
+agent is reading or capturing at the same time, `app read` and `--node` fail
+with "retry in a few seconds".
 
 ## Gotchas
 

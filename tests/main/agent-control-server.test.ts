@@ -5,6 +5,7 @@ import { instanceSocketPath, listAppInstances, selectAppInstance } from "../../s
 import type { ProcessSnapshot } from "../../src/shared/contracts";
 import { startAgentControlServer, type AgentControlBridge } from "../../src/main/agent-control-server";
 import {
+  activeSelections,
   agentActionRefusal,
   agentProcessInfo,
   agentProcessLogs,
@@ -44,6 +45,7 @@ function fakeBridge() {
       { severity: "warning", code: "RUNTIME_WARN", message: "Slow" },
     ]),
     trust: { trusted: false, pendingPermissions: ["process:execute", "network:http"] },
+    selections: { sections: "overview" },
   };
   const processes: ProcessSnapshot[] = [
     {
@@ -106,6 +108,11 @@ function fakeBridge() {
       return { ...measurement, nodeId };
     },
     endNodeCapture: async () => { capture.events.push("end"); },
+    readNode: async (nodeId, timeoutMs) => {
+      capture.events.push(`read:${nodeId}:${timeoutMs}`);
+      if (nodeId === "missing") throw new Error("No node missing in the active dashboard.");
+      return { nodeId, text: "Project backlog\n28 open · 50 total", truncated: false, idle: nodeId !== "slow", changes: { revealed: true } };
+    },
     openDashboard: async (configPath) => { opened.push(configPath); },
     processes: () => processes.map((item) => agentProcessInfo(item, labels[item.id]!)),
     processLogs: (id, tail) => {
@@ -194,6 +201,7 @@ test("status reports diagnostic text, bounded, and the read-only trust state", a
     code: "COMPONENT_PROP_INVALID", severity: "error", message: "Bad prop", file: "dash-bored.yaml", path: "tree.children[0]", line: 4,
   });
   expect(status.trust).toEqual({ trusted: false, pendingPermissions: ["process:execute", "network:http"] });
+  expect(status.selections).toEqual({ sections: "overview" });
 
   state.diagnostics = summarizeAgentDiagnostics(Array.from({ length: 120 }, (_, index) => ({
     severity: "warning" as const, code: "W", message: `warning ${index}`.padEnd(900, "x"),
@@ -202,6 +210,48 @@ test("status reports diagnostic text, bounded, and the read-only trust state", a
   expect(bounded.total).toBe(120);
   expect(bounded.items).toHaveLength(50);
   expect(bounded.items[0].message).toHaveLength(500);
+});
+
+test("run --until-exit waits for the started run, then reports its exit and output", async () => {
+  const homeDirectory = await home();
+  const { bridge, processes } = await serve(homeDirectory);
+  const tests = processes[0]!;
+  bridge.runAction = async (request) => {
+    // The new run starts now and finishes after a few polls.
+    Object.assign(tests, { phase: "running", startedAt: "2026-01-02T00:00:00.000Z", exitCode: null, durationMs: undefined });
+    setTimeout(() => Object.assign(tests, {
+      phase: "exited", exitCode: 0, durationMs: 600,
+      logs: [{ sequence: 3, stream: "stdout", text: "all green\r\nCommand exited with code 0.\r\n\r\nuser@host ~ %\r\n" }],
+    }), 600);
+    return { status: "completed", id: request.reference, invocationOutcome: "started" } as never;
+  };
+
+  const result = await cli(homeDirectory, "run", "process:tests", "--until-exit", "--tail", "5");
+
+  expect(result.exitCode).toBe(0);
+  const outcome = JSON.parse(result.stdout);
+  expect(outcome).toMatchObject({ exited: true, process: { id: "tests", state: "exited", exitCode: 0 } });
+  expect(outcome.logs.lines).toEqual(["all green", "Command exited with code 0."]);
+
+  expect((await cli(homeDirectory, "run", "focus:logs", "--until-exit")).stderr).toContain("process:<command-id>");
+});
+
+test("wait reports a nonzero exit, a timeout, and unknown commands", async () => {
+  const homeDirectory = await home();
+  const { processes } = await serve(homeDirectory);
+
+  const failed = await cli(homeDirectory, "wait", "tests");
+  expect(failed.exitCode).toBe(1);
+  expect(JSON.parse(failed.stdout)).toMatchObject({ exited: true, process: { exitCode: 1 } });
+
+  processes[1]!.phase = "running";
+  const running = await cli(homeDirectory, "wait", "serve", "--timeout", "300");
+  expect(running.exitCode).toBe(1);
+  expect(JSON.parse(running.stdout)).toMatchObject({ exited: false, warning: expect.stringContaining("still running") });
+
+  const one = await cli(homeDirectory, "processes", "tests");
+  expect(JSON.parse(one.stdout)).toMatchObject({ id: "tests", exitCode: 1 });
+  expect((await cli(homeDirectory, "wait", "nope")).stderr).toContain("No command process has the id nope");
 });
 
 test("processes lists each command process with state, exit, and times", async () => {
@@ -226,7 +276,8 @@ test("logs returns stripped, tail-bounded output and reports unknown commands", 
 
   const full = JSON.parse((await cli(homeDirectory, "logs", "tests")).stdout);
   expect(full).toMatchObject({ id: "tests", state: "exited", totalLines: 3, truncated: false, lines: ["ok one", "two", "fail three"] });
-  expect(tails.at(-1)).toBe(200);
+  // The tool asks for room to drop the shell prompt after the exit line.
+  expect(tails.at(-1)).toBe(220);
 
   const tail = JSON.parse((await cli(homeDirectory, "logs", "tests", "--tail", "2")).stdout);
   expect(tail).toMatchObject({ lines: ["two", "fail three"], truncated: true });
@@ -282,11 +333,50 @@ test("screenshot --node crops the window capture to the node and reports view ch
   expect(result.exitCode).toBe(0);
   expect(capture.events).toEqual(["begin:logs", "capture", "end"]);
   expect(pngSize(new Uint8Array(await readFile(output)))).toEqual({ width: 40, height: 20 });
+  expect(JSON.parse(result.stdout).viewRestored).toBe(true);
   expect(JSON.parse(result.stdout).node).toMatchObject({
     nodeId: "logs",
     truncated: false,
     changes: { revealed: true, scrolled: false },
   });
+});
+
+test("read returns a node's text after its sources load and reports slow or unknown nodes", async () => {
+  const homeDirectory = await home();
+  const { capture } = await serve(homeDirectory);
+
+  const read = await cli(homeDirectory, "read", "yaml-todo");
+  expect(read.exitCode).toBe(0);
+  expect(JSON.parse(read.stdout)).toEqual({
+    nodeId: "yaml-todo", text: "Project backlog\n28 open · 50 total", truncated: false, idle: true, changes: { revealed: true },
+  });
+  expect(capture.events).toEqual(["read:yaml-todo:10000"]);
+
+  const slow = JSON.parse((await cli(homeDirectory, "read", "slow", "--timeout", "50")).stdout);
+  expect(slow).toMatchObject({ idle: false, warning: expect.stringContaining("still loading") });
+
+  const missing = await cli(homeDirectory, "read", "missing");
+  expect(missing.exitCode).toBe(1);
+  expect(missing.stderr).toContain("No node missing");
+});
+
+test("concurrent node reads are refused with a retry hint", async () => {
+  const homeDirectory = await home();
+  let release!: () => void;
+  await serve(homeDirectory, undefined, {
+    readNode: async (nodeId) => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return { nodeId, text: "", truncated: false, idle: true, changes: { revealed: false } };
+    },
+  });
+
+  const first = cli(homeDirectory, "read", "a");
+  await Bun.sleep(300);
+  const second = await cli(homeDirectory, "read", "b");
+  expect(second.exitCode).toBe(1);
+  expect(second.stderr).toContain("retry in a few seconds");
+  release();
+  expect((await first).exitCode).toBe(0);
 });
 
 test("a failed node capture still ends the capture session", async () => {
@@ -389,6 +479,15 @@ test("instance selection prefers explicit, then launching, then the only instanc
   expect(selectAppInstance([record("a")], undefined, undefined).identifier).toBe("a");
   expect(() => selectAppInstance(instances, undefined, undefined)).toThrow("Several");
   expect(() => selectAppInstance([], undefined, undefined)).toThrow("No dash-bored app is running");
+});
+
+test("selections come from the active select actions, decoded", () => {
+  expect(activeSelections([
+    { id: "select:sections/overview", active: true },
+    { id: "select:sections/work", active: false },
+    { id: "select:lab%3A%3Asections/lab%3A%3Asources", active: true },
+    { id: "focus:sections", active: true },
+  ])).toEqual({ sections: "overview", "lab::sections": "lab::sources" });
 });
 
 test("trust, draft lifecycle, and confirmations are reserved for the user", () => {

@@ -203,7 +203,9 @@ With those tools an agent can:
 - read results instead of guessing from pixels: visible diagnostics and trust
   state in `app status`, command process states and exit codes
   (`app processes`), and recent, ANSI-stripped command output
-  (`app logs <command-id> [--tail <n>]`). These are read-only; starting or
+  (`app logs <command-id> [--tail <n>]`), a command's result in one call
+  (`app run process:<id> --until-exit`, or `app wait <id>` for a run in
+  progress), and a panel's full text (`app read <node-id>`). These are read-only; starting or
   stopping a process stays an `app run process:*` action.
 
 The control channel never widens what an action can do. Trust, starting,

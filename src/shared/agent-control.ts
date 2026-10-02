@@ -29,6 +29,21 @@ export interface AgentViewState {
   editing: boolean;
   diagnostics: AgentDiagnostics;
   trust: AgentTrustState;
+  /**
+   * Selected child of each selection (tab) container, keyed by its node id.
+   * `select:<selection>/<child>` restores one after an agent changed it.
+   */
+  selections: Readonly<Record<string, string>>;
+}
+
+/** Derives the selected children from the palette's active `select:` actions. */
+export function activeSelections(actions: readonly { id: string; active?: boolean }[]): Record<string, string> {
+  const selections: Record<string, string> = {};
+  for (const { id, active } of actions) {
+    const match = active ? /^select:([^/]+)\/([^/]+)$/.exec(id) : null;
+    if (match) selections[decodeURIComponent(match[1]!)] = decodeURIComponent(match[2]!);
+  }
+  return selections;
 }
 
 export interface AgentDiagnostic {
@@ -136,6 +151,20 @@ export function agentProcessInfo(process: ProcessSnapshot, label: string): Agent
 }
 
 /** Where a node sits in the webview, in CSS pixels from the viewport's top-left. */
+/** Upper bound on the text `app read` returns for one node. */
+export const AGENT_NODE_TEXT_LIMIT = 100_000;
+
+export interface AgentNodeText {
+  nodeId: string;
+  /** The node's rendered text (`innerText`), whitespace-collapsed. */
+  text: string;
+  truncated: boolean;
+  /** False when its sources were still loading at the timeout. */
+  idle: boolean;
+  /** Temporary view changes made to mount the node; always undone. */
+  changes: { revealed: boolean };
+}
+
 export interface AgentNodeMeasurement {
   nodeId: string;
   /** The node's visible bounds, clipped to the viewport and to scrolling ancestors. */

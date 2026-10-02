@@ -58,9 +58,11 @@ dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
 dash-bored app status [--instance <identifier>]
 dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
-dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--instance <identifier>]
+dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
-dash-bored app processes [--instance <identifier>]
+dash-bored app processes [<command-id>] [--instance <identifier>]
+dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
+dash-bored app read <node-id> [--timeout <ms>] [--instance <identifier>]
 dash-bored app logs <command-id> [--tail <n>] [--instance <identifier>]
 dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
 ```
@@ -182,12 +184,13 @@ instances therefore never answer for the release app by accident.
 
 | Route | Behavior |
 | --- | --- |
-| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), and read-only trust state (`trusted`, and the permissions awaiting approval while untrusted). |
+| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), read-only trust state (`trusted`, and the permissions awaiting approval while untrusted), and `selections`: the selected child of each selection container, derived from the palette's active `select:` actions so it includes defaults. |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` summarizes each choice as `{id, label, optionCount}` (`--choices` includes the options) and hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
 | `GET /v1/processes/<id>/logs?tail=<n>` | Recent output lines of one command process from the log ring the process manager already retains (2,000 entries, 512 KiB). `tail` defaults to 200 and is capped at 1,000; lines are capped at 2,000 characters; an unknown id is `AGENT_CONTROL_NOT_FOUND`. `app logs` strips ANSI escapes and carriage-return overwrites. |
 | `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
+| `POST /v1/read` | `{nodeId, timeoutMs?}`: reveals the node when it is not mounted, waits for idle, and returns its rendered `innerText` (whitespace-collapsed, at most 100,000 characters) with `idle` and `changes`, then restores the view the same way a node screenshot does. Shares the node-capture lock. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. With `{nodeId}` it returns that node's bounds cropped from the capture and describes the node in an `x-dash-bored-node` header (see below). |
 
 Idle means no source fetch is in flight for a mounted view. Every
@@ -229,6 +232,18 @@ Main owns the socket and relays to the renderer through `webview.requests`
 renderer shell registers the handler because it owns action, focus, and view
 state. The action policy and capture boundary are
 described in [Security](./security.md#agent-control-channel).
+
+#### Waiting for a command
+
+`app run process:<command-id> --until-exit` records the process's
+`startedAt`, runs the action, and polls `/v1/processes` every 250 ms until a
+run with a different start time is no longer running (default limit ten
+minutes, `--timeout`). It prints the run result, the final process record, and
+the last `--tail` lines (default 20), and exits nonzero unless the command
+exited 0. `app wait <command-id>` polls the same way for whatever run is
+current. Commands run in the user's interactive shell, so the tool fetches a
+few extra lines and, for an exited process, drops everything after the
+process manager's last `Command exited ...` line: the shell prompt.
 
 #### Screenshots of a node
 
