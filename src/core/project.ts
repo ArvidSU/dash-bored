@@ -22,6 +22,7 @@ import {
   type ProjectLocation,
 } from "./paths";
 import { discoverComponentCatalog, type LocalComponentDefinition } from "./tree-catalog";
+import { configLinkManifest } from "./tree-links";
 import { resolveComponentTree } from "./tree-resolve";
 import {
   parseDashboardConfig,
@@ -91,19 +92,7 @@ async function buildProjectDefinition(
             reference: node.component,
             source: "config",
             available: node.configError === undefined,
-            manifest: {
-              schemaVersion: 2,
-              id: `config:${node.component}`,
-              name: node.configName ?? node.component,
-              description: "Renders another standalone dashboard configuration.",
-              entry: "config:link",
-              propsSchema: { type: "object", additionalProperties: false },
-              children: {
-                min: 0,
-                max: 1,
-                presentation: { type: "managed" },
-              },
-            },
+            manifest: configLinkManifest(node.component, node.configName),
             diagnostics: node.configError === undefined
               ? []
               : [diagnostic({ code: "CONFIG_LINK_UNAVAILABLE", message: node.configError, path: node.component })],

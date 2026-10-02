@@ -412,6 +412,23 @@ describe("tree resolution and local compilation", () => {
     expect(children[1]?.configError?.length).toBeGreaterThan(0);
     expect(children[2]).toMatchObject({ source: "config", configName: "External" });
     expect(result.diagnostics).toEqual([]);
+    expect(result.componentCatalog.find((item) => item.reference === "./arvid")).toMatchObject({
+      source: "config",
+      available: true,
+      manifest: {
+        schemaVersion: 2,
+        id: "config:./arvid",
+        name: "Arvid",
+        entry: "config:link",
+        renderMode: "layout",
+        children: { min: 0, max: 1, presentation: { type: "managed" } },
+      },
+    });
+    expect(result.componentCatalog.find((item) => item.reference === "./moved-away")).toMatchObject({
+      source: "config",
+      available: false,
+      manifest: { id: "config:./moved-away", name: "./moved-away", renderMode: "layout" },
+    });
   });
 
   test("loads local components from the linked bundle's own components directory", async () => {
