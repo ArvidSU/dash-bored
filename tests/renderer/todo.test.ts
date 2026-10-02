@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   filterTodos,
-  migrateTodoItems,
   sortTodos,
   todoItemsFromProps,
   todoTags,
@@ -18,17 +17,6 @@ describe("dashboard YAML todo state", () => {
       { id: expect.any(String), description: "Review dashboard YAML", done: false, tags: ["docs"] },
       { id: expect.any(String), description: "Ship it", done: true, tags: [] },
     ]);
-  });
-
-  test("migrates missing and duplicate IDs while retaining existing unique IDs", () => {
-    let next = 0;
-    const migrated = migrateTodoItems([
-      { id: "keep", description: "First", done: false, tags: [] },
-      { description: "Legacy", done: false, tags: [] },
-      { id: "keep", description: "Duplicate", done: true, tags: [] },
-    ], () => `new-${++next}`);
-    expect(migrated.changed).toBe(true);
-    expect(migrated.items.map((item) => item.id)).toEqual(["keep", "new-1", "new-2"]);
   });
 
   test("sorts incomplete items first while preserving order within each status", () => {

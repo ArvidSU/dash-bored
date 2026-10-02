@@ -8,14 +8,13 @@ import {
 import type { ReactNode } from "react";
 import "./todo-list.css";
 import type { LocalComponentHost } from "../../../shared/contracts";
+import { migrateTodoItems } from "../../../migrations/todo-ids";
+import { createTodoId, type TodoItem } from "../../../shared/todo";
 import {
   filterTodos,
-  createTodoId,
-  migrateTodoItems,
   sortTodos,
   todoTags,
 } from "../../lib/todo";
-import type { TodoItem } from "../../lib/todo";
 import { parseListItemActions, resolveListItemAction } from "../../lib/list-data";
 
 interface TodoListProps {
