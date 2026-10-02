@@ -348,7 +348,7 @@ test("read returns a node's text after its sources load and reports slow or unkn
   const read = await cli(homeDirectory, "read", "yaml-todo");
   expect(read.exitCode).toBe(0);
   expect(JSON.parse(read.stdout)).toEqual({
-    nodeId: "yaml-todo", text: "Project backlog\n28 open · 50 total", truncated: false, idle: true, changes: { revealed: true },
+    nodeId: "yaml-todo", text: "Project backlog\n28 open · 50 total", truncated: false, idle: true, changes: { revealed: true }, viewRestored: true,
   });
   expect(capture.events).toEqual(["read:yaml-todo:10000"]);
 

@@ -321,6 +321,8 @@ export async function runAppCommand(args: string[]): Promise<number> {
     })).json() as { node: AgentNodeText };
     print({
       ...node,
+      // Any reveal it needed was undone before the app replied.
+      viewRestored: true,
       ...(node.idle ? {} : { warning: "Some of its sources were still loading; retry with a larger --timeout." }),
     });
     return 0;

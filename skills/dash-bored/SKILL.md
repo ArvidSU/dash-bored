@@ -319,7 +319,8 @@ is out of scope here.
    options for `--select <choice>=<option>`.
 3. `dash-bored app read <node-id>` returns a panel's full rendered text (all of
    it, even below the fold or on another tab) once its sources have loaded,
-   and leaves the user's view as it was. Use it to answer "what does it say",
+   and leaves the user's view as it was (`changes.revealed: true` means it
+   briefly showed the node's tab and then restored it: `viewRestored: true`). Use it to answer "what does it say",
    count items, or read a status detail.
 4. `app run` returns when the views it touched have finished loading
    (`idle: true`; `idle: false` plus a `warning` after `--timeout`, default

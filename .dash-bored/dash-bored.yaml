@@ -231,6 +231,21 @@ root:
                             done: true
                             tags:
                               - agent-tools
+                          - id: todo-agent-read-structured
+                            description: "Add app read --json for list and status views: return the view's items (id, title, tags, done, state) instead of flattened innerText with button labels, so agents can count and filter without parsing the YAML."
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-agent-tab-attention
+                            description: "Add an agent summary of a tab (app read <selection-child> --summary) listing every nested status, list, and command panel with its state, so asking whether anything on a tab needs attention is one call."
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-command-read-only-hint
+                            description: "Let command nodes declare whether they are read-only checks (validate, status) or side-effecting (build, release), and expose it in app actions, so agents know what they may run without asking."
+                            done: false
+                            tags:
+                              - agent-tools
                           - id: todo-007
                             description: "Improve renderer test startup failures: report Vite stderr and early process exit instead of only a fixture timeout."
                             done: true
