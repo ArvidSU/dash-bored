@@ -22,8 +22,7 @@ function currentPage(): Page {
   return page;
 }
 
-async function addGroupDraft(): Promise<void> {
-  const active = currentPage();
+async function addGroupDraft(active: Page = currentPage()): Promise<void> {
   await active.getByRole("button", { name: "Open component library" }).click();
   await active.getByRole("button", { name: "Insert Group", exact: true }).click();
   await active.getByRole("heading", { name: "Add component" }).waitFor();
@@ -32,8 +31,8 @@ async function addGroupDraft(): Promise<void> {
   await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
 }
 
-async function persistedGroupCount(): Promise<number> {
-  return await currentPage().evaluate(async () => {
+async function persistedGroupCount(active: Page = currentPage()): Promise<number> {
+  return await active.evaluate(async () => {
     const host = window.__DASH_BORED_UI_HARNESS_HOST__;
     if (!host) throw new Error("UI harness host is unavailable.");
     const config = await host.getSnapshot().then((snapshot) => snapshot.config);
@@ -1021,13 +1020,23 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("discard confirmation can save the draft before continuing", async () => {
-    const before = await persistedGroupCount();
-    await addGroupDraft();
-    await currentPage().getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
-    const confirmation = currentPage().getByRole("dialog", { name: "Discard dashboard changes?" });
-    await confirmation.getByRole("button", { name: "Save dashboard", exact: true }).click();
-    await confirmation.waitFor({ state: "detached" });
-    expect(await persistedGroupCount()).toBe(before + 1);
+    // A fresh page has its own fixture host, so this save does not shift the
+    // revisions and group counts the shared-page tests below depend on.
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const before = await persistedGroupCount(proof);
+      await addGroupDraft(proof);
+      await proof.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+      const confirmation = proof.getByRole("dialog", { name: "Discard dashboard changes?" });
+      await confirmation.getByRole("button", { name: "Save dashboard", exact: true }).click();
+      await confirmation.waitFor({ state: "detached" });
+      expect(await persistedGroupCount(proof)).toBe(before + 1);
+    } finally {
+      await proof.close();
+    }
   }, 20_000);
 
   test("an incompatible pointer drop does not mutate the draft or persisted fixture", async () => {
