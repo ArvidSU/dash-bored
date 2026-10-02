@@ -7,7 +7,7 @@ import {
 } from "../../src/renderer/app/app-utils";
 import type {
   DashboardCompositionSource,
-} from "../../src/renderer/app/app-utils";
+} from "../../src/renderer/composition/composition-interaction-controller";
 import type {
   DashboardConfig,
   DashboardConfigSource,

@@ -220,7 +220,7 @@ export interface ActionStoreSnapshot {
   diagnostics: readonly Diagnostic[];
 }
 
-interface ActionProviderSnapshot {
+export interface ActionProviderSnapshot {
   id: string;
   actions: readonly PaletteAction[];
 }

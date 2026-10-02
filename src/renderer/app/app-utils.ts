@@ -14,6 +14,7 @@ import type {
 import { childEdges } from "../lib/component-children";
 import type { SplitRatioOverrides } from "../render/split-layout";
 import type { ThemeCatalogItem } from "../../shared/themes";
+import type { DashboardCompositionSource } from "../composition/composition-interaction-controller";
 
 export const EMPTY_SPLIT_RATIO_OVERRIDES: Readonly<SplitRatioOverrides> = Object.freeze({});
 
@@ -144,16 +145,6 @@ export function patchDashboardAppearance(
     else delete draft.themeMode;
   }
   return draft;
-}
-
-export interface DashboardCompositionSource {
-  projectRoot: string;
-  activeDashboardPath: string;
-  focusedSourcePath: string;
-  snapshotRevision: number;
-  configPath: string;
-  componentCatalog: ComponentCatalogItem[];
-  config: DashboardConfig;
 }
 
 export function mergeThemeCatalog(

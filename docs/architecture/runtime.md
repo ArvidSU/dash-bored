@@ -168,8 +168,10 @@ starting a supervised command. The main process validates those names and
 values and adds them to that launch's environment; it never substitutes item
 data into the configured shell command.
 
-Within the renderer, `app/App.tsx` is the application coordinator: it owns the
-authoritative snapshot subscription, draft lifecycle, and composition wiring.
+Within the renderer, `app/App.tsx` is the application coordinator. It composes
+one hook per concern: `use-host-session.ts` owns the authoritative snapshot
+subscription, `use-dashboard-draft.ts` the draft lifecycle, and
+`use-composition-session.ts` the composition wiring.
 `app/app-shell.tsx` owns only window chrome, dashboard navigation, the header, and
 global notices. It receives state and callbacks from the coordinator and never
 reads project files, creates drafts, or performs topology mutations. Workspace

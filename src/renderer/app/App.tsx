@@ -1,1016 +1,78 @@
-import { applyTheme, ThemeNotice, ThemeSelect } from "../lib/theme";
-import { BUILTIN_THEMES, parseProjectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
-import {
-  useCallback,
-  useEffect, useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { ThemeNotice, ThemeSelect } from "../lib/theme";
+import { useCallback, useLayoutEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type {
-  AppSettings,
-  ComponentCatalogItem,
-  DashboardAgentTask,
-  DashboardConfig,
-  DashboardSettingsItem,
-  ProcessSnapshot,
-  ProjectDeletionPreview,
-  ProjectListItem,
-  ProjectSnapshot,
-  ProjectTarget,
-  ResolvedComponentNode,
-} from "../../shared/contracts";
-import { cloneDefaultAppSettings, DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
-import { componentPath, findResolvedNode } from "../../shared/component-agent";
-import { processRun } from "../../shared/process-state";
+import type { DashboardConfig, ProjectListItem, ResolvedComponentNode } from "../../shared/contracts";
+import { componentPath } from "../../shared/component-agent";
+import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
+import { summarizeAgentDiagnostics } from "../../shared/agent-control";
 import {
-  keyboardEventMatchesShortcut,
-  keyboardShortcutLabel,
-} from "../../shared/keyboard-shortcut";
-import {
-  buildDeclaredComponentActions,
   buildApplicationActions,
+  buildDeclaredComponentActions,
   buildNodeFocusActions,
+  type AppView,
 } from "../lib/action-providers";
 import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
 import { highlightRevealedItem, revealScrollBehavior } from "../lib/reveal-item";
-import type { AppView } from "../lib/action-providers";
-import { ActionStore, describeAgentAction, matchActionChoiceSelections } from "../lib/actions";
 import { writeClipboardText } from "../lib/clipboard";
 import { CommandPalette } from "../panels/CommandPalette";
 import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
-import { AppShell, type ProjectOutlineState } from "./app-shell";
+import { AppShell } from "./app-shell";
 import type { DashboardOutlineNodeAction } from "../composition/DashboardOutlineTree";
 import { AgentActivity, activeDashboardAgentTaskCount } from "../panels/AgentActivity";
-import {
-  DashboardEditor,
-  DashboardEditorToolbar,
-} from "../composition/DashboardEditor";
-import {
-  nodeAtPath,
-  insertNode,
-  switchablePanelsNode,
-  nodePathFromSourcePath,
-  nodePathById,
-  removeNode,
-  updateNodeProps,
-  updateTiledSplitRatio,
-  type InsertionTarget,
-  type NodePath,
-} from "../composition/dashboard-editor";
-import type { LayoutBranch } from "../lib/component-children";
-import { buildCompositionPreviewTree } from "../composition/composition-preview";
-import { planCompositionOperation } from "../composition/composition-operation";
+import { DashboardEditor, DashboardEditorToolbar } from "../composition/DashboardEditor";
 import { CompositionFlyout } from "../composition/CompositionFlyout";
-import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout";
+import { useCompositionInteractionController } from "../composition/composition-interaction-controller";
+import { CompositionContext } from "../composition/composition-context";
+import { compositionPayloadLabel } from "../composition/composition-labels";
+import { CompositionDragChip } from "../composition/CompositionDragChip";
 import { useLocalComponents } from "../render/local-components";
-import { host, registerAgentControlHandler } from "../lib/rpc-client";
-import { activeSelections, agentActionRefusal, summarizeAgentDiagnostics, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
-import { NodeCaptureSession, type NodeCaptureHooks } from "../lib/agent-node-capture";
+import { NodeRenderer, useComponentUpdateBatch } from "../render/NodeRenderer";
+import { host } from "../lib/rpc-client";
 import { dashboardViewStateStore } from "../lib/dashboard-view-state";
 import { resolveVirtualRoot } from "../lib/virtual-root";
-import { actionInvocation } from "../../shared/action-invocation";
-import {
-  CompositionContext,
-  type CompositionDragPayload,
-  type CompositionTarget,
-} from "../composition/composition-context";
-import { createCompositionTargets } from "../composition/composition-targets";
-import { useCompositionInteractionController } from "../composition/composition-interaction-controller";
 import { useDashboardViewState } from "./use-dashboard-view-state";
-import {
-  basename,
-  dashboardKey,
-  errorMessage,
-  findResolvedConfigRoot,
-  linkedComponentIdNamespace,
-  outlineError,
-  rememberProject,
-  replaceDashboardAgentTask,
-  replaceProcess,
-  starterDashboardAgentTask,
-  createDashboardEditSession,
-  patchDashboardAppearance,
-  mergeThemeCatalog,
-  isCompositionSourceCurrent,
-  EMPTY_SPLIT_RATIO_OVERRIDES,
-  type ActionNotice,
-  type DashboardCompositionSource,
-  type DashboardEditSession,
-} from "./app-utils";
-import { compositionPayloadLabel, isRootCompositionTarget } from "../composition/composition-labels";
-import { CompositionDragChip, positionCompositionDragChip } from "../composition/CompositionDragChip";
-import { NodeRenderer, useComponentUpdateBatch } from "../render/NodeRenderer";
+import { basename, mergeThemeCatalog, EMPTY_SPLIT_RATIO_OVERRIDES } from "./app-utils";
 import { Diagnostics } from "../panels/DiagnosticsPanel";
 import { TrustPanel } from "../panels/TrustPanel";
 import { EmptyProject } from "../panels/EmptyProject";
 import { SettingsPanel } from "../panels/SettingsPanel";
-import { AppDialogs } from "./AppDialogs";
-import type { AgentPromptDraft } from "../panels/AgentPromptPanel";
-
-const EMPTY_AGENT_PROMPT_DRAFT: AgentPromptDraft = { input: "" };
+import { AppDialogs, type AppDialog } from "./AppDialogs";
+import { useNotices } from "./use-notices";
+import { useHostSession } from "./use-host-session";
+import { useAppSettings, useDashboardSettings } from "./use-app-settings";
+import { useAppTheme } from "./use-app-theme";
+import { useDashboardDraft } from "./use-dashboard-draft";
+import { useCompositionSession } from "./use-composition-session";
+import { useAgentWork } from "./use-agent-work";
+import { useProjectNavigation } from "./use-project-navigation";
+import { useActionRegistry, useProvidedActions } from "./use-action-registry";
+import { useAppShortcuts, useCommandHeld } from "./use-app-keyboard";
+import { useAgentControl } from "./use-agent-control";
 
 export function App(): ReactNode {
-  const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
-  const [projects, setProjects] = useState<ProjectListItem[]>([]);
-  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettingsItem[]>([]);
-  const [appSettings, setAppSettings] = useState<AppSettings>(cloneDefaultAppSettings);
-  const appSettingsRevision = useRef(0);
-  const appSettingsWrite = useRef<Promise<void>>(Promise.resolve());
-  const [loading, setLoading] = useState(true);
-  const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
-  const [dashboardAgentTasks, setDashboardAgentTasks] = useState<DashboardAgentTask[]>([]);
-  const [agentActivityOpen, setAgentActivityOpen] = useState(false);
-  const activeDashboardAgentTaskIds = useRef(new Set<string>());
-  const pendingProcessEvents = useRef(new Map<string, ProcessSnapshot>());
-  const nextActionNoticeId = useRef(0);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [commandHeld, setCommandHeld] = useState(false);
-  const [expandedProjectOutlines, setExpandedProjectOutlines] = useState<Record<string, boolean>>({});
-  const [projectOutlines, setProjectOutlines] = useState<Record<string, ProjectOutlineState>>({});
+  const notices = useNotices();
   const [activeView, setActiveView] = useState<AppView>("dashboard");
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteInitialActionId, setPaletteInitialActionId] = useState<string | null>(null);
-  const [paletteInvocationArgs, setPaletteInvocationArgs] = useState<Record<string, unknown>>({});
-  const [paletteInvocationActionId, setPaletteInvocationActionId] = useState<string | null>(null);
-  const [paletteCallerNodeId, setPaletteCallerNodeId] = useState<string | undefined>(undefined);
-  const [paletteInvocationKey, setPaletteInvocationKey] = useState<string | undefined>(undefined);
-  const [agentPromptDraft, setAgentPromptDraft] = useState<AgentPromptDraft>(EMPTY_AGENT_PROMPT_DRAFT);
-  const compositionInteraction = useCompositionInteractionController();
-  const {
-    libraryOpen: componentLibraryOpen,
-    dragging: compositionDrag,
-    pointer: compositionPointer,
-    selectedTarget: compositionTarget,
-    dialog: compositionDialog,
-    removePath: compositionRemovePath,
-  } = compositionInteraction;
-  const [compositionSource, setCompositionSource] = useState<DashboardCompositionSource | null>(null);
-  const compositionSourceRequestId = useRef(0);
-  const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
-  const [applicationThemes, setApplicationThemes] = useState<ThemeCatalogItem[]>([...BUILTIN_THEMES]);
-  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const changed = () => setSystemDark(media.matches);
-    media.addEventListener('change', changed);
-    return () => media.removeEventListener('change', changed);
-  }, []);
-  useEffect(() => {
-    let active = true;
-    const refresh = () => { void host.getThemes().then((items) => { if (active) setApplicationThemes(items); }).catch(() => undefined); };
-    refresh();
-    window.addEventListener('focus', refresh);
-    return () => { active = false; window.removeEventListener('focus', refresh); };
-  }, [snapshot?.revision]);
-  useLayoutEffect(() => {
-    const catalog = mergeThemeCatalog(applicationThemes, snapshot?.themeCatalog);
-    const source = editSession?.configPath === snapshot?.configPath ? editSession?.draft : snapshot?.config;
-    applyTheme(catalog, source?.theme, appSettings.theme, source?.themeMode ?? appSettings.themeMode, systemDark);
-  }, [applicationThemes, snapshot?.themeCatalog, snapshot?.configPath, snapshot?.config?.theme, snapshot?.config?.themeMode, editSession?.configPath, editSession?.draft.theme, editSession?.draft.themeMode, appSettings.theme, appSettings.themeMode, systemDark]);
-  useEffect(() => {
-    const legacyReference = appSettings.theme;
-    if (!legacyReference?.startsWith('./') || !snapshot?.configPath) return;
-    const replacement = applicationThemes.find((item) => {
-      const source = parseProjectThemeReference(item.reference);
-      return source?.configPath === snapshot.configPath && source?.localReference === legacyReference;
-    });
-    if (!replacement) return;
-    updateAppSettings(
-      { ...appSettings, theme: replacement.reference },
-      "Default theme reference updated.",
-    );
-  }, [applicationThemes, appSettings, snapshot?.configPath]);
-  const snapshotRef = useRef<ProjectSnapshot | null>(null);
-  const editSessionRef = useRef<DashboardEditSession | null>(null);
-  snapshotRef.current = snapshot;
-  editSessionRef.current = editSession;
-  const [savingDraft, setSavingDraft] = useState(false);
-  const [discardConfirmation, setDiscardConfirmation] = useState<{
-    message: string;
-    continueAction: () => void;
-  } | null>(null);
-  const [deletionDialog, setDeletionDialog] = useState<{
-    project: ProjectListItem;
-    preview: ProjectDeletionPreview;
-    removeFiles: boolean;
-  } | null>(null);
-  const compositionPointerFrame = useRef<number | null>(null);
-  const compositionDragChip = useRef<HTMLDivElement | null>(null);
-  const pendingCompositionPointer = useRef<{
-    payload: CompositionDragPayload;
-    point: ComponentPointerDragPoint;
-  } | null>(null);
-  const [agentDialog, setAgentDialog] = useState<ResolvedComponentNode | null>(null);
-  const localComponents = useLocalComponents(
-    snapshot?.components ?? [],
-    snapshot?.configPath ?? null,
-  );
-  const componentUpdateBatch = useComponentUpdateBatch(
-    snapshot?.tree,
-    snapshot?.configPath,
-    snapshot?.trusted,
-    localComponents,
-  );
-  const actionStore = useMemo(() => new ActionStore(), []);
-  const actionStoreState = useSyncExternalStore(
-    actionStore.subscribe,
-    actionStore.getSnapshot,
-  );
-  const componentActions = actionStoreState.componentActions;
-  const runningActionIds = actionStoreState.runningActionIds;
-  const actionController = useMemo(() => ({
-    resolve(reference: string, invocationKey?: string) {
-      return actionStore.resolve(reference, invocationKey);
-    },
-    invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string) {
-      requestAction(reference, args, callerNodeId, invocationKey);
-    },
-  }), [actionStore]);
-
-  useEffect(() => () => {
-    if (compositionPointerFrame.current !== null) {
-      cancelAnimationFrame(compositionPointerFrame.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    const syncAgentActivity = (
-      taskId: string,
-      phase: ProcessSnapshot["phase"],
-      openOnActivation = true,
-    ): void => {
-      const isActive = phase === "running" || phase === "stopping";
-      const wasActive = activeDashboardAgentTaskIds.current.has(taskId);
-      if (!isActive) {
-        activeDashboardAgentTaskIds.current.delete(taskId);
-        return;
-      }
-      activeDashboardAgentTaskIds.current.add(taskId);
-      if (openOnActivation && !wasActive) setAgentActivityOpen(true);
-    };
-    const unsubscribe = host.subscribe((event) => {
-      if (!active) return;
-      if (event.type === "themes") {
-        setApplicationThemes(event.catalog);
-      } else if (event.type === "snapshot") {
-        setSnapshot(event.snapshot);
-        const starter = event.snapshot.processes
-          .map((process) => starterDashboardAgentTask(event.snapshot.configPath, process))
-          .find((task): task is DashboardAgentTask => task !== null);
-        if (starter) setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, starter));
-        syncAgentActivity(
-          "setup-dashboard-with-agent",
-          starter?.process.phase ?? "idle",
-          false,
-        );
-        setProjects((current) => rememberProject(current, event.snapshot));
-      } else if (event.type === "process") {
-        pendingProcessEvents.current.set(event.process.id, event.process);
-        setSnapshot((current) =>
-          current ? replaceProcess(current, event.process) : current,
-        );
-        if (event.process.id === "setup-dashboard-with-agent") {
-          const starter = starterDashboardAgentTask(snapshotRef.current?.configPath, event.process);
-          setDashboardAgentTasks((current) => starter
-            ? replaceDashboardAgentTask(current, starter)
-            : current.filter((task) => task.id !== event.process.id));
-          syncAgentActivity(event.process.id, event.process.phase);
-        }
-      } else if (event.type === "agent-task") {
-        setDashboardAgentTasks((current) => replaceDashboardAgentTask(current, event.task));
-        syncAgentActivity(event.task.id, processRun(event.task.process)?.phase ?? "idle");
-      } else {
-        setPaletteOpen(true);
-      }
-    });
-
-    void Promise.all([host.getSnapshot(), host.listProjects(), host.getAppSettings(), host.getDashboardAgentTasks()])
-      .then(([initialSnapshot, initialProjects, initialSettings, initialAgentTasks]) => {
-        if (!active) return;
-        const snapshotWithPendingProcesses = [...pendingProcessEvents.current.values()]
-          .reduce(replaceProcess, initialSnapshot);
-        setSnapshot(snapshotWithPendingProcesses);
-        const starter = snapshotWithPendingProcesses.processes
-          .map((process) => starterDashboardAgentTask(snapshotWithPendingProcesses.configPath, process))
-          .find((task): task is DashboardAgentTask => task !== null);
-        setProjects(rememberProject(initialProjects, initialSnapshot));
-        setAppSettings(initialSettings);
-        setSidebarExpanded(initialSettings.sidebarExpandedByDefault);
-        setDashboardAgentTasks((current) => {
-          const withStarter = starter ? replaceDashboardAgentTask(initialAgentTasks, starter) : initialAgentTasks;
-          return current.reduce(replaceDashboardAgentTask, withStarter);
-        });
-        for (const task of initialAgentTasks) {
-          syncAgentActivity(task.id, processRun(task.process)?.phase ?? "idle", false);
-        }
-        if (starter) syncAgentActivity(starter.id, starter.process.phase, false);
-      })
-      .catch((error: unknown) => {
-        if (active) setActionError(errorMessage(error));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    const snapshotConfigPath = snapshot?.configPath;
-    if (!snapshotConfigPath) return;
-    setProjectOutlines((current) => ({
-      ...current,
-      [snapshotConfigPath]: {
-        tree: snapshot.tree,
-        loading: false,
-        error: outlineError(snapshot),
-      },
-    }));
-  }, [snapshot?.configPath, snapshot?.revision, snapshot?.tree, snapshot?.diagnostics]);
-
-  useEffect(() => {
-    if (!editSession) return;
-    const source = JSON.stringify(editSession.draft);
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      void host.validateDashboardDraft(editSession.draft, editSession.configPath)
-        .then((validation) => {
-          if (cancelled) return;
-          setEditSession((current) =>
-            current && JSON.stringify(current.draft) === source
-              ? { ...current, validation }
-              : current,
-          );
-        })
-        .catch((error: unknown) => {
-          if (!cancelled) setActionError(errorMessage(error));
-        });
-    }, 140);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [editSession?.draft]);
-
-  useEffect(() => {
-    const update = (event: globalThis.KeyboardEvent) => setCommandHeld(event.metaKey);
-    const clear = () => setCommandHeld(false);
-    const visibility = () => { if (document.hidden) clear(); };
-    window.addEventListener("keydown", update);
-    window.addEventListener("keyup", update);
-    window.addEventListener("blur", clear);
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      window.removeEventListener("keydown", update);
-      window.removeEventListener("keyup", update);
-      window.removeEventListener("blur", clear);
-      document.removeEventListener("visibilitychange", visibility);
-    };
-  }, []);
-
-  // Keep the window listener on the current draft guard without rebinding it
-  // for every unrelated process or source update.
-  const keyboardProjectSelector = useRef(selectProject);
-  useLayoutEffect(() => { keyboardProjectSelector.current = selectProject; });
-
-  useEffect(() => {
-    function openFromKeyboard(event: globalThis.KeyboardEvent): void {
-      if (event.repeat) return;
-      if (!paletteOpen && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && /^[1-9]$/.test(event.key)) {
-        const project = projects[Number(event.key) - 1];
-        if (project) {
-          event.preventDefault();
-          if (pendingAction === null) void keyboardProjectSelector.current(project, true);
-        }
-        return;
-      }
-      const target = event.target;
-      if (
-        target instanceof HTMLElement
-        && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-      ) return;
-      if (keyboardEventMatchesShortcut(event, appSettings.commandPaletteShortcut)) {
-        event.preventDefault();
-        setPaletteInitialActionId(null);
-        setPaletteOpen(true);
-        return;
-      }
-      const actionId = Object.entries(appSettings.actionShortcuts)
-        .find(([, shortcut]) => keyboardEventMatchesShortcut(event, shortcut))?.[0];
-      if (actionId) {
-        event.preventDefault();
-        requestAction(actionId);
-      }
-    }
-    window.addEventListener("keydown", openFromKeyboard);
-    return () => window.removeEventListener("keydown", openFromKeyboard);
-  }, [appSettings.actionShortcuts, appSettings.commandPaletteShortcut, paletteOpen, projects, pendingAction]);
-
-  useEffect(() => {
-    if (!actionNotice) return;
-    const noticeId = actionNotice.id;
-    const timeout = window.setTimeout(() => {
-      setActionNotice((current) => current?.id === noticeId ? null : current);
-    }, 5_000);
-    return () => window.clearTimeout(timeout);
-  }, [actionNotice?.id]);
-
-  const processes = useMemo(
-    () => new Map(snapshot?.processes.map((process) => [process.id, process]) ?? []),
-    [snapshot?.processes],
-  );
-  const agentTasks = dashboardAgentTasks;
-  const processesRef = useRef<ReadonlyMap<string, ProcessSnapshot>>(processes);
-  processesRef.current = processes;
-
-  async function perform(name: string, action: () => Promise<unknown>): Promise<void> {
-    setPendingAction(name);
-    setActionError(null);
-    setActionNotice(null);
-    try {
-      await action();
-    } catch (error) {
-      setActionError(errorMessage(error));
-    } finally {
-      setPendingAction(null);
-    }
-  }
-
-  function stopAgentTask(taskId: string): Promise<ProcessSnapshot> {
-    if (taskId === "setup-dashboard-with-agent") return host.stopProcess(taskId);
-    return host.stopDashboardAgentTask(taskId).then((task) => task.process);
-  }
-
-  function writeAgentTaskTerminal(taskId: string, input: string): Promise<ProcessSnapshot> {
-    if (taskId === "setup-dashboard-with-agent") return host.writeProcessTerminal(taskId, input);
-    return host.writeDashboardAgentTerminal(taskId, input).then((task) => task.process);
-  }
-
-  function resizeAgentTaskTerminal(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
-    if (taskId === "setup-dashboard-with-agent") return host.resizeProcessTerminal(taskId, cols, rows);
-    return host.resizeDashboardAgentTerminal(taskId, cols, rows).then((task) => task.process);
-  }
-
-  function showActionNotice(message: string): void {
-    nextActionNoticeId.current += 1;
-    setActionNotice({ id: nextActionNoticeId.current, message });
-  }
-
-  function resetCompositionUi(): void {
-    compositionInteraction.reset();
-    setCompositionSource(null);
-  }
-
-  function editSessionDirty(): boolean {
-    return Boolean(editSession && JSON.stringify(editSession.original) !== JSON.stringify(editSession.draft));
-  }
-
-  function requireDiscard(message: string, continueAction: () => void): boolean {
-    if (!editSessionDirty()) {
-      setEditSession(null);
-      resetCompositionUi();
-      return true;
-    }
-    setDiscardConfirmation({ message, continueAction });
-    return false;
-  }
-
-  async function chooseDashboard(): Promise<void> {
-    await perform("choose", async () => {
-      const nextSnapshot = await host.chooseProject();
-      setProjects(rememberProject(await host.listProjects(), nextSnapshot));
-      if (nextSnapshot.projectRoot) setActiveView("dashboard");
-    });
-  }
-
-  async function addDashboard(): Promise<void> {
-    if (editSession && !requireDiscard(
-      "Discard the unsaved dashboard changes and add another dashboard?",
-      () => void chooseDashboard(),
-    )) return;
-    await chooseDashboard();
-  }
-
-  async function openSelectedProject(project: ProjectListItem): Promise<void> {
-    if (snapshot?.configPath === project.configPath) {
-      setActiveView("dashboard");
-      return;
-    }
-    await perform(`open:${dashboardKey(project)}`, async () => {
-      await host.openProject(project);
-      setActiveView("dashboard");
-    });
-  }
-
-  async function selectProject(project: ProjectListItem, toggleSidebarWhenActive = false): Promise<void> {
-    if (toggleSidebarWhenActive && activeView === "dashboard" && snapshot?.configPath === project.configPath) {
-      setSidebarExpanded((expanded) => !expanded);
-      return;
-    }
-    if (editSession && editSession.configPath !== project.configPath && !requireDiscard(
-      "Discard the unsaved dashboard changes and switch projects?",
-      () => void openSelectedProject(project),
-    )) return;
-    await openSelectedProject(project);
-  }
-
-  function toggleProjectOutline(project: ProjectListItem): void {
-    const key = dashboardKey(project);
-    const closing = expandedProjectOutlines[key] === true;
-    setExpandedProjectOutlines((current) => ({ ...current, [key]: !closing }));
-    if (closing || snapshot?.configPath === project.configPath) return;
-
-    setProjectOutlines((current) => ({
-      ...current,
-      [key]: {
-        tree: current[key]?.tree ?? null,
-        loading: true,
-        error: null,
-      },
-    }));
-    void host.getProjectOutline(project)
-      .then((outline) => {
-        setProjectOutlines((current) => ({
-          ...current,
-          [key]: {
-            tree: outline.tree,
-            loading: false,
-            error: outlineError(outline),
-          },
-        }));
-      })
-      .catch((error: unknown) => {
-        setProjectOutlines((current) => ({
-          ...current,
-          [key]: {
-            tree: null,
-            loading: false,
-            error: errorMessage(error),
-          },
-        }));
-      });
-  }
-
-  async function openDeletionDialog(
-    project: ProjectListItem,
-    skipDiscard = false,
-  ): Promise<void> {
-    if (
-      !skipDiscard &&
-      editSession?.configPath === project.configPath &&
-      !requireDiscard(
-        "Discard the unsaved dashboard changes and remove this dashboard?",
-        () => void openDeletionDialog(project, true),
-      )
-    ) return;
-
-    await perform(`preview-delete:${dashboardKey(project)}`, async () => {
-      const preview = await host.getProjectDeletionPreview(project);
-      setDeletionDialog({ project, preview, removeFiles: false });
-    });
-  }
-
-  async function confirmDeletion(): Promise<void> {
-    if (!deletionDialog) return;
-    const request = deletionDialog;
-    const wasActive = snapshot?.configPath === request.project.configPath;
-    const activeProjectIndex = projects.findIndex(
-      (project) => project.configPath === request.project.configPath,
-    );
-    await perform(`delete:${dashboardKey(request.project)}`, async () => {
-      setDeletionDialog(null);
-      await host.deleteProject(request.project, request.removeFiles);
-      const remaining = await host.listProjects();
-      setProjects(remaining);
-      setEditSession((current) =>
-        current?.configPath === request.project.configPath ? null : current,
-      );
-      if (editSession?.configPath === request.project.configPath) resetCompositionUi();
-      forgetDashboard(request.project.configPath);
-      setExpandedProjectOutlines((current) => {
-        if (!Object.hasOwn(current, request.project.configPath)) return current;
-        const next = { ...current };
-        delete next[request.project.configPath];
-        return next;
-      });
-      setProjectOutlines((current) => {
-        if (!Object.hasOwn(current, request.project.configPath)) return current;
-        const next = { ...current };
-        delete next[request.project.configPath];
-        return next;
-      });
-
-      if (wasActive) {
-        setActiveView("dashboard");
-        const nextIndex = Math.min(
-          Math.max(activeProjectIndex, 0),
-          Math.max(remaining.length - 1, 0),
-        );
-        const nextProject = remaining[nextIndex];
-        if (nextProject) await host.openProject(nextProject);
-      }
-    });
-  }
-
-  async function loadCompositionSource(): Promise<void> {
-    const requestId = ++compositionSourceRequestId.current;
-    if (!snapshot?.projectRoot || !snapshot.configPath) return;
-    const focusedSource = virtualRoot?.target.sourceConfigPath;
-    if (!focusedSource || focusedSource === snapshot.configPath) {
-      setCompositionSource(null);
-      return;
-    }
-    const request = {
-      projectRoot: snapshot.projectRoot,
-      activeDashboardPath: snapshot.configPath,
-      focusedSourcePath: focusedSource,
-      snapshotRevision: snapshot.revision,
-      configPath: focusedSource,
-    };
-    setCompositionSource(null);
-    try {
-      const source = await host.getDashboardConfigSource(focusedSource);
-      // A newer focus change superseded this request; drop its late response.
-      if (requestId !== compositionSourceRequestId.current) return;
-      if (source.configPath !== request.configPath) return;
-      setCompositionSource({
-        ...request,
-        config: source.config,
-        componentCatalog: source.componentCatalog,
-      });
-    } catch (error) {
-      if (requestId !== compositionSourceRequestId.current) return;
-      setActionError(errorMessage(error));
-    }
-  }
-
-  function toggleCompositionLibrary(): void {
-    setAgentActivityOpen(false);
-    compositionInteraction.toggleLibrary();
-  }
-
-  function toggleAgentActivity(): void {
-    // Render-state based (like the library toggle): the shared drawer also
-    // closes on outside pointer-down, which fires before this click handler.
-    if (agentActivityOpen) {
-      setAgentActivityOpen(false);
-      return;
-    }
-    setAgentActivityOpen(true);
-    compositionInteraction.closeLibrary();
-  }
-
-  async function ensureCurrentDashboardEdit(requestedConfigPath?: string, preserveView = false): Promise<DashboardEditSession | null> {
-    if (!snapshot?.projectRoot || !snapshot.configPath) return null;
-    if (editSession?.projectRoot === snapshot.projectRoot && (!requestedConfigPath || requestedConfigPath === editSession.configPath)) {
-      return editSession;
-    }
-    if (editSession) {
-      setActionError("Finish the current dashboard draft before composing another dashboard.");
-      return null;
-    }
-
-    let loaded: DashboardEditSession | null = null;
-    await perform(`edit:${snapshot.configPath}`, async () => {
-      const focusedSource = requestedConfigPath ?? virtualRoot?.target.sourceConfigPath;
-      const source = await host.getDashboardConfigSource(focusedSource);
-      const validation = await host.validateDashboardDraft(source.config, source.configPath);
-      loaded = createDashboardEditSession(snapshot.projectRoot!, source, validation);
-      if (!preserveView) setActiveView("dashboard");
-      setEditSession(loaded);
-    });
-    return loaded;
-  }
-
-  function updateDashboardAppearance(change: Pick<DashboardConfig, "theme" | "themeMode">): void {
-    void (async () => {
-      const configPath = snapshotRef.current?.configPath;
-      if (!configPath) return;
-      const session = await ensureCurrentDashboardEdit(configPath, true);
-      if (!session || snapshotRef.current?.configPath !== session.configPath) return;
-      const draft = patchDashboardAppearance(session.draft, change);
-      const updated = { ...session, draft };
-      editSessionRef.current = updated;
-      setEditSession((current) => current?.configPath === session.configPath ? updated : current);
-    })();
-  }
-
-  const updateComponentProps = useCallback(async (
-    node: ResolvedComponentNode,
-    props: Record<string, unknown>,
-  ): Promise<void> => {
-    const currentSnapshot = snapshotRef.current;
-    const currentSession = editSessionRef.current;
-    const configPath = node.sourceConfigPath;
-    const path = node.sourcePath ? nodePathFromSourcePath(node.sourcePath) : null;
-    if (!currentSnapshot?.projectRoot || !configPath || !path) {
-      throw new Error("This component cannot locate its owning dashboard configuration.");
-    }
-    if (currentSession && currentSession.configPath !== configPath) {
-      throw new Error("Finish the current dashboard draft before editing another dashboard component.");
-    }
-
-    let session = currentSession;
-    if (!session) {
-      const source = await host.getDashboardConfigSource(configPath);
-      const validation = await host.validateDashboardDraft(source.config, source.configPath);
-      session = createDashboardEditSession(currentSnapshot.projectRoot, source, validation);
-      editSessionRef.current = session;
-      setActiveView("dashboard");
-      setEditSession(session);
-    }
-
-    const next = updateNodeProps(session.draft, path, props);
-    const updated = { ...session, draft: next };
-    editSessionRef.current = updated;
-    setEditSession((current) => current && current.configPath === session!.configPath ? updated : current);
-  }, []);
-
-  function cancelDashboardEdit(): void {
-    if (!editSession) return;
-    if (requireDiscard("Discard the unsaved dashboard changes and exit edit mode?", () => undefined)) {
-      setEditSession(null);
-      resetCompositionUi();
-    }
-  }
-
-  function showSettings(): void {
-    setActiveView("settings");
-  }
-
-  function updateAppSettings(settings: AppSettings, notice: string): void {
-    const revision = ++appSettingsRevision.current;
-    if (settings.sidebarExpandedByDefault !== appSettings.sidebarExpandedByDefault) {
-      setSidebarExpanded(settings.sidebarExpandedByDefault);
-    }
-    setAppSettings(settings);
-    appSettingsWrite.current = appSettingsWrite.current
-      .catch(() => undefined)
-      .then(async () => {
-        const updated = await host.updateAppSettings(settings);
-        if (revision === appSettingsRevision.current) {
-          setAppSettings(updated);
-          showActionNotice(notice);
-        }
-      })
-      .catch((error: unknown) => {
-        if (revision === appSettingsRevision.current) setActionError(errorMessage(error));
-      });
-  }
-
-  const dashboardSettingsRevision = useRef(0);
-
-  async function refreshDashboardSettings(items = projects): Promise<void> {
-    const revision = ++dashboardSettingsRevision.current;
-    const next = await Promise.all(items.map(async (project): Promise<DashboardSettingsItem> => {
-      try {
-        const source = await host.getDashboardConfigSource(project.configPath);
-        return {
-          ...project,
-          theme: source.config.theme,
-          themeMode: source.config.themeMode,
-        };
-      } catch (error) {
-        return { ...project, error: errorMessage(error) };
-      }
-    }));
-    if (revision === dashboardSettingsRevision.current) setDashboardSettings(next);
-  }
-
-  useEffect(() => {
-    if (activeView !== "settings") return;
-    void refreshDashboardSettings();
-  }, [activeView, projects, snapshot?.revision]);
-
-  async function updateRegisteredDashboardAppearance(
-    dashboard: DashboardSettingsItem,
-    change: Pick<DashboardConfig, "theme" | "themeMode">,
-  ): Promise<void> {
-    try {
-      const source = await host.getDashboardConfigSource(dashboard.configPath);
-      const draft = patchDashboardAppearance(source.config, change);
-      await host.saveDashboardConfig(draft, source.configRevision, source.configPath);
-      setDashboardSettings((current) => current.map((item) => item.configPath === dashboard.configPath
-        ? { ...item, theme: draft.theme, themeMode: draft.themeMode, error: undefined }
-        : item));
-      showActionNotice(`${dashboard.dashboardName?.trim() || "Dashboard"} appearance updated.`);
-    } catch (error) {
-      setActionError(errorMessage(error));
-    }
-  }
-
-  function saveAgentSetting(command: string | null): void {
-    updateAppSettings(
-      { ...appSettings, dashBoredAgent: command },
-      command === null
-        ? "App-wide DASH_BORED_AGENT cleared; the project .env will be used when available."
-        : `DASH_BORED_AGENT is now ${command}.`,
-    );
-  }
-
-  async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
-    await perform(`copy-component:${node.id}`, async () => {
-      const locator = componentPath(node);
-      await writeClipboardText(locator);
-      showActionNotice(`Copied ${locator}`);
-    });
-  }
-
-  /** Change with agent briefs the agent with the dashboard template. */
-  function openChangeWithAgent(node: ResolvedComponentNode): void {
-    setAgentPromptDraft({ input: "", template: "dashboard" });
-    setAgentDialog(node);
-  }
-
-  const previewComponentAgent = useCallback(
-    (node: ResolvedComponentNode, prompt: string) => host.previewComponentAgent({
-      nodeId: node.id,
-      prompt,
-      ...(agentPromptDraft.template ? { template: agentPromptDraft.template } : {}),
-      ...(agentPromptDraft.vars ? { vars: agentPromptDraft.vars } : {}),
-    }),
-    [host, agentPromptDraft],
-  );
-
-  async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
-    const action = `component-agent:${node.id}`;
-    await perform(action, async () => {
-      const launched = await host.runComponentAgent({
-        nodeId: node.id,
-        prompt,
-        ...(agentPromptDraft.template ? { template: agentPromptDraft.template } : {}),
-        ...(agentPromptDraft.vars ? { vars: agentPromptDraft.vars } : {}),
-      });
-      setAgentDialog(null);
-      setAgentPromptDraft(EMPTY_AGENT_PROMPT_DRAFT);
-      setAgentActivityOpen(true);
-      showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
-    });
-  }
-
-  async function runDiagnosticsAgent(): Promise<void> {
-    await perform("diagnostics-agent", async () => {
-      const launched = await host.runDiagnosticsAgent();
-      setAgentActivityOpen(true);
-      showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
-    });
-  }
-
-  async function repairInstalledTools(): Promise<void> {
-    await perform("installed-tools-repair", async () => {
-      const repaired = await host.repairInstalledTools();
-      const hasConflicts = repaired.diagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT");
-      showActionNotice(hasConflicts
-        ? "Installed-tool repair needs attention; review the remaining warning."
-        : "Moved the old installed tools to Trash and installed the current dash-bored tools.");
-    });
-  }
-
-  async function runComponentCreationAgent(
-    configPath: string,
-    target: InsertionTarget,
-    prompt: string,
-  ): Promise<void> {
-    await perform("component-agent:create", async () => {
-      const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
-      setEditSession(null);
-      resetCompositionUi();
-      setAgentActivityOpen(true);
-      showActionNotice(`Started ${launched.command} for ${launched.componentPath}.`);
-    });
-  }
-
-  function requestComponentCreationAgent(target: InsertionTarget, description: string): void {
-    if (!editSession || pendingAction !== null) return;
-    const configPath = editSession.configPath;
-    const launch = (): void => {
-      void runComponentCreationAgent(configPath, target, description);
-    };
-    if (editSessionDirty()) {
-      setDiscardConfirmation({
-        message: "Discard the dashboard draft and ask the configured agent to build this component?",
-        continueAction: launch,
-      });
-      return;
-    }
-    launch();
-  }
-
-  async function saveDashboardDraft(): Promise<boolean> {
-    if (!editSession) return false;
-    setSavingDraft(true);
-    setActionError(null);
-    try {
-      await host.saveDashboardConfig(
-        editSession.draft,
-        editSession.expectedConfigRevision,
-        editSession.configPath,
-      );
-      setEditSession(null);
-      resetCompositionUi();
-      return true;
-    } catch (error) {
-      setActionError(errorMessage(error));
-      return false;
-    } finally {
-      setSavingDraft(false);
-    }
-  }
-
-  const editingActiveProject = Boolean(editSession && editSession.projectRoot === snapshot?.projectRoot);
-  const draftDirty = Boolean(editSession && editSessionDirty());
-  const draftValid = Boolean(editSession &&
-    editSession?.validation.diagnostics.every((item) => item.severity !== "error"),
-  );
-  const availableThemeCatalog = mergeThemeCatalog(applicationThemes, snapshot?.themeCatalog);
-  const applicationActions = buildApplicationActions({
-    snapshot,
-    projects,
-    activeView,
-    sidebarExpanded,
-    pendingAction,
-    editing: editingActiveProject,
-    draftDirty,
-    draftValid,
-    savingDraft,
-    appSettings,
-    themeCatalog: availableThemeCatalog,
-    callbacks: {
-      reloadApp: () => window.location.reload(),
-      showDashboard: () => setActiveView("dashboard"),
-      showSettings,
-      toggleSidebar: () => setSidebarExpanded((expanded) => !expanded),
-      addDashboard,
-      openProject: selectProject,
-      editDashboard: toggleCompositionLibrary,
-      saveDashboard: async () => { await saveDashboardDraft(); },
-      cancelDashboard: cancelDashboardEdit,
-      reloadProject: () => perform("reload", host.reloadProject),
-      trustProject: () => perform("trust", host.trustProject),
-      revokeTrust: () => perform("revoke", host.revokeTrust),
-      runProcessQuickAction: async (nodeId) => {
-        await host.runProcessQuickAction(nodeId);
-      },
-      stopProcess: async (nodeId) => {
-        await host.stopProcess(nodeId);
-      },
-      setDashboardAppearance: (theme, themeMode) => updateDashboardAppearance({ theme, themeMode }),
-      setDefaultAppearance: (theme, themeMode) => updateAppSettings(
-        { ...appSettings, theme, themeMode },
-        "Default theme and appearance updated.",
-      ),
-      // Every agent launch goes through the reviewed composer and the agent-work
-      // surface, so the app can show what the agent is doing. Without a configured
-      // caller (palette, shortcut) the composer targets the current focus.
-      requestAgentPrompt: (args, callerNodeId) => {
-        const prompt = args.prompt ?? "";
-        const targetId = callerNodeId ?? virtualRoot?.target.id ?? snapshot?.tree?.id;
-        const target = targetId && snapshot?.tree ? findResolvedNode(snapshot.tree, targetId) : null;
-        if (typeof prompt !== "string" || !target) {
-          setActionError("The configured agent prompt target is no longer available.");
-          return;
-        }
-        // Template and vars were validated at load; the main process re-checks them.
-        setAgentPromptDraft({
-          input: prompt,
-          ...(typeof args.template === "string" ? { template: args.template } : {}),
-          ...(args.vars !== null && typeof args.vars === "object" && !Array.isArray(args.vars)
-            ? { vars: args.vars as Record<string, string | number | boolean> }
-            : {}),
-        });
-        setAgentDialog(target);
-      },
-    },
+  const showDashboard = useCallback(() => setActiveView("dashboard"), []);
+  const [dialog, setDialog] = useState<AppDialog | null>(null);
+  const [agentActivityOpen, setAgentActivityOpen] = useState(false);
+  const interaction = useCompositionInteractionController();
+  const settings = useAppSettings(notices);
+  const actions = useActionRegistry(notices.setError);
+  const session = useHostSession({
+    onBoot: settings.load,
+    onAgentTaskActivated: () => setAgentActivityOpen(true),
+    onPaletteRequested: actions.palette.show,
+    onError: notices.setError,
   });
+  const { snapshot } = session;
+  const commandHeld = useCommandHeld();
+
+  const localComponents = useLocalComponents(snapshot?.components ?? [], snapshot?.configPath ?? null);
+  const componentUpdateBatch = useComponentUpdateBatch(snapshot?.tree, snapshot?.configPath, snapshot?.trusted, localComponents);
+
   const dashboardPath = snapshot?.configPath ?? null;
-  const {
-    storedVirtualRoot,
-    activeCollapsedComponentIds,
-    activeSplitRatioOverrides,
-    activeComponentHeightOverrides,
-    activeChildSelections,
-    storeVirtualRoot,
-    expandComponent,
-    toggleComponentCollapse,
-    updateSplitRatio,
-    updateComponentHeight,
-    focusComponent,
-    revealComponent,
-    selectChild,
-    forgetDashboard,
-  } = useDashboardViewState(dashboardPath, snapshot?.tree);
-  const virtualRoot = snapshot?.tree
-    ? resolveVirtualRoot(snapshot.tree, storedVirtualRoot ?? null)
-    : null;
+  const viewState = useDashboardViewState(dashboardPath, snapshot?.tree);
+  const virtualRoot = snapshot?.tree ? resolveVirtualRoot(snapshot.tree, viewState.storedVirtualRoot ?? null) : null;
   useLayoutEffect(() => {
     const targetId = virtualRoot?.target.id;
     if (!targetId) return;
@@ -1018,480 +80,79 @@ export function App(): ReactNode {
       .find((element) => element.dataset.nodeId === targetId);
     target?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [snapshot?.configPath, virtualRoot?.target.id]);
-  const compositionPreviewTree = useMemo(() => {
-    if (!snapshot?.tree) return null;
-    const source = isCompositionSourceCurrent(
-      compositionSource,
-      snapshot,
-      virtualRoot?.target.sourceConfigPath,
-    ) ? compositionSource : null;
-    if (!editSession) {
-      if (!source || source.configPath === snapshot.configPath) return snapshot.tree;
-      const template = findResolvedConfigRoot(snapshot.tree, source.configPath);
-      return template
-        ? buildCompositionPreviewTree(
-            source.config,
-            template,
-            source.componentCatalog,
-            source.configPath,
-            linkedComponentIdNamespace(template, source.config.root),
-          )
-        : null;
-    }
-    if (!editSession.configPath) return null;
-    const template = editSession.configPath === snapshot.configPath
-      ? snapshot.tree
-      : findResolvedConfigRoot(snapshot.tree, editSession.configPath);
-    return template
-      ? buildCompositionPreviewTree(
-          editSession.draft,
-          template,
-          editSession.componentCatalog,
-          editSession.configPath,
-          editSession.configPath === snapshot.configPath
-            ? undefined
-            : linkedComponentIdNamespace(template, editSession.draft.root),
-        )
-      : null;
-  }, [
-    compositionSource,
-    editSession,
-    snapshot?.configPath,
-    snapshot?.projectRoot,
-    snapshot?.tree,
-    virtualRoot?.target.sourceConfigPath,
-  ]);
-  const compositionVirtualRoot = compositionPreviewTree
-    ? resolveVirtualRoot(compositionPreviewTree, storedVirtualRoot ?? null)
-    : null;
-  const activeCompositionSource = isCompositionSourceCurrent(
-    compositionSource,
+
+  const draft = useDashboardDraft({
     snapshot,
-    virtualRoot?.target.sourceConfigPath,
-  ) ? compositionSource : null;
-  const compositionConfig = editSession
-    ? editSession.draft
-    : activeCompositionSource?.config ?? snapshot?.config ?? null;
-  const compositionCatalog = editSession
-    ? editSession.componentCatalog
-    : activeCompositionSource?.componentCatalog ?? snapshot?.componentCatalog ?? [];
-  const compositionSourcePending = Boolean(
-    componentLibraryOpen
-    && !editSession
-    && virtualRoot?.target.sourceConfigPath
-    && snapshot?.configPath
-    && virtualRoot.target.sourceConfigPath !== snapshot.configPath
-    && !activeCompositionSource,
-  );
-  const editingComposition = Boolean(editSession && editingActiveProject && compositionPreviewTree);
+    snapshotRef: session.snapshotRef,
+    notices,
+    focusedSourcePath: virtualRoot?.target.sourceConfigPath,
+    showDashboard,
+    setDialog,
+    onEnd: interaction.reset,
+  });
+  const editSession = draft.session;
+  useAppTheme(session.themes, snapshot, editSession, settings);
 
-  function compositionSourceIsReady(): boolean {
-    if (!compositionSourcePending) return true;
-    setActionError("Loading the focused dashboard bundle before composing.");
-    return false;
+  const agent = useAgentWork({
+    notices,
+    activityOpen: agentActivityOpen,
+    setActivityOpen: setAgentActivityOpen,
+    snapshot,
+    appAgentCommand: settings.settings.dashBoredAgent,
+    focusedNodeId: virtualRoot?.target.id,
+    dialog,
+    setDialog,
+    endDraft: draft.end,
+    closeLibrary: interaction.closeLibrary,
+  });
+  const composition = useCompositionSession({
+    interaction,
+    snapshot,
+    draft,
+    notices,
+    virtualRoot,
+    storedVirtualRoot: viewState.storedVirtualRoot ?? null,
+    updateSplitRatio: viewState.updateSplitRatio,
+    setDialog,
+    runCreationAgent: agent.runCreationAgent,
+  });
+  const navigation = useProjectNavigation({
+    session,
+    draft,
+    notices,
+    activeView,
+    setActiveView,
+    toggleSidebar: () => settings.setSidebarExpanded((expanded) => !expanded),
+    dialog,
+    setDialog,
+    focusComponent: viewState.focusComponent,
+    expandComponent: viewState.expandComponent,
+    storeVirtualRoot: viewState.storeVirtualRoot,
+    forgetDashboard: viewState.forgetDashboard,
+  });
+  const dashboardSettings = useDashboardSettings(notices, activeView === "settings", session.projects, snapshot?.revision);
+
+  function toggleCompositionLibrary(): void {
+    setAgentActivityOpen(false);
+    interaction.toggleLibrary();
   }
 
-  const compositionTargets = useMemo(() => createCompositionTargets({
-    config: compositionConfig,
-    catalog: compositionCatalog,
-    previewTree: compositionPreviewTree,
-    owningConfigPath: editSession?.configPath
-      ?? activeCompositionSource?.configPath
-      ?? snapshot?.configPath,
-    dragging: compositionDrag,
-  }), [
-    compositionConfig,
-    compositionCatalog,
-    compositionPreviewTree,
-    editSession?.configPath,
-    activeCompositionSource?.configPath,
-    snapshot?.configPath,
-    compositionDrag,
-  ]);
-  const {
-    pathForNode: compositionPathForNode,
-    dropZonesForNode: compositionDropZonesForNode,
-    pointerTargetAt: compositionPointerTargetAt,
-    targetIsValid: compositionTargetIsValid,
-    defaultTarget: defaultCompositionTarget,
-  } = compositionTargets;
-
-  function compositionRemovalTargetAt(point: ComponentPointerDragPoint): boolean {
-    return document.elementFromPoint(point.clientX, point.clientY)
-      ?.closest("[data-composition-removal-target]") != null;
-  }
-
-  function updateCompositionPointerDrag(
-    payload: CompositionDragPayload,
-    point: ComponentPointerDragPoint,
-  ): void {
-    const target = compositionPointerTargetAt(point, payload, compositionInteraction.currentPointer());
-    positionCompositionDragChip(
-      compositionDragChip.current,
-      point,
-      target ? "target" : payload.type === "node" && compositionRemovalTargetAt(point) ? "remove" : "none",
-    );
-    compositionInteraction.updatePointer(target ? {
-      nodeId: target.node.id,
-      zoneId: target.zone.id,
-      clientX: point.clientX,
-      clientY: point.clientY,
-    } : null);
-  }
-
-  function scheduleCompositionPointerDrag(
-    payload: CompositionDragPayload,
-    point: ComponentPointerDragPoint,
-  ): void {
-    pendingCompositionPointer.current = { payload, point };
-    if (compositionPointerFrame.current !== null) return;
-    compositionPointerFrame.current = requestAnimationFrame(() => {
-      compositionPointerFrame.current = null;
-      const pending = pendingCompositionPointer.current;
-      pendingCompositionPointer.current = null;
-      if (pending) updateCompositionPointerDrag(pending.payload, pending.point);
+  async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
+    await notices.perform(`copy-component:${node.id}`, async () => {
+      const locator = componentPath(node);
+      await writeClipboardText(locator);
+      notices.showNotice(`Copied ${locator}`);
     });
   }
 
-  function clearPendingCompositionPointer(): void {
-    pendingCompositionPointer.current = null;
-    if (compositionPointerFrame.current !== null) {
-      cancelAnimationFrame(compositionPointerFrame.current);
-      compositionPointerFrame.current = null;
-    }
-  }
-
-  function dropCompositionPointer(
-    payload: CompositionDragPayload,
-    point: ComponentPointerDragPoint,
-  ): void {
-    // Resolve against the advertised zone so the drop lands where the
-    // indicator (with hysteresis) said it would, not a raw re-hit-test.
-    const target = compositionPointerTargetAt(point, payload, compositionInteraction.currentPointer());
-    clearPendingCompositionPointer();
-    compositionInteraction.updatePointer(null);
-    if (target) {
-      handleCompositionDrop(target.zone.target, payload);
-      return;
-    }
-    if (payload.type === "node" && compositionRemovalTargetAt(point)) {
-      void removeCompositionNode(payload.path);
-    }
-  }
-
-  function handleCompositionPointerDragMove(
-    reference: string,
-    point: ComponentPointerDragPoint,
-  ): void {
-    scheduleCompositionPointerDrag({ type: "component", reference }, point);
-  }
-
-  function handleCompositionPointerDrop(
-    reference: string,
-    point: ComponentPointerDragPoint,
-  ): void {
-    dropCompositionPointer({ type: "component", reference }, point);
-  }
-
-  async function openCompositionDialog(
-    target: CompositionTarget,
-    reference?: string,
-  ): Promise<void> {
-    if (!compositionSourceIsReady()) return;
-    if (!compositionConfig || !snapshot?.tree) return;
-    const payload: CompositionDragPayload = {
-      type: "component",
-      reference: reference ?? "",
-    };
-    if (!reference || !compositionTargetIsValid(target, payload)) {
-      setActionError("Choose a valid component and insertion target before composing.");
-      return;
-    }
-    const session = await ensureCurrentDashboardEdit();
-    if (!session) return;
-      compositionInteraction.showDialog(isRootCompositionTarget(target)
-        ? { mode: "replace", reference }
-        : { mode: "add", target, reference });
-  }
-
-  function handleCompositionInsert(entry: ComponentCatalogItem): void {
-    if (!compositionSourceIsReady()) return;
-    const target = compositionTarget ?? defaultCompositionTarget();
-    if (!target) {
-      setActionError("No dashboard insertion target is available.");
-      return;
-    }
-    void openCompositionDialog(target, entry.reference);
-  }
-
-  async function handleInsertSwitchablePanels(): Promise<void> {
-    if (!compositionSourceIsReady()) return;
-    const target = compositionTarget ?? defaultCompositionTarget();
-    if (!target || isRootCompositionTarget(target)) {
-      setActionError("Choose a non-root insertion target for switchable panels.");
-      return;
-    }
-    const session = await ensureCurrentDashboardEdit();
-    if (!session) return;
-    const planned = planCompositionOperation({
-      config: session.draft,
-      catalog: session.componentCatalog,
-      payload: { type: "component", reference: "@dash-bored/group" },
-      target,
+  async function repairInstalledTools(): Promise<void> {
+    await notices.perform("installed-tools-repair", async () => {
+      const repaired = await host.repairInstalledTools();
+      const hasConflicts = repaired.diagnostics.some((item) => item.code === "INSTALLED_TOOL_UPDATE_CONFLICT");
+      notices.showNotice(hasConflicts
+        ? "Installed-tool repair needs attention; review the remaining warning."
+        : "Moved the old installed tools to Trash and installed the current dash-bored tools.");
     });
-    if (planned.status !== "planned") {
-      setActionError(planned.reason);
-      return;
-    }
-    try {
-      const next = insertNode(session.draft, target, switchablePanelsNode(session.draft), session.componentCatalog);
-      setEditSession((current) => current && current.configPath === session.configPath ? { ...current, draft: next } : current);
-      compositionInteraction.closeLibrary();
-      compositionInteraction.clearTarget();
-    } catch (error) {
-      setActionError(errorMessage(error));
-    }
-  }
-
-  async function handleCompositionAgent(description: string): Promise<void> {
-    if (!compositionSourceIsReady()) return;
-    let target = compositionTarget ?? defaultCompositionTarget();
-    if (!target || isRootCompositionTarget(target)) {
-      const fallback = defaultCompositionTarget();
-      target = fallback && !isRootCompositionTarget(fallback) ? fallback : null;
-    }
-    if (!target || isRootCompositionTarget(target) || !snapshot?.projectRoot) {
-      setActionError("Choose a component insertion target before asking the agent to build one.");
-      return;
-    }
-    const session = await ensureCurrentDashboardEdit();
-    if (!session) return;
-    const dirty = JSON.stringify(session.original) !== JSON.stringify(session.draft);
-    if (dirty) {
-      setDiscardConfirmation({
-        message: "Discard the dashboard draft and ask the configured agent to build this component?",
-        continueAction: () => void runComponentCreationAgent(session.configPath, target!, description),
-      });
-      return;
-    }
-    void runComponentCreationAgent(session.configPath, target, description);
-  }
-
-  async function removeCompositionNode(path: NodePath): Promise<void> {
-    const session = await ensureCurrentDashboardEdit();
-    if (!session || path.length === 0) return;
-    try {
-      nodeAtPath(session.draft.root, path);
-    } catch {
-      setActionError("The component moved before removal could be confirmed.");
-      return;
-    }
-    compositionInteraction.requestRemoval(path);
-  }
-
-  function handleCompositionDrop(target: CompositionTarget, payload: CompositionDragPayload): void {
-    if (!compositionSourceIsReady()) return;
-    if (!compositionTargetIsValid(target, payload)) return;
-    if (payload.type === "component") {
-      void openCompositionDialog(target, payload.reference);
-      return;
-    }
-    void ensureCurrentDashboardEdit().then((session) => {
-      if (!session || isRootCompositionTarget(target)) return;
-      const planned = planCompositionOperation({
-        config: session.draft,
-        catalog: session.componentCatalog,
-        payload,
-        target,
-      });
-      if (planned.status !== "planned") {
-        setActionError(planned.message);
-        return;
-      }
-      try {
-        const next = planned.nextConfig;
-        setEditSession((current) => current && current.configPath === session.configPath
-          ? { ...current, draft: next }
-          : current);
-        compositionInteraction.endDrag();
-        compositionInteraction.clearTarget();
-      } catch (error) {
-        setActionError(errorMessage(error));
-      }
-    });
-  }
-
-  function handleCompositionSplitRatio(
-    branchKey: string,
-    defaultRatio: number,
-    ratio: number | null,
-    node: ResolvedComponentNode,
-    splitPath: readonly LayoutBranch[],
-  ): void {
-    if (editingComposition && editSession) {
-      const path = nodePathById(editSession.draft.root, node.id);
-      if (!path) {
-        setActionError("The tiled component moved before its split could be updated.");
-        return;
-      }
-      try {
-        const next = ratio === null
-          ? editSession.draft
-          : updateTiledSplitRatio(editSession.draft, path, splitPath, ratio);
-        setEditSession({ ...editSession, draft: next });
-      } catch (error) {
-        setActionError(errorMessage(error));
-      }
-      return;
-    }
-    if (componentLibraryOpen) {
-      void ensureCurrentDashboardEdit().then((session) => {
-        if (!session) return;
-        const path = nodePathById(session.draft.root, node.id);
-        if (!path) {
-          setActionError("The tiled component moved before its split could be updated.");
-          return;
-        }
-        try {
-          const next = updateTiledSplitRatio(session.draft, path, splitPath, ratio ?? defaultRatio);
-          setEditSession((current) => current && current.configPath === session.configPath
-            ? { ...current, draft: next }
-            : current);
-        } catch (error) {
-          setActionError(errorMessage(error));
-        }
-      });
-      return;
-    }
-    updateSplitRatio(branchKey, defaultRatio, ratio);
-  }
-
-  function applyCompositionDraft(next: DashboardConfig): void {
-    setEditSession((current) => current ? { ...current, draft: next } : current);
-    compositionInteraction.dismissDialog();
-    compositionInteraction.clearTarget();
-  }
-
-  function confirmCompositionRemoval(): void {
-    if (!compositionRemovePath || !editSession) return;
-    try {
-      const next = removeNode(editSession.draft, compositionRemovePath, editSession.componentCatalog);
-      setEditSession({ ...editSession, draft: next });
-      compositionInteraction.dismissRemoval();
-      compositionInteraction.clearTarget();
-    } catch (error) {
-      setActionError(errorMessage(error));
-    }
-  }
-
-  function confirmDiscardChanges(continueAction: () => void): void {
-    setDiscardConfirmation(null);
-    setEditSession(null);
-    resetCompositionUi();
-    queueMicrotask(continueAction);
-  }
-
-  // Composition is always ready for direct frame-handle drags. A drag itself opens
-  // the flyout and begins a draft only after a valid move or removal.
-  const compositionContextValue = compositionConfig && compositionPreviewTree
-    ? {
-        active: true,
-        dragging: compositionDrag,
-        pointer: compositionPointer,
-        config: compositionConfig,
-        catalog: compositionCatalog,
-        pathForNode: compositionPathForNode,
-        dropZonesForNode: compositionDropZonesForNode,
-        onNodeDragStart: compositionInteraction.beginNodeDrag,
-        onNodeDragEnd: () => {
-          clearPendingCompositionPointer();
-          compositionInteraction.endDrag();
-        },
-        onNodePointerDragMove: (path: NodePath, point: ComponentPointerDragPoint) => {
-          scheduleCompositionPointerDrag({ type: "node", path }, point);
-        },
-        onNodePointerDrop: (path: NodePath, point: ComponentPointerDragPoint) => {
-          dropCompositionPointer({ type: "node", path }, point);
-        },
-      }
-    : null;
-
-  useEffect(() => {
-    if (!componentLibraryOpen || editSession || !snapshot?.projectRoot || !snapshot.configPath) return;
-    const focusedSource = virtualRoot?.target.sourceConfigPath;
-    if (!focusedSource || focusedSource === snapshot.configPath) {
-      compositionSourceRequestId.current += 1;
-      if (compositionSource !== null) setCompositionSource(null);
-      return;
-    }
-    if (
-      isCompositionSourceCurrent(compositionSource, snapshot, focusedSource)
-      && compositionSource.configPath === focusedSource
-    ) return;
-    void loadCompositionSource();
-  }, [
-    componentLibraryOpen,
-    compositionSource,
-    editSession,
-    snapshot?.configPath,
-    snapshot?.projectRoot,
-    snapshot?.revision,
-    virtualRoot?.target.sourceConfigPath,
-  ]);
-
-  const compositionUiActive = componentLibraryOpen
-    || compositionDialog !== null
-    || compositionRemovePath !== null
-    || discardConfirmation !== null
-    || deletionDialog !== null
-    || agentDialog !== null
-    || paletteOpen
-    || (editingComposition && (draftDirty || compositionDrag !== null));
-
-  async function editCompositionNode(node: ResolvedComponentNode): Promise<void> {
-    if (!compositionSourceIsReady()) return;
-    const sourcePath = compositionPathForNode(node);
-    if (!sourcePath) {
-      setActionError("The component could not be located in its dashboard configuration.");
-      return;
-    }
-    const session = await ensureCurrentDashboardEdit();
-    if (!session) return;
-    const path = nodePathById(session.draft.root, node.id) ?? sourcePath;
-    try {
-      nodeAtPath(session.draft.root, path);
-    } catch {
-      setActionError("The component moved before editing could be opened.");
-      return;
-    }
-    compositionInteraction.showDialog({ mode: "configure", path });
-  }
-
-  async function focusProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
-    if (snapshot?.configPath === targetProject.configPath) {
-      setActiveView("dashboard");
-      focusComponent(nodeId);
-      return;
-    }
-    if (editSession && editSession.configPath !== targetProject.configPath && !requireDiscard(
-      "Discard the unsaved dashboard changes and navigate to another dashboard node?",
-      () => void openProjectNode(targetProject, nodeId),
-    )) return;
-
-    await openProjectNode(targetProject, nodeId);
-  }
-
-  async function openProjectNode(targetProject: ProjectTarget, nodeId: string): Promise<void> {
-    let opened = false;
-    await perform(`open:${targetProject.configPath}`, async () => {
-      await host.openProject(targetProject);
-      setActiveView("dashboard");
-      opened = true;
-    });
-    if (opened) {
-      expandComponent(targetProject.configPath, nodeId);
-      storeVirtualRoot(targetProject.configPath, nodeId);
-    }
   }
 
   function handleProjectNodeAction(
@@ -1500,7 +161,7 @@ export function App(): ReactNode {
     action: DashboardOutlineNodeAction,
   ): void {
     if (action === "focus") {
-      void focusProjectNode(targetProject, node.id);
+      void navigation.focusProjectNode(targetProject, node.id);
       return;
     }
     if (action === "copy") {
@@ -1508,32 +169,70 @@ export function App(): ReactNode {
       return;
     }
     if (activeView !== "dashboard" || snapshot?.configPath !== targetProject.configPath) {
-      setActionError("Open this dashboard before changing its component.");
+      notices.setError("Open this dashboard before changing its component.");
       return;
     }
-    if (action === "edit") {
-      void editCompositionNode(node);
-    } else if (action === "collapse") {
-      toggleComponentCollapse(node.id);
-    } else {
-      openChangeWithAgent(node);
-    }
+    if (action === "edit") void composition.editNode(node);
+    else if (action === "collapse") viewState.toggleComponentCollapse(node.id);
+    else agent.openChangeWithAgent(node);
   }
 
+  const themeCatalog = mergeThemeCatalog(session.themes, snapshot?.themeCatalog);
+  const applicationActions = buildApplicationActions({
+    snapshot,
+    projects: session.projects,
+    activeView,
+    sidebarExpanded: settings.sidebarExpanded,
+    pendingAction: notices.pending,
+    editing: draft.editingActiveProject,
+    draftDirty: draft.dirty,
+    draftValid: draft.valid,
+    savingDraft: draft.saving,
+    appSettings: settings.settings,
+    themeCatalog,
+    callbacks: {
+      reloadApp: () => window.location.reload(),
+      showDashboard,
+      showSettings: () => setActiveView("settings"),
+      toggleSidebar: () => settings.setSidebarExpanded((expanded) => !expanded),
+      addDashboard: navigation.addDashboard,
+      openProject: navigation.selectProject,
+      editDashboard: toggleCompositionLibrary,
+      saveDashboard: async () => { await draft.save(); },
+      cancelDashboard: draft.cancel,
+      reloadProject: () => notices.perform("reload", host.reloadProject),
+      trustProject: () => notices.perform("trust", host.trustProject),
+      revokeTrust: () => notices.perform("revoke", host.revokeTrust),
+      runProcessQuickAction: async (nodeId) => {
+        await host.runProcessQuickAction(nodeId);
+      },
+      stopProcess: async (nodeId) => {
+        await host.stopProcess(nodeId);
+      },
+      setDashboardAppearance: (theme, themeMode) => draft.updateAppearance({ theme, themeMode }),
+      setDefaultAppearance: (theme, themeMode) => settings.update(
+        { ...settings.settings, theme, themeMode },
+        "Default theme and appearance updated.",
+      ),
+      // Every agent launch goes through the reviewed composer and the agent-work
+      // surface, so the app can show what the agent is doing.
+      requestAgentPrompt: agent.requestPrompt,
+    },
+  });
   const nodeFocusActions = buildNodeFocusActions(
     snapshot,
     virtualRoot?.target.id ?? null,
-    editingActiveProject,
+    draft.editingActiveProject,
     (nodeId) => {
-      setActiveView("dashboard");
-      focusComponent(nodeId);
+      showDashboard();
+      viewState.focusComponent(nodeId);
     },
   );
-  const selectionActions = buildSelectionActions(snapshot, activeChildSelections, selectChild);
+  const selectionActions = buildSelectionActions(snapshot, viewState.activeChildSelections, viewState.selectChild);
   // Reveal is presentation, not navigation: it never changes the focused target.
   const revealActions = buildRevealActions(snapshot, (nodeId, itemId) => {
-    setActiveView("dashboard");
-    revealComponent(nodeId);
+    showDashboard();
+    viewState.revealComponent(nodeId);
     if (itemId !== undefined) return highlightRevealedItem(nodeId, itemId);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
@@ -1541,28 +240,26 @@ export function App(): ReactNode {
         ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: revealScrollBehavior() });
     }));
   });
-  const declaredComponentActions = buildDeclaredComponentActions(snapshot, componentActions);
-  const actionProviders = [
+  const declaredComponentActions = buildDeclaredComponentActions(snapshot, actions.componentActions);
+  const allActions = useProvidedActions(actions.store, [
     { id: "application", actions: applicationActions },
     { id: "node-focus", actions: nodeFocusActions },
     { id: "selection", actions: selectionActions },
     { id: "reveal", actions: revealActions },
     { id: "declared-component", actions: declaredComponentActions },
-  ];
-  useLayoutEffect(() => {
-    actionStore.replaceProviders(actionProviders);
-  }, [actionStore, applicationActions, nodeFocusActions, selectionActions, revealActions, declaredComponentActions]);
-  // Built during render so dynamic choice options always close over current state;
-  // the store's index (refreshed in the layout effect above) serves handlers.
-  const allActions = [...actionProviders.flatMap((provider) => provider.actions), ...componentActions];
-  const runtimeDiagnostics = actionStoreState.diagnostics;
-  const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...runtimeDiagnostics];
-  const favoriteActionIds = useMemo(
-    () => new Set(appSettings.favoriteActionIds),
-    [appSettings.favoriteActionIds],
-  );
-  const agentControlStateRef = useRef<Omit<AgentViewState, "selections"> | null>(null);
-  agentControlStateRef.current = {
+  ], actions.componentActions);
+  const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...actions.diagnostics];
+
+  useAppShortcuts({
+    settings: settings.settings,
+    paletteOpen: actions.palette.open,
+    projects: session.projects,
+    pending: notices.pending,
+    selectProject: navigation.selectProject,
+    openPalette: actions.palette.showFresh,
+    runAction: actions.request,
+  });
+  useAgentControl(actions.store, {
     view: activeView,
     configPath: snapshot?.configPath ?? null,
     dashboardName: snapshot?.dashboardName ?? null,
@@ -1573,14 +270,11 @@ export function App(): ReactNode {
       trusted: snapshot?.trusted ?? false,
       pendingPermissions: snapshot && !snapshot.trusted ? snapshot.requestedPermissions : [],
     },
-  };
-  const nodeCaptureSession = useMemo(() => new NodeCaptureSession(), []);
-  const nodeCaptureHooksRef = useRef<NodeCaptureHooks | null>(null);
-  nodeCaptureHooksRef.current = {
+  }, {
     reveal: async (nodeId) => {
-      const action = actionStore.get(`reveal:${encodeURIComponent(nodeId)}`);
+      const action = actions.store.get(`reveal:${encodeURIComponent(nodeId)}`);
       if (!action) throw new Error(`No node ${nodeId} in the active dashboard.`);
-      const result = await actionStore.run(action.id);
+      const result = await actions.store.run(action.id);
       if (result.status !== "completed") throw new Error(`Could not reveal ${nodeId}.`);
     },
     snapshotView: () => {
@@ -1591,91 +285,9 @@ export function App(): ReactNode {
         dashboardViewStateStore.update(dashboardPath, snapshot?.tree, () => presentation);
       };
     },
-  };
-  useEffect(() => registerAgentControlHandler({
-    viewState: () => ({ ...agentControlStateRef.current!, selections: activeSelections(actionStore.getIndexedActions()) }),
-    beginNodeCapture: (nodeId) => nodeCaptureSession.begin(nodeId, nodeCaptureHooksRef.current!),
-    readNode: (nodeId, waitForIdle) => nodeCaptureSession.read(nodeId, nodeCaptureHooksRef.current!, waitForIdle),
-    endNodeCapture: () => nodeCaptureSession.finish(),
-    listActions: () => actionStore.getIndexedActions().map(describeAgentAction),
-    async runAction({ reference, selections }) {
-      const action = actionStore.get(reference);
-      if (!action) {
-        // Trust and draft actions are not registered in every state; the
-        // agent should still learn that they are the user's to run.
-        const reserved = agentActionRefusal({ id: reference });
-        if (reserved) return { status: "refused", id: reference, reason: reserved };
-        const suggestions = suggestActions(reference, actionStore.getIndexedActions());
-        return { status: "unavailable", reason: unknownActionReason(reference, suggestions), suggestions };
-      }
-      const refusal = agentActionRefusal(action);
-      if (refusal) return { status: "refused", id: action.id, reason: refusal };
-      const result = await actionStore.run(action.id, selections);
-      if (result.status === "completed") {
-        return { status: "completed", id: action.id, ...(action.invocationOutcome === "started" ? { process: "started" as const } : {}) };
-      }
-      if (result.status === "running") return { status: "running", id: action.id, reason: "That action is already running." };
-      if (result.status === "unavailable") return { status: "unavailable", id: action.id, reason: result.reason };
-      return { status: "failed", id: action.id, reason: errorMessage(result.error) };
-    },
-  }), [actionStore, nodeCaptureSession]);
+  });
 
-  function requestAction(reference: string, args: Record<string, unknown> = {}, callerNodeId?: string, invocationKey?: string): void {
-    const invocation = actionInvocation(reference);
-    if (!invocation) return;
-    const actionArgs = { ...invocation.with, ...args };
-    const action = actionStore.get(invocation.run);
-    if (invocation.run === "agent:prompt") {
-      if (action) void actionStore.run(invocation.run, {}, actionArgs, callerNodeId, invocationKey ?? action.id);
-      return;
-    }
-    const selections = action?.choices ? matchActionChoiceSelections(action.choices, actionArgs) : {};
-    const missingChoice = action?.choices?.some((choice) => selections[choice.id] === undefined);
-    if (action && (missingChoice || action.confirmation)) {
-      // Invocation context lives only for this palette interaction.
-      setPaletteInvocationArgs(actionArgs);
-      setPaletteInvocationActionId(action.id);
-      setPaletteCallerNodeId(callerNodeId);
-      setPaletteInvocationKey(invocationKey);
-      setPaletteInitialActionId(action.id);
-      setPaletteOpen(true);
-      return;
-    }
-    void executePaletteAction(invocation.run, selections, actionArgs, callerNodeId, invocationKey ?? action?.id);
-  }
-
-  async function executePaletteAction(
-    id: string,
-    selections?: Readonly<Record<string, string>>,
-    args: Record<string, unknown> = {},
-    callerNodeId?: string,
-    invocationKey?: string,
-  ): Promise<void> {
-    setActionError(null);
-    const action = actionStore.get(id);
-    if (!action) {
-      setActionError("This action is no longer available.");
-      return;
-    }
-    const result = await actionStore.run(id, selections, args, callerNodeId, invocationKey ?? id);
-    if (result.status === "failed") setActionError(errorMessage(result.error));
-    else if (result.status === "unavailable") setActionError(result.reason);
-    else if (result.status === "running") {
-      setActionError("That action is already running.");
-    }
-  }
-
-  function toggleFavoriteAction(id: string): void {
-    const favoriteActionIds = appSettings.favoriteActionIds.includes(id)
-      ? appSettings.favoriteActionIds.filter((candidate) => candidate !== id)
-      : [...appSettings.favoriteActionIds, id];
-    updateAppSettings(
-      { ...appSettings, favoriteActionIds },
-      favoriteActionIds.includes(id) ? "Action added to favorites." : "Action removed from favorites.",
-    );
-  }
-
-  if (loading) {
+  if (session.loading) {
     return (
       <main className="boot" aria-live="polite">
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
@@ -1685,54 +297,55 @@ export function App(): ReactNode {
     );
   }
 
-  if (!snapshot && actionError) {
+  if (!snapshot && notices.error) {
     return (
       <main className="boot boot--error">
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
         <h1>dash-bored could not reach its desktop host</h1>
-        <p>{actionError}</p>
+        <p>{notices.error}</p>
       </main>
     );
   }
 
+  const pendingAction = notices.pending;
+  const compositionUiActive = interaction.libraryOpen
+    || interaction.dialog !== null
+    || interaction.removePath !== null
+    || dialog !== null
+    || actions.palette.open
+    || (composition.editing && (draft.dirty || interaction.dragging !== null));
   const title = snapshot?.dashboardName?.trim() || (snapshot?.projectRoot ? basename(snapshot.projectRoot) : "dash-bored");
   const headerDashboardPath = snapshot?.configPath ?? snapshot?.projectRoot ?? null;
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
   }\u0000${snapshot?.trusted ? "trusted" : "restricted"}`;
   const shortcutLabel = keyboardShortcutLabel(
-    appSettings.commandPaletteShortcut,
+    settings.settings.commandPaletteShortcut,
     typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform),
   );
-  function effectiveAgentCommandForNode(nodeId?: string): string {
-    const environmentValue = nodeId === undefined
-      ? undefined
-      : snapshot?.environmentByNode?.[nodeId]?.values.find((entry) => entry.key === "DASH_BORED_AGENT")?.value.trim();
-    return environmentValue || appSettings.dashBoredAgent || DEFAULT_DASH_BORED_AGENT;
-  }
-  const effectiveAgentCommand = effectiveAgentCommandForNode(snapshot?.tree?.id);
-  const visibleVirtualRoot = editingComposition ? compositionVirtualRoot : virtualRoot;
+  const effectiveAgentCommand = agent.commandForNode(snapshot?.tree?.id);
+  const visibleVirtualRoot = composition.editing ? composition.previewVirtualRoot : virtualRoot;
   const workspace = (
     <>
       {activeView === "settings" ? (
         <SettingsPanel
             draftsOpen={Boolean(editSession)}
-            appSettings={appSettings}
-            dashboardSettings={dashboardSettings}
+            appSettings={settings.settings}
+            dashboardSettings={dashboardSettings.items}
             actions={allActions}
             pendingAction={pendingAction}
-            onSaveAgent={saveAgentSetting}
-            onUpdateSettings={updateAppSettings}
-            onUpdateDashboardAppearance={updateRegisteredDashboardAppearance}
+            onSaveAgent={settings.saveAgent}
+            onUpdateSettings={settings.update}
+            onUpdateDashboardAppearance={dashboardSettings.updateAppearance}
           />
       ) : !snapshot?.projectRoot ? (
         <EmptyProject
           pending={pendingAction === "choose"}
-          onChoose={() => void addDashboard()}
+          onChoose={() => void navigation.addDashboard()}
         />
       ) : (
         <main className="workspace">
-            {editSession && editSession.projectRoot === snapshot.projectRoot && !compositionPreviewTree ? (
+            {editSession && editSession.projectRoot === snapshot.projectRoot && !composition.previewTree ? (
               <DashboardEditor
                 config={editSession.draft}
                 catalog={editSession.componentCatalog}
@@ -1741,20 +354,20 @@ export function App(): ReactNode {
                 configPath={editSession.configPath}
                 agentCommand={effectiveAgentCommand}
                 agentPending={pendingAction === "component-agent:create"}
-                onBuildWithAgent={requestComponentCreationAgent}
-                onChange={(draft) => setEditSession((current) => current ? { ...current, draft } : current)}
+                onBuildWithAgent={composition.requestCreationAgent}
+                onChange={(next) => draft.setDraft(next)}
               />
             ) : (
               <>
             {!snapshot.trusted ? (
-              <TrustPanel snapshot={snapshot} pending={pendingAction === "trust"} onTrust={() => void perform("trust", host.trustProject)} />
+              <TrustPanel snapshot={snapshot} pending={pendingAction === "trust"} onTrust={() => void notices.perform("trust", host.trustProject)} />
             ) : null}
 
             <Diagnostics
               diagnostics={visibleDiagnostics}
               pending={pendingAction === "diagnostics-agent"}
               repairPending={pendingAction === "installed-tools-repair"}
-              onFixWithAgent={() => void runDiagnosticsAgent()}
+              onFixWithAgent={() => void agent.runDiagnosticsAgent()}
               onRepairInstalledTools={() => void repairInstalledTools()}
             />
 
@@ -1765,7 +378,7 @@ export function App(): ReactNode {
                     {visibleVirtualRoot.crumbs.map((crumb, index) => (
                       <span className="dashboard-breadcrumbs__item" key={crumb.id}>
                         {index < visibleVirtualRoot.crumbs.length - 1 ? (
-                          <button type="button" onClick={() => focusComponent(crumb.id)}>{crumb.label}</button>
+                          <button type="button" onClick={() => viewState.focusComponent(crumb.id)}>{crumb.label}</button>
                         ) : <span aria-current="page">{crumb.label}</span>}
                         {index < visibleVirtualRoot.crumbs.length - 1 ? <span aria-hidden="true">/</span> : null}
                       </span>
@@ -1773,29 +386,29 @@ export function App(): ReactNode {
                   </nav>
                 ) : null}
                 <ComponentVisibilityContext.Provider value={!compositionUiActive}>
-                  <CompositionContext.Provider value={compositionContextValue}>
+                  <CompositionContext.Provider value={composition.contextValue}>
                     <NodeRenderer
                       node={visibleVirtualRoot?.node ?? snapshot.tree}
                       trusted={snapshot.trusted}
-                      processesRef={processesRef}
+                      processesRef={session.processesRef}
                       environmentByNode={snapshot.environmentByNode}
                       localComponents={localComponents}
-                      actionStore={actionStore}
+                      actionStore={actions.store}
                       actionScope={actionScope}
-                      actionController={actionController}
+                      actionController={actions.controller}
                       updateBatch={componentUpdateBatch}
-                      collapsedNodeIds={activeCollapsedComponentIds}
-                      splitRatioOverrides={editingComposition ? EMPTY_SPLIT_RATIO_OVERRIDES : activeSplitRatioOverrides}
-                      componentHeightOverrides={activeComponentHeightOverrides}
-                      childSelections={activeChildSelections}
-                      onFocus={focusComponent}
-                      onToggleCollapse={toggleComponentCollapse}
-                      onSplitRatioChange={handleCompositionSplitRatio}
-                      onComponentHeightChange={updateComponentHeight}
+                      collapsedNodeIds={viewState.activeCollapsedComponentIds}
+                      splitRatioOverrides={composition.editing ? EMPTY_SPLIT_RATIO_OVERRIDES : viewState.activeSplitRatioOverrides}
+                      componentHeightOverrides={viewState.activeComponentHeightOverrides}
+                      childSelections={viewState.activeChildSelections}
+                      onFocus={viewState.focusComponent}
+                      onToggleCollapse={viewState.toggleComponentCollapse}
+                      onSplitRatioChange={composition.changeSplitRatio}
+                      onComponentHeightChange={viewState.updateComponentHeight}
                       onCopyPath={(node) => void copyComponentPath(node)}
-                      onEditComponent={(node) => void editCompositionNode(node)}
-                      onOpenAgent={openChangeWithAgent}
-                      onUpdateProps={updateComponentProps}
+                      onEditComponent={(node) => void composition.editNode(node)}
+                      onOpenAgent={agent.openChangeWithAgent}
+                      onUpdateProps={draft.updateComponentProps}
                       focusedNodeId={visibleVirtualRoot?.target.id ?? snapshot.tree.id}
                     />
                   </CompositionContext.Provider>
@@ -1806,7 +419,7 @@ export function App(): ReactNode {
                 <span className="eyebrow">Configuration unavailable</span>
                 <h1>The dashboard could not be rendered.</h1>
                 <p>Fix the diagnostics above, then reload the project.</p>
-                <button className="button button--secondary" type="button" disabled={pendingAction !== null} onClick={() => void perform("reload", host.reloadProject)}>Try again</button>
+                <button className="button button--secondary" type="button" disabled={pendingAction !== null} onClick={() => void notices.perform("reload", host.reloadProject)}>Try again</button>
               </section>
             )}
 
@@ -1825,45 +438,45 @@ export function App(): ReactNode {
     <>
       <AppShell
         snapshot={snapshot}
-        projects={projects}
+        projects={session.projects}
         activeView={activeView}
-        sidebarExpanded={sidebarExpanded}
-        expandedProjectOutlines={expandedProjectOutlines}
+        sidebarExpanded={settings.sidebarExpanded}
+        expandedProjectOutlines={navigation.expandedOutlines}
         pendingAction={pendingAction}
-        projectOutlines={projectOutlines}
+        projectOutlines={session.outlines}
         currentVirtualRootProjectPath={snapshot?.configPath ?? null}
         currentVirtualRootId={virtualRoot?.target.id ?? null}
-        collapsedNodeIds={activeCollapsedComponentIds}
+        collapsedNodeIds={viewState.activeCollapsedComponentIds}
         title={title}
         dashboardPath={headerDashboardPath}
         shortcutLabel={shortcutLabel}
-        editing={editingActiveProject}
-        componentLibraryOpen={componentLibraryOpen}
+        editing={draft.editingActiveProject}
+        componentLibraryOpen={interaction.libraryOpen}
         agentActivityOpen={agentActivityOpen}
-        activeAgentTaskCount={activeDashboardAgentTaskCount(agentTasks)}
+        activeAgentTaskCount={activeDashboardAgentTaskCount(session.agentTasks)}
         editorToolbar={
-          editSession && editingActiveProject ? (
+          editSession && draft.editingActiveProject ? (
             <div className="app-header__editor-toolbar">
               <DashboardEditorToolbar
                 diagnostics={editSession.validation.diagnostics}
-                saving={savingDraft}
-                dirty={editSessionDirty()}
-                onSave={() => void saveDashboardDraft()}
-                onCancel={cancelDashboardEdit}
+                saving={draft.saving}
+                dirty={draft.dirty}
+                onSave={() => void draft.save()}
+                onCancel={draft.cancel}
               />
             </div>
           ) : null
         }
-        actionError={actionError}
+        actionError={notices.error}
         actionNotice={
-          actionNotice ? (
+          notices.notice ? (
             <div className="global-notice" role="status">
-              <span>{actionNotice.message}</span>
+              <span>{notices.notice.message}</span>
               <button
                 className="global-notice__close"
                 type="button"
                 aria-label="Dismiss message"
-                onClick={() => setActionNotice(null)}
+                onClick={notices.dismissNotice}
               >
                 <svg
                   className="global-notice__countdown"
@@ -1889,149 +502,102 @@ export function App(): ReactNode {
             </div>
           ) : null
         }
-        onToggleSidebar={() => setSidebarExpanded((expanded) => !expanded)}
-        showDashboardNumbers={commandHeld && !paletteOpen}
-        onMoveProject={(source, target, before) => {
-          void perform("reorder-projects", async () => {
-            setProjects(await host.moveProject(source, target, before));
-          });
-        }}
-        onSelectProject={(project) => void selectProject(project, true)}
-        onToggleProjectOutline={toggleProjectOutline}
-        onFocusProjectNode={(project, nodeId) => void focusProjectNode(project, nodeId)}
+        onToggleSidebar={() => settings.setSidebarExpanded((expanded) => !expanded)}
+        showDashboardNumbers={commandHeld && !actions.palette.open}
+        onMoveProject={navigation.moveProject}
+        onSelectProject={(project) => void navigation.selectProject(project, true)}
+        onToggleProjectOutline={navigation.toggleOutline}
+        onFocusProjectNode={(project, nodeId) => void navigation.focusProjectNode(project, nodeId)}
         onProjectNodeAction={handleProjectNodeAction}
-        onOpenDeletion={(project) => void openDeletionDialog(project)}
-        onAddDashboard={() => void addDashboard()}
-        onShowSettings={showSettings}
-        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenDeletion={(project) => void navigation.openDeletion(project)}
+        onAddDashboard={() => void navigation.addDashboard()}
+        onShowSettings={() => setActiveView("settings")}
+        onOpenPalette={actions.palette.show}
         onToggleLibrary={toggleCompositionLibrary}
-        onToggleAgentActivity={toggleAgentActivity}
-        onDismissError={() => setActionError(null)}
+        onToggleAgentActivity={agent.toggleActivity}
+        onDismissError={() => notices.setError(null)}
       >
         <ThemeNotice />
         {workspace}
       </AppShell>
       <AgentActivity
         open={agentActivityOpen}
-        tasks={agentTasks}
+        tasks={session.agentTasks}
         onClose={() => setAgentActivityOpen(false)}
         onDiff={host.getDashboardAgentDiff}
-        onStop={stopAgentTask}
-        onWrite={writeAgentTaskTerminal}
-        onResize={resizeAgentTaskTerminal}
+        onStop={agent.stopTask}
+        onWrite={agent.writeTerminal}
+        onResize={agent.resizeTerminal}
       />
       <CommandPalette
-        open={paletteOpen}
+        open={actions.palette.open}
         actions={allActions}
-        runningActionIds={runningActionIds}
-        favoriteActionIds={favoriteActionIds}
-        actionShortcuts={appSettings.actionShortcuts}
-        clearInputOnKeepOpen={appSettings.clearPaletteInputOnKeepOpen}
-        executionError={actionError}
+        runningActionIds={actions.runningActionIds}
+        favoriteActionIds={settings.favoriteActionIds}
+        actionShortcuts={settings.settings.actionShortcuts}
+        clearInputOnKeepOpen={settings.settings.clearPaletteInputOnKeepOpen}
+        executionError={notices.error}
         favoritesDisabled={pendingAction !== null}
-        initialActionId={paletteInitialActionId}
-        onDismiss={() => {
-          setPaletteInitialActionId(null);
-          setPaletteInvocationActionId(null);
-          setPaletteInvocationArgs({});
-          setPaletteCallerNodeId(undefined);
-          setPaletteInvocationKey(undefined);
-          setPaletteOpen(false);
-        }}
-        initialSelections={paletteInvocationActionId === paletteInitialActionId ? paletteInvocationArgs as Readonly<Record<string, string>> : {}}
-        onExecute={(id, selections) => {
-          void executePaletteAction(
-            id,
-            selections,
-            paletteInvocationActionId === id ? paletteInvocationArgs : {},
-            paletteInvocationActionId === id ? paletteCallerNodeId : undefined,
-            paletteInvocationActionId === id ? paletteInvocationKey : id,
-          );
-          setPaletteInitialActionId(null);
-          setPaletteInvocationActionId(null);
-          setPaletteInvocationArgs({});
-          setPaletteCallerNodeId(undefined);
-          setPaletteInvocationKey(undefined);
-        }}
-        onToggleFavorite={toggleFavoriteAction}
+        initialActionId={actions.palette.initialActionId}
+        onDismiss={actions.palette.dismiss}
+        initialSelections={actions.palette.initialSelections}
+        onExecute={actions.palette.execute}
+        onToggleFavorite={settings.toggleFavoriteAction}
       />
       <CompositionFlyout
         dashboardAppearance={snapshot?.configPath ? <details className="dashboard-appearance">
           <summary>Dashboard appearance</summary>
           <label className="props-field"><span>Window theme</span><ThemeSelect inherit
             value={editSession?.configPath === snapshot.configPath ? editSession?.draft.theme : snapshot.config?.theme}
-            onChange={(theme) => { void (async () => {
-              const session = await ensureCurrentDashboardEdit(snapshot.configPath!);
-              if (!session || snapshotRef.current?.configPath !== session.configPath) return;
-              const draft = patchDashboardAppearance(session.draft, { theme });
-              setEditSession({ ...session, draft });
-            })(); }} /></label>
-          <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={editSession?.configPath === snapshot.configPath ? editSession?.draft.themeMode ?? "" : snapshot.config?.themeMode ?? ""} onChange={(event) => updateDashboardAppearance({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>
+            onChange={(theme) => draft.updateAppearance({ theme })} /></label>
+          <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={editSession?.configPath === snapshot.configPath ? editSession?.draft.themeMode ?? "" : snapshot.config?.themeMode ?? ""} onChange={(event) => draft.updateAppearance({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>
             <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
           </select></label>
           <p>Applies to the whole window. Save dashboard to keep the selection.</p>
         </details> : undefined}
-        open={componentLibraryOpen}
-        dragging={compositionDrag}
-        catalog={compositionCatalog}
-        onClose={compositionInteraction.closeLibrary}
-        onInsert={handleCompositionInsert}
-        onInsertSwitchablePanels={() => void handleInsertSwitchablePanels()}
+        open={interaction.libraryOpen}
+        dragging={interaction.dragging}
+        catalog={composition.catalog}
+        onClose={interaction.closeLibrary}
+        onInsert={composition.insert}
+        onInsertSwitchablePanels={() => void composition.insertSwitchablePanels()}
         onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).result.message}
-        onBuildWithAgent={(description) => void handleCompositionAgent(description)}
-        onPointerDragMove={handleCompositionPointerDragMove}
-        onPointerDrop={handleCompositionPointerDrop}
-        onDragStateChange={(entry) => {
-          if (entry) {
-            compositionInteraction.beginLibraryDrag(entry.reference);
-          } else {
-            clearPendingCompositionPointer();
-            compositionInteraction.endDrag();
-          }
-        }}
+        onBuildWithAgent={(description) => void composition.buildWithAgent(description)}
+        onPointerDragMove={composition.libraryPointerDragMove}
+        onPointerDrop={composition.libraryPointerDrop}
+        onDragStateChange={composition.changeLibraryDrag}
         agentPending={pendingAction === "component-agent:create"}
-        loading={compositionSourcePending}
+        loading={composition.sourcePending}
       />
-      {compositionDrag && compositionConfig ? (
+      {interaction.dragging && composition.config ? (
         <CompositionDragChip
-          ref={compositionDragChip}
-          dragging={compositionDrag}
-          label={compositionPayloadLabel(compositionDrag, compositionConfig, compositionCatalog)}
+          ref={composition.dragChip}
+          dragging={interaction.dragging}
+          label={compositionPayloadLabel(interaction.dragging, composition.config, composition.catalog)}
         />
       ) : null}
       <AppDialogs
-        compositionDialog={compositionDialog}
-        compositionRemovePath={compositionRemovePath}
+        compositionDialog={interaction.dialog}
+        compositionRemovePath={interaction.removePath}
         editSession={editSession}
-        editingActiveProject={editingActiveProject}
-        agentDialog={agentDialog}
-        agentPromptDraft={agentPromptDraft}
+        editingActiveProject={draft.editingActiveProject}
+        dialog={dialog}
         pendingAction={pendingAction}
-        discardConfirmation={discardConfirmation}
-        deletionDialog={deletionDialog}
         agentCommand={effectiveAgentCommand}
-        agentCommandForNode={(node) => effectiveAgentCommandForNode(node.id)}
+        agentCommandForNode={(node) => agent.commandForNode(node.id)}
         agentCreatePending={pendingAction === "component-agent:create"}
-        onApplyCompositionDraft={applyCompositionDraft}
-        onDismissCompositionDialog={compositionInteraction.dismissDialog}
-        onDismissRemoval={compositionInteraction.dismissRemoval}
-        onConfirmRemoval={confirmCompositionRemoval}
-        onBuildWithAgent={requestComponentCreationAgent}
-        onRunComponentAgent={runComponentAgent}
-        onPreviewComponentAgent={previewComponentAgent}
-        onDismissAgentDialog={() => { setAgentDialog(null); setAgentPromptDraft(EMPTY_AGENT_PROMPT_DRAFT); }}
-        onDismissDiscard={() => setDiscardConfirmation(null)}
-        onConfirmDiscard={confirmDiscardChanges}
-        onSaveDiscard={(continueAction) => {
-          void saveDashboardDraft().then((saved) => {
-            if (!saved) return;
-            setDiscardConfirmation(null);
-            continueAction();
-          });
-        }}
-        onDismissDeletion={() => setDeletionDialog(null)}
-        onToggleDeletionFiles={(removeFiles) => setDeletionDialog((current) => current ? { ...current, removeFiles } : current)}
-        onConfirmDeletion={() => void confirmDeletion()}
+        onApplyCompositionDraft={composition.applyDraft}
+        onDismissCompositionDialog={interaction.dismissDialog}
+        onDismissRemoval={interaction.dismissRemoval}
+        onConfirmRemoval={composition.confirmRemoval}
+        onBuildWithAgent={composition.requestCreationAgent}
+        onRunComponentAgent={agent.runComponentAgent}
+        onPreviewComponentAgent={agent.previewComponentAgent}
+        onDismissDialog={() => setDialog(null)}
+        onConfirmDiscard={draft.confirmDiscard}
+        onSaveDiscard={draft.saveThenContinue}
+        onToggleDeletionFiles={navigation.toggleDeletionFiles}
+        onConfirmDeletion={() => void navigation.confirmDeletion()}
       />
     </>
   );

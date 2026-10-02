@@ -1,0 +1,162 @@
+import { useCallback } from "react";
+import type { ProcessSnapshot, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import { DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
+import { findResolvedNode } from "../../shared/component-agent";
+import type { InsertionTarget } from "../composition/dashboard-editor";
+import { host } from "../lib/rpc-client";
+import type { AppDialog } from "./AppDialogs";
+import type { Notices } from "./use-notices";
+
+const STARTER_TASK_ID = "setup-dashboard-with-agent";
+
+export interface AgentWorkOptions {
+  notices: Notices;
+  /** Whether the Agent work surface is open; host task events also open it. */
+  activityOpen: boolean;
+  setActivityOpen(open: boolean): void;
+  snapshot: ProjectSnapshot | null;
+  /** The configured app-wide agent command, below a node's DASH_BORED_AGENT. */
+  appAgentCommand: string | null;
+  focusedNodeId: string | undefined;
+  dialog: AppDialog | null;
+  setDialog(dialog: AppDialog | null): void;
+  /** Building a component with the agent replaces the open draft. */
+  endDraft(): void;
+  closeLibrary(): void;
+}
+
+/**
+ * Agent launches and the Agent work surface. Every launch goes through the
+ * reviewed prompt composer, and the surface opens so the user sees the run.
+ */
+export function useAgentWork({
+  notices,
+  activityOpen,
+  setActivityOpen,
+  snapshot,
+  appAgentCommand,
+  focusedNodeId,
+  dialog,
+  setDialog,
+  endDraft,
+  closeLibrary,
+}: AgentWorkOptions) {
+  const { perform, showNotice, setError } = notices;
+  const promptDraft = dialog?.kind === "agent" ? dialog.draft : null;
+
+  function toggleActivity(): void {
+    // Render-state based (like the library toggle): the shared drawer also
+    // closes on outside pointer-down, which fires before this click handler.
+    if (activityOpen) {
+      setActivityOpen(false);
+      return;
+    }
+    setActivityOpen(true);
+    closeLibrary();
+  }
+
+  function stopTask(taskId: string): Promise<ProcessSnapshot> {
+    if (taskId === STARTER_TASK_ID) return host.stopProcess(taskId);
+    return host.stopDashboardAgentTask(taskId).then((task) => task.process);
+  }
+
+  function writeTerminal(taskId: string, input: string): Promise<ProcessSnapshot> {
+    if (taskId === STARTER_TASK_ID) return host.writeProcessTerminal(taskId, input);
+    return host.writeDashboardAgentTerminal(taskId, input).then((task) => task.process);
+  }
+
+  function resizeTerminal(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
+    if (taskId === STARTER_TASK_ID) return host.resizeProcessTerminal(taskId, cols, rows);
+    return host.resizeDashboardAgentTerminal(taskId, cols, rows).then((task) => task.process);
+  }
+
+  /** Change with agent briefs the agent with the dashboard template. */
+  function openChangeWithAgent(node: ResolvedComponentNode): void {
+    setDialog({ kind: "agent", node, draft: { input: "", template: "dashboard" } });
+  }
+
+  /** A configured `agent:prompt` invocation; without a caller it targets the focus. */
+  function requestPrompt(args: Record<string, unknown>, callerNodeId?: string): void {
+    const prompt = args.prompt ?? "";
+    const targetId = callerNodeId ?? focusedNodeId ?? snapshot?.tree?.id;
+    const target = targetId && snapshot?.tree ? findResolvedNode(snapshot.tree, targetId) : null;
+    if (typeof prompt !== "string" || !target) {
+      setError("The configured agent prompt target is no longer available.");
+      return;
+    }
+    // Template and vars were validated at load; the main process re-checks them.
+    setDialog({
+      kind: "agent",
+      node: target,
+      draft: {
+        input: prompt,
+        ...(typeof args.template === "string" ? { template: args.template } : {}),
+        ...(args.vars !== null && typeof args.vars === "object" && !Array.isArray(args.vars)
+          ? { vars: args.vars as Record<string, string | number | boolean> }
+          : {}),
+      },
+    });
+  }
+
+  const previewComponentAgent = useCallback(
+    (node: ResolvedComponentNode, prompt: string) => host.previewComponentAgent({
+      nodeId: node.id,
+      prompt,
+      ...(promptDraft?.template ? { template: promptDraft.template } : {}),
+      ...(promptDraft?.vars ? { vars: promptDraft.vars } : {}),
+    }),
+    [promptDraft],
+  );
+
+  async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
+    await perform(`component-agent:${node.id}`, async () => {
+      const launched = await host.runComponentAgent({
+        nodeId: node.id,
+        prompt,
+        ...(promptDraft?.template ? { template: promptDraft.template } : {}),
+        ...(promptDraft?.vars ? { vars: promptDraft.vars } : {}),
+      });
+      setDialog(null);
+      setActivityOpen(true);
+      showNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    });
+  }
+
+  async function runDiagnosticsAgent(): Promise<void> {
+    await perform("diagnostics-agent", async () => {
+      const launched = await host.runDiagnosticsAgent();
+      setActivityOpen(true);
+      showNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    });
+  }
+
+  async function runCreationAgent(configPath: string, target: InsertionTarget, prompt: string): Promise<void> {
+    await perform("component-agent:create", async () => {
+      const launched = await host.runComponentCreationAgent({ configPath, target, prompt });
+      endDraft();
+      setActivityOpen(true);
+      showNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+    });
+  }
+
+  function commandForNode(nodeId?: string): string {
+    const environmentValue = nodeId === undefined
+      ? undefined
+      : snapshot?.environmentByNode?.[nodeId]?.values.find((entry) => entry.key === "DASH_BORED_AGENT")?.value.trim();
+    return environmentValue || appAgentCommand || DEFAULT_DASH_BORED_AGENT;
+  }
+
+  return {
+    toggleActivity,
+    stopTask,
+    writeTerminal,
+    resizeTerminal,
+    openChangeWithAgent,
+    requestPrompt,
+    previewComponentAgent,
+    runComponentAgent,
+    runDiagnosticsAgent,
+    runCreationAgent,
+    commandForNode,
+  };
+}

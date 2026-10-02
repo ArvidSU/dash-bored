@@ -2,14 +2,37 @@
 
 ## Renderer module map
 
-`src/renderer/app/App.tsx` is the orchestrator (app state, project actions,
-composition orchestration, workspace render). Everything else lives in focused
-modules under feature directories:
+`src/renderer/app/App.tsx` is the composition root: it calls one hook per
+concern, builds the action providers, and renders the shell and workspace. It
+owns only the active view, the open app dialog, and whether Agent work is open.
+Everything else lives in focused modules under feature directories:
 
 - `app/` — shell and orchestration: `App.tsx`, `app-shell.tsx`,
-  `AppDialogs.tsx` (all dashboard modals), `app-utils.ts` (pure
-  snapshot/task/project helpers, edit-session types), `main.tsx` (entry),
-  `use-dashboard-view-state.ts` (renderer-owned presentation state).
+  `AppDialogs.tsx` (all dashboard modals and the `AppDialog` union),
+  `app-utils.ts` (pure snapshot/task/project helpers, edit-session types),
+  `main.tsx` (entry), and one hook per concern:
+  - `use-host-session.ts` — everything the host pushes: the snapshot, the
+    project list and sidebar outlines, the theme catalog, agent tasks, and the
+    process map that local components read through a stable ref;
+  - `use-notices.ts` — the one pending operation (`perform`), its error, and
+    the timed notice;
+  - `use-app-settings.ts` — app settings with ordered optimistic writes, the
+    sidebar expansion that follows its setting, and the Settings view's
+    per-dashboard appearance rows;
+  - `use-app-theme.ts` — applies the window theme and rewrites legacy `./`
+    default-theme references;
+  - `use-dashboard-draft.ts` — the single draft: open, edit, validate,
+    save/cancel, and the discard guard;
+  - `use-composition-session.ts` — composition preview, targets, pointer
+    drags, and library operations over the draft (the interaction
+    controller in `composition/` holds its transient UI state);
+  - `use-project-navigation.ts` — open, add, reorder, and remove dashboards;
+  - `use-agent-work.ts` — agent launches and the Agent work surface;
+  - `use-action-registry.ts` — the `ActionStore`, palette interaction state,
+    and the one request path; `use-app-keyboard.ts` — global shortcuts;
+    `use-agent-control.ts` — the agent control channel;
+  - `use-dashboard-view-state.ts` — renderer-owned presentation state;
+    `use-latest-ref.ts` — refs written after commit, never during render.
 - `panels/` — app-level views: `DiagnosticsPanel.tsx`, `TrustPanel.tsx`,
   `EmptyProject.tsx`, `AgentPromptPanel.tsx`, `AgentActivity.tsx`,
   `SettingsPanel.tsx`, `CommandPalette.tsx`.
@@ -608,7 +631,7 @@ set before calling the existing trust RPC.
 
 The agent-control channel reaches the store through main-to-renderer
 `agentViewState`, `agentListActions`, `agentRunAction`, and `agentSettle`
-requests. `App.tsx` registers their handler with
+requests. `app/use-agent-control.ts` registers their handler with
 `registerAgentControlHandler` in `rpc-client.ts`, and agent-run actions go
 through the same store as the palette. The policy in
 `src/shared/agent-control.ts` refuses trust, revoke, edit, save/cancel draft,

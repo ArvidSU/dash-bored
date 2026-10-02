@@ -5,6 +5,7 @@ import type {
   CompositionPointerState,
   CompositionTarget,
 } from "./composition-context";
+import type { ComponentCatalogItem, DashboardConfig } from "../../shared/contracts";
 import type { InsertionTarget, NodePath } from "./dashboard-editor";
 
 export interface CompositionDialogState {
@@ -12,6 +13,20 @@ export interface CompositionDialogState {
   target?: InsertionTarget;
   reference?: string;
   path?: NodePath;
+}
+
+/**
+ * A focused linked bundle's config, read so the library can compose into it
+ * before a draft exists. It is current only for the snapshot it was read at.
+ */
+export interface DashboardCompositionSource {
+  projectRoot: string;
+  activeDashboardPath: string;
+  focusedSourcePath: string;
+  snapshotRevision: number;
+  configPath: string;
+  componentCatalog: ComponentCatalogItem[];
+  config: DashboardConfig;
 }
 
 /**
@@ -30,6 +45,7 @@ export function useCompositionInteractionController() {
   const [selectedTarget, setSelectedTarget] = useState<CompositionTarget | null>(null);
   const [dialog, setDialog] = useState<CompositionDialogState | null>(null);
   const [removePath, setRemovePath] = useState<NodePath | null>(null);
+  const [source, setSource] = useState<DashboardCompositionSource | null>(null);
   // Mirrors the advertised pointer target synchronously so hit-testing in the
   // same frame can hold it (hysteresis) without waiting for a render.
   const pointerRef = useRef<CompositionPointerState | null>(null);
@@ -54,6 +70,7 @@ export function useCompositionInteractionController() {
     setSelectedTarget(null);
     setDialog(null);
     setRemovePath(null);
+    setSource(null);
   }, [clearTransientDrag]);
 
   const openLibrary = useCallback((): void => {
@@ -164,6 +181,8 @@ export function useCompositionInteractionController() {
     selectedTarget,
     dialog,
     removePath,
+    source,
+    setSource,
     openLibrary,
     closeLibrary,
     toggleLibrary,

@@ -17,20 +17,22 @@ import type { DashboardEditSession } from "./app-utils";
 import type { CompositionDialogState } from "../composition/composition-interaction-controller";
 import { AgentPromptPanel, type AgentPromptDraft } from "../panels/AgentPromptPanel";
 
+/**
+ * The one app-level modal open at a time. Composition dialogs stay with the
+ * composition controller: a discard confirmation may stack above them.
+ */
+export type AppDialog =
+  | { kind: "discard"; message: string; continueAction: () => void }
+  | { kind: "deletion"; project: ProjectListItem; preview: ProjectDeletionPreview; removeFiles: boolean }
+  | { kind: "agent"; node: ResolvedComponentNode; draft: AgentPromptDraft };
+
 export interface AppDialogsProps {
   compositionDialog: CompositionDialogState | null;
   compositionRemovePath: NodePath | null;
   editSession: DashboardEditSession | null;
   editingActiveProject: boolean;
-  agentDialog: ResolvedComponentNode | null;
-  agentPromptDraft: AgentPromptDraft;
+  dialog: AppDialog | null;
   pendingAction: string | null;
-  discardConfirmation: { message: string; continueAction: () => void } | null;
-  deletionDialog: {
-    project: ProjectListItem;
-    preview: ProjectDeletionPreview;
-    removeFiles: boolean;
-  } | null;
   agentCommand: string;
   agentCommandForNode?: (node: ResolvedComponentNode) => string;
   agentCreatePending: boolean;
@@ -41,11 +43,9 @@ export interface AppDialogsProps {
   onBuildWithAgent: (target: InsertionTarget, description: string) => void;
   onRunComponentAgent: (node: ResolvedComponentNode, prompt: string) => Promise<void>;
   onPreviewComponentAgent: (node: ResolvedComponentNode, prompt: string) => Promise<ComponentAgentPreview>;
-  onDismissAgentDialog: () => void;
-  onDismissDiscard: () => void;
+  onDismissDialog: () => void;
   onConfirmDiscard: (continueAction: () => void) => void;
   onSaveDiscard: (continueAction: () => void) => void;
-  onDismissDeletion: () => void;
   onToggleDeletionFiles: (removeFiles: boolean) => void;
   onConfirmDeletion: () => void;
 }
@@ -56,11 +56,8 @@ export function AppDialogs({
   compositionRemovePath,
   editSession,
   editingActiveProject,
-  agentDialog,
-  agentPromptDraft,
+  dialog,
   pendingAction,
-  discardConfirmation,
-  deletionDialog,
   agentCommand,
   agentCommandForNode,
   agentCreatePending,
@@ -71,14 +68,16 @@ export function AppDialogs({
   onBuildWithAgent,
   onRunComponentAgent,
   onPreviewComponentAgent,
-  onDismissAgentDialog,
-  onDismissDiscard,
+  onDismissDialog,
   onConfirmDiscard,
   onSaveDiscard,
-  onDismissDeletion,
   onToggleDeletionFiles,
   onConfirmDeletion,
 }: AppDialogsProps): ReactNode {
+  const agentRequest = dialog?.kind === "agent" ? dialog : null;
+  const agentDialog = agentRequest?.node ?? null;
+  const discardConfirmation = dialog?.kind === "discard" ? dialog : null;
+  const deletionDialog = dialog?.kind === "deletion" ? dialog : null;
   const previewAgent = useCallback(
     (prompt: string) => agentDialog
       ? onPreviewComponentAgent(agentDialog, prompt)
@@ -157,30 +156,30 @@ export function AppDialogs({
   ) : null}
   {agentDialog ? (
     <EditorModal
-      title={`${agentPromptDraft.template === "dashboard" ? "Change" : "Agent work from"} ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
+      title={`${agentRequest?.draft.template === "dashboard" ? "Change" : "Agent work from"} ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
       onDismiss={() => {
-        if (pendingAction !== `component-agent:${agentDialog.id}`) onDismissAgentDialog();
+        if (pendingAction !== `component-agent:${agentDialog.id}`) onDismissDialog();
       }}
     >
       <AgentPromptPanel
         key={agentDialog.id}
         node={agentDialog}
         agentCommand={agentCommandForNode?.(agentDialog) ?? agentCommand}
-        draft={agentPromptDraft}
+        draft={agentRequest!.draft}
         pending={pendingAction === `component-agent:${agentDialog.id}`}
-        onDismiss={() => onDismissAgentDialog()}
+        onDismiss={() => onDismissDialog()}
         onPreview={previewAgent}
         onSend={(prompt) => onRunComponentAgent(agentDialog, prompt)}
       />
     </EditorModal>
   ) : null}
   {discardConfirmation ? (
-    <EditorModal title="Discard dashboard changes?" onDismiss={() => onDismissDiscard()}>
+    <EditorModal title="Discard dashboard changes?" onDismiss={() => onDismissDialog()}>
       <div className="remove-confirmation">
         <p>{discardConfirmation.message}</p>
         <p>This draft has not been written to dash-bored.yaml.</p>
         <footer className="editor-modal__actions">
-          <button className="button button--quiet" type="button" onClick={() => onDismissDiscard()}>Keep editing</button>
+          <button className="button button--quiet" type="button" onClick={() => onDismissDialog()}>Keep editing</button>
           <button className="button button--primary" type="button" onClick={() => onSaveDiscard(discardConfirmation.continueAction)}>Save dashboard</button>
           <button className="button button--danger" type="button" onClick={() => onConfirmDiscard(discardConfirmation.continueAction)}>Discard changes</button>
         </footer>
@@ -188,7 +187,7 @@ export function AppDialogs({
     </EditorModal>
   ) : null}
   {deletionDialog ? (
-    <EditorModal title="Remove dashboard?" onDismiss={() => onDismissDeletion()}>
+    <EditorModal title="Remove dashboard?" onDismiss={() => onDismissDialog()}>
       <div className="remove-confirmation dashboard-delete-confirmation">
         <p>
           Remove <strong>{projectLabel(deletionDialog.project)}</strong> from the dash-bored sidebar?
@@ -251,7 +250,7 @@ export function AppDialogs({
         ) : null}
 
         <footer className="editor-modal__actions">
-          <button className="button button--quiet" data-modal-close type="button" onClick={() => onDismissDeletion()}>Cancel</button>
+          <button className="button button--quiet" data-modal-close type="button" onClick={() => onDismissDialog()}>Cancel</button>
           <button
             className="button button--danger"
             type="button"
