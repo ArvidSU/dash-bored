@@ -111,6 +111,11 @@ export function stripAnsi(text: string): string {
   return text.replace(ANSI_ESCAPES, "");
 }
 
+/** What a terminal shows for one line: escapes removed, the last carriage-return overwrite kept. */
+function terminalLine(line: string): string {
+  return stripAnsi(line).split("\r").filter((segment) => segment !== "").at(-1)?.trimEnd() ?? "";
+}
+
 function defaultScreenshotPath(instance: AppInstanceRecord): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return join(tmpdir(), "dash-bored-screenshots", `${instance.identifier}-${stamp}.png`);
@@ -206,7 +211,7 @@ export async function runAppCommand(args: string[]): Promise<number> {
     const instance = await selectedInstance(parsed.instance);
     const query = parsed.tail === undefined ? "" : `?tail=${parsed.tail}`;
     const { logs } = await (await call(instance, `/v1/processes/${encodeURIComponent(parsed.positional[0]!)}/logs${query}`)).json() as { logs: AgentProcessLogs };
-    print({ ...logs, lines: logs.lines.map((line) => stripAnsi(line).replace(/^.*\r/, "")) });
+    print({ ...logs, lines: logs.lines.map(terminalLine) });
     return 0;
   }
 

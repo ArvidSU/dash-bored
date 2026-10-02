@@ -242,6 +242,8 @@ test("logs returns stripped, tail-bounded output and reports unknown commands", 
 
   processes[0]!.logs = [{ sequence: 1, stream: "stdout", text: "\u001b(Bdone\u001b=\u001b>\r\n" }];
   expect(JSON.parse((await cli(homeDirectory, "logs", "tests")).stdout).lines).toEqual(["done"]);
+  processes[0]!.logs = [{ sequence: 1, stream: "stdout", text: "ok\n \r\r\nnext  \n" }];
+  expect(JSON.parse((await cli(homeDirectory, "logs", "tests")).stdout).lines).toEqual(["ok", "", "next"]);
 
   const empty = JSON.parse((await cli(homeDirectory, "logs", "serve")).stdout);
   expect(empty).toMatchObject({ totalLines: 0, lines: [], truncated: false });

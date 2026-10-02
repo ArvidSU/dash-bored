@@ -1,6 +1,6 @@
 ---
 name: dash-bored
-description: Use this skill to build, extend, fix, or check a dash-bored dashboard — a local, project-owned cockpit in .dash-bored/dash-bored.yaml that shows a project's live state at a glance and turns its recurring commands, docs, services, and checks into one-click panels. Use it whenever the user wants such a persistent overview or control panel for a project (what is running, healthy, changed, or next; buttons to start, test, or release it), or mentions dash-bored, .dash-bored/, dash-bored.yaml, or a project cockpit, even if they do not name dash-bored. Also use it to add panels or source scripts, repair dashboard validation errors, migrate a dashboard after an app update, or screenshot the running dash-bored app. Not for doing the project's own work (starting services, deploying, running tests) when the dashboard itself is not changing, for dashboard UIs inside the user's own application code, or for Grafana/BI dashboards.
+description: Use this skill to build, extend, fix, or check a dash-bored dashboard — a local, project-owned cockpit in .dash-bored/dash-bored.yaml that shows a project's live state and turns its recurring commands, docs, and checks into one-click panels. Use it whenever the user wants such a persistent overview or control panel for a project (what is running, healthy, changed, or next; buttons to start, test, or release it), or mentions dash-bored, .dash-bored/, dash-bored.yaml, or a project cockpit, even if they do not name dash-bored. Also use it to add panels or source scripts, repair dashboard validation errors, migrate a dashboard after an app update, or operate the running dash-bored app: run a dashboard button or command and report the result, explain why a panel is red, or screenshot a panel. Not for the project's own work (starting services, deploying, running tests) when neither the dashboard nor the app is involved, for dashboard UIs inside the user's own application code, or for Grafana/BI dashboards.
 ---
 
 # dash-bored
@@ -40,6 +40,7 @@ app, where the tool is `"$DASH_BORED_TOOL"`.
 | Add a component at a YAML insertion path from the structural editor | Make exactly the edit its `Placement:` line states. Prefer a built-in view fed by a source script (step 4), and say so in the report; write a local component only when no view can present it |
 | Fix listed diagnostics | Fix each at its file and path, then steps 5–7 |
 | After an app update, or an old `schemaVersion` | [references/migrations.md](references/migrations.md) |
+| Use the running app: run a dashboard button or command, read a panel, explain why something is red or failed | [Use the running app](#use-the-running-app); change no YAML |
 
 ## Workflow
 
@@ -263,15 +264,17 @@ tested example scripts, list item actions, and the app's shell environment.
 Validation proves the YAML is correct, not that the dashboard is useful.
 When the app is running, check what the user will see:
 
-1. `dash-bored app status`: note the open dashboard and `focusedNodeId`.
+1. `dash-bored app status`: note the open dashboard, `focusedNodeId`,
+   `trust`, and `diagnostics.items` (runtime errors validation cannot see).
 2. If a different bundle is open, `dash-bored app open .` (refused while the
    user has a draft open; then ask them to save or cancel it).
-3. `dash-bored app screenshot --focus <node-id>` for each tab or panel you
-   changed, then view the PNG path it prints. Check that labels make sense,
-   nothing is empty or truncated, no panel shows "Source shape" or
-   "Command failed", and the Overview answers its questions.
+3. `dash-bored app screenshot --node <node-id>` for each panel you changed,
+   then view the PNG path it prints. It crops to that node, even on another
+   tab, and puts the user's view back. Check that labels make sense, nothing
+   is empty or truncated, no panel shows "Source shape" or "Command failed",
+   and the Overview answers its questions. A plain `app screenshot` shows the
+   whole window as the user sees it.
 4. Fix, validate, and screenshot again until it reads well.
-5. Restore the user's view with `dash-bored app run focus:<original-id>`.
 
 `dash-bored app actions <filter>` lists what you may run whose id, label, or
 node contains the filter (the unfiltered list can run to hundreds of entries);
@@ -295,7 +298,39 @@ End with a short summary in this shape:
 **Not verified:** <what you could not run or see, and why — or "nothing">
 ```
 
+## Use the running app
+
+The user may ask you to drive their dashboard rather than change it. Read
+results instead of guessing from pixels:
+
+1. `dash-bored app status`. `trust.trusted: false` means only layout renders
+   and nothing runs: ask the user to trust the project (you cannot).
+   `diagnostics.items` holds each error's code, message, file, and path.
+2. `dash-bored app actions <word>` finds the action for a button, tab, or
+   command (`process:<command-id>`, `select:<selection>/<child>`,
+   `component:<node>:refresh`). Pass its `reference` or `id` to
+   `dash-bored app run`; an unknown one returns close `suggestions`. Choices
+   show as counts; `--choices` lists options for `--select <choice>=<option>`.
+3. `app run` returns when the views it touched have finished loading
+   (`idle: true`; `idle: false` plus a `warning` after `--timeout`, default
+   10 s). A refresh of a panel that is not mounted is `unavailable`:
+   `reveal:<node-id>` first, or screenshot it with `--node`.
+4. A command keeps running after `app run process:<id>` returns
+   `"process": "started"`. Poll `dash-bored app processes` until its `state`
+   is `exited`, then read `exitCode` and `dash-bored app logs <id> --tail 50`
+   (escapes stripped; the last lines can be the user's shell prompt).
+5. Show what you found with `app screenshot --node <id>`, and quote the
+   relevant log lines or diagnostic in your answer.
+
+Leave the user's view as you found it: `--node` restores it, and so does
+`--focus` unless you pass `--keep-focus`. After `app run select:` or
+`focus:`, run the action that restores the original tab or `focusedNodeId`.
+
 ## Gotchas
+
+- **Never write the YAML while the user edits a draft.** When `app status`
+  shows `editing: true`, their Save would be rejected as stale and their
+  changes lost. Ask them to save or cancel first, and only then edit.
 
 - **The app's shell is not your shell.** Sources run `/bin/sh -lc` without
   your rc files, so nvm, pyenv, or asdf interpreters are missing there and
