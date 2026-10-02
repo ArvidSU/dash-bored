@@ -197,7 +197,11 @@ child boundary contains an array of child edges. The manifest still declares
 which presentation it accepts, and validation checks the configured shape
 against that declaration. Component manifests keep schema version 2.
 Manifest reference declarations accept `resource: process` for provider-node
-IDs and `resource: action` for stable action references. Action references use
+IDs and `resource: action` for stable action references. A declaration's key
+is a prop path where `*` matches every array item: `items.*.action` names the
+`action` field of each item, and a trailing `*` (`actions.*`) makes each item
+itself a reference. Validation, linked-tree remapping, and legacy migration all
+walk these paths through `referenceLocations` in `src/core/tree-links.ts`. Action references use
 explicit node IDs (`focus:<node-id>`, `process:<node-id>`, or
 `component:<node-id>:<action-id>`), never a tree position. Schema-v3 dashboards
 temporarily resolve legacy `${root...}` references and report a deprecation

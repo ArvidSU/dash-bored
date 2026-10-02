@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { stringify } from "yaml";
 import { inspectProject } from "../../src/core";
+import { referenceLocations } from "../../src/core/tree-links";
 import { parseComponentManifest } from "../../src/core/yaml";
 import type { ComponentNode, DashboardConfig } from "../../src/shared/contracts";
 import {
@@ -377,6 +378,53 @@ describe("component child composition", () => {
     }));
     expect((await parseComponentManifest(file)).diagnostics.map((item) => item.code))
       .toContain("MANIFEST_ACTION_ID_DUPLICATE");
+  });
+
+  test("treats each item under a trailing star as a reference", async () => {
+    const props = { actions: ["focus:a", "focus:b"] };
+    const locations = referenceLocations(props, "actions.*");
+    expect(locations.map(({ key, path }) => [key, path])).toEqual([["0", "actions.0"], ["1", "actions.1"]]);
+    for (const { parent, key } of locations) parent[key] = `${String(parent[key])}-moved`;
+    expect(props.actions).toEqual(["focus:a-moved", "focus:b-moved"]);
+
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const listDirectory = join(root, ".dash-bored", "components", "action-list");
+    const workerDirectory = join(root, ".dash-bored", "components", "worker");
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Trailing star references",
+      root: {
+        component: "@dash-bored/group",
+        children: [
+          edge({ id: "list", component: "./components/action-list", props: { actions: ["component:worker:refresh", "component:worker:typo"] } }),
+          edge({ id: "worker", component: "./components/worker" }),
+        ],
+      },
+    });
+    await Promise.all([mkdir(listDirectory, { recursive: true }), mkdir(workerDirectory, { recursive: true })]);
+    const common = { schemaVersion: 2, description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } };
+    await Promise.all([
+      writeFile(join(listDirectory, "component.yaml"), stringify({
+        ...common,
+        id: "action-list",
+        name: "Action list",
+        propsSchema: { type: "object", properties: { actions: { type: "array", items: { type: "string" } } } },
+        references: { "actions.*": { resource: "action" } },
+      })),
+      writeFile(join(workerDirectory, "component.yaml"), stringify({
+        ...common,
+        id: "worker",
+        name: "Worker",
+        actions: [{ id: "refresh", label: "Refresh" }],
+      })),
+      writeFile(join(listDirectory, "index.tsx"), "export default () => null;"),
+      writeFile(join(workerDirectory, "index.tsx"), "export default () => null;"),
+    ]);
+
+    const unknown = (await inspectProject(root)).diagnostics
+      .filter((item) => item.code === "COMPONENT_ACTION_REFERENCE_UNKNOWN");
+    expect(unknown).toEqual([expect.objectContaining({ path: "list.props.actions.1" })]);
   });
 
   test("rejects component action references missing from the target manifest", async () => {
