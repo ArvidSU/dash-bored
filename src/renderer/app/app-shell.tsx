@@ -545,3 +545,23 @@ function ProjectSidebarItem({
     </div>
   );
 }
+
+/** The window before the first host read lands, or when the host cannot be reached. */
+export function BootScreen({ error }: { error?: string | null }): ReactNode {
+  return (
+    <main className={error ? "boot boot--error" : "boot"} aria-live={error ? undefined : "polite"}>
+      <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
+      {error ? (
+        <>
+          <h1>dash-bored could not reach its desktop host</h1>
+          <p>{error}</p>
+        </>
+      ) : (
+        <>
+          <span className="spinner" aria-hidden="true" />
+          Loading dash-bored…
+        </>
+      )}
+    </main>
+  );
+}

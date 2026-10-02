@@ -1,6 +1,9 @@
 import { useState } from "react";
-import type { ProjectListItem, ProjectTarget } from "../../shared/contracts";
+import type { ProjectListItem, ProjectTarget, ResolvedComponentNode } from "../../shared/contracts";
+import { componentPath } from "../../shared/component-agent";
+import type { DashboardOutlineNodeAction } from "../composition/DashboardOutlineTree";
 import type { AppView } from "../lib/action-providers";
+import { writeClipboardText } from "../lib/clipboard";
 import { host } from "../lib/rpc-client";
 import type { AppDialog } from "./AppDialogs";
 import { dashboardKey } from "./app-utils";
@@ -21,6 +24,10 @@ export interface ProjectNavigationOptions {
   expandComponent(configPath: string, nodeId: string): void;
   storeVirtualRoot(configPath: string, nodeId: string): void;
   forgetDashboard(configPath: string): void;
+  /** Outline actions that change a component of the active dashboard. */
+  editNode(node: ResolvedComponentNode): void;
+  toggleCollapse(nodeId: string): void;
+  openChangeWithAgent(node: ResolvedComponentNode): void;
 }
 
 /**
@@ -40,6 +47,9 @@ export function useProjectNavigation({
   expandComponent,
   storeVirtualRoot,
   forgetDashboard,
+  editNode,
+  toggleCollapse,
+  openChangeWithAgent,
 }: ProjectNavigationOptions) {
   const { snapshot, projects, setProjects } = session;
   const { perform } = notices;
@@ -173,8 +183,29 @@ export function useProjectNavigation({
     await openProjectNode(targetProject, nodeId);
   }
 
+  async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
+    await perform(`copy-component:${node.id}`, async () => {
+      const locator = componentPath(node);
+      await writeClipboardText(locator);
+      notices.showNotice(`Copied ${locator}`);
+    });
+  }
+
+  /** A sidebar outline node's menu: focus and copy work anywhere, changes only on the open dashboard. */
+  function outlineNodeAction(targetProject: ProjectListItem, node: ResolvedComponentNode, action: DashboardOutlineNodeAction): void {
+    if (action === "focus") void focusProjectNode(targetProject, node.id);
+    else if (action === "copy") void copyComponentPath(node);
+    else if (activeView !== "dashboard" || snapshot?.configPath !== targetProject.configPath) {
+      notices.setError("Open this dashboard before changing its component.");
+    } else if (action === "edit") editNode(node);
+    else if (action === "collapse") toggleCollapse(node.id);
+    else openChangeWithAgent(node);
+  }
+
   return {
     expandedOutlines,
+    copyComponentPath,
+    outlineNodeAction,
     addDashboard,
     selectProject,
     moveProject,

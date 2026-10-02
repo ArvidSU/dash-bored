@@ -13,6 +13,11 @@ function nodeFrame(nodeId: string): HTMLElement | undefined {
     .find((element) => element.dataset.nodeId === nodeId);
 }
 
+/** Scrolls a mounted node's frame into view, honouring reduced motion. */
+export function scrollNodeIntoView(nodeId: string): void {
+  nodeFrame(nodeId)?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: revealScrollBehavior() });
+}
+
 /**
  * After a reveal mounts the node, find one of its items by stable ID, scroll it
  * into view, move keyboard focus to it, and mark it briefly. Items are any

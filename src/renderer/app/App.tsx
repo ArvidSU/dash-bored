@@ -1,32 +1,21 @@
-import { ThemeNotice, ThemeSelect } from "../lib/theme";
-import { useCallback, useLayoutEffect, useState } from "react";
+import { ThemeNotice } from "../lib/theme";
+import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
-import type { DashboardConfig, ProjectListItem, ResolvedComponentNode } from "../../shared/contracts";
-import { componentPath } from "../../shared/component-agent";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 import { summarizeAgentDiagnostics } from "../../shared/agent-control";
-import {
-  buildApplicationActions,
-  buildDeclaredComponentActions,
-  buildNodeFocusActions,
-  type AppView,
-} from "../lib/action-providers";
-import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
-import { highlightRevealedItem, revealScrollBehavior } from "../lib/reveal-item";
-import { writeClipboardText } from "../lib/clipboard";
+import type { AppView } from "../lib/action-providers";
 import { CommandPalette } from "../panels/CommandPalette";
-import { AppShell } from "./app-shell";
-import type { DashboardOutlineNodeAction } from "../composition/DashboardOutlineTree";
+import { AppShell, BootScreen } from "./app-shell";
 import { AgentActivity, activeDashboardAgentTaskCount } from "../panels/AgentActivity";
 import { DashboardEditor, DashboardEditorToolbar } from "../composition/DashboardEditor";
 import { CompositionFlyout } from "../composition/CompositionFlyout";
 import { useCompositionInteractionController } from "../composition/composition-interaction-controller";
 import { compositionPayloadLabel } from "../composition/composition-labels";
 import { CompositionDragChip } from "../composition/CompositionDragChip";
+import { DashboardAppearanceFields } from "../composition/DashboardAppearanceFields";
 import { useLocalComponents } from "../render/local-components";
 import { useComponentUpdateBatch } from "../render/NodeRenderer";
 import { host } from "../lib/rpc-client";
-import { resolveVirtualRoot } from "../lib/virtual-root";
 import { useDashboardViewState } from "./use-dashboard-view-state";
 import { mergeThemeCatalog, EMPTY_SPLIT_RATIO_OVERRIDES } from "./app-utils";
 import { EmptyProject } from "../panels/EmptyProject";
@@ -41,7 +30,8 @@ import { useDashboardDraft } from "./use-dashboard-draft";
 import { useCompositionSession } from "./use-composition-session";
 import { useAgentWork } from "./use-agent-work";
 import { useProjectNavigation } from "./use-project-navigation";
-import { useActionRegistry, useProvidedActions } from "./use-action-registry";
+import { useActionRegistry } from "./use-action-registry";
+import { useAppActions } from "./use-app-actions";
 import { useAppShortcuts, useCommandHeld } from "./use-app-keyboard";
 import { useAgentControl } from "./use-agent-control";
 
@@ -68,14 +58,7 @@ export function App(): ReactNode {
 
   const dashboardPath = snapshot?.configPath ?? null;
   const viewState = useDashboardViewState(dashboardPath, snapshot?.tree);
-  const virtualRoot = snapshot?.tree ? resolveVirtualRoot(snapshot.tree, viewState.storedVirtualRoot ?? null) : null;
-  useLayoutEffect(() => {
-    const targetId = virtualRoot?.target.id;
-    if (!targetId) return;
-    const target = [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
-      .find((element) => element.dataset.nodeId === targetId);
-    target?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-  }, [snapshot?.configPath, virtualRoot?.target.id]);
+  const { virtualRoot } = viewState;
 
   const draft = useDashboardDraft({
     snapshot,
@@ -125,20 +108,15 @@ export function App(): ReactNode {
     expandComponent: viewState.expandComponent,
     storeVirtualRoot: viewState.storeVirtualRoot,
     forgetDashboard: viewState.forgetDashboard,
+    editNode: (node) => void composition.editNode(node),
+    toggleCollapse: viewState.toggleComponentCollapse,
+    openChangeWithAgent: agent.openChangeWithAgent,
   });
   const dashboardSettings = useDashboardSettings(notices, activeView === "settings", session.projects, snapshot?.revision);
 
   function toggleCompositionLibrary(): void {
     setAgentActivityOpen(false);
     interaction.toggleLibrary();
-  }
-
-  async function copyComponentPath(node: ResolvedComponentNode): Promise<void> {
-    await notices.perform(`copy-component:${node.id}`, async () => {
-      const locator = componentPath(node);
-      await writeClipboardText(locator);
-      notices.showNotice(`Copied ${locator}`);
-    });
   }
 
   async function repairInstalledTools(): Promise<void> {
@@ -150,99 +128,21 @@ export function App(): ReactNode {
     });
   }
 
-  function handleProjectNodeAction(
-    targetProject: ProjectListItem,
-    node: ResolvedComponentNode,
-    action: DashboardOutlineNodeAction,
-  ): void {
-    if (action === "focus") {
-      void navigation.focusProjectNode(targetProject, node.id);
-      return;
-    }
-    if (action === "copy") {
-      void copyComponentPath(node);
-      return;
-    }
-    if (activeView !== "dashboard" || snapshot?.configPath !== targetProject.configPath) {
-      notices.setError("Open this dashboard before changing its component.");
-      return;
-    }
-    if (action === "edit") void composition.editNode(node);
-    else if (action === "collapse") viewState.toggleComponentCollapse(node.id);
-    else agent.openChangeWithAgent(node);
-  }
-
-  const themeCatalog = mergeThemeCatalog(session.themes, snapshot?.themeCatalog);
-  const applicationActions = buildApplicationActions({
+  const allActions = useAppActions({
     snapshot,
     projects: session.projects,
+    themeCatalog: mergeThemeCatalog(session.themes, snapshot?.themeCatalog),
     activeView,
-    sidebarExpanded: settings.sidebarExpanded,
-    pendingAction: notices.pending,
-    editing: draft.editingActiveProject,
-    draftDirty: draft.dirty,
-    draftValid: draft.valid,
-    savingDraft: draft.saving,
-    appSettings: settings.settings,
-    themeCatalog,
-    callbacks: {
-      reloadApp: () => window.location.reload(),
-      showDashboard,
-      showSettings: () => setActiveView("settings"),
-      toggleSidebar: () => settings.setSidebarExpanded((expanded) => !expanded),
-      addDashboard: navigation.addDashboard,
-      openProject: navigation.selectProject,
-      editDashboard: toggleCompositionLibrary,
-      saveDashboard: async () => { await draft.save(); },
-      cancelDashboard: draft.cancel,
-      reloadProject: () => notices.perform("reload", host.reloadProject),
-      trustProject: () => notices.perform("trust", () => host.setTrust(true)),
-      revokeTrust: () => notices.perform("revoke", () => host.setTrust(false)),
-      runProcessQuickAction: async (nodeId) => {
-        await host.processCommand(nodeId, { type: "quick-action" });
-      },
-      stopProcess: async (nodeId) => {
-        await host.processCommand(nodeId, { type: "stop" });
-      },
-      setDashboardAppearance: (theme, themeMode) => draft.updateAppearance({ theme, themeMode }),
-      setDefaultAppearance: (theme, themeMode) => settings.update(
-        { ...settings.settings, theme, themeMode },
-        "Default theme and appearance updated.",
-      ),
-      // Every agent launch goes through the reviewed composer and the agent-work
-      // surface, so the app can show what the agent is doing.
-      requestAgentPrompt: agent.requestPrompt,
-    },
+    setActiveView,
+    notices,
+    settings,
+    draft,
+    navigation,
+    viewState,
+    agent,
+    actions,
+    toggleLibrary: toggleCompositionLibrary,
   });
-  const nodeFocusActions = buildNodeFocusActions(
-    snapshot,
-    virtualRoot?.target.id ?? null,
-    draft.editingActiveProject,
-    (nodeId) => {
-      showDashboard();
-      viewState.focusComponent(nodeId);
-    },
-  );
-  const selectionActions = buildSelectionActions(snapshot, viewState.activeChildSelections, viewState.selectChild);
-  // Reveal is presentation, not navigation: it never changes the focused target.
-  const revealActions = buildRevealActions(snapshot, (nodeId, itemId) => {
-    showDashboard();
-    viewState.revealComponent(nodeId);
-    if (itemId !== undefined) return highlightRevealedItem(nodeId, itemId);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
-        .find((element) => element.dataset.nodeId === nodeId)
-        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: revealScrollBehavior() });
-    }));
-  });
-  const declaredComponentActions = buildDeclaredComponentActions(snapshot, actions.componentActions);
-  const allActions = useProvidedActions(actions.store, [
-    { id: "application", actions: applicationActions },
-    { id: "node-focus", actions: nodeFocusActions },
-    { id: "selection", actions: selectionActions },
-    { id: "reveal", actions: revealActions },
-    { id: "declared-component", actions: declaredComponentActions },
-  ], actions.componentActions);
   const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...actions.diagnostics];
 
   useAppShortcuts({
@@ -267,25 +167,8 @@ export function App(): ReactNode {
     },
   }, snapshot?.tree, setActiveView);
 
-  if (session.loading) {
-    return (
-      <main className="boot" aria-live="polite">
-        <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-        <span className="spinner" aria-hidden="true" />
-        Loading dash-bored…
-      </main>
-    );
-  }
-
-  if (!snapshot && notices.error) {
-    return (
-      <main className="boot boot--error">
-        <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-        <h1>dash-bored could not reach its desktop host</h1>
-        <p>{notices.error}</p>
-      </main>
-    );
-  }
+  if (session.loading) return <BootScreen />;
+  if (!snapshot && notices.error) return <BootScreen error={notices.error} />;
 
   const pendingAction = notices.pending;
   const compositionUiActive = interaction.libraryOpen
@@ -359,7 +242,7 @@ export function App(): ReactNode {
             onToggleCollapse: viewState.toggleComponentCollapse,
             onSplitRatioChange: composition.changeSplitRatio,
             onComponentHeightChange: viewState.updateComponentHeight,
-            onCopyPath: (node) => void copyComponentPath(node),
+            onCopyPath: (node) => void navigation.copyComponentPath(node),
             onEditComponent: (node) => void composition.editNode(node),
             onOpenAgent: agent.openChangeWithAgent,
             onUpdateProps: draft.updateComponentProps,
@@ -411,7 +294,7 @@ export function App(): ReactNode {
         onSelectProject={(project) => void navigation.selectProject(project, true)}
         onToggleProjectOutline={navigation.toggleOutline}
         onFocusProjectNode={(project, nodeId) => void navigation.focusProjectNode(project, nodeId)}
-        onProjectNodeAction={handleProjectNodeAction}
+        onProjectNodeAction={navigation.outlineNodeAction}
         onOpenDeletion={(project) => void navigation.openDeletion(project)}
         onAddDashboard={() => void navigation.addDashboard()}
         onShowSettings={() => setActiveView("settings")}
@@ -500,27 +383,5 @@ export function App(): ReactNode {
         onConfirmDeletion={() => void navigation.confirmDeletion()}
       />
     </>
-  );
-}
-
-/** The library's window-appearance fields; changes land in the dashboard draft. */
-function DashboardAppearanceFields({
-  config,
-  onChange,
-}: {
-  config: DashboardConfig | null | undefined;
-  onChange(change: Pick<DashboardConfig, "theme" | "themeMode">): void;
-}): ReactNode {
-  return (
-    <details className="dashboard-appearance">
-      <summary>Dashboard appearance</summary>
-      <label className="props-field"><span>Window theme</span><ThemeSelect inherit
-        value={config?.theme}
-        onChange={(theme) => onChange({ theme })} /></label>
-      <label className="props-field"><span>Window appearance</span><select aria-label="Dashboard appearance" value={config?.themeMode ?? ""} onChange={(event) => onChange({ themeMode: (event.target.value || undefined) as DashboardConfig["themeMode"] })}>
-        <option value="">Use app default</option><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
-      </select></label>
-      <p>Applies to the whole window. Save dashboard to keep the selection.</p>
-    </details>
   );
 }

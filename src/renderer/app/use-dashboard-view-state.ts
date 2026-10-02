@@ -8,6 +8,7 @@ import {
   type SplitRatioOverrides,
 } from "../render/split-layout";
 import { findVirtualRootPath, resolveVirtualRoot, revealFocusTarget } from "../lib/virtual-root";
+import { scrollNodeIntoView } from "../lib/reveal-item";
 
 /** Renderer-owned per-dashboard presentation state. It never enters YAML or a draft. */
 export function useDashboardViewState(
@@ -15,6 +16,8 @@ export function useDashboardViewState(
   tree: ResolvedComponentNode | null | undefined,
 ): {
   storedVirtualRoot: string | null;
+  /** The focused target resolved against the tree, or null without a tree. */
+  virtualRoot: ReturnType<typeof resolveVirtualRoot> | null;
   activeCollapsedComponentIds: ReadonlySet<string>;
   activeSplitRatioOverrides: Readonly<SplitRatioOverrides>;
   activeComponentHeightOverrides: Readonly<ComponentHeightOverrides>;
@@ -45,6 +48,11 @@ export function useDashboardViewState(
   useLayoutEffect(() => {
     dashboardViewStateStore.reconcile(dashboardPath, tree);
   }, [dashboardPath, tree]);
+  const virtualRoot = tree ? resolveVirtualRoot(tree, viewState.virtualRoot ?? null) : null;
+  const virtualRootId = virtualRoot?.target.id;
+  useLayoutEffect(() => {
+    if (virtualRootId) scrollNodeIntoView(virtualRootId);
+  }, [dashboardPath, virtualRootId]);
 
   function updatePath(
     path: string | null,
@@ -154,6 +162,7 @@ export function useDashboardViewState(
 
   return {
     storedVirtualRoot: viewState.virtualRoot,
+    virtualRoot,
     activeCollapsedComponentIds: viewState.collapsed,
     activeSplitRatioOverrides: viewState.splits,
     activeComponentHeightOverrides: viewState.heights,

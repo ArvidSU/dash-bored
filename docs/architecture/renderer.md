@@ -28,12 +28,16 @@ Everything else lives in focused modules under feature directories:
   - `use-composition-session.ts` — composition preview, targets, pointer
     drags, and library operations over the draft (the interaction
     controller in `composition/` holds its transient UI state);
-  - `use-project-navigation.ts` — open, add, reorder, and remove dashboards;
+  - `use-project-navigation.ts` — open, add, reorder, and remove dashboards,
+    plus the sidebar outline's node menu and copy-path;
   - `use-agent-work.ts` — agent launches and the Agent work surface;
   - `use-action-registry.ts` — the `ActionStore`, palette interaction state,
-    and the one request path; `use-app-keyboard.ts` — global shortcuts;
+    and the one request path; `use-app-actions.ts` — every action source
+    (application, node focus, selection, reveal, declared component) it
+    registers; `use-app-keyboard.ts` — global shortcuts;
     `use-agent-control.ts` — the agent control channel;
-  - `use-dashboard-view-state.ts` — renderer-owned presentation state;
+  - `use-dashboard-view-state.ts` — renderer-owned presentation state, the
+    resolved virtual root, and scrolling it into view;
     `use-latest-ref.ts` — refs written after commit, never during render.
 - `panels/` — app-level views: `DiagnosticsPanel.tsx`, `TrustPanel.tsx`,
   `EmptyProject.tsx`, `AgentPromptPanel.tsx`, `AgentActivity.tsx`,
