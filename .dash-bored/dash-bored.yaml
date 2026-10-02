@@ -369,7 +369,37 @@ root:
                             tags:
                               - chore
                           - id: todo-031
-                            description: "Finish the inherent-complexity refactor (L3 App.tsx split landed on refactor/l3-app-split): L6 push-only host state, merged RPC commands, thin main/index.ts; rest of L7 (tree-links and tree-validate split, src/migrations/, one PackageStore); L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            description: "Finish the inherent-complexity refactor (L3 and L7 landed on refactor/l3-app-split): L6 push-only host state, merged RPC commands, thin main/index.ts; L4 one tree and one editor (gated on todo-028); L5 builtins match the atom set (card and conditional retirement waits for schema v4). Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-package-pipeline
+                            description: "Merge component and theme package add/update/sync/remove into one strategy-driven PackageStore pipeline once their rules are reconciled (remote-advertised vs any full SHA, fetch tolerance, force vs refuse-dirty removal, per-checkout validation and rollback, updateAvailable, coded vs plain errors)."
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-child-edges-shared
+                            description: "Consolidate the ~5 childEdges copies across core, renderer, and shared into one shared helper."
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-legacy-action-target-leaf
+                            description: "Let DashboardEditor.tsx share isLegacyActionTarget from a Node-free leaf module in src/migrations instead of its three inline legacy action-target checks."
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-config-link-manifest
+                            description: "Replace the hand-built config-link catalog manifest in project.ts (missing renderMode layout) with configLinkManifest from tree-links."
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-todo-id-migration
+                            description: "Move the backfill of IDs onto old todo props in renderer/lib/todo.ts into src/migrations/ with the other schema-v4 deletions."
+                            done: false
+                            tags:
+                              - chore
+                          - id: todo-reference-walkers
+                            description: "Decide the trailing-star semantics so the referenceValues walker in tree-validate can merge into referenceLocations."
                             done: false
                             tags:
                               - chore
