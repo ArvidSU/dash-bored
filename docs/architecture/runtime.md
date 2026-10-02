@@ -33,6 +33,14 @@ process and renderer start from the same values. Consumers clone its mutable
 collections before updating settings; the main process still normalizes and
 persists the authoritative settings record.
 
+Development startup creates a checkout-specific `.env.worktree`, Vite port,
+application identity, and `.hutch/home`. Toolchain caches are copied with
+copy-on-write when supported; Hutch's mutable state and locks are never shared.
+The identity isolates settings, trust, the registry, and the agent-control
+socket. Development automatically trusts declared capabilities for the process
+and skips global installed-skill refresh and legacy CLI-link maintenance.
+Explicit project-skill operations remain available. See [Security](./security.md).
+
 Desktop launchers commonly inherit only a system PATH. Before resolving or
 launching dashboard commands, the main process appends conventional user CLI
 locations for the current platform (including user-local, Bun, Cargo, Homebrew,

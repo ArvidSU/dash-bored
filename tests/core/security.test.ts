@@ -17,6 +17,17 @@ afterEach(async () => {
 });
 
 describe("TrustStore", () => {
+  test("development trust is automatic and does not grant trust to a normal store", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const path = join(root, "state", "trust.json");
+    const development = new TrustStore(path, { automatic: true });
+    expect(await development.isTrusted(root, ["process:execute"])).toBeTrue();
+    expect(await development.isTrusted(root, ["process:execute", "network:http"])).toBeTrue();
+    expect(await development.getGrant(root)).toBeNull();
+    expect(await new TrustStore(path).isTrusted(root, ["process:execute"])).toBeFalse();
+  });
+
   test("persists grants, requires reapproval for expanded permissions, and revokes", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

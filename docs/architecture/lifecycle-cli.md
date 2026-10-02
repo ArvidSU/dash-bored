@@ -171,6 +171,16 @@ source equals the link target and that target is a bundled
 
 ### App control
 
+In this repository, `bun run dash-bored -- app ...` loads `.env.worktree` and
+targets the checkout's dev identity automatically. Explicit `--instance` still
+wins. `dev:start` launches a detached checkout-owned supervisor and reports the
+registered native app; `dev:status` reports its identity, PID, URL and log path;
+`dev:restart` and `dev:stop` stop only this checkout's dev process tree.
+Restart dispatches a detached worker and returns immediately, so it survives
+being invoked by the app it stops; poll `dev:status` for the replacement PID.
+Foreground `dev` and `dev:desktop` use the same isolated environment and build
+the bundled tool at startup. Logs from detached runs live in `.hutch/dev.log`.
+
 `app` commands reach one running app over its agent-control channel. Each app
 instance serves HTTP on a user-private Unix socket
 (`~/.config/dash-bored/run/<identifier>.sock`, directory 0700, socket 0600; a

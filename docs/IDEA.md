@@ -166,6 +166,13 @@ open a dashboard or focus a component), and captures a screenshot of the app
 window. The channel never widens what a palette action may do: trust
 decisions and actions that require user confirmation stay with the user.
 
+Development builds are agent-owned proof environments. Each checkout can run
+its own native instance, and agents may start, restart, and stop that instance
+without asking the user. The actual development channel automatically trusts
+dashboard capabilities for that process; installed releases retain the normal
+project trust decision. Development instances keep their state separate and do
+not maintain the user's global skill installation.
+
 Keeping the tools behind the skill means one payload to version and refresh,
 and no separately maintained CLI link that can drift from the app.
 

@@ -23,6 +23,7 @@ import { keepWindowRenderingWhenOccluded } from "./window-capture";
 
 configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
+const development = (await Updater.localInfo.channel()) === "dev";
 // Utils.paths.userData is <appData>/<identifier>/<channel>. Release and
 // development builds share the identifier, so the channel keeps them apart.
 const appInstanceIdentifier = `${basename(dirname(Utils.paths.userData))}.${basename(Utils.paths.userData)}`;
@@ -35,7 +36,7 @@ const DEV_SERVER_RETRY_MS = 100;
 const MIN_WINDOW_WIDTH = 350;
 
 async function mainViewUrl(): Promise<string> {
-  if ((await Updater.localInfo.channel()) === "dev") {
+  if (development) {
     for (let attempt = 0; attempt < DEV_SERVER_ATTEMPTS; attempt += 1) {
       try {
         const response = await fetch(DEV_SERVER_URL, { method: "HEAD" });
@@ -66,13 +67,13 @@ const installedTools = new InstalledToolDiagnostics({
   moveToTrash: async (path) => await Utils.moveToTrash(path),
   onChange: () => send("snapshot", installedTools.addTo(runtime.getSnapshot())),
 });
-const trustStore = new TrustStore(join(Utils.paths.userData, "trusted-projects-v1.json"));
+const trustStore = new TrustStore(join(Utils.paths.userData, "trusted-projects-v1.json"), { automatic: development });
 const projectRegistry = new ProjectRegistry(join(Utils.paths.userData, "projects-v1.json"));
 await installedTools.refreshRegistered([...new Set((await projectRegistry.list().catch((error: unknown) => {
   console.error("Could not read projects for installed-tool updates.", error);
   return [];
-})).map((project) => project.projectRoot))]);
-await retireManagedCliLink().catch(() => false);
+})).map((project) => project.projectRoot))], { includeGlobal: !development });
+if (!development) await retireManagedCliLink().catch(() => false);
 const appSettingsStore = new AppSettingsStore(join(Utils.paths.userData, "settings-v1.json"));
 const initialAppSettings = await appSettingsStore.get();
 

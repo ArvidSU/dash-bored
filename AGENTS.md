@@ -16,6 +16,10 @@ only the relevant page in the architecture index. For dashboard edits, use
 `bun run dash-bored -- inspect . --summary`, then `--component <reference>`
 for the relevant schema; full catalog dumps are rarely needed.
 
+Dev builds are agent-owned: use the checkout's `dev:start`, `dev:restart`,
+`dev:status`, and `dev:stop` without asking the user. Prefer your own worktree
+instance for parallel work. See README for isolation and automatic dev trust.
+
 Before committing structural moves, inspect `git status --short` and
 `git diff --cached --name-status`: replacement directories can still be
 untracked even when working-tree tests pass. Stage the intended replacements

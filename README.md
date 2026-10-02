@@ -62,13 +62,24 @@ For a new Git worktree, use the one-step setup instead:
 bun run worktree:setup
 ```
 
-It installs the locked dependencies, prepares Hutch, creates an ignored
-`.env.worktree` with an isolated port and Electrobun development identity, and
-validates the dashboard. After that, `bun run dev` is ready to use. If
-`bun run dev` is already running, setup reuses its prepared development files
-instead of waiting for Hutch's build lock. If another desktop development
-process is already running, `bun run qa:fast` provides the non-locking
-typecheck, test, and renderer-build path once Hutch is prepared.
+It installs locked dependencies, creates an ignored `.env.worktree` with a
+checkout-specific port and application identity, seeds an isolated Hutch home,
+prepares Hutch, and validates the dashboard. `bun run dev` also creates this
+environment automatically. Separate worktrees can run native dev apps together.
+
+Dev builds are agent-owned: agents may restart this checkout's app without
+asking. They automatically trust declared dashboard capabilities, including
+new permissions, and do not update your global skill installation. This applies
+only to the actual `dev` channel; installed releases retain normal trust.
+Revoking trust still disables a project until the dev app is restarted.
+
+For an agent-managed background instance, use `bun run dev:start`. Use
+`dev:status` to get its identity, PID and log path, `dev:restart` to rebuild and
+restart it, and `dev:stop` to stop this checkout's dev processes. Restart returns
+immediately so it can also be run from the app being restarted; use `dev:status`
+to check the new PID. Background
+output is in `.hutch/dev.log`. In the checkout, `bun run dash-bored -- app ...`
+automatically targets its own instance. Use `--instance` to target another one.
 
 In a source checkout, run the agent tool with `bun run dash-bored -- <command>`.
 
@@ -76,6 +87,10 @@ Useful repository commands:
 
 ```sh
 bun run dev             # Vite development renderer + watched Electrobun app
+bun run dev:start       # start this checkout's app in the background
+bun run dev:restart     # rebuild/restart this checkout's app
+bun run dev:status      # identity, PID, URL and background log
+bun run dev:stop        # stop only this checkout's dev processes
 bun run dev:desktop     # built renderer + watched Electrobun main process
 bun run build:cli       # standalone agent tool embedded in desktop builds
 bun run styles:dead     # report app CSS class/ID hooks without source references
@@ -103,8 +118,9 @@ code is wanted for definitely dead hooks.
 
 For an already prepared checkout, default to `bun run qa:fast`. `qa`,
 `typecheck`, and `build:renderer` invoke `electrobun prepare`, which can wait
-indefinitely behind a running desktop watcher's lock. Do not stop a user-owned
-watcher to run checks. The fast commands never prepare; they fail immediately
+behind this checkout's running desktop watcher. Agents may restart their own
+dev app when preparation is needed; other checkouts and installed apps are
+separate. The fast commands never prepare; they fail immediately
 with setup guidance if the required Hutch files are missing. After changing
 the Electrobun dependency, regenerate Hutch with `bun run setup` when the
 watcher is stopped before relying on fast checks.

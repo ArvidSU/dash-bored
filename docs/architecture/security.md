@@ -14,6 +14,13 @@ invalidates it and requires a new decision. Trust can also be revoked manually.
 The main process checks both project trust and the requested node's declared
 permission on every privileged RPC.
 
+The native host enables process-local automatic trust only when Electrobun's
+reported channel is `dev`, never from an environment flag. Development loads
+and new permission sets are trusted without writing a grant. Node capability
+declarations and path checks still apply. Explicit revocation disables the
+project for the remainder of that app session; restarting dev restores automatic
+trust. Canary/release builds use persisted approval as before.
+
 Per-node permissions shape the host API, protect against accidental use, and
 constrain every component equally. They do not isolate trusted local components from one
 another: all local code shares one renderer and could forge another node ID by

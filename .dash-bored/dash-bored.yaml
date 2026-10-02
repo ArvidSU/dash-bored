@@ -747,8 +747,8 @@ root:
                       component: "@dash-bored/markdown"
                       props:
                         content: |
-                          **Development loop.** Start the desktop environment for live renderer and main-process
-                          updates; prefer the `:fast` checks while a watcher holds the Electrobun lock. For UI
+                          **Development loop.** Each checkout owns an isolated, automatically trusted dev app.
+                          Agents may start, restart, and stop it freely. Prefer the `:fast` checks while its watcher runs. For UI
                           changes, start **UI fixture** and inspect it below at normal and narrow widths before the
                           native desktop check.
                   second:
@@ -790,8 +790,8 @@ root:
                               id: start-development
                               component: "@dash-bored/command"
                               props:
-                                label: Start development environment
-                                command: bun run dev
+                                label: Start dev app
+                                command: bun run dev:start
                                 cwd: .
                           second:
                             axis: vertical
@@ -800,17 +800,39 @@ root:
                                 id: stop-development
                                 component: "@dash-bored/command"
                                 props:
-                                  label: Stop this checkout's dev build
+                                  label: Stop dev app
                                   command: bun run dev:stop
                                   cwd: .
                             second:
-                              node:
-                                id: ui-fixture
-                                component: "@dash-bored/command"
-                                props:
-                                  label: Serve UI fixture (renderer only)
-                                  command: bun run ui:fixture
-                                  cwd: .
+                              axis: vertical
+                              first:
+                                node:
+                                  id: restart-development
+                                  component: "@dash-bored/command"
+                                  props:
+                                    label: Restart dev app
+                                    command: bun run dev:restart
+                                    cwd: .
+                              second:
+                                axis: vertical
+                                first:
+                                  node:
+                                    id: development-status
+                                    component: "@dash-bored/status"
+                                    props:
+                                      label: This checkout's dev app
+                                      density: compact
+                                      source:
+                                        shell: bun .dash-bored/scripts/dev-status.ts
+                                        every: 5000
+                                second:
+                                  node:
+                                    id: ui-fixture
+                                    component: "@dash-bored/command"
+                                    props:
+                                      label: Serve UI fixture (renderer only)
+                                      command: bun run ui:fixture
+                                      cwd: .
                         second:
                           axis: horizontal
                           first:

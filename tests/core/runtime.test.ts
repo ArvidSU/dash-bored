@@ -387,6 +387,21 @@ describe("ProjectRuntime", () => {
     expect(broken.iconDataUrl).toBeNull();
   });
 
+  test("automatic development trust enables declared capabilities, still respects node permissions and session revocation", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, processConfig);
+    const runtime = new ProjectRuntime({ trustStore: new TrustStore(join(root, ".state", "trust.json"), { automatic: true }) });
+    runtimes.push(runtime);
+    expect((await runtime.load(root)).trusted).toBeTrue();
+    await expect(runtime.readText({ nodeId: "server", path: "package.json" })).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+    const running = await runtime.processCommand("server", { type: "start" });
+    expect(running.phase).toBe("running");
+    expect((await runtime.revoke()).trusted).toBeFalse();
+    expect((await runtime.reload()).trusted).toBeFalse();
+    await expect(runtime.processCommand("server", { type: "start" })).rejects.toMatchObject({ code: "PROJECT_UNTRUSTED" });
+  });
+
   test("watches project files and publishes a successful reload", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

@@ -169,9 +169,9 @@ export class InstalledToolDiagnostics {
     onChange(): void;
   }) {}
 
-  async refreshRegistered(projectRoots: readonly string[]): Promise<void> {
+  async refreshRegistered(projectRoots: readonly string[], options: { includeGlobal?: boolean } = {}): Promise<void> {
     for (const root of projectRoots) this.checkedRoots.add(root);
-    this.diagnostics.push(...await refreshInstalledTools({ projectRoots: [...projectRoots] }));
+    this.diagnostics.push(...await refreshInstalledTools({ projectRoots: [...projectRoots], ...options }));
   }
 
   /** Refreshes a newly opened project's skill once per run. */

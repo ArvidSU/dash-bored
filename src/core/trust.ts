@@ -82,7 +82,7 @@ export class TrustStore {
   readonly filePath: string;
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(filePath: string) {
+  constructor(filePath: string, private readonly options: { automatic?: boolean } = {}) {
     if (filePath.trim() === "") throw new CoreError("TRUST_STORE_PATH_EMPTY", "Trust store path is required.");
     this.filePath = resolve(filePath);
   }
@@ -130,6 +130,9 @@ export class TrustStore {
   }
 
   async isTrusted(projectRoot: string, requestedPermissions: readonly Permission[]): Promise<boolean> {
+    // The native host enables this only for Electrobun's development channel.
+    // Automatic trust is process-local and never publishes a persisted grant.
+    if (this.options.automatic) return true;
     const grant = await this.getGrant(projectRoot);
     if (grant === null) return false;
     const granted = new Set(grant.permissions);
