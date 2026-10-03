@@ -14,7 +14,6 @@ import {
   insertNode,
   managedChildEdges,
   moveNode,
-  nodePathFromSourcePath,
   nodePathById,
   pathKey,
   removeNode,
@@ -303,18 +302,4 @@ describe("dashboard editor tree operations", () => {
     ]);
   });
 
-  test("maps resolver source locators back to managed and tiled node paths", () => {
-    expect(nodePathFromSourcePath("root")).toEqual([]);
-    expect(nodePathFromSourcePath("root.children.first.node")).toEqual([
-      { type: "tiled", path: ["first"] },
-    ]);
-    expect(nodePathFromSourcePath(
-      "root.children.second.node.children[2].node.children.first.second.node",
-    )).toEqual([
-      { type: "tiled", path: ["second"] },
-      { type: "managed", index: 2 },
-      { type: "tiled", path: ["first", "second"] },
-    ]);
-    expect(nodePathFromSourcePath("root.children[0].node.nope")).toBeNull();
-  });
 });

@@ -354,13 +354,13 @@ root:
                             tags:
                               - chore
                           - id: todo-028
-                            description: Before unifying the dashboard tree and editor, verify native drag, move up/down, and Save/Cancel in the dash-bored dev app. Computer Use was not approved to use dash-bored-dev, so the L4 native UI gate remains open.
-                            done: false
+                            description: "Verified L4 in the isolated native dev app: generated-handle drag, first-click Move up, Move down after Save, written YAML order, and Cancel restoring the saved order. Computer Use and control-channel screenshots passed; the disposable proof registration was removed and original UI state restored."
+                            done: true
                             tags:
                               - chore
                           - id: todo-029
-                            description: "Define key-based list filter reset semantics before replacing filter effects: retain a still-valid selected tag, decide behavior when the source or tag set changes, and preserve todo editing and focus state."
-                            done: false
+                            description: "Completed S16: a keyed filter boundary resets on source-provider changes, retains a still-valid selected tag across observations and tag additions, and permanently resets to All when the tag disappears or filtering is disabled. Todo edit buffers and keyboard focus survive tag updates."
+                            done: true
                             tags:
                               - chore
                           - id: todo-030
@@ -369,19 +369,19 @@ root:
                             tags:
                               - chore
                           - id: todo-031
-                            description: "Finish the inherent-complexity refactor (L3, L7, L6, and L5's shared useSourceComponent hook landed): L4 one tree and one editor (gated on todo-028); the rest of L5, tabs as a single-child selection container and card and conditional retirement, waits for schema v4. Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
+                            description: "Finish the inherent-complexity refactor: L3, L7, L6, L4's host-resolved draft and typed locators, S16 filters, and L5's shared useSourceComponent hook are complete. The rest of L5, tabs as a single-child selection container and card and conditional retirement, waits for schema v4. Plan: https://claude.ai/code/artifact/b334bffd-a35b-4e9e-8e37-b4c33935c15a"
                             done: false
                             tags:
                               - chore
                           - id: todo-flaky-timeouts-under-load
-                            description: "Two tests time out at bun's 5 s default when the machine is loaded (dev app plus parallel builds, load average ~20): runtime.test.ts 'watches project files and publishes a successful reload' and a ui-interaction.test.ts hook. Both pass alone; give the watcher test an explicit timeout or wait on the snapshot event instead of wall time."
-                            done: false
+                            description: "The runtime file-watcher test keeps its observable snapshot wait with an explicit 15 s test budget; the renderer interaction suite's cleanup hook has 30 s. This removes bun's unrelated 5 s default as their limit without adding fixed sleeps."
+                            done: true
                             tags:
                               - chore
                               - tests
                           - id: todo-dashboard-editor-service
-                            description: "Split ProjectRuntime's editor operations (config source, draft and props validation, save) into a DashboardEditorService once L4 decides where drafts resolve; today save re-applies the definition through the runtime's queue, trust, and applyDefinition, so a split would only add a callback interface."
-                            done: false
+                            description: "L4 decision: keep config source, draft validation, compilation, and save in ProjectRuntime, which owns source reachability, the mutation queue, trust, and definition publication. A separate DashboardEditorService would only wrap those owners in callbacks."
+                            done: true
                             tags:
                               - chore
                           - id: todo-package-pipeline
@@ -395,8 +395,8 @@ root:
                             tags:
                               - chore
                           - id: todo-legacy-action-target-leaf
-                            description: "Let DashboardEditor.tsx share isLegacyActionTarget from a Node-free leaf module in src/migrations instead of its three inline legacy action-target checks."
-                            done: false
+                            description: "The extracted ComponentDialog, action-reference migration, and tree validator share isLegacyActionTarget from the Node-free src/migrations/action-target.ts leaf. Remove this schema-v3 compatibility check with the schema-v4 migration."
+                            done: true
                             tags:
                               - chore
                           - id: todo-config-link-manifest
@@ -752,26 +752,41 @@ root:
                           changes, start **UI fixture** and inspect it below at normal and narrow widths before the
                           native desktop check.
                   second:
-                    node:
-                      id: palette-workflow
-                      component: "@dash-bored/markdown"
-                      props:
-                        title: Run several palette actions
-                        content: |
-                          Open Commands with **⌘K**, search for a command, and use **⌘Enter** (or **⌘click**)
-                          to run it while keeping the palette open. Try **Validate dashboard** followed by
-                          **Typecheck (fast)**. Regular Enter closes the palette.
+                    axis: vertical
+                    first:
+                      node:
+                        id: composition-workflow
+                        component: "@dash-bored/markdown"
+                        props:
+                          content: |
+                            **Arrange this cockpit.** Focus a panel's frame menu and choose **Move up** or
+                            **Move down**, or use its drag handle. Edit component changes its declared props.
+                            Each change opens a draft: **Save dashboard** publishes it and **Cancel** discards it.
+                            Arranging a panel inside **Lab** edits that linked bundle's own YAML.
 
-                          Search clears after each keep-open invocation by default. In **Settings → General**,
-                          turn off **Clear search when keeping the palette open** to retain it. App controls
-                          remain available; dashboard actions belong to the currently selected dashboard.
-                          Choose **Switch dashboard** in the palette to open another registered dashboard.
+                            **Filter the backlog.** Select a tag in Work. Editing a todo keeps the filter and
+                            keyboard focus; removing the final item with that tag returns the list to All tags.
+                    second:
+                      node:
+                        id: palette-workflow
+                        component: "@dash-bored/markdown"
+                        props:
+                          title: Run several palette actions
+                          content: |
+                            Open Commands with **⌘K**, search for a command, and use **⌘Enter** (or **⌘click**)
+                            to run it while keeping the palette open. Try **Validate dashboard** followed by
+                            **Typecheck (fast)**. Regular Enter closes the palette.
 
-                          With Commands closed, hold **⌘** to see sidebar number hints and press **1–9**
-                          to switch dashboards. Drag a dashboard icon above or below another row to save
-                          a new order; the number shortcuts follow it. Try switching back with **⌘1**.
-                          Click the active dashboard again, or press its **⌘number** again, to toggle
-                          sidebar expansion. From Settings, it returns to the dashboard instead.
+                            Search clears after each keep-open invocation by default. In **Settings → General**,
+                            turn off **Clear search when keeping the palette open** to retain it. App controls
+                            remain available; dashboard actions belong to the currently selected dashboard.
+                            Choose **Switch dashboard** in the palette to open another registered dashboard.
+
+                            With Commands closed, hold **⌘** to see sidebar number hints and press **1–9**
+                            to switch dashboards. Drag a dashboard icon above or below another row to save
+                            a new order; the number shortcuts follow it. Try switching back with **⌘1**.
+                            Click the active dashboard again, or press its **⌘number** again, to toggle
+                            sidebar expansion. From Settings, it returns to the dashboard instead.
                 second:
                   axis: vertical
                   first:

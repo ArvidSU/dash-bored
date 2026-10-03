@@ -447,15 +447,90 @@ export class ProjectRuntime {
   async validateDashboardDraft(
     config: DashboardConfig,
     configPath?: string,
+    sourceNodeId?: string,
   ): Promise<DashboardDraftValidation> {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
       const location = await this.sourceLocation(configPath);
-      const definition = await validateProjectConfigDraft(location, structuredClone(config));
+      let namespacePrefix: string | undefined;
+      if (location.configPath !== this.location?.configPath) {
+        const boundaries: ResolvedComponentNode[] = [];
+        const visit = (node: ResolvedComponentNode): void => {
+          if (node.source === "config" && node.configPath === location.configPath) boundaries.push(node);
+          for (const edge of childEdges(node.children)) visit(edge.node);
+        };
+        if (this.snapshot.tree) visit(this.snapshot.tree);
+        const boundary = sourceNodeId === undefined
+          ? boundaries.length === 1 ? boundaries[0] : undefined
+          : boundaries.find((node) => node.id === sourceNodeId);
+        if (sourceNodeId !== undefined && !boundary) {
+          return {
+            ok: false,
+            diagnostics: [diagnostic({
+              code: "DASHBOARD_DRAFT_SOURCE_INVALID",
+              message: "The selected linked dashboard occurrence is no longer available for editing.",
+              path: sourceNodeId,
+            })],
+            requestedPermissions: [],
+            tree: null,
+            components: [],
+            trusted: false,
+          };
+        }
+        if (boundaries.length > 1 && sourceNodeId === undefined) {
+          return {
+            ok: false,
+            diagnostics: [diagnostic({
+              code: "DASHBOARD_DRAFT_SOURCE_AMBIGUOUS",
+              message: "This dashboard is linked more than once; select the rendered occurrence before validating its draft.",
+              path: location.configPath,
+            })],
+            requestedPermissions: [],
+            tree: null,
+            components: [],
+            trusted: false,
+          };
+        }
+        if (boundary) namespacePrefix = boundary.id;
+      } else if (sourceNodeId !== undefined) {
+        return {
+          ok: false,
+          diagnostics: [diagnostic({
+            code: "DASHBOARD_DRAFT_SOURCE_INVALID",
+            message: "The active dashboard root does not have a linked occurrence ID.",
+            path: sourceNodeId,
+          })],
+          requestedPermissions: [],
+          tree: null,
+          components: [],
+          trusted: false,
+        };
+      }
+      const definition = await validateProjectConfigDraft(location, structuredClone(config), {
+        ...(namespacePrefix === undefined ? {} : { namespacePrefix }),
+      });
+      let components: CompiledLocalComponent[] = [];
+      const activeLocation = this.location;
+      const trusted = activeLocation !== null
+        && !this.sessionRevokedRoots.has(activeLocation.projectRoot)
+        && await this.trustStore.isTrusted(activeLocation.projectRoot, definition.permissions);
+      if (definition.ok && trusted) {
+        const compiled = await compileLocalComponents(definition.localComponents);
+        definition.diagnostics.push(...compiled.diagnostics);
+        if (hasErrors(compiled.diagnostics)) {
+          definition.ok = false;
+          definition.tree = null;
+        } else {
+          components = compiled.components;
+        }
+      }
       return {
         ok: definition.ok,
         diagnostics: definition.diagnostics,
         requestedPermissions: definition.permissions,
+        tree: definition.tree,
+        components,
+        trusted,
       };
     });
   }

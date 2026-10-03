@@ -49,8 +49,8 @@ async function persistedGroupCount(active: Page = currentPage()): Promise<number
   });
 }
 
-async function persistedTodoDone(): Promise<boolean | undefined> {
-  return await currentPage().evaluate(async () => {
+async function persistedTodoDone(active: Page = currentPage()): Promise<boolean | undefined> {
+  return await active.evaluate(async () => {
     const host = window.__DASH_BORED_UI_HARNESS_HOST__;
     if (!host) throw new Error("UI harness host is unavailable.");
     const root = (await host.getSnapshot()).config?.root;
@@ -68,6 +68,33 @@ async function persistedTodoDone(): Promise<boolean | undefined> {
       return undefined;
     };
     return root ? visit(root) : undefined;
+  });
+}
+
+async function persistedResponsiveSiblingOrder(active: Page = currentPage()): Promise<string[]> {
+  return await active.evaluate(async () => {
+    const host = window.__DASH_BORED_UI_HARNESS_HOST__;
+    if (!host) throw new Error("UI harness host is unavailable.");
+    const config = await host.getSnapshot().then((snapshot) => snapshot.config);
+    const find = (node: ComponentNode, id: string): ComponentNode | null => {
+      if (node.id === id) return node;
+      const visitLayout = (layout: ComponentChildLayout): ComponentNode | null =>
+        "node" in layout ? find(layout.node, id) : visitLayout(layout.first) ?? visitLayout(layout.second);
+      const children = node.children;
+      if (children === undefined) return null;
+      if (!Array.isArray(children)) return visitLayout(children);
+      for (const edge of children) {
+        const found = find(edge.node, id);
+        if (found) return found;
+      }
+      return null;
+    };
+    const group = config ? find(config.root, "group") : null;
+    const layout = group?.children;
+    const leaves = (current: ComponentChildLayout): string[] => "node" in current
+      ? [current.node.id ?? current.node.component]
+      : [...leaves(current.first), ...leaves(current.second)];
+    return layout && !Array.isArray(layout) ? leaves(layout) : [];
   });
 }
 
@@ -93,7 +120,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await fixtureServer?.stop();
-});
+}, 30_000);
 
 describe("renderer fixture interactions", () => {
   test("component cards show their manifest summary", async () => {
@@ -1019,6 +1046,89 @@ describe("renderer fixture interactions", () => {
     expect(await persistedGroupCount()).toBe(1);
   }, 20_000);
 
+  test("frame menu sibling moves preview immediately and use dashboard Save and Cancel", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library" }).waitFor();
+      const original = await persistedResponsiveSiblingOrder(proof);
+      expect(original.indexOf("status")).toBeLessThan(original.indexOf("responsive-card"));
+
+      const moveUp = async (): Promise<void> => {
+        const frame = proof.locator('[data-node-id="responsive-card"]');
+        await frame.locator("header").first().click({ button: "right" });
+        await proof.getByRole("menuitem", { name: "Move component up", exact: true }).click();
+        await proof.getByRole("button", { name: "Save dashboard" }).waitFor();
+        await proof.waitForFunction(() => {
+          const ids = [...document.querySelectorAll<HTMLElement>("[data-node-id]")].map((node) => node.dataset.nodeId);
+          return ids.indexOf("responsive-card") >= 0 && ids.indexOf("responsive-card") < ids.indexOf("status");
+        });
+      };
+
+      await moveUp();
+      expect(await persistedResponsiveSiblingOrder(proof)).toEqual(original);
+      await proof.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+      await proof.getByRole("button", { name: "Discard changes", exact: true }).click();
+      expect(await persistedResponsiveSiblingOrder(proof)).toEqual(original);
+
+      await moveUp();
+      await proof.getByRole("button", { name: "Save dashboard" }).click();
+      await proof.getByText("Revision 2", { exact: true }).waitFor();
+      const saved = await persistedResponsiveSiblingOrder(proof);
+      expect(saved.indexOf("responsive-card")).toBeLessThan(saved.indexOf("status"));
+    } finally {
+      await proof.close();
+    }
+  }, 30_000);
+
+  test("invalid composition draft shows host diagnostics in place and disables Save", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library" }).click();
+      await proof.getByRole("button", { name: "Insert Markdown", exact: true }).click();
+      const dialog = proof.getByRole("dialog", { name: "Add component" });
+      await dialog.getByRole("button", { name: "Add component", exact: true }).click();
+      await proof.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+      await proof.getByText("The draft has not resolved yet. The saved dashboard remains visible while it is checked.", { exact: true }).waitFor();
+      const diagnostics = proof.locator("details.diagnostics");
+      await diagnostics.evaluate((element) => { (element as HTMLDetailsElement).open = true; });
+      await diagnostics.getByText(/match exactly one schema in oneOf/).waitFor();
+      expect(await proof.getByRole("button", { name: "Save dashboard" }).isDisabled()).toBeTrue();
+      expect(await proof.getByRole("region", { name: "Selected component actions" }).count()).toBe(0);
+      await proof.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+      await proof.getByRole("button", { name: "Discard changes", exact: true }).click();
+    } finally {
+      await proof.close();
+    }
+  }, 30_000);
+
+  test("the first todo prop update from a fresh page opens and updates its owner draft", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library" }).waitFor();
+      await proof.getByRole("tab", { name: "Boundary", exact: true }).click({ force: true });
+      const toggle = proof.getByRole("checkbox", { name: "Mark complete: Keep this surface mounted" });
+      await toggle.waitFor();
+      await toggle.click();
+      await proof.getByRole("button", { name: "Save dashboard" }).waitFor();
+      const completed = proof.getByRole("checkbox", { name: "Mark incomplete: Keep this surface mounted" });
+      await completed.waitFor();
+      expect(await completed.isChecked()).toBeTrue();
+      expect(await persistedTodoDone(proof)).toBeFalse();
+      await proof.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+      await proof.getByRole("button", { name: "Discard changes", exact: true }).click();
+      await proof.getByRole("checkbox", { name: "Mark complete: Keep this surface mounted" }).waitFor();
+      expect(await persistedTodoDone(proof)).toBeFalse();
+    } finally {
+      await proof.close();
+    }
+  }, 30_000);
+
   test("discard confirmation can save the draft before continuing", async () => {
     // A fresh page has its own fixture host, so this save does not shift the
     // revisions and group counts the shared-page tests below depend on.
@@ -1456,6 +1566,90 @@ describe("renderer fixture interactions", () => {
       return host.readTextFile({ nodeId: "markdown-file", path: "README.md" });
     });
     expect(saved).toBe("# Updated fixture\n\nSaved from the raw editor.");
+  }, 20_000);
+
+  test("source filters retain valid tags and permanently clear removed tags", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    const publish = async (phase: number): Promise<void> => {
+      await proof.evaluate(async (phase) => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const snapshot = await host.getSnapshot();
+        const items = [
+          { id: 'one', title: `Observation ${phase}`, tags: phase === 2 ? ['other'] : ['proof'] },
+          { id: 'two', title: 'Other item', tags: ['other'] },
+          ...(phase === 1 ? [{ id: 'three', title: 'New tag item', tags: ['new'] }] : []),
+        ];
+        host.runShell = async () => ({ stdout: JSON.stringify(items), stderr: '', exitCode: 0, signal: null, timedOut: false });
+        await host.saveDashboardConfig({ schemaVersion: 3, name: 'Filter proof', root: {
+          id: 'filter-list', component: '@dash-bored/list', props: {
+            title: 'Filter proof', source: phase < 4 ? { inline: items } : { shell: 'filter-proof', env: { PROVIDER: String(phase) } },
+          },
+        } }, snapshot.configRevision!);
+      }, phase);
+      await proof.getByText(`Observation ${phase}`, { exact: true }).waitFor();
+    };
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+      await publish(0);
+      const tag = proof.getByRole('combobox', { name: 'Tag', exact: true });
+      await tag.selectOption('proof');
+      await publish(1);
+      expect(await tag.inputValue()).toBe('proof');
+      expect(await proof.getByText('Other item', { exact: true }).count()).toBe(0);
+      await publish(2);
+      expect(await tag.inputValue()).toBe('');
+      await publish(3);
+      expect(await tag.inputValue()).toBe('');
+      await proof.getByText('Other item', { exact: true }).waitFor();
+      await publish(4);
+      await tag.selectOption('proof');
+      await publish(5);
+      expect(await tag.inputValue()).toBe('');
+      await proof.getByText('Other item', { exact: true }).waitFor();
+    } finally { await proof.close(); }
+  }, 20_000);
+
+  test("todo tag updates preserve the active edit buffer and keyboard focus", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    const publish = async (phase: number): Promise<void> => {
+      await proof.evaluate(async (phase) => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const snapshot = await host.getSnapshot();
+        await host.saveDashboardConfig({ schemaVersion: 3, name: 'Todo filter proof', root: {
+          id: 'filter-todos', component: '@dash-bored/list', props: {
+            filterByTags: phase !== 2,
+            todos: [
+              { id: 'one', description: 'Editing task', done: false, tags: ['proof'] },
+              { id: 'two', description: 'Other task', done: false, tags: phase === 0 ? ['other'] : ['other', 'new'] },
+            ],
+          },
+        } }, snapshot.configRevision!);
+      }, phase);
+    };
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+      await publish(0);
+      const tag = proof.getByRole('combobox', { name: 'Tag', exact: true });
+      await tag.selectOption('proof');
+      await proof.getByRole('button', { name: 'Edit description: Editing task', exact: true }).click();
+      const editor = proof.getByRole('textbox', { name: 'Edit todo description', exact: true });
+      await editor.fill('Uncommitted buffer');
+      await editor.evaluate((element) => { (element as HTMLElement).dataset.focusProof = 'retained'; });
+      await publish(1);
+      await tag.locator('option[value="new"]').waitFor({ state: 'attached' });
+      expect(await tag.inputValue()).toBe('proof');
+      expect(await editor.inputValue()).toBe('Uncommitted buffer');
+      expect(await editor.getAttribute('data-focus-proof')).toBe('retained');
+      expect(await editor.evaluate((element) => document.activeElement === element)).toBeTrue();
+      await editor.press('Escape');
+      await publish(2);
+      await proof.getByRole('button', { name: 'Edit description: Other task', exact: true }).waitFor();
+      expect(await tag.count()).toBe(0);
+    } finally { await proof.close(); }
   }, 20_000);
 
   test("todo interactions retain the mounted surface and use the dashboard draft", async () => {

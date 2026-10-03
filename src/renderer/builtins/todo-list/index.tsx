@@ -16,6 +16,7 @@ import {
   todoTags,
 } from "../../lib/todo";
 import { parseListItemActions, resolveListItemAction } from "../../lib/list-data";
+import { TagFilter } from "../tag-filter";
 
 interface TodoListProps {
   props: Record<string, unknown>;
@@ -45,7 +46,6 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
     [configuredItemsKey],
   );
   const [items, setItems] = useState<TodoItem[]>(configuredItems);
-  const [filterTag, setFilterTag] = useState("");
   const [description, setDescription] = useState("");
   const [newTags, setNewTags] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -166,9 +166,6 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
   };
 
   const tags = useMemo(() => todoTags(items), [items]);
-  useEffect(() => {
-    if (filterTag !== "" && !tags.includes(filterTag)) setFilterTag("");
-  }, [filterTag, items]);
 
   useEffect(() => {
     const itemChoice = { id: "id", label: "Choose a todo", options: () => items.map((item) => ({ value: item.id, label: item.description })) };
@@ -191,22 +188,15 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
           const item = targetItem(selections, args);
           if (!await persist(items.filter((candidate) => candidate.id !== item.id))) throw new Error("Could not update the todo draft.");
         } }),
-      host.actions.register({ id: "clear-filter", label: "Clear list tag filter", enabled: filterTag !== "", disabledReason: "No tag filter is selected.", run: () => setFilterTag("") }),
-      host.actions.register({ id: "filter", label: "Filter list by tag", enabled: tags.length > 0 || filterTag !== "",
-        disabledReason: "This list has no tags.",
-        choices: [{ id: "tag", label: "Choose a tag", options: () => tags.map((tag) => ({ value: tag, label: tag })) }],
-        run: (selections, args) => {
-          const tag = args?.tag ?? selections?.tag ?? "";
-          if (typeof tag !== "string" || tag !== "" && !tags.includes(tag)) throw new Error("Choose a current list tag.");
-          setFilterTag(tag);
-        } }),
     ];
     return () => unregister.forEach((remove) => remove());
-  }, [host.actions, items, saving, persist, filterTag, tags]);
+  }, [host.actions, items, saving, persist]);
 
-  const visibleItems = sortTodos(filterTodos(items, filterTag));
   const openCount = items.filter((item) => !item.done).length;
 
+  const filterByTags = props.filterByTags !== false;
+  return <TagFilter key="editable-todos" host={host} tags={tags} enabled={filterByTags}>{(filterTag, setFilterTag) => {
+  const visibleItems = sortTodos(filterTodos(items, filterTag));
   return (
     <section className="todo" aria-label="todo list">
       <header className="todo__header">
@@ -214,13 +204,13 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
           <strong>{typeof props.title === "string" ? props.title : "Todo list"}</strong>
           <span>{openCount} open · {items.length} total</span>
         </div>
-        <label className="todo__filter">
+        {filterByTags && tags.length > 0 ? <label className="todo__filter">
           <span>Tag</span>
           <select value={filterTag} onChange={(event) => setFilterTag(event.target.value)}>
             <option value="">All tags</option>
             {tags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
           </select>
-        </label>
+        </label> : null}
       </header>
 
       {error ? (
@@ -385,4 +375,5 @@ export function TodoList({ props, host, refreshAction = false }: TodoListProps):
       </form>
     </section>
   );
+  }}</TagFilter>;
 }

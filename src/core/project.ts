@@ -22,7 +22,7 @@ import {
   type ProjectLocation,
 } from "./paths";
 import { discoverComponentCatalog, type LocalComponentDefinition } from "./tree-catalog";
-import { configLinkManifest } from "./tree-links";
+import { configLinkManifest, namespaceLinkedTree } from "./tree-links";
 import { resolveComponentTree } from "./tree-resolve";
 import {
   parseDashboardConfig,
@@ -50,6 +50,8 @@ export interface ProjectDefinition {
 
 export interface InspectProjectOptions {
   compile?: boolean;
+  /** Namespace a draft as the concrete config-link occurrence that will render it. */
+  namespacePrefix?: string;
 }
 
 export async function readConfigRevision(configPath: string): Promise<string> {
@@ -81,7 +83,31 @@ async function buildProjectDefinition(
     permissions = resolvedTree.permissions;
     permissionsByNode = resolvedTree.permissionsByNode;
     projectRootsByNode = resolvedTree.projectRootsByNode;
-    if (!hasErrors(diagnostics)) tree = resolvedTree.tree;
+    if (!hasErrors(diagnostics)) {
+      tree = resolvedTree.tree;
+      if (tree && options.namespacePrefix) {
+        const namespaced = namespaceLinkedTree(tree, options.namespacePrefix);
+        tree = namespaced.tree;
+        permissionsByNode = new Map(
+          [...permissionsByNode].flatMap(([id, nodePermissions]) => {
+            const namespacedId = namespaced.ids.get(id);
+            return namespacedId === undefined ? [] : [[namespacedId, nodePermissions] as const];
+          }),
+        );
+        projectRootsByNode = new Map(
+          [...projectRootsByNode].flatMap(([id, projectRoot]) => {
+            const namespacedId = namespaced.ids.get(id);
+            return namespacedId === undefined ? [] : [[namespacedId, projectRoot] as const];
+          }),
+        );
+        localComponents = localComponents.map((definition) => ({
+          ...definition,
+          reference: `${options.namespacePrefix}::${definition.reference}`,
+          manifest: { ...definition.manifest, id: `${options.namespacePrefix}::${definition.manifest.id}` },
+        }));
+        manifests = manifests.map((manifest) => ({ ...manifest, id: `${options.namespacePrefix}::${manifest.id}` }));
+      }
+    }
 
     if (resolvedTree.tree !== null) {
       const known = new Set(componentCatalog.map((item) => item.reference));

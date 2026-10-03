@@ -9,6 +9,8 @@ import { parseSelectionActionReference } from "../shared/action-reference";
 import { actionInvocation } from "../shared/action-invocation";
 import { diagnostic, errorMessage } from "../core/diagnostics";
 import { referenceLocations } from "../core/tree-links";
+import { isLegacyActionTarget } from "./action-target";
+export { isLegacyActionTarget } from "./action-target";
 
 export function resolveLegacyActionReference(
   reference: string,
@@ -29,11 +31,6 @@ export function resolveLegacyActionReference(
     throw new Error("Malformed component node path interpolation.");
   }
   return result;
-}
-
-/** A target still written as a `${root…}` YAML path instead of a node ID. */
-export function isLegacyActionTarget(target: string): boolean {
-  return target.includes("${") || /[{}]/.test(target);
 }
 
 /**

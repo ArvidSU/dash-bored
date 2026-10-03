@@ -43,6 +43,7 @@ export interface CompositionContextValue {
   onNodeDragEnd: () => void;
   onNodePointerDragMove: (path: NodePath, point: { clientX: number; clientY: number }) => void;
   onNodePointerDrop: (path: NodePath, point: { clientX: number; clientY: number }) => void;
+  onMoveSibling: (path: NodePath, direction: "previous" | "next") => void;
 }
 
 export const CompositionContext = createContext<CompositionContextValue | null>(null);

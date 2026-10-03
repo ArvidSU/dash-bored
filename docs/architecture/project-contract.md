@@ -346,7 +346,13 @@ creates the renderer's draft from the authoritative owning YAML. Save validates
 the complete owning tree and atomically publishes it, while Cancel discards the
 draft; opening or closing a clean flyout never creates a draft.
 The draft uses the same recursive topology and children contracts as YAML: there
-is no separate grid model. The root toolbar exposes replacement with any catalog
+is no separate grid model. The host resolves each debounced draft through the
+same resolver as saved configuration and returns its tree, diagnostics, and
+trusted compiled local components. The renderer displays that resolved tree;
+it does not guess identities from the previous tree. An unresolved draft shows
+diagnostics in place, with Save disabled and Cancel still available. Responses
+belong to their edit session and draft version; superseded responses are ignored.
+The root toolbar exposes replacement with any catalog
 component, while descendants can move between compatible child contracts.
 Incompatible nested content is reported before it is dropped from the draft.
 Empty child boundaries and insertion boundaries
@@ -369,6 +375,8 @@ and own-descendant moves.
 Managed-child metadata moves with its edge, and a new edge is configured through
 the declaring parent's generic metadata schema. Focused linked content still
 uses the linked bundle's source config as the one atomic save target.
+Frame menus also expose Move up and Move down when a compatible sibling exists;
+they use `siblingMoveTarget` and the same operation planner as pointer movement.
 Pointer geometry is used only to choose among those explicit targets; it never
 creates a second placement representation. While the flyout, a drop target, or
 a composition dialog is active, the renderer propagates visibility to native
@@ -435,6 +443,12 @@ The renderer fetches that source config, bundle-local catalog, and revision;
 Save validates and atomically replaces only that file before reloading the
 canonical dashboard. Nodes rendered across a config-link boundary therefore
 remain independently editable without creating a multi-file transaction.
+The session also retains the exact config-link occurrence ID. The host checks
+that it still reaches the owning file and namespaces the draft under that
+boundary, so replacing its root cannot change the enclosing link identity.
+When a file is linked more than once, its path alone cannot choose a preview.
+`NodePath` is the internal editing locator; YAML-style paths remain an external
+display and agent-tool contract.
 
 ### Lock file
 

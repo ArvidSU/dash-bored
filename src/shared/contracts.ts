@@ -176,6 +176,8 @@ export interface ResolvedComponentNode {
   sourceConfigPath?: string;
   /** Stable YAML-style path to this node within its owning config. */
   sourcePath?: string;
+  /** Typed structural locator to this node within its owning config. */
+  sourceNodePath?: NodePath;
 }
 
 export interface AppSettings {
@@ -228,6 +230,9 @@ export interface DashboardSetupAgentRequest {
 export type ComponentChildLocator =
   | { type: "managed"; index: number }
   | { type: "tiled"; path: Array<"first" | "second"> };
+
+/** Structural path from a dashboard config's root to one of its nodes. */
+export type NodePath = ComponentChildLocator[];
 
 export type ComponentChildPlacement =
   | {
@@ -384,6 +389,12 @@ export interface DashboardDraftValidation {
   ok: boolean;
   diagnostics: Diagnostic[];
   requestedPermissions: Permission[];
+  /** Draft resolved against its owning bundle; linked drafts retain the selected runtime namespace. */
+  tree: ResolvedComponentNode | null;
+  /** Compiled project-local modules keyed by the resolved tree's manifest IDs. */
+  components: CompiledLocalComponent[];
+  /** Whether the host currently trusts the complete permission set for this draft. */
+  trusted: boolean;
 }
 
 export interface DashboardConfigSource {

@@ -115,7 +115,7 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
         },
         reloadProject: async () => { await runtime.reload(); },
         getDashboardConfigSource: ({ configPath }) => runtime.getDashboardConfigSource(configPath),
-        validateDashboardDraft: ({ config, configPath }) => runtime.validateDashboardDraft(config, configPath),
+        validateDashboardDraft: ({ config, configPath, sourceNodeId }) => runtime.validateDashboardDraft(config, configPath, sourceNodeId),
         validateComponentProps: ({ reference, props }) => runtime.validateComponentProps(reference, props),
         saveDashboardConfig: async ({ config, expectedConfigRevision, configPath }) => {
           await runtime.saveDashboardConfig(config, expectedConfigRevision, configPath);

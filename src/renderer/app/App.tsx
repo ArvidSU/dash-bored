@@ -7,7 +7,7 @@ import type { AppView } from "../lib/action-providers";
 import { CommandPalette } from "../panels/CommandPalette";
 import { AppShell, BootScreen } from "./app-shell";
 import { AgentActivity, activeDashboardAgentTaskCount } from "../panels/AgentActivity";
-import { DashboardEditor, DashboardEditorToolbar } from "../composition/DashboardEditor";
+import { DashboardEditorToolbar } from "./DashboardEditorToolbar";
 import { CompositionFlyout } from "../composition/CompositionFlyout";
 import { useCompositionInteractionController } from "../composition/composition-interaction-controller";
 import { compositionPayloadLabel } from "../composition/composition-labels";
@@ -17,7 +17,7 @@ import { useLocalComponents } from "../render/local-components";
 import { useComponentUpdateBatch } from "../render/NodeRenderer";
 import { host } from "../lib/rpc-client";
 import { useDashboardViewState } from "./use-dashboard-view-state";
-import { mergeThemeCatalog, EMPTY_SPLIT_RATIO_OVERRIDES } from "./app-utils";
+import { mergeThemeCatalog, EMPTY_SPLIT_RATIO_OVERRIDES, resolvedConfigLinkNodeId, resolvedLocalComponentIds } from "./app-utils";
 import { EmptyProject } from "../panels/EmptyProject";
 import { SettingsPanel } from "../panels/SettingsPanel";
 import { AppDialogs, type AppDialog } from "./AppDialogs";
@@ -53,23 +53,36 @@ export function App(): ReactNode {
   const { snapshot } = session;
   const commandHeld = useCommandHeld();
 
-  const localComponents = useLocalComponents(snapshot?.components ?? [], snapshot?.configPath ?? null);
-  const componentUpdateBatch = useComponentUpdateBatch(snapshot?.tree, snapshot?.configPath, snapshot?.trusted, localComponents);
-
   const dashboardPath = snapshot?.configPath ?? null;
   const viewState = useDashboardViewState(dashboardPath, snapshot?.tree);
   const { virtualRoot } = viewState;
+  const focusedSourcePath = virtualRoot?.target.sourceConfigPath;
+  const focusedSourceNodeId = resolvedConfigLinkNodeId(
+    snapshot?.tree,
+    virtualRoot?.target.id,
+    focusedSourcePath,
+  );
 
   const draft = useDashboardDraft({
     snapshot,
     snapshotRef: session.snapshotRef,
     notices,
-    focusedSourcePath: virtualRoot?.target.sourceConfigPath,
+    focusedSourcePath,
+    focusedSourceNodeId,
     showDashboard,
     setDialog,
     onEnd: interaction.reset,
   });
   const editSession = draft.session;
+  const draftLocalIds = resolvedLocalComponentIds(editSession?.validation.tree);
+  const runtimeComponents = editSession
+    ? [
+        ...(snapshot?.components ?? []).filter((component) => !draftLocalIds.has(component.componentId)),
+        ...(editSession.validation.trusted ? editSession.validation.components : []),
+      ]
+    : snapshot?.components ?? [];
+  const localComponents = useLocalComponents(runtimeComponents, snapshot?.configPath ?? null);
+  const componentUpdateBatch = useComponentUpdateBatch(snapshot?.tree, snapshot?.configPath, snapshot?.trusted, localComponents);
   useAppTheme(session.themes, snapshot, editSession, settings);
 
   const agent = useAgentWork({
@@ -90,6 +103,7 @@ export function App(): ReactNode {
     draft,
     notices,
     virtualRoot,
+    focusedSourceNodeId,
     storedVirtualRoot: viewState.storedVirtualRoot ?? null,
     updateSplitRatio: viewState.updateSplitRatio,
     setDialog,
@@ -208,25 +222,17 @@ export function App(): ReactNode {
         <DashboardWorkspace
           snapshot={snapshot}
           virtualRoot={visibleVirtualRoot}
-          draftEditor={editSession && editSession.projectRoot === snapshot.projectRoot && !composition.previewTree ? (
-            <DashboardEditor
-              config={editSession.draft}
-              catalog={editSession.componentCatalog}
-              diagnostics={editSession.validation.diagnostics}
-              projectRoot={editSession.projectRoot}
-              configPath={editSession.configPath}
-              agentCommand={effectiveAgentCommand}
-              agentPending={pendingAction === "component-agent:create"}
-              onBuildWithAgent={composition.requestCreationAgent}
-              onChange={(next) => draft.setDraft(next)}
-            />
-          ) : null}
-          diagnostics={visibleDiagnostics}
+          tree={composition.editing ? composition.previewTree : snapshot.tree}
+          draftPreviewUnavailable={Boolean(editSession && !editSession.validation.tree)}
+          diagnostics={[
+            ...visibleDiagnostics,
+            ...(editSession?.validation.diagnostics ?? []),
+          ]}
           pendingAction={pendingAction}
           componentsVisible={!compositionUiActive}
           composition={composition.contextValue}
           render={{
-            trusted: snapshot.trusted,
+            trusted: editSession ? editSession.validation.trusted : snapshot.trusted,
             processesRef: session.processesRef,
             environmentByNode: snapshot.environmentByNode,
             localComponents,
@@ -280,6 +286,7 @@ export function App(): ReactNode {
                 diagnostics={editSession.validation.diagnostics}
                 saving={draft.saving}
                 dirty={draft.dirty}
+                resolving={draft.resolving}
                 onSave={() => void draft.save()}
                 onCancel={draft.cancel}
               />

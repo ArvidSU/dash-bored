@@ -62,6 +62,58 @@ afterEach(async () => {
 });
 
 describe("project paths and YAML", () => {
+  test("resolves typed source node paths through managed and nested tiled children", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Typed paths",
+      root: {
+        id: "root",
+        component: "@dash-bored/tabs",
+        children: [
+          { metadata: { label: "First" }, node: { id: "first", component: "@dash-bored/markdown", props: { content: "First" } } },
+          {
+            metadata: { label: "Nested" },
+            node: {
+              id: "nested",
+              component: "@dash-bored/group",
+              children: {
+                axis: "horizontal",
+                first: { node: { id: "tile-a", component: "@dash-bored/markdown", props: { content: "A" } } },
+                second: {
+                  axis: "vertical",
+                  first: { node: { id: "tile-b", component: "@dash-bored/markdown", props: { content: "B" } } },
+                  second: { node: { id: "tile-c", component: "@dash-bored/markdown", props: { content: "C" } } },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    const [first, nested] = resolvedChildren(result.tree);
+    expect(result.tree?.sourceNodePath).toEqual([]);
+    expect(first?.sourceNodePath).toEqual([{ type: "managed", index: 0 }]);
+    expect(nested?.sourceNodePath).toEqual([{ type: "managed", index: 1 }]);
+    const [tileA, tileB, tileC] = resolvedChildren(nested);
+    expect(tileA?.sourceNodePath).toEqual([
+      { type: "managed", index: 1 },
+      { type: "tiled", path: ["first"] },
+    ]);
+    expect(tileB?.sourceNodePath).toEqual([
+      { type: "managed", index: 1 },
+      { type: "tiled", path: ["second", "first"] },
+    ]);
+    expect(tileC?.sourceNodePath).toEqual([
+      { type: "managed", index: 1 },
+      { type: "tiled", path: ["second", "second"] },
+    ]);
+  });
+
   test("activates only the capability selected by a Markdown source", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

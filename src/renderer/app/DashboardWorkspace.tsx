@@ -10,10 +10,10 @@ import { dashboardTitle } from "./app-utils";
 
 export interface DashboardWorkspaceProps {
   snapshot: ProjectSnapshot;
+  tree?: ResolvedComponentNode | null;
+  draftPreviewUnavailable?: boolean;
   /** The focused target and its breadcrumb path, from the draft preview while composing. */
   virtualRoot: ReturnType<typeof resolveVirtualRoot> | null;
-  /** Shown instead of the dashboard when a draft cannot be previewed. */
-  draftEditor: ReactNode;
   diagnostics: Diagnostic[];
   pendingAction: string | null;
   /** False while composition UI covers the dashboard, so views can pause work. */
@@ -30,8 +30,9 @@ export interface DashboardWorkspaceProps {
 /** The active dashboard: trust and diagnostics above the focused component tree. */
 export function DashboardWorkspace({
   snapshot,
+  tree: resolvedTree,
+  draftPreviewUnavailable = false,
   virtualRoot,
-  draftEditor,
   diagnostics,
   pendingAction,
   componentsVisible,
@@ -43,11 +44,15 @@ export function DashboardWorkspace({
   onFixWithAgent,
   onRepairInstalledTools,
 }: DashboardWorkspaceProps): ReactNode {
-  const tree: ResolvedComponentNode | null = snapshot.tree;
+  const tree: ResolvedComponentNode | null = draftPreviewUnavailable
+    ? snapshot.tree
+    : resolvedTree === undefined ? snapshot.tree : resolvedTree;
   return (
     <main className="workspace">
-      {draftEditor ?? (
-        <>
+      <>
+          {draftPreviewUnavailable ? (
+            <div className="inline-warning" role="status">The draft has not resolved yet. The saved dashboard remains visible while it is checked.</div>
+          ) : null}
           {!snapshot.trusted ? (
             <TrustPanel snapshot={snapshot} pending={pendingAction === "trust"} onTrust={onTrust} />
           ) : null}
@@ -90,8 +95,7 @@ export function DashboardWorkspace({
               <button className="button button--secondary" type="button" disabled={pendingAction !== null} onClick={onReload}>Try again</button>
             </section>
           )}
-        </>
-      )}
+      </>
 
       <footer className="workspace__footer">
         <span>Revision {snapshot.revision}</span>

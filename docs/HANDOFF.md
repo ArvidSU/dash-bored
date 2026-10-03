@@ -1,7 +1,14 @@
 # Handoff: inherent-complexity refactor
 
-As of 2026-10-02, `main` and `origin/main` are at `46889dc`. `bun run qa:fast`
-passes (542 tests) and `bun run dash-bored -- validate .` passes.
+As of 2026-10-03, this continuation is on `codex/handoff-l4-s16`, based on
+`382cc9a` (`main` and the local `origin/main` ref). L4 and S16 are integrated
+in the working tree; the schema-v4 and package-pipeline work remains deferred.
+
+Final verification: `caffeinate -is bun run qa:fast` passed 550 tests across
+75 files, typecheck, renderer build, and agent-tool build.
+`bun run dash-bored -- validate .` and `git diff --check` passed. Earlier runs
+were interrupted by macOS sleep; the temporary keep-awake assertion ended with
+the successful command. See README's verification workflow.
 
 Read `AGENTS.md` first. It covers verification, dashboard edits, and the
 UI-proof workflow. `docs/IDEA.md` is the product authority.
@@ -19,11 +26,27 @@ the app also need the live check described in `AGENTS.md`.
 | Step | Result |
 | --- | --- |
 | L1, L2 | One action store and one keyed view-state store. |
-| L3 | `App.tsx` is a composition root (387 lines) over one hook per concern; see `docs/architecture/renderer.md`. |
+| L3 | `App.tsx` is a composition root over one hook per concern; see `docs/architecture/renderer.md`. |
 | L7 | `tree.ts` is split into resolve, links, and validate. `src/migrations/` owns every legacy rewrite. Components and themes share one `PackageStore`. |
 | L6 | Host state reaches the renderer only by push. Mutations answer with an ack or a typed result. The RPC has merged commands (`processCommand`, `agentTaskCommand`, `launchAgent`, `setTrust`). `src/main/index.ts` is wiring only. See `docs/architecture/runtime.md`. |
 | L5 (part) | `useSourceComponent` in `src/renderer/lib/use-dashboard-source.ts` owns source loading, capability checks, and the `refresh` action. |
+| L4 | `ProjectRuntime` resolves drafts with the saved-config resolver and returns the tree, diagnostics, trust decision, and approved local modules. `composition-preview.ts` and the `DashboardEditor` fallback are deleted. `ComponentDialog` and the draft toolbar share the one session. The host supplies typed `sourceNodePath`; the editor no longer parses YAML path strings. Frame menus use `siblingMoveTarget` and the existing operation planner. |
+| S16 | The narrow `TagFilter` boundary is keyed by source provider identity. Valid tags survive observations; removed tags and disabled filtering reset permanently to All. Todo row state, edit buffers, and focus survive tag updates. |
+| Timeout follow-up | The observable watcher check has a 15 s test budget; renderer-suite cleanup has 30 s. Their waits and assertions remain unchanged. |
 | Small items | One `childEdges` helper (`src/shared/child-edges.ts`). One reference walker: a trailing `*` makes each item a reference (`referenceLocations`). The config-link manifest is shared. The todo ID backfill lives in `src/migrations/`. |
+
+L4 decisions: resolve in the host, show invalid-draft diagnostics in place, and
+keep editor operations in `ProjectRuntime`, which already owns reachability,
+trust, the queue, and publication. A separate editor service would add callbacks
+for those same owners. The extracted props dialog still needs schema-v3 legacy
+action checks; they now share the Node-free `src/migrations/action-target.ts`
+leaf with migration and validation.
+
+Linked sessions retain the exact config-link occurrence ID. Root replacement
+keeps that namespace, and a multiply linked file cannot be previewed by file
+path alone. Late validation/source responses cannot replace a newer session.
+Save blocks further edits and navigation until its RPC finishes. Prop callbacks
+look up the current node by ID before using its typed locator.
 
 ## Open work
 
@@ -31,34 +54,21 @@ The backlog lives in `props.todos` of node `id: yaml-todo` in
 `.dash-bored/dash-bored.yaml`. Find the node by ID, not by tree position.
 Add deferred work there.
 
-1. **L4: one tree and one editor** (`todo-031`, gated on `todo-028`). The
-   host resolves drafts, so the preview is the resolved draft. `NodePath` is
-   the only locator. Delete `composition-preview.ts`, the `DashboardEditor`
-   fallback, and the remaining `sameLocator` copies. Move move up/down to the
-   frame menu through `siblingMoveTarget`. Gate: native proof of drag, move,
-   and Save/Cancel in the dev app. Two open questions:
-   - Are drafts resolved in the host (one round-trip per edit) or by a pure
-     shared resolver?
-   - What replaces the editor fallback? Draft diagnostics shown in place is
-     the likely answer.
-
-   The answer to the first question also decides
-   `todo-dashboard-editor-service`. `todo-legacy-action-target-leaf` becomes
-   moot once `DashboardEditor` is deleted.
-2. **The rest of L5** waits for the schema-v4 migration
+1. **The rest of L5** waits for the schema-v4 migration
    (`todo-atoms-schema-migration`). `tabs` becomes a single-child selection
    container. `card` and `conditional` retire, and conditional visibility
    moves to edge metadata.
-3. **S16** replaces the list and todo-list filter-reset effects with `key=`.
-   It needs the semantics decided first (`todo-029`). The working proposal:
-   keep a selected tag that still exists, otherwise reset to all, and keep
-   todo editing and focus state.
-4. **`todo-package-pipeline`** needs decisions on rules users can see before
+2. **`todo-package-pipeline`** needs decisions on rules users can see before
    the component and theme pipelines merge.
-5. **`todo-flaky-timeouts-under-load`**: under heavy load, the file-watcher
-   test in `tests/core/runtime.test.ts` and one hook in
-   `tests/renderer/ui-interaction.test.ts` exceed bun's 5 s timeout. Both
-   pass alone.
+
+The native L4 gate (`todo-028`) is closed: in this checkout's isolated dev app,
+Computer Use dragged a generated frame handle, moved a sibling up and down,
+saved and checked the written YAML order, and cancelled a move back to the
+saved order. A disposable dashboard under `.hutch/l4-proof` held the mutations;
+its temporary registry entry was removed afterward. Native Work tag filtering
+also worked and was restored to All. The project dashboard now dogfoods these
+workflows in `composition-workflow` under Develop; its control-channel
+screenshot was inspected, and the original focus and Changes tab restored.
 
 ## Contracts to preserve
 
@@ -70,10 +80,13 @@ Add deferred work there.
 - **Node-free renderer.** Renderer code stays Node-free. Shared helpers go in
   `src/shared/`, and migration leaves the renderer imports must be Node-free
   too.
+- **Draft capabilities.** Draft modules compile only for a trusted permission
+  union. Privileged calls still resolve against the saved host tree until Save.
 
 ## Working notes
 
-- **Live check.** `bun run dev` starts the dev app. Then use
+- **Live check.** Use `dev:start`, `dev:restart`, and `dev:status` for this
+  checkout's isolated, agent-owned dev app. Then use
   `bun run dash-bored -- app status | actions <filter> | run <ref> | screenshot --focus <id> --output <png>`,
   and restore the original focus and selected tab afterwards.
 - **Commits.** Before committing, run `git status --short` and

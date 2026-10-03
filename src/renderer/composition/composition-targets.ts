@@ -8,7 +8,6 @@ import {
   defaultChildMetadata,
   nodeAtPath,
   nodePathById,
-  nodePathFromSourcePath,
   type InsertionTarget,
   type NodePath,
 } from "./dashboard-editor";
@@ -114,9 +113,9 @@ export function createCompositionTargets(resolution: CompositionResolution): {
   } = resolution;
   function compositionPathForNode(node: ResolvedComponentNode): NodePath | null {
     if (!compositionConfig) return null;
-    if (owningConfigPath && node.sourceConfigPath === owningConfigPath && node.sourcePath) {
-      const sourcePath = nodePathFromSourcePath(node.sourcePath);
-      if (sourcePath) return sourcePath;
+    if (owningConfigPath) {
+      if (node.sourceConfigPath !== owningConfigPath) return null;
+      return node.sourceNodePath ?? null;
     }
     try {
       return nodePathById(compositionConfig.root, node.id);

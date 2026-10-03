@@ -9,6 +9,7 @@ import type {
   ComponentNode,
   DashboardConfig,
   DashboardInsertionTarget,
+  NodePath,
 } from "../../shared/contracts";
 import { childEdges } from "../../shared/child-edges";
 import {
@@ -21,7 +22,7 @@ import {
 } from "../lib/component-children";
 import { DEFAULT_SPLIT_RATIO, normalizeSplitRatio } from "../render/split-layout";
 
-export type NodePath = ComponentChildLocator[];
+export type { NodePath };
 export type InsertionTarget = DashboardInsertionTarget;
 export type ChildPlacement = ComponentChildPlacement;
 
@@ -42,42 +43,6 @@ export function pathStartsWith(path: NodePath, prefix: NodePath): boolean {
 
 export function pathKey(path: NodePath): string {
   return componentPathKey(path);
-}
-
-/**
- * Convert the resolver's YAML-style source locator back into a structural
- * path. Resolved linked nodes may have namespaced IDs, and nodes without an
- * explicit YAML id use generated resolver IDs, so sourcePath is the stable
- * locator for composition actions.
- */
-export function nodePathFromSourcePath(sourcePath: string): NodePath | null {
-  if (sourcePath === "root") return [];
-  if (!sourcePath.startsWith("root")) return null;
-
-  const path: NodePath = [];
-  let offset = "root".length;
-  while (offset < sourcePath.length) {
-    const managed = sourcePath.slice(offset).match(/^\.children\[(\d+)\]\.node/);
-    if (managed) {
-      path.push({ type: "managed", index: Number(managed[1]) });
-      offset += managed[0].length;
-      continue;
-    }
-
-    if (!sourcePath.startsWith(".children", offset)) return null;
-    offset += ".children".length;
-    const branches: LayoutBranch[] = [];
-    while (true) {
-      const branch = sourcePath.slice(offset).match(/^\.(first|second)/);
-      if (!branch) break;
-      branches.push(branch[1] as LayoutBranch);
-      offset += branch[0].length;
-    }
-    if (!sourcePath.startsWith(".node", offset)) return null;
-    offset += ".node".length;
-    path.push({ type: "tiled", path: branches });
-  }
-  return path;
 }
 
 export function catalogManifest(

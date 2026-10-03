@@ -114,7 +114,7 @@ function mapChildren<Node, Mapped>(
 }
 
 /** Copy a linked tree under `<prefix>::`, remapping node-bearing references. */
-function namespaceLinkedTree(
+export function namespaceLinkedTree(
   tree: ResolvedComponentNode,
   prefix: string,
 ): { tree: ResolvedComponentNode; ids: Map<string, string> } {

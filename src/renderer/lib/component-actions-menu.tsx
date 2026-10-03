@@ -1,12 +1,14 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
 
-export type ComponentActionsMenuAction = "focus" | "edit" | "collapse" | "copy" | "agent";
+export type ComponentActionsMenuAction = "focus" | "edit" | "collapse" | "copy" | "agent" | "move-previous" | "move-next";
 
 export interface ComponentActionsMenuProps {
   label: string;
   focused: boolean;
   collapsed: boolean;
   active?: boolean;
+  canMovePrevious?: boolean;
+  canMoveNext?: boolean;
   popoverRef: Ref<HTMLDivElement>;
   style: CSSProperties;
   onAction: (action: ComponentActionsMenuAction) => void;
@@ -17,6 +19,8 @@ export function ComponentActionsMenu({
   focused,
   collapsed,
   active = true,
+  canMovePrevious = false,
+  canMoveNext = false,
   popoverRef,
   style,
   onAction,
@@ -39,6 +43,8 @@ export function ComponentActionsMenu({
         {focused ? <small>Focused</small> : null}
       </button>
       <button type="button" role="menuitem" disabled={!active} title={inactiveTitles?.edit} onClick={() => onAction("edit")}>Edit component</button>
+      <button type="button" role="menuitem" disabled={!active || !canMovePrevious} onClick={() => onAction("move-previous")}>Move component up</button>
+      <button type="button" role="menuitem" disabled={!active || !canMoveNext} onClick={() => onAction("move-next")}>Move component down</button>
       <button
         type="button"
         role="menuitem"

@@ -424,7 +424,7 @@ describe("ProjectRuntime", () => {
 
     await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"), 8_000);
     expect(runtime.getSnapshot().dashboardName).toBe("Changed");
-  });
+  }, 15_000);
 
   test("unloads watchers and project state while keeping the runtime reusable", async () => {
     const root = await temporaryDirectory();
@@ -551,7 +551,15 @@ describe("ProjectRuntime", () => {
       },
     };
 
-    expect((await runtime.validateDashboardDraft(changed)).ok).toBeTrue();
+    const beforeValidation = runtime.getSnapshot();
+    const validation = await runtime.validateDashboardDraft(changed);
+    expect(validation.ok).toBeTrue();
+    expect(validation.tree).toMatchObject({ id: "root", component: "@dash-bored/group" });
+    expect(validation.tree?.sourceNodePath).toEqual([]);
+    expect(resolvedChildren(validation.tree)[0]).toMatchObject({ id: "message", props: { content: "Saved" } });
+    expect(resolvedChildren(validation.tree)[0]?.sourceNodePath).toEqual([{ type: "tiled", path: [] }]);
+    expect(validation.components).toEqual([]);
+    expect(runtime.getSnapshot()).toEqual(beforeValidation);
     const saved = await runtime.saveDashboardConfig(changed, expectedRevision);
     expect(saved.dashboardName).toBe("Edited in app");
     expect(saved.configRevision).not.toBe(expectedRevision);
@@ -590,6 +598,11 @@ describe("ProjectRuntime", () => {
         name: "Broken",
         root: { id: "broken", component: "./components/broken" }
     };
+    const brokenValidation = await runtime.validateDashboardDraft(broken);
+    expect(brokenValidation.ok).toBeFalse();
+    expect(brokenValidation.trusted).toBeTrue();
+    expect(brokenValidation.tree).toBeNull();
+    expect(brokenValidation.components).toEqual([]);
     const before = await readFile(configPath, "utf8");
     await expect(runtime.saveDashboardConfig(broken, trusted.configRevision!)).rejects.toMatchObject({
       code: "DASHBOARD_COMPONENT_COMPILE_FAILED",
@@ -610,6 +623,64 @@ describe("ProjectRuntime", () => {
     expect(saved.trusted).toBeFalse();
     expect(saved.requestedPermissions).toEqual(["process:execute"]);
     expect(saved.processes).toEqual([]);
+  });
+
+  test("draft compilation withholds local modules until the full permission set is trusted", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root);
+    await writeLocalComponent(root, "privileged", "export default function Privileged() { return null; }", {
+      permissions: ["process:execute"],
+    });
+    const runtime = new ProjectRuntime({ trustStore: new TrustStore(join(root, ".state", "trust.json")) });
+    runtimes.push(runtime);
+    const initial = await runtime.load(root);
+    await runtime.trust();
+    const draft: DashboardConfig = {
+      schemaVersion: 3,
+      name: "Privileged draft",
+      root: { id: "privileged", component: "./components/privileged" },
+    };
+
+    const withheld = await runtime.validateDashboardDraft(draft);
+    expect(withheld.ok).toBeTrue();
+    expect(withheld.trusted).toBeFalse();
+    expect(withheld.requestedPermissions).toEqual(["process:execute"]);
+    expect(withheld.tree?.id).toBe("privileged");
+    expect(withheld.components).toEqual([]);
+
+    const saved = await runtime.saveDashboardConfig(draft, initial.configRevision!);
+    expect(saved.trusted).toBeFalse();
+    const trusted = await runtime.trust();
+    expect(trusted.trusted).toBeTrue();
+    const available = await runtime.validateDashboardDraft(draft);
+    expect(available.ok).toBeTrue();
+    expect(available.trusted).toBeTrue();
+    expect(available.components.map((component) => component.componentId)).toEqual(["privileged"]);
+  });
+
+  test("draft trust uses an approved permission superset, even when the saved snapshot requests less", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root);
+    await writeLocalComponent(root, "privileged", "export default function Privileged() { return null; }", {
+      permissions: ["process:execute"],
+    });
+    const trustStore = new TrustStore(join(root, ".state", "trust.json"));
+    await trustStore.trust(root, ["process:execute"]);
+    const runtime = new ProjectRuntime({ trustStore });
+    runtimes.push(runtime);
+    const loaded = await runtime.load(root);
+    expect(loaded.trusted).toBeTrue();
+    expect(loaded.requestedPermissions).toEqual([]);
+
+    const validation = await runtime.validateDashboardDraft({
+      schemaVersion: 3,
+      name: "Privileged draft",
+      root: { id: "privileged", component: "./components/privileged" },
+    });
+    expect(validation.trusted).toBeTrue();
+    expect(validation.components.map((component) => component.componentId)).toEqual(["privileged"]);
   });
 
   test("supervises a process declared by a project-local component manifest", async () => {
@@ -696,6 +767,69 @@ describe("ProjectRuntime", () => {
     expect(resolvedChildren(saved.tree)[0]?.props.content).toBe("After");
     expect(await readFile(join(named, "dash-bored.yaml"), "utf8")).toContain("After");
     expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toBe(baseSource);
+  });
+
+  test("validates linked drafts with the concrete occurrence namespace after root replacement", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const linkedDirectory = join(root, ".dash-bored", "arvid");
+    await mkdir(join(linkedDirectory, "components", "local-tile"), { recursive: true });
+    await createProject(root, {
+      schemaVersion: 3,
+      name: "Base",
+      root: {
+        component: "@dash-bored/group",
+        children: tiled([
+          { id: "left", component: "./arvid" },
+          { id: "right", component: "./arvid" },
+        ]),
+      },
+    });
+    await Promise.all([
+      writeFile(join(linkedDirectory, "dash-bored.yaml"), stringify({
+        schemaVersion: 3,
+        name: "Arvid",
+        root: { component: "./components/local-tile", props: { message: "Before" } },
+      })),
+      writeFile(join(linkedDirectory, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
+      writeFile(join(linkedDirectory, "components", "local-tile", "component.yaml"), stringify({
+        schemaVersion: 2,
+        id: "local-tile",
+        name: "Local tile",
+        description: "Fixture component",
+        entry: "./index.tsx",
+        propsSchema: { type: "object", properties: { message: { type: "string" } }, additionalProperties: false },
+      })),
+      writeFile(join(linkedDirectory, "components", "local-tile", "index.tsx"), 'export default function Tile({ message }: { message: string }) { return <div>{message}</div>; }'),
+    ]);
+    const runtime = new ProjectRuntime({ trustStore: new TrustStore(join(root, ".state", "trust.json")) });
+    runtimes.push(runtime);
+    const loaded = await runtime.load(root);
+    await runtime.trust();
+    const linkNodes = resolvedChildren(loaded.tree);
+    expect(linkNodes.map((node) => node.sourceNodePath)).toEqual([
+      [{ type: "tiled", path: ["first"] }],
+      [{ type: "tiled", path: ["second"] }],
+    ]);
+    expect(resolvedChildren(linkNodes[0])[0]?.sourceNodePath).toEqual([]);
+    const source = await runtime.getDashboardConfigSource(linkNodes[0]?.configPath);
+    const replacement: DashboardConfig = {
+      ...source.config,
+      root: { id: "draft-root", component: "./components/local-tile", props: { message: "After" } },
+    };
+
+    const ambiguous = await runtime.validateDashboardDraft(replacement, source.configPath);
+    expect(ambiguous.ok).toBeFalse();
+    expect(ambiguous.diagnostics[0]?.code).toBe("DASHBOARD_DRAFT_SOURCE_AMBIGUOUS");
+
+    const left = await runtime.validateDashboardDraft(replacement, source.configPath, "left");
+    const right = await runtime.validateDashboardDraft(replacement, source.configPath, "right");
+    expect(left.ok).toBeTrue();
+    expect(left.tree).toMatchObject({ id: "left::draft-root", manifest: { id: "left::local-tile" } });
+    expect(left.tree?.sourceNodePath).toEqual([]);
+    expect(left.components.map((component) => component.componentId)).toEqual(["left::local-tile"]);
+    expect(right.tree).toMatchObject({ id: "right::draft-root", manifest: { id: "right::local-tile" } });
+    expect(right.components.map((component) => component.componentId)).toEqual(["right::local-tile"]);
   });
 
   test("edits a registered dashboard appearance without opening that dashboard", async () => {

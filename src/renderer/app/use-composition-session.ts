@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { ComponentCatalogItem, DashboardConfig, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
-import { buildCompositionPreviewTree } from "../composition/composition-preview";
 import { planCompositionOperation } from "../composition/composition-operation";
 import type { ComponentPointerDragPoint } from "../composition/CompositionFlyout";
 import type { CompositionDragPayload, CompositionTarget } from "../composition/composition-context";
 import { createCompositionTargets } from "../composition/composition-targets";
+import { siblingMoveTarget } from "../composition/composition-movement";
 import type { useCompositionInteractionController } from "../composition/composition-interaction-controller";
 import { isRootCompositionTarget } from "../composition/composition-labels";
 import { positionCompositionDragChip } from "../composition/CompositionDragChip";
 import {
   insertNode,
   nodeAtPath,
-  nodePathById,
   removeNode,
   switchablePanelsNode,
   updateTiledSplitRatio,
@@ -24,9 +23,8 @@ import { resolveVirtualRoot } from "../lib/virtual-root";
 import type { AppDialog } from "./AppDialogs";
 import {
   errorMessage,
-  findResolvedConfigRoot,
   isCompositionSourceCurrent,
-  linkedComponentIdNamespace,
+  replaceResolvedConfigLinkTree,
 } from "./app-utils";
 import { isDraftDirty, type DashboardDraft } from "./use-dashboard-draft";
 import type { Notices } from "./use-notices";
@@ -39,6 +37,7 @@ export interface CompositionSessionOptions {
   draft: DashboardDraft;
   notices: Notices;
   virtualRoot: VirtualRoot | null;
+  focusedSourceNodeId: string | undefined;
   storedVirtualRoot: string | null;
   updateSplitRatio(branchKey: string, defaultRatio: number, ratio: number | null): void;
   setDialog(dialog: AppDialog | null): void;
@@ -56,6 +55,7 @@ export function useCompositionSession({
   draft,
   notices,
   virtualRoot,
+  focusedSourceNodeId,
   storedVirtualRoot,
   updateSplitRatio,
   setDialog,
@@ -68,7 +68,7 @@ export function useCompositionSession({
   const dragChip = useRef<HTMLDivElement | null>(null);
   const pendingPointer = useRef<{ payload: CompositionDragPayload; point: ComponentPointerDragPoint } | null>(null);
   const focusedSourcePath = virtualRoot?.target.sourceConfigPath;
-  const activeSource = isCompositionSourceCurrent(interaction.source, snapshot, focusedSourcePath)
+  const activeSource = isCompositionSourceCurrent(interaction.source, snapshot, focusedSourcePath, focusedSourceNodeId)
     ? interaction.source
     : null;
 
@@ -89,6 +89,7 @@ export function useCompositionSession({
       focusedSourcePath,
       snapshotRevision: snapshot.revision,
       configPath: focusedSourcePath,
+      sourceNodeId: focusedSourceNodeId,
     };
     interaction.setSource(null);
     try {
@@ -96,7 +97,9 @@ export function useCompositionSession({
       // A newer focus change superseded this request; drop its late response.
       if (requestId !== sourceRequestId.current) return;
       if (source.configPath !== request.configPath) return;
-      interaction.setSource({ ...request, config: source.config, componentCatalog: source.componentCatalog });
+      const validation = await host.validateDashboardDraft(source.config, source.configPath, request.sourceNodeId);
+      if (requestId !== sourceRequestId.current) return;
+      interaction.setSource({ ...request, config: source.config, componentCatalog: source.componentCatalog, validation });
     } catch (error) {
       if (requestId !== sourceRequestId.current) return;
       setError(errorMessage(error));
@@ -104,58 +107,48 @@ export function useCompositionSession({
   }
 
   useEffect(() => {
-    if (!interaction.libraryOpen || editSession || !snapshot?.projectRoot || !snapshot.configPath) return;
+    if (!interaction.libraryOpen || editSession || !snapshot?.projectRoot || !snapshot.configPath) {
+      sourceRequestId.current += 1;
+      return;
+    }
     if (!focusedSourcePath || focusedSourcePath === snapshot.configPath) {
       sourceRequestId.current += 1;
       if (interaction.source !== null) interaction.setSource(null);
       return;
     }
     if (
-      isCompositionSourceCurrent(interaction.source, snapshot, focusedSourcePath)
+    isCompositionSourceCurrent(interaction.source, snapshot, focusedSourcePath, focusedSourceNodeId)
       && interaction.source.configPath === focusedSourcePath
     ) return;
     void loadSource();
+    return () => {
+      sourceRequestId.current += 1;
+    };
   }, [
     interaction.libraryOpen,
-    interaction.source,
-    editSession,
+    Boolean(editSession),
     snapshot?.configPath,
     snapshot?.projectRoot,
     snapshot?.revision,
     focusedSourcePath,
+    focusedSourceNodeId,
   ]);
 
   const previewTree = useMemo(() => {
     if (!snapshot?.tree) return null;
     if (!editSession) {
       if (!activeSource || activeSource.configPath === snapshot.configPath) return snapshot.tree;
-      const template = findResolvedConfigRoot(snapshot.tree, activeSource.configPath);
-      return template
-        ? buildCompositionPreviewTree(
-            activeSource.config,
-            template,
-            activeSource.componentCatalog,
-            activeSource.configPath,
-            linkedComponentIdNamespace(template, activeSource.config.root),
-          )
+      return activeSource.validation.tree && activeSource.sourceNodeId
+        ? replaceResolvedConfigLinkTree(snapshot.tree, activeSource.sourceNodeId, activeSource.validation.tree)
         : null;
     }
-    if (!editSession.configPath) return null;
-    const template = editSession.configPath === snapshot.configPath
-      ? snapshot.tree
-      : findResolvedConfigRoot(snapshot.tree, editSession.configPath);
-    return template
-      ? buildCompositionPreviewTree(
-          editSession.draft,
-          template,
-          editSession.componentCatalog,
-          editSession.configPath,
-          editSession.configPath === snapshot.configPath
-            ? undefined
-            : linkedComponentIdNamespace(template, editSession.draft.root),
-        )
+    const resolvedDraft = editSession.validation.tree;
+    if (!resolvedDraft) return null;
+    if (editSession.configPath === snapshot.configPath) return resolvedDraft;
+    return editSession.sourceNodeId
+      ? replaceResolvedConfigLinkTree(snapshot.tree, editSession.sourceNodeId, resolvedDraft)
       : null;
-  }, [activeSource, editSession, snapshot?.configPath, snapshot?.projectRoot, snapshot?.tree]);
+  }, [activeSource, editSession, snapshot?.configPath, snapshot?.tree]);
 
   const previewVirtualRoot = previewTree ? resolveVirtualRoot(previewTree, storedVirtualRoot) : null;
   const config = editSession ? editSession.draft : activeSource?.config ?? snapshot?.config ?? null;
@@ -173,6 +166,14 @@ export function useCompositionSession({
   const editing = Boolean(editSession && draft.editingActiveProject && previewTree);
 
   function sourceIsReady(): boolean {
+    if (draft.saving) {
+      setError("Wait for the dashboard save to finish before composing.");
+      return false;
+    }
+    if (editSession && draft.resolving) {
+      setError("Wait for the dashboard draft check to finish before composing.");
+      return false;
+    }
     if (!sourcePending) return true;
     setError("Loading the focused dashboard bundle before composing.");
     return false;
@@ -301,7 +302,7 @@ export function useCompositionSession({
 
   /** Building a component with the agent replaces the draft, so a dirty one asks first. */
   function requestCreationAgent(target: InsertionTarget, description: string): void {
-    if (!editSession || notices.pending !== null) return;
+    if (!editSession || draft.resolving || notices.pending !== null) return;
     const configPath = editSession.configPath;
     const launch = (): void => void runCreationAgent(configPath, target, description);
     if (draft.dirty) {
@@ -379,8 +380,9 @@ export function useCompositionSession({
     node: ResolvedComponentNode,
     splitPath: readonly LayoutBranch[],
   ): void {
+    if (!sourceIsReady()) return;
     const applyTo = (sessionDraft: DashboardConfig, configPath: string, nextRatio: number | null): void => {
-      const path = nodePathById(sessionDraft.root, node.id);
+      const path = node.sourceNodePath;
       if (!path) {
         setError("The tiled component moved before its split could be updated.");
         return;
@@ -406,14 +408,17 @@ export function useCompositionSession({
 
   async function editNode(node: ResolvedComponentNode): Promise<void> {
     if (!sourceIsReady()) return;
-    const sourcePath = targets.pathForNode(node);
-    if (!sourcePath) {
+    const path = node.sourceNodePath;
+    if (!path) {
       setError("The component could not be located in its dashboard configuration.");
       return;
     }
     const session = await draft.ensureCurrent();
     if (!session) return;
-    const path = nodePathById(session.draft.root, node.id) ?? sourcePath;
+    if (node.sourceConfigPath !== session.configPath) {
+      setError("Finish editing the component's owning dashboard before opening its settings.");
+      return;
+    }
     try {
       nodeAtPath(session.draft.root, path);
     } catch {
@@ -424,13 +429,36 @@ export function useCompositionSession({
   }
 
   function applyDraft(next: DashboardConfig): void {
+    if (!sourceIsReady()) return;
     draft.setDraft(next);
     interaction.dismissDialog();
     interaction.clearTarget();
   }
 
+  async function moveSibling(path: NodePath, direction: "previous" | "next"): Promise<void> {
+    if (!sourceIsReady()) return;
+    const session = editSession ?? await draft.ensureCurrent();
+    if (!session) return;
+    const target = siblingMoveTarget(session.draft.root, path, direction);
+    if (!target) {
+      setError("This component has no movable sibling in that direction.");
+      return;
+    }
+    const planned = planCompositionOperation({
+      config: session.draft,
+      catalog: session.componentCatalog,
+      payload: { type: "node", path },
+      target,
+    });
+    if (planned.status !== "planned") {
+      setError(planned.reason);
+      return;
+    }
+    draft.setDraft(planned.nextConfig, session.configPath);
+  }
+
   function confirmRemoval(): void {
-    if (!interaction.removePath || !editSession) return;
+    if (!interaction.removePath || !editSession || !sourceIsReady()) return;
     try {
       draft.setDraft(removeNode(editSession.draft, interaction.removePath, editSession.componentCatalog), editSession.configPath);
       interaction.dismissRemoval();
@@ -451,7 +479,7 @@ export function useCompositionSession({
 
   // Composition is always ready for direct frame-handle drags. A drag itself opens
   // the flyout and begins a draft only after a valid move or removal.
-  const contextValue = config && previewTree
+  const contextValue = config && previewTree && !draft.resolving && !draft.saving
     ? {
         active: true,
         dragging: interaction.dragging,
@@ -470,6 +498,9 @@ export function useCompositionSession({
         },
         onNodePointerDrop: (path: NodePath, point: ComponentPointerDragPoint) => {
           dropPointer({ type: "node", path }, point);
+        },
+        onMoveSibling: (path: NodePath, direction: "previous" | "next") => {
+          void moveSibling(path, direction);
         },
       }
     : null;

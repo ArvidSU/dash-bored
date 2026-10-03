@@ -64,7 +64,7 @@ export type DashboardRPC = {
       setTrust: { params: { trusted: boolean }; response: void };
       reloadProject: { params: {}; response: void };
       getDashboardConfigSource: { params: { configPath?: string }; response: DashboardConfigSource };
-      validateDashboardDraft: { params: { config: DashboardConfig; configPath?: string }; response: DashboardDraftValidation };
+      validateDashboardDraft: { params: { config: DashboardConfig; configPath?: string; sourceNodeId?: string }; response: DashboardDraftValidation };
       validateComponentProps: { params: { reference: string; props: Record<string, unknown> }; response: ComponentPropsValidation };
       saveDashboardConfig: { params: SaveDashboardConfigRequest; response: void };
       processCommand: { params: { nodeId: string; command: ProcessCommand }; response: ProcessSnapshot };

@@ -21,6 +21,16 @@ The implementation deliberately has three boundaries:
 3. The React renderer owns presentation and can reach privileged behavior only
    through typed Electrobun RPC.
 
+`ProjectRuntime` owns dashboard source reachability, draft resolution and
+validation, revision checks, and atomic saving within its operation queue.
+`validateDashboardDraft` returns the resolved draft tree and trusted compiled
+modules without publishing a snapshot or writing YAML. Linked drafts carry the
+exact boundary occurrence ID; the host preserves that namespace even when the
+draft root changes. Compilation follows the draft permission union's trust
+decision. Capability calls continue to use the saved host tree until Save.
+These operations remain with the runtime because a separate editor service
+would need callbacks for the same queue, trust, and definition publication.
+
 Desktop builds also carry a standalone agent tool compiled from the same source
 (`Contents/Resources/app/tools/dash-bored`) and an embedded agent-skill payload.
 There is no user-facing CLI; the skill's `scripts/dash-bored` launcher resolves

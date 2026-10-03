@@ -147,6 +147,10 @@ artifacts and the standalone release fixture, making its totals depend on
 local evidence directories.
 Check `git diff --check` before handing off changes.
 
+On macOS, use `caffeinate -is bun run qa:fast` when an unattended run could
+span system sleep. The keep-awake assertion ends with the command; sleeping
+during a run can invalidate the tests' wall-clock timeouts.
+
 ### Visual UI verification
 
 `ui:fixture` runs the actual React application, CSS, component compositor, and
@@ -350,7 +354,9 @@ documents the template syntax and the values available to it.
 Every rendered component has a context menu
 with Focus, Edit component, Copy component path, and Change with agent. The
 Edit component action opens the declared props and child metadata editor. The
-last action shows the resolved command before sending and enriches your request with the owning
+menu also offers **Move up** and **Move down** when a compatible sibling exists;
+these changes use the same dashboard draft as dragging.
+Change with agent shows the resolved command before sending and enriches your request with the owning
 dashboard and exact component path. **Agent work** in the header keeps each
 launch visible while it runs, including its output, exit state,
 and an observed dashboard change; review the result rather than treating those
@@ -736,8 +742,8 @@ Select **Components** in the header to open the right-hand library. It lists
 the complete packaged and project-local catalog, with search, descriptions,
 child contracts, permissions, provenance, and unavailable diagnostics. Use an
 **Insert** button for keyboard-accessible insertion or drag a card onto a
-contextual dashboard target. Drag existing component frames to move them;
-keyboard arrows provide sibling reordering. Empty boundaries, managed-child
+contextual dashboard target. Use an existing component's drag handle to move it,
+or choose **Move up** or **Move down** in its frame menu. Empty boundaries, managed-child
 positions, root replacement, and horizontal/vertical/both-axis tiled targets
 come from the target manifest, so invalid targets are not offered.
 
@@ -750,7 +756,7 @@ composing; hover, focus, or drag one to see the current first-pane percentage.
 Visible component surfaces expose their own bottom-edge control for
 downward-only height compression; layout-only boundaries do not.
 
-Pick up an existing component from anywhere on its frame to move it. During a
+Pick up an existing component from its frame's drag handle to move it. During a
 component drag, the fly-out becomes a 20%-wide dotted trash target with
 only a trash icon; dropping there opens the existing removal confirmation.
 Component menus and composition controls are hidden for the duration of this
@@ -766,7 +772,8 @@ chosen insertion position.
 
 Opening or closing a clean flyout does not create a draft. The first insertion,
 move, removal, replacement, metadata edit, or horizontal separator resize creates a
-renderer-only draft. **Save dashboard** validates the whole owning tree,
+renderer-owned draft, previewed through the same host resolver as saved YAML.
+The toolbar shows **Checking draft…** while the preview updates. **Save dashboard** validates the whole owning tree,
 checks the source revision, and atomically writes it; **Cancel** discards the
 whole draft. If `dash-bored.yaml` changes outside the app, save is rejected
 instead of overwriting that newer source. Focused config-link content edits the

@@ -76,7 +76,7 @@ export interface DashboardHost {
   setTrust(trusted: boolean): Promise<void>;
   reloadProject(): Promise<void>;
   getDashboardConfigSource(configPath?: string): Promise<DashboardConfigSource>;
-  validateDashboardDraft(config: DashboardConfig, configPath?: string): Promise<DashboardDraftValidation>;
+  validateDashboardDraft(config: DashboardConfig, configPath?: string, sourceNodeId?: string): Promise<DashboardDraftValidation>;
   validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
   saveDashboardConfig(config: DashboardConfig, expectedConfigRevision: string, configPath?: string): Promise<void>;
   /** The process after the command; the store learns about it from the host's push. */
@@ -216,9 +216,9 @@ const liveHost: DashboardHost = {
   async setTrust(trusted) { ensureTransport(); await rpc.request.setTrust({ trusted }); },
   async reloadProject() { ensureTransport(); await rpc.request.reloadProject({}); },
   async getDashboardConfigSource(configPath) { ensureTransport(); return rpc.request.getDashboardConfigSource({ configPath }); },
-  async validateDashboardDraft(config, configPath) {
+  async validateDashboardDraft(config, configPath, sourceNodeId) {
     ensureTransport();
-    return rpc.request.validateDashboardDraft({ config, configPath });
+    return rpc.request.validateDashboardDraft({ config, configPath, sourceNodeId });
   },
   async validateComponentProps(reference, props) {
     ensureTransport();

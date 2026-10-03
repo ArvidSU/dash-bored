@@ -41,6 +41,9 @@ describe("renderer app helpers", () => {
       ok: true,
       diagnostics: [],
       requestedPermissions: [],
+      tree: null,
+      components: [],
+      trusted: false,
     };
 
     const session = createDashboardEditSession("/project", source, validation);
@@ -105,6 +108,14 @@ describe("renderer app helpers", () => {
       configPath: "/project/linked/.dash-bored/dash-bored.yaml",
       componentCatalog: [],
       config: dashboard(),
+      validation: {
+        ok: true,
+        diagnostics: [],
+        requestedPermissions: [],
+        tree: null,
+        components: [],
+        trusted: false,
+      },
     };
     const snapshot = {
       projectRoot: source.projectRoot,

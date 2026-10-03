@@ -5,7 +5,7 @@ import type {
   CompositionPointerState,
   CompositionTarget,
 } from "./composition-context";
-import type { ComponentCatalogItem, DashboardConfig } from "../../shared/contracts";
+import type { ComponentCatalogItem, DashboardConfig, DashboardDraftValidation } from "../../shared/contracts";
 import type { InsertionTarget, NodePath } from "./dashboard-editor";
 
 export interface CompositionDialogState {
@@ -25,8 +25,10 @@ export interface DashboardCompositionSource {
   focusedSourcePath: string;
   snapshotRevision: number;
   configPath: string;
+  sourceNodeId?: string;
   componentCatalog: ComponentCatalogItem[];
   config: DashboardConfig;
+  validation: DashboardDraftValidation;
 }
 
 /**

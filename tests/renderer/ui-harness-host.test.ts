@@ -17,6 +17,15 @@ describe("ui harness host", () => {
       component: "@dash-bored/tabs",
     });
     expect(Array.isArray(snapshot.tree?.children)).toBeTrue();
+    const [wideTab] = childNodes(snapshot.tree!);
+    const [wideGroup] = childNodes(wideTab!);
+    const [wideFirst] = childNodes(wideGroup!);
+    expect(wideTab?.sourceNodePath).toEqual([{ type: "managed", index: 0 }]);
+    expect(wideFirst?.sourceNodePath).toEqual([
+      { type: "managed", index: 0 },
+      { type: "tiled", path: ["first"] },
+      { type: "tiled", path: ["first"] },
+    ]);
     const nodeIds: string[] = [];
     const collectIds = (node: NonNullable<typeof snapshot.tree>): void => {
       nodeIds.push(node.id);
@@ -42,11 +51,16 @@ describe("ui harness host", () => {
   test("validates, persists, publishes revisions, and rejects stale drafts", async () => {
     const host = createUiHarnessHost();
     const source = await host.getDashboardConfigSource();
+    const valid = await host.validateDashboardDraft(source.config);
+    expect(valid).toMatchObject({ ok: true, tree: { id: "harness-root" } });
+    expect(valid.components.map((component) => component.componentId)).toEqual(["host-stability"]);
     const invalid = structuredClone(source.config);
     invalid.root.children = [];
 
     const validation = await host.validateDashboardDraft(invalid);
     expect(validation.ok).toBeFalse();
+    expect(validation.tree).toBeNull();
+    expect(validation.components).toEqual([]);
     expect(validation.diagnostics.map((item) => item.code)).toContain("COMPONENT_CHILD_CARDINALITY");
 
     const saved = structuredClone(source.config);

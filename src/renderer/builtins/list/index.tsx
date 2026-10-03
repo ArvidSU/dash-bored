@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 import "./list.css";
 import { StateGlyph, isClosedState, stateTone } from "../../lib/state-visual";
@@ -10,6 +10,7 @@ import { listTags, parseDashboardList, parseListItemActions, resolveListItemActi
 import type { DashboardSource } from "../../lib/source";
 import { useSourceComponent } from "../../lib/use-dashboard-source";
 import { TodoList } from "../todo-list";
+import { TagFilter } from "../tag-filter";
 import { processRun, processRunFailed, processRunOutcome } from "../../../shared/process-state";
 
 /**
@@ -32,12 +33,25 @@ export default function List(input: ComponentRendererProps): ReactNode {
 }
 
 function SourceList({ props, host }: ComponentRendererProps): ReactNode {
-  const visible = useContext(ComponentVisibilityContext);
   const source = props.source && typeof props.source === "object" ? props.source as DashboardSource : undefined;
+  // The filter resets only when its data provider changes. Inline observations
+  // and polling settings are data updates, so they retain a still-valid tag.
+  const env = source?.env ? Object.fromEntries(Object.entries(source.env).sort(([left], [right]) => left.localeCompare(right))) : undefined;
+  const provider = source
+    ? source.shell !== undefined ? { kind: "shell", value: source.shell, cwd: source.cwd, env }
+      : source.file !== undefined ? { kind: "file", value: source.file }
+        : source.http !== undefined ? { kind: "http", value: source.http }
+          : source.process !== undefined ? { kind: "process", value: source.process }
+            : { kind: "inline" }
+    : null;
+  return <SourceListInstance props={props} host={host} source={source} filterKey={JSON.stringify(provider)} />;
+}
+
+function SourceListInstance({ props, host, source, filterKey }: ComponentRendererProps & { source?: DashboardSource; filterKey: string }): ReactNode {
+  const visible = useContext(ComponentVisibilityContext);
   const title = stringProp(props, ["title"], "List");
   const filterByTags = props.filterByTags !== false;
   const sortMode = props.sort === "source-order" ? "source-order" : "open-first";
-  const [filterTag, setFilterTag] = useState("");
   const { state, unavailable, refresh } = useSourceComponent(source ?? null, host, {
     label: `Refresh ${title}`,
     withoutSource: "Configure a source before refreshing.",
@@ -52,30 +66,12 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
   const observed = useChangedItems(state.value === undefined ? undefined : parsed.items, props.highlightChanges !== false);
   const changedAt = observed.at?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const tags = useMemo(() => listTags(parsed.items), [parsed.items]);
-  useEffect(() => {
-    if (filterTag !== "" && !tags.includes(filterTag)) setFilterTag("");
-  }, [filterTag, tags]);
-  useEffect(() => {
-    const unregister = [
-      host.actions.register({ id: "clear-filter", label: "Clear list tag filter", enabled: filterTag !== "", disabledReason: "No tag filter is selected.", run: () => setFilterTag("") }),
-      host.actions.register({ id: "filter", label: "Filter list by tag", enabled: filterByTags && (tags.length > 0 || filterTag !== ""), disabledReason: filterByTags ? "This list has no tags." : "Tag filtering is disabled.",
-        choices: [{ id: "tag", label: "Choose a tag", options: () => tags.map((tag) => ({ value: tag, label: tag })) }],
-        run: (selections, args) => {
-          const tag = args?.tag ?? selections?.tag ?? "";
-          if (typeof tag !== "string" || tag !== "" && !tags.includes(tag)) throw new Error("Choose a current list tag.");
-          setFilterTag(tag);
-        } }),
-    ];
-    return () => unregister.forEach((remove) => remove());
-  }, [host.actions, filterByTags, tags, filterTag]);
-  const displayed = useMemo(
-    () => sortListItems(filterListItems(parsed.items, filterTag), sortMode),
-    [filterTag, parsed.items, sortMode],
-  );
 
   if (!source) return <p className="component-state component-state--error" role="alert">List needs a source.</p>;
   if (unavailable) return <CapabilityGate title={title}>Trust this project and grant {unavailable} to read this source.</CapabilityGate>;
 
+  return <TagFilter key={filterKey} host={host} tags={tags} enabled={filterByTags}>{(filterTag, setFilterTag) => {
+  const displayed = sortListItems(filterListItems(parsed.items, filterTag), sortMode);
   return <section className="source-list" data-refreshing={state.loading && state.value !== undefined || undefined} aria-label={title}>
     <header className="source-list__header">
       <div><strong>{title}</strong><span>{parsed.items.length} items{observed.changes.size ? ` · ${observed.changes.size} changed at ${changedAt}` : ""}</span></div>
@@ -148,4 +144,5 @@ function SourceList({ props, host }: ComponentRendererProps): ReactNode {
     </ul> : state.value !== undefined && parsed.diagnostics.length === 0 ? <p className="source-list__empty">No matching items.</p> : null}
     {!visible ? <small>Paused while hidden</small> : null}
   </section>;
+  }}</TagFilter>;
 }

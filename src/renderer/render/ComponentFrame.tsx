@@ -17,6 +17,7 @@ import { usePointerSession } from "../lib/pointer-session";
 import { compositionPayloadLabel } from "../composition/composition-labels";
 import { ComponentActionsMenu, type ComponentActionsMenuAction } from "../lib/component-actions-menu";
 import { useAnchoredMenu } from "../lib/use-anchored-menu";
+import { siblingMoveTarget } from "../composition/composition-movement";
 
 export interface ComponentFrameProps {
   as?: "div" | "section";
@@ -299,8 +300,12 @@ export function ComponentFrame({
     else if (action === "edit") onEditComponent(node);
     else if (action === "collapse") onToggleCollapse();
     else if (action === "copy") onCopyPath(node);
-    else onOpenAgent(node);
+    else if (action === "agent") onOpenAgent(node);
+    else if (compositionPath) composition?.onMoveSibling(compositionPath, action === "move-previous" ? "previous" : "next");
   }
+
+  const canMovePrevious = Boolean(compositionPath?.length && composition && siblingMoveTarget(composition.config.root, compositionPath, "previous"));
+  const canMoveNext = Boolean(compositionPath?.length && composition && siblingMoveTarget(composition.config.root, compositionPath, "next"));
 
   useEffect(() => () => {
     if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
@@ -459,6 +464,8 @@ export function ComponentFrame({
             label={name}
             focused={isVirtualRoot}
             collapsed={collapsed}
+            canMovePrevious={canMovePrevious}
+            canMoveNext={canMoveNext}
             onAction={performMenuAction}
           />,
           document.body,

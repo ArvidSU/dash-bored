@@ -44,8 +44,9 @@ Everything else lives in focused modules under feature directories:
   `SettingsPanel.tsx`, `CommandPalette.tsx`.
 - `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
   `composition-*.ts(x)` (targets, labels, placement, movement,
-  operation, preview, interaction-controller), `ComponentCompositor.tsx`,
-  `CompositionFlyout.tsx`, `DashboardEditor.tsx`, `DashboardOutlineTree.tsx`.
+  operation, interaction-controller), `ComponentCompositor.tsx`,
+  `CompositionFlyout.tsx`, `ComponentDialog.tsx`, `DashboardOutlineTree.tsx`.
+  `app/DashboardEditorToolbar.tsx` supplies the shared draft Save/Cancel controls.
 - `render/` — node rendering: `NodeRenderer.tsx` (recursive rendering of
   `{ node }` from one `DashboardRenderContext` that carries trust, host state,
   the action store, presentation state, and frame callbacks, plus the
@@ -65,6 +66,7 @@ Everything else lives in focused modules under feature directories:
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
 - `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one
   directory per shipped component (`types.ts`, `shared.tsx` helpers).
+  `tag-filter.tsx` owns the tag selection and filter actions for both list modes.
 
 Placement rules for new modules: app chrome goes in `app/`, a full-screen
 view in `panels/`, draft/topology editing in `composition/`, per-node
@@ -174,6 +176,13 @@ examples, not privileged component types:
   source. This mode uses the same stable item IDs and action templates while
   retaining draft-backed add, remove, toggle, and inline editing. `source` and
   `todos` are mutually exclusive.
+  Both list modes retain a selected tag while it exists. Removing the tag or
+  disabling filtering resets permanently to All. The narrow `TagFilter`
+  boundary is keyed by source provider identity (shell command, cwd, sorted
+  environment; file, HTTP, or process target); polling settings and inline
+  observations do not reset it. Editable todos use a stable filter boundary,
+  preserving row identity, edit buffers, and keyboard focus during draft updates.
+  Missing-tag invalidation happens before commit rather than in a reset effect.
 - `@dash-bored/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
   terminal session with the latest run's outcome (`running`, `exit 0`,
@@ -469,8 +478,9 @@ component menu; only the deepest hovered frame reveals those controls, while
 keyboard focus can reveal a focused control independently. Hidden ancestor
 controls do not intercept pointer input, and component content has no drag
 semantics. Composition drags use pointer sessions and carry their payload in
-renderer state; native HTML5 drag remains limited to dashboard reordering and
-the temporary DashboardEditor workbench. Catalog cards and the external-component
+renderer state; native HTML5 drag remains limited to dashboard reordering.
+There is one editor over the host-resolved draft, with in-place diagnostics
+when resolution fails. Catalog cards and the external-component
 management dialog share a manifest summary for description, sizing, child
 contract, and requested permissions. Custom components do not need special
 markup.
@@ -506,8 +516,9 @@ hover, focus, and drag expose the current first-pane percentage. Runtime ratio
 overrides remain local; draft ratio changes are written only to the draft YAML.
 
 Removal requires confirmation, including the size of a removed subtree. Adding
-uses the snapshot catalog; a newly selected local component is shown as metadata
-until the accepted save reloads and, when trusted, compiles it. Configuration
+uses the owning bundle's catalog; host draft validation also supplies compiled
+local modules when the draft's permission union is trusted. Privileged calls
+still resolve against the saved host tree until Save. Configuration
 dialogs trap focus, return it on close, and only the topmost nested dialog reacts
 to Escape.
 

@@ -18,6 +18,7 @@ import type {
   DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
+  NodePath,
   FileReadRequest,
   FileWriteRequest,
   HttpRequest,
@@ -61,6 +62,7 @@ function builtin(
     source: "builtin",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: id === "harness-root" ? "root" : `harness.${id}`,
+    sourceNodePath: [],
   };
 }
 
@@ -177,26 +179,7 @@ const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card",
                   required: ["command"],
                 }
               : name === "todo-list"
-                ? {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      todos: {
-                        type: "array",
-                        maxItems: 500,
-                        items: {
-                          type: "object",
-                          additionalProperties: false,
-                          properties: {
-                            description: { type: "string", minLength: 1 },
-                            done: { type: "boolean" },
-                            tags: { type: "array", maxItems: 32, items: { type: "string", minLength: 1 } },
-                          },
-                          required: ["description", "done", "tags"],
-                        },
-                      },
-                    },
-                }
+                ? listBuiltinManifests().find((manifest) => manifest.id === "@dash-bored/todo-list")!.propsSchema
               : name === "conditional"
                 ? {
                     type: "object",
@@ -369,10 +352,28 @@ function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation
     if (node.children !== undefined && !Array.isArray(node.children)) visitLayout(node.children, `${path}.children`);
   };
   visit(config.root, "root", 0);
-  return { ok: diagnostics.length === 0, diagnostics, requestedPermissions: [...permissions] };
+  const ok = diagnostics.length === 0;
+  const references = new Set<string>();
+  const collectReferences = (node: ComponentNode): void => {
+    references.add(node.component);
+    for (const edge of childEdges(node.children)) collectReferences(edge.node);
+  };
+  collectReferences(config.root);
+  return {
+    ok,
+    diagnostics,
+    requestedPermissions: [...permissions],
+    tree: ok ? resolveFixtureNode(config.root) : null,
+    components: ok && references.has("./components/host-stability") ? [structuredClone(hostStabilityComponent)] : [],
+    trusted: true,
+  };
 }
 
-function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedComponentNode {
+function resolveFixtureNode(
+  node: ComponentNode,
+  path = "root",
+  sourceNodePath: NodePath = [],
+): ResolvedComponentNode {
   const item = catalog.find((entry) => entry.reference === node.component);
   const resolved: ResolvedComponentNode = {
     id: node.id ?? path,
@@ -383,19 +384,37 @@ function resolveFixtureNode(node: ComponentNode, path = "root"): ResolvedCompone
     source: (item?.source === "external" ? undefined : item?.source) ?? "builtin",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: path,
+    sourceNodePath,
     ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
     ...(item?.manifest ? { manifest: { ...structuredClone(item.manifest), permissions: permissionsForComponent(item.manifest, node.props ?? {}) } } : {}),
   };
   if (Array.isArray(node.children)) {
     resolved.children = node.children.map((edge, index) => ({
-      node: resolveFixtureNode(edge.node, `${path}.children[${index}].node`),
+      node: resolveFixtureNode(edge.node, `${path}.children[${index}].node`, [
+        ...sourceNodePath,
+        { type: "managed", index },
+      ]),
       ...(edge.metadata === undefined ? {} : { metadata: structuredClone(edge.metadata) }),
     }));
   } else if (node.children !== undefined) {
-    const resolveLayout = (layout: ComponentChildLayout, layoutPath: string): ComponentChildLayout<ResolvedComponentNode> => "node" in layout
-      ? { node: resolveFixtureNode(layout.node, `${layoutPath}.node`), ...(layout.metadata === undefined ? {} : { metadata: structuredClone(layout.metadata) }) }
-      : { ...layout, first: resolveLayout(layout.first, `${layoutPath}.first`), second: resolveLayout(layout.second, `${layoutPath}.second`) };
-    resolved.children = resolveLayout(node.children, `${path}.children`);
+    const resolveLayout = (
+      layout: ComponentChildLayout,
+      layoutPath: string,
+      branches: Array<"first" | "second">,
+    ): ComponentChildLayout<ResolvedComponentNode> => "node" in layout
+      ? {
+          node: resolveFixtureNode(layout.node, `${layoutPath}.node`, [
+            ...sourceNodePath,
+            { type: "tiled", path: [...branches] },
+          ]),
+          ...(layout.metadata === undefined ? {} : { metadata: structuredClone(layout.metadata) }),
+        }
+      : {
+          ...layout,
+          first: resolveLayout(layout.first, `${layoutPath}.first`, [...branches, "first"]),
+          second: resolveLayout(layout.second, `${layoutPath}.second`, [...branches, "second"]),
+        };
+    resolved.children = resolveLayout(node.children, `${path}.children`, []);
   }
   return resolved;
 }
@@ -614,7 +633,7 @@ export function createUiHarnessHost(): UiHarnessHost {
         componentCatalog: structuredClone(catalog),
       };
     },
-    async validateDashboardDraft(config: DashboardConfig, _configPath?: string): Promise<DashboardDraftValidation> {
+    async validateDashboardDraft(config: DashboardConfig, _configPath?: string, _sourceNodeId?: string): Promise<DashboardDraftValidation> {
       return validateFixtureDraft(structuredClone(config));
     },
     async validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation> {

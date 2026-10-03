@@ -6,6 +6,7 @@ import type {
   ComponentNode,
   DashboardConfig,
   Diagnostic,
+  NodePath,
   Permission,
   ResolvedComponentNode,
 } from "../shared/contracts";
@@ -108,6 +109,7 @@ export async function resolveComponentTree(
     node: ComponentNode,
     nodePath: string,
     sourcePath: string,
+    sourceNodePath: NodePath,
   ): Promise<ResolvedComponentNode> => {
     const id = claimNodeId(node, nodePath);
     permissionsByNode.set(id, new Set());
@@ -159,6 +161,7 @@ export async function resolveComponentTree(
       source: "config",
       sourceConfigPath: location.configPath,
       sourcePath,
+      sourceNodePath,
       manifest: configLinkManifest(node.component, configName),
       ...(configPath === undefined ? {} : { configPath }),
       ...(configName === undefined ? {} : { configName }),
@@ -170,6 +173,7 @@ export async function resolveComponentTree(
     node: ComponentNode,
     nodePath: string,
     sourcePath: string,
+    sourceNodePath: NodePath,
     depth: number,
   ): Promise<ResolvedComponentNode | null> => {
     nodeCount += 1;
@@ -202,7 +206,7 @@ export async function resolveComponentTree(
     visiting.add(node);
 
     if (isConfigReference(node.component)) {
-      const resolved = await visitConfigLink(node, nodePath, sourcePath);
+      const resolved = await visitConfigLink(node, nodePath, sourcePath, sourceNodePath);
       visiting.delete(node);
       return resolved;
     }
@@ -241,12 +245,14 @@ export async function resolveComponentTree(
     const resolveEdge = async (
       edge: ComponentChildEdge,
       edgeSourcePath: string,
+      edgeNodePath: NodePath,
     ): Promise<ComponentChildEdge<ResolvedComponentNode> | null> => {
       const index = nextChildIndex++;
       const resolved = await visit(
         edge.node,
         childPath(nodePath, index),
         `${edgeSourcePath}.node`,
+        edgeNodePath,
         depth + 1,
       );
       if (resolved === null) return null;
@@ -258,13 +264,17 @@ export async function resolveComponentTree(
     const resolveLayout = async (
       layout: ComponentChildLayout,
       layoutSourcePath: string,
+      layoutBranches: Array<"first" | "second">,
     ): Promise<ComponentChildLayout<ResolvedComponentNode> | null> => {
       if ("node" in layout) {
-        return resolveEdge(layout, layoutSourcePath);
+        return resolveEdge(layout, layoutSourcePath, [
+          ...sourceNodePath,
+          { type: "tiled", path: [...layoutBranches] },
+        ]);
       }
       const [first, second] = await Promise.all([
-        resolveLayout(layout.first, `${layoutSourcePath}.first`),
-        resolveLayout(layout.second, `${layoutSourcePath}.second`),
+        resolveLayout(layout.first, `${layoutSourcePath}.first`, [...layoutBranches, "first"]),
+        resolveLayout(layout.second, `${layoutSourcePath}.second`, [...layoutBranches, "second"]),
       ]);
       if (first === null || second === null) return null;
       return {
@@ -278,7 +288,10 @@ export async function resolveComponentTree(
     if (Array.isArray(configuredChildren)) {
       const items = await Promise.all(
         configuredChildren.map((edge, index) =>
-          resolveEdge(edge, `${sourcePath}.children[${index}]`)),
+          resolveEdge(edge, `${sourcePath}.children[${index}]`, [
+            ...sourceNodePath,
+            { type: "managed", index },
+          ])),
       );
       resolvedChildren = items.filter(
         (edge): edge is ComponentChildEdge<ResolvedComponentNode> => edge !== null,
@@ -287,6 +300,7 @@ export async function resolveComponentTree(
       const layout = await resolveLayout(
         configuredChildren,
         `${sourcePath}.children`,
+        [],
       );
       if (layout !== null) resolvedChildren = layout;
     }
@@ -301,11 +315,12 @@ export async function resolveComponentTree(
       source: node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? "local" : "builtin",
       sourceConfigPath: location.configPath,
       sourcePath,
+      sourceNodePath,
       manifest: { ...manifest, permissions: [...nodePermissions] },
     };
   };
 
-  const tree = await visit(config.root, "root", "root", 0);
+  const tree = await visit(config.root, "root", "root", [], 0);
   if (tree !== null) {
     const allNodes: ResolvedComponentNode[] = [];
     const collect = (node: ResolvedComponentNode): void => {
