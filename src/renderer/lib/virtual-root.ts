@@ -3,6 +3,7 @@ import type {
   ComponentChildren,
   ResolvedComponentNode,
 } from "../../shared/contracts";
+import { childEdges } from "../../shared/child-edges";
 import { childNodes } from "./component-children";
 
 export interface VirtualRootCrumb {
@@ -16,6 +17,35 @@ export function nodeLabel(node: ResolvedComponentNode, root: boolean): string {
   const title = node.props.title ?? node.props.label ?? node.props.name;
   if (typeof title === "string" && title.trim()) return title.trim();
   return node.manifest?.name ?? node.component.replace(/^@dash-bored\//, "");
+}
+
+export interface DashboardNodeEntry {
+  node: ResolvedComponentNode;
+  /** The panel label on the edge from its parent, else the node's own name. */
+  label: string;
+  /** Labels from the dashboard root to this node, inclusive. */
+  path: string[];
+}
+
+/** Every node in pre-order, named the way its parent presents it. */
+export function dashboardNodeEntries(root: ResolvedComponentNode): DashboardNodeEntry[] {
+  const entries: DashboardNodeEntry[] = [];
+  const visit = (node: ResolvedComponentNode, label: string, path: readonly string[]): void => {
+    const nextPath = [...path, label];
+    entries.push({ node, label, path: nextPath });
+    for (const edge of childEdges(node.children as ComponentChildren<ResolvedComponentNode> | undefined)) {
+      const edgeLabel = typeof edge.metadata?.label === "string" ? edge.metadata.label.trim() : "";
+      visit(edge.node, edgeLabel || nodeLabel(edge.node, false), nextPath);
+    }
+  };
+  visit(root, nodeLabel(root, true), []);
+  return entries;
+}
+
+/** Compact option context: the stable ID, then where the node sits below the root. */
+export function dashboardNodeOptionDescription(entry: DashboardNodeEntry): string {
+  const ancestors = entry.path.slice(1, -1);
+  return ancestors.length > 0 ? `${entry.node.id} · ${ancestors.join(" › ")}` : entry.node.id;
 }
 
 export function findVirtualRootPath(

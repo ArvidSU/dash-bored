@@ -549,9 +549,14 @@ root:
                               - agent-tools
                           - id: todo-e28d57af-f9a5-4b15-8d8f-4966123c0bf3
                             description: Add search to sub-actions/options, focus and reveal can have many many sub options
-                            done: false
+                            done: true
                             tags:
                               - feature
+                          - id: todo-7a00f90e-8069-4d73-9445-ba2519105d11
+                            description: Let the app control channel open the command palette with a query (and screenshot it) so agents can prove palette changes in the dev app, not only in ui:fixture
+                            done: false
+                            tags:
+                              - agent-tools
                   second:
                     node:
                       id: checks

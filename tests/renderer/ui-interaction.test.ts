@@ -277,15 +277,45 @@ describe("renderer fixture interactions", () => {
       await palette.getByRole("option", { name: /Focus component/ }).waitFor();
       expect(await palette.getByRole("option").count()).toBe(1);
       await palette.getByRole("option", { name: /Focus component/ }).click();
-      await palette.getByRole("group", { name: "Focus component", exact: true }).waitFor();
-      await palette.getByRole("button", { name: "Back", exact: true }).click();
-      await palette.getByRole("combobox").waitFor();
+      await palette.getByRole("listbox", { name: "Focus component", exact: true }).waitFor();
+      // The chooser reuses the one search input, labelled for its step.
+      expect(await palette.getByRole("combobox").count()).toBe(1);
+      const optionSearch = palette.getByRole("combobox", { name: "Search focus component options" });
+      await optionSearch.fill("responsive tile");
+      const matches = palette.getByRole("option");
+      expect(await matches.count()).toBeGreaterThan(0);
+      expect(await matches.first().getAttribute("aria-selected")).toBe("true");
+      await palette.getByRole("button", { name: "Back: Focus component", exact: true }).click();
+      const actionSearch = palette.getByRole("combobox", { name: "Search actions and commands" });
+      await actionSearch.waitFor();
+      expect(await actionSearch.inputValue()).toBe("focus");
       await palette.getByRole("option", { name: /Focus component/ }).click();
-      await palette.getByRole("button", { name: /^Responsive tile/ }).click();
+      await optionSearch.fill("responsive tile");
+      await palette.getByRole("option", { name: /^Responsive tile/ }).click();
       await palette.waitFor({ state: "hidden" });
       const path = proof.getByRole("navigation", { name: "Focused component path" });
       await path.waitFor();
       expect(await path.innerText()).toContain("Responsive tile");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("palette search reaches a chooser option directly by node ID", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const actionSearch = palette.getByRole("combobox");
+      await actionSearch.fill("renderer-proof-todos");
+      const target = palette.getByRole("option", { name: /^Focus component\W+Todo-list/ });
+      await target.waitFor();
+      expect(await palette.getByRole("option").first().getAttribute("id")).toBe(await target.getAttribute("id"));
+      expect(await actionSearch.getAttribute("aria-activedescendant")).toBe(await target.getAttribute("id"));
+      await actionSearch.press("Enter");
+      await palette.waitFor({ state: "hidden" });
+      await proof.getByRole("navigation", { name: "Focused component path" }).getByText("Todo-list", { exact: true }).waitFor();
     } finally {
       await proof.close();
     }
@@ -306,11 +336,16 @@ describe("renderer fixture interactions", () => {
       await palette.getByRole("option", { name: /Reveal component/ }).waitFor();
       expect(await palette.getByRole("option", { name: /^Reveal / }).count()).toBe(1);
       await palette.getByRole("option", { name: /Reveal component/ }).click();
-      await palette.getByRole("group", { name: "Reveal component", exact: true }).waitFor();
-      await palette.getByRole("button", { name: "Back", exact: true }).click();
-      await palette.getByRole("combobox").waitFor();
+      await palette.getByRole("listbox", { name: "Reveal component", exact: true }).waitFor();
+      // Backspace in an empty chooser steps back like Escape and the breadcrumb.
+      await palette.getByRole("combobox").press("Backspace");
+      await palette.getByRole("listbox", { name: "Available commands", exact: true }).waitFor();
       await palette.getByRole("option", { name: /Reveal component/ }).click();
-      await palette.getByRole("button", { name: /^Responsive tile/ }).click();
+      await palette.getByRole("combobox").fill("responsive-card");
+      const target = palette.getByRole("option", { name: /^Responsive tile/ });
+      expect(await target.count()).toBe(1);
+      expect(await target.getAttribute("aria-selected")).toBe("true");
+      await target.click();
       await palette.waitFor({ state: "hidden" });
       await frame.locator(".component-node__collapsed").waitFor({ state: "hidden" });
     } finally {
@@ -336,17 +371,17 @@ describe("renderer fixture interactions", () => {
       expect(await input.inputValue()).toBe("");
       await input.fill("reveal");
       await input.press("Meta+Enter");
-      await palette.getByRole("group", { name: "Reveal component", exact: true }).waitFor();
-      await palette.getByRole("button", { name: /^Responsive tile/ }).click();
-      await input.waitFor();
+      await palette.getByRole("listbox", { name: "Reveal component", exact: true }).waitFor();
+      await palette.getByRole("option", { name: /^Responsive tile/ }).click();
+      await palette.getByRole("listbox", { name: "Available commands", exact: true }).waitFor();
       expect(await input.inputValue()).toBe("");
       // Holding Command at the final choice works even when the parent opened normally.
       await input.fill("reveal");
       await input.press("Enter");
-      const target = palette.getByRole("button", { name: /^Responsive tile/ });
-      await target.focus();
-      await target.press("Meta+Enter");
-      await input.waitFor();
+      await palette.getByRole("listbox", { name: "Reveal component", exact: true }).waitFor();
+      await input.fill("Responsive tile");
+      await input.press("Meta+Enter");
+      await palette.getByRole("listbox", { name: "Available commands", exact: true }).waitFor();
       expect(await input.inputValue()).toBe("");
       await input.fill("expand sidebar");
       await input.press("Enter");
@@ -403,10 +438,10 @@ describe("renderer fixture interactions", () => {
       const input = palette.getByRole("combobox");
       await input.fill("set default theme");
       await input.press("Meta+Enter");
-      await palette.getByRole("group", { name: "Select default theme", exact: true }).waitFor();
-      await palette.getByRole("group", { name: "Select default theme", exact: true }).getByRole("button").first().click();
-      await palette.getByRole("group", { name: "Select default appearance", exact: true }).waitFor();
-      await palette.getByRole("button", { name: "Light", exact: true }).click();
+      await palette.getByRole("listbox", { name: "Select default theme", exact: true }).waitFor();
+      await palette.getByRole("listbox", { name: "Select default theme", exact: true }).getByRole("option").first().click();
+      await palette.getByRole("listbox", { name: "Select default appearance", exact: true }).waitFor();
+      await palette.getByRole("option", { name: "Light", exact: true }).click();
       await input.waitFor();
       expect(await input.inputValue()).toBe("");
       await proof.waitForFunction(() => document.documentElement.dataset.appearance === "light");
@@ -524,10 +559,10 @@ describe("renderer fixture interactions", () => {
       const input = palette.getByRole("combobox");
       await input.fill("switch dashboard");
       await palette.getByRole("option", { name: /Switch dashboard/ }).click();
-      const choices = palette.getByRole("group", { name: "Switch dashboard", exact: true });
+      const choices = palette.getByRole("listbox", { name: "Switch dashboard", exact: true });
       await choices.waitFor();
-      expect(await choices.getByRole("button").count()).toBe(1);
-      await choices.getByRole("button").first().press("Meta+Enter");
+      expect(await choices.getByRole("option").count()).toBe(1);
+      await input.press("Meta+Enter");
       await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
       await input.waitFor();
       expect(await input.inputValue()).toBe("");
@@ -591,7 +626,7 @@ describe("renderer fixture interactions", () => {
     }
   }, 20_000);
 
-  test("palette choice steps keep headings and full-width options inside the dialog", async () => {
+  test("palette choice steps reuse the search row and full-width result rows", async () => {
     const active = currentPage();
     const originalViewport = active.viewportSize();
     for (const width of [1280, 390]) {
@@ -600,40 +635,53 @@ describe("renderer fixture interactions", () => {
       const palette = active.getByRole("dialog", { name: "Command palette" });
       await palette.getByRole("combobox").fill("Set default theme");
       await palette.getByRole("option", { name: /Set default theme/ }).click();
-      const heading = palette.getByRole("heading", { name: "Select default theme" });
-      await heading.waitFor();
-      const group = palette.getByRole("group", { name: "Select default theme" });
+      const crumb = palette.getByRole("button", { name: "Back: Set default theme", exact: true });
+      await crumb.waitFor();
+      const group = palette.getByRole("listbox", { name: "Select default theme" });
+      const search = palette.getByRole("combobox");
+      expect(await search.getAttribute("placeholder")).toBe("Select default theme…");
       const bounds = await palette.boundingBox();
-      const title = await heading.boundingBox();
+      const crumbBox = await crumb.boundingBox();
+      const searchBox = await search.boundingBox();
       const list = await group.boundingBox();
-      const option = await group.getByRole("button").first().boundingBox();
-      expect(bounds && title && list && option).toBeTruthy();
-      expect(title!.x + title!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
-      expect(list!.y).toBeGreaterThanOrEqual(title!.y + title!.height);
-      expect(Math.abs(option!.width - list!.width)).toBeLessThan(1);
+      const option = await group.getByRole("option").first().boundingBox();
+      expect(bounds && crumbBox && searchBox && list && option).toBeTruthy();
+      expect(crumbBox!.x + crumbBox!.width).toBeLessThanOrEqual(searchBox!.x);
+      expect(list!.y).toBeGreaterThanOrEqual(searchBox!.y + searchBox!.height);
+      const listPadding = await group.evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return Number.parseFloat(styles.paddingLeft) + Number.parseFloat(styles.paddingRight);
+      });
+      expect(Math.abs(option!.width - (list!.width - listPadding))).toBeLessThan(1);
       expect(await palette.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      // Use real keyboard events without focusing a locator: entering a step
-      // must establish focus itself, including when the previous button unmounts.
-      const options = group.getByRole("button");
-      const isFocused = (index: number) => options.nth(index).evaluate(
+      // The chooser keeps the search input focused and moves its active descendant.
+      const options = group.getByRole("option");
+      const isFocused = () => search.evaluate(
         (element) => element === document.activeElement,
       );
-      expect(await isFocused(0)).toBe(true);
+      const activeOption = () => search.getAttribute("aria-activedescendant");
+      expect(await isFocused()).toBe(true);
+      expect(await activeOption()).toBe(await options.nth(0).getAttribute("id"));
       await active.keyboard.press("ArrowDown");
-      expect(await isFocused(1)).toBe(true);
+      expect(await isFocused()).toBe(true);
+      expect(await activeOption()).toBe(await options.nth(1).getAttribute("id"));
       await active.keyboard.press("ArrowUp");
-      expect(await isFocused(0)).toBe(true);
+      expect(await activeOption()).toBe(await options.nth(0).getAttribute("id"));
       await active.keyboard.press("ArrowUp");
-      expect(await isFocused(await options.count() - 1)).toBe(true);
+      const lastOption = options.nth(await options.count() - 1);
+      expect(await activeOption()).toBe(await lastOption.getAttribute("id"));
       await active.keyboard.press("ArrowDown");
-      expect(await isFocused(0)).toBe(true);
+      expect(await activeOption()).toBe(await options.nth(0).getAttribute("id"));
       await active.keyboard.press("ArrowDown");
+      const chosen = await options.nth(1).locator("strong").innerText();
       await active.keyboard.press("Enter");
-      await palette.getByRole("heading", { name: "Select default appearance" }).waitFor();
+      await palette.getByRole("listbox", { name: "Select default appearance" }).waitFor();
+      await palette.getByRole("button", { name: `Back: Set default theme › ${chosen}`, exact: true }).waitFor();
       await active.keyboard.press("Escape");
-      await heading.waitFor();
+      await group.waitFor();
       await active.keyboard.press("Escape");
-      await palette.getByRole("combobox").waitFor();
+      await palette.getByRole("listbox", { name: "Available commands" }).waitFor();
+      expect(await search.inputValue()).toBe("Set default theme");
       await active.keyboard.press("Escape");
       await palette.waitFor({ state: "hidden" });
     }
@@ -683,8 +731,11 @@ describe("renderer fixture interactions", () => {
 
     await active.getByRole("button", { name: /Open command palette/ }).click();
     const palette = active.getByRole("dialog", { name: "Command palette" });
-    await palette.getByRole("combobox").fill("reload app");
     expect(await palette.getByText("Favorites", { exact: true }).count()).toBe(1);
+    await palette.getByRole("combobox").fill("reload app");
+    // Search results are ordered by relevance without group headings; favorites still lead.
+    expect(await palette.getByText("Favorites", { exact: true }).count()).toBe(0);
+    expect(await palette.getByRole("option").first().innerText()).toContain("Reload app");
     const reloadOption = palette.getByRole("option", { name: /Reload app/ });
     expect(await reloadOption.locator("kbd").count()).toBe(1);
     await palette.getByRole("button", { name: "Remove Reload app from favorites" }).click();
@@ -2310,7 +2361,7 @@ test('stable-ID tab and todo actions select locally and change only the draft', 
     const selectPalette = proof.getByRole('dialog', { name: 'Command palette' });
     await selectPalette.getByRole('combobox').fill('Select tab');
     await selectPalette.getByRole('option', { name: /Select tab/ }).click();
-    await selectPalette.getByRole('button', { name: 'Second', exact: true }).click();
+    await selectPalette.getByRole('option', { name: 'Second', exact: true }).click();
     await proof.getByRole('checkbox', { name: 'Mark complete: Selected task', exact: true }).waitFor();
     await proof.getByRole('tab', { name: 'First', exact: true }).click();
     await proof.getByRole('button', { name: 'Choose second tab', exact: true }).click();

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import type { PaletteAction } from "../lib/actions";
-import { matchActionChoiceSelections, rankActions, resolveActionChoiceOptions } from "../lib/actions";
+import type { PaletteAction, PaletteEntry } from "../lib/actions";
+import { matchActionChoiceSelections, rankActionChoiceOptions, rankPaletteEntries, resolveActionChoiceOptions } from "../lib/actions";
 import type { ComponentActionOption, ComponentActionSelections } from "../../shared/contracts";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 
@@ -23,12 +23,25 @@ interface CommandPaletteProps {
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(
-    'input, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    'input, button:not([disabled]):not([tabindex="-1"]), [href], [tabindex]:not([tabindex="-1"])',
   )].filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
 }
 
 function optionId(index: number): string {
   return `command-palette-option-${index}`;
+}
+
+/** Labels of the options already chosen before `step`, for the chooser breadcrumb. */
+function chosenLabels(action: PaletteAction, selections: ComponentActionSelections, step: number): string[] {
+  return (action.choices ?? []).slice(0, step).flatMap((choice) => {
+    const value = selections[choice.id];
+    if (value === undefined) return [];
+    try {
+      return [resolveActionChoiceOptions(choice, selections).find((option) => option.value === value)?.label ?? value];
+    } catch {
+      return [value];
+    }
+  });
 }
 
 export function CommandPalette({
@@ -46,7 +59,9 @@ export function CommandPalette({
   onExecute,
   onToggleFavorite,
 }: CommandPaletteProps): ReactNode {
+  // One search input serves every step; the action search waits here while a chooser is open.
   const [query, setQuery] = useState("");
+  const [rootQuery, setRootQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
   const [choiceActionId, setChoiceActionId] = useState<string | null>(null);
@@ -58,6 +73,7 @@ export function CommandPalette({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const keepOpenRef = useRef(false);
+  const rootSelectedIndexRef = useRef(0);
 
   const effectiveActions = useMemo(
     () =>
@@ -72,27 +88,41 @@ export function CommandPalette({
       ),
     [actions, runningActionIds],
   );
-  const ranked = useMemo(
-    () => rankActions(effectiveActions, query, favoriteActionIds),
-    [effectiveActions, favoriteActionIds, query],
-  );
   const confirmationAction = confirmationId
     ? effectiveActions.find((action) => action.id === confirmationId)
     : undefined;
   const choiceAction = choiceActionId ? effectiveActions.find((action) => action.id === choiceActionId) : undefined;
-  const currentChoice = choiceAction?.choices?.[choiceIndex];
-  let choiceOptions: readonly ComponentActionOption[] = [];
-  let choiceError = "";
-  if (currentChoice) {
-    try { choiceOptions = resolveActionChoiceOptions(currentChoice, choices); }
-    catch (error) { choiceError = error instanceof Error ? error.message : "This action has no usable options."; }
-  }
+  const currentChoice = confirmationId ? undefined : choiceAction?.choices?.[choiceIndex];
+  const choosing = Boolean(choiceAction && currentChoice);
+  const { choiceOptions, choiceError } = useMemo(() => {
+    if (!currentChoice) return { choiceOptions: [] as readonly ComponentActionOption[], choiceError: "" };
+    try {
+      return { choiceOptions: resolveActionChoiceOptions(currentChoice, choices), choiceError: "" };
+    } catch (error) {
+      return {
+        choiceOptions: [] as readonly ComponentActionOption[],
+        choiceError: error instanceof Error ? error.message : "This action has no usable options.",
+      };
+    }
+  }, [currentChoice, choices]);
+  const entries = useMemo(
+    () => (choosing ? [] : rankPaletteEntries(effectiveActions, query, favoriteActionIds)),
+    [choosing, effectiveActions, favoriteActionIds, query],
+  );
+  const rankedChoiceOptions = useMemo(
+    () => (choosing ? rankActionChoiceOptions(choiceOptions, query) : []),
+    [choosing, choiceOptions, query],
+  );
+  const rowCount = choosing ? rankedChoiceOptions.length : entries.length;
+  const rowKeys = (choosing ? rankedChoiceOptions.map((option) => option.value) : entries.map((entry) => entry.key))
+    .join("\u0000");
 
   useLayoutEffect(() => {
     if (!open) return;
     restoreFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuery("");
+    setRootQuery("");
     setSelectedIndex(0);
     setConfirmationId(null);
     setChoiceActionId(null);
@@ -135,12 +165,18 @@ export function CommandPalette({
     }
   }, [effectiveActions, initialActionId, open]);
 
-  const rankedIds = ranked.map((action) => action.id).join("\u0000");
   useEffect(() => {
-    setSelectedIndex((current) =>
-      ranked.length === 0 ? 0 : Math.min(current, ranked.length - 1),
-    );
-  }, [ranked.length, rankedIds]);
+    setSelectedIndex((current) => (rowCount === 0 ? 0 : Math.min(current, rowCount - 1)));
+  }, [rowCount, rowKeys]);
+
+  useEffect(() => {
+    if (!choiceActionId || choiceAction) return;
+    setChoiceActionId(null);
+    setChoiceIndex(0);
+    setChoices({});
+    setQuery(rootQuery);
+    setStatus("That action is no longer available.");
+  }, [choiceAction, choiceActionId]);
 
   useEffect(() => {
     if (!confirmationId || confirmationAction) return;
@@ -155,14 +191,8 @@ export function CommandPalette({
   }, [confirmationAction]);
 
   useLayoutEffect(() => {
-    if (!open || confirmationId) return;
-    // Replacing the search input or an option button removes the focused node.
-    // Keep keyboard events (especially Escape) inside the current dialog step.
-    if (choiceActionId && dialogRef.current) {
-      (focusableElements(dialogRef.current)[0] ?? dialogRef.current).focus();
-    } else {
-      inputRef.current?.focus();
-    }
+    // Every step keeps keyboard focus in the one search input.
+    if (open && !confirmationId) inputRef.current?.focus();
   }, [open, choiceActionId, choiceIndex, confirmationId]);
 
   function dismiss(): void {
@@ -183,6 +213,9 @@ export function CommandPalette({
       if (clearInputOnKeepOpen) {
         setQuery("");
         setSelectedIndex(0);
+      } else if (choiceActionId) {
+        setQuery(rootQuery);
+        setSelectedIndex(rootSelectedIndexRef.current);
       }
       setStatus("Action invoked. Choose another action.");
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -192,30 +225,94 @@ export function CommandPalette({
     onExecute(id, selections);
   }
 
-  function choose(action: PaletteAction, keepOpen = false): void {
+  /** Continue an action from `fromStep`: the next unanswered choice, its confirmation, or the run. */
+  function proceed(action: PaletteAction, selections: ComponentActionSelections, fromStep: number, carriedQuery = ""): void {
+    const steps = action.choices ?? [];
+    let step = fromStep;
+    while (step < steps.length && selections[steps[step]!.id] !== undefined) step += 1;
+    if (steps.length > 0 && !choiceActionId) {
+      setRootQuery(query);
+      rootSelectedIndexRef.current = selectedIndex;
+    }
+    setStatus("");
+    if (step < steps.length) {
+      setChoiceActionId(action.id);
+      setChoiceIndex(step);
+      setChoices(selections);
+      setQuery(carriedQuery);
+      setSelectedIndex(0);
+    } else if (action.confirmation) {
+      if (steps.length > 0) {
+        setChoiceActionId(action.id);
+        setChoiceIndex(steps.length);
+        setChoices(selections);
+      }
+      setConfirmationId(action.id);
+    } else {
+      execute(action.id, steps.length > 0 ? selections : undefined);
+    }
+  }
+
+  function chooseEntry(entry: PaletteEntry, keepOpen = false): void {
+    const { action } = entry;
     if (!action.enabled) {
       setStatus(action.disabledReason ?? "This action is unavailable.");
       return;
     }
     keepOpenRef.current = keepOpen;
-    if (action.choices?.length) {
-      setChoiceActionId(action.id);
-      setChoiceIndex(0);
-      setChoices({});
-      setStatus("");
+    if (entry.kind === "option") {
+      proceed(action, { [entry.choice.id]: entry.option.value }, 0);
+    } else {
+      // A chooser reached through its matching options opens already filtered by that search.
+      proceed(action, {}, 0, entry.optionMatches ? query : "");
+    }
+  }
+
+  function chooseOption(option: ComponentActionOption, keepOpen = false): void {
+    if (!choiceAction || !currentChoice) return;
+    keepOpenRef.current ||= keepOpen;
+    proceed(choiceAction, { ...choices, [currentChoice.id]: option.value }, choiceIndex + 1);
+  }
+
+  function activate(index: number, keepOpen = false): void {
+    if (choosing) {
+      const option = rankedChoiceOptions[index];
+      if (option) chooseOption(option, keepOpen);
       return;
     }
-    if (action.confirmation) {
-      setConfirmationId(action.id);
+    const entry = entries[index];
+    if (entry) chooseEntry(entry, keepOpen);
+  }
+
+  /** Escape, Backspace in an empty chooser, and the breadcrumb all step back the same way. */
+  function goBack(): void {
+    if (confirmationId) {
+      setConfirmationId(null);
+      if (choiceAction?.choices?.length) {
+        setChoiceIndex(choiceAction.choices.length - 1);
+      } else {
+        requestAnimationFrame(() => inputRef.current?.focus());
+      }
+    } else if (choiceActionId) {
+      if (choiceIndex > 0) {
+        setChoiceIndex((index) => index - 1);
+        setQuery("");
+        setSelectedIndex(0);
+      } else {
+        setChoiceActionId(null);
+        setChoices({});
+        setQuery(rootQuery);
+        setSelectedIndex(rootSelectedIndexRef.current);
+      }
       setStatus("");
-      return;
+    } else {
+      dismiss();
     }
-    execute(action.id);
   }
 
   function moveSelection(nextIndex: number): void {
-    if (ranked.length === 0) return;
-    const normalized = (nextIndex + ranked.length) % ranked.length;
+    if (rowCount === 0) return;
+    const normalized = (nextIndex + rowCount) % rowCount;
     setSelectedIndex(normalized);
     document.getElementById(optionId(normalized))?.scrollIntoView({
       block: "nearest",
@@ -234,11 +331,13 @@ export function CommandPalette({
       moveSelection(0);
     } else if (event.key === "End") {
       event.preventDefault();
-      moveSelection(ranked.length - 1);
+      moveSelection(rowCount - 1);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      const action = ranked[selectedIndex];
-      if (action) choose(action, event.metaKey);
+      activate(selectedIndex, event.metaKey);
+    } else if (event.key === "Backspace" && query === "" && choiceActionId) {
+      event.preventDefault();
+      goBack();
     }
   }
 
@@ -246,48 +345,14 @@ export function CommandPalette({
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      if (confirmationId) {
-        setConfirmationId(null);
-        if (choiceAction?.choices?.length) {
-          setChoiceIndex(choiceAction.choices.length - 1);
-        } else {
-          requestAnimationFrame(() => inputRef.current?.focus());
-        }
-      } else if (choiceActionId) {
-        if (choiceIndex > 0) {
-          setChoiceIndex((index) => index - 1);
-        } else {
-          setChoiceActionId(null);
-          setChoices({});
-          requestAnimationFrame(() => inputRef.current?.focus());
-        }
-      } else {
-        dismiss();
-      }
+      goBack();
       return;
     }
-    if (event.key === "Enter" && event.metaKey && event.target instanceof HTMLButtonElement &&
-      (event.target.matches(".command-palette__choice") || event.target === confirmRef.current)) {
+    if (event.key === "Enter" && event.metaKey && event.target === confirmRef.current) {
       event.preventDefault();
       event.stopPropagation();
       keepOpenRef.current = true;
-      event.target.click();
-      return;
-    }
-    if (currentChoice && !confirmationId &&
-      (event.key === "ArrowDown" || event.key === "ArrowUp")) {
-      const options = [...(dialogRef.current?.querySelectorAll<HTMLButtonElement>(
-        ".command-palette__choice:not([disabled])",
-      ) ?? [])];
-      if (options.length === 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const current = options.findIndex((option) => option === document.activeElement);
-      const next = current === -1
-        ? (event.key === "ArrowDown" ? 0 : options.length - 1)
-        : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
-      options[next]?.focus({ preventScroll: true });
-      options[next]?.scrollIntoView({ block: "nearest" });
+      confirmRef.current?.click();
       return;
     }
     if (event.key !== "Tab" || !dialogRef.current) return;
@@ -309,9 +374,120 @@ export function CommandPalette({
 
   if (!open) return null;
 
-  let previousGroup = "";
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-  const activeOption = ranked.length > 0 ? optionId(selectedIndex) : undefined;
+  const activeOption = rowCount > 0 ? optionId(selectedIndex) : undefined;
+  const searching = query.trim() !== "";
+
+  function optionButton(
+    index: number,
+    content: { label: ReactNode; detail?: string; disabled?: boolean; meta?: ReactNode },
+  ): ReactNode {
+    const selected = index === selectedIndex;
+    return (
+      <button
+        id={optionId(index)}
+        type="button"
+        role="option"
+        tabIndex={-1}
+        aria-selected={selected}
+        aria-disabled={content.disabled || undefined}
+        className={`command-palette__option${selected ? " command-palette__option--selected" : ""}${
+          content.disabled ? " command-palette__option--disabled" : ""
+        }`}
+        onMouseMove={(event) => {
+          // Opening, filtering, and scrolling can put a row under a stationary cursor.
+          if (event.movementX !== 0 || event.movementY !== 0) setSelectedIndex(index);
+        }}
+        onClick={(event) => activate(index, event.metaKey)}
+      >
+        <span className="command-palette__option-copy">
+          <strong>{content.label}</strong>
+          {content.detail ? <span>{content.detail}</span> : null}
+        </span>
+        {content.meta ? <span className="command-palette__option-meta">{content.meta}</span> : null}
+      </button>
+    );
+  }
+
+  function actionRows(): ReactNode {
+    let previousGroup = "";
+    return entries.map((entry, index) => {
+      const { action } = entry;
+      const favorite = entry.kind === "action" && favoriteActionIds.has(action.id);
+      // Relevance order interleaves groups while searching, so headings only describe the full list.
+      const displayGroup = searching ? "" : favorite ? "Favorites" : action.group;
+      const showGroup = displayGroup !== "" && displayGroup !== previousGroup;
+      previousGroup = displayGroup;
+      const shortcut = entry.kind === "action" ? actionShortcuts[action.id] : undefined;
+      const row = entry.kind === "option"
+        ? optionButton(index, {
+            label: (
+              <>
+                <span className="command-palette__option-parent">{action.label}</span>
+                <span className="command-palette__option-separator" aria-hidden="true">›</span>
+                <span className="visually-hidden">: </span>
+                {entry.option.label}
+              </>
+            ),
+            detail: action.enabled ? entry.option.description : action.disabledReason,
+            disabled: !action.enabled,
+          })
+        : optionButton(index, {
+            label: action.label,
+            detail: !action.enabled
+              ? [action.disabledReason, action.declaredOnly ? action.source : undefined].filter(Boolean).join(" · ")
+              : entry.optionMatches
+                ? `${entry.optionMatches} matching options`
+                : action.description,
+            disabled: !action.enabled,
+            meta: shortcut || action.confirmation ? (
+              <>
+                {shortcut ? <kbd>{keyboardShortcutLabel(shortcut, mac)}</kbd> : null}
+                {action.confirmation ? <span>Confirm</span> : null}
+              </>
+            ) : undefined,
+          });
+      return (
+        <div className="command-palette__result" key={entry.key} role="presentation">
+          {showGroup ? (
+            <div className="command-palette__group" aria-hidden="true" role="presentation">
+              {displayGroup}
+            </div>
+          ) : null}
+          <div className={`command-palette__option-row${index === selectedIndex ? " command-palette__option-row--selected" : ""}`}>
+            {row}
+            {entry.kind === "action" ? (
+              <button
+                className={`command-palette__favorite${favorite ? " command-palette__favorite--active" : ""}`}
+                type="button"
+                aria-label={`${favorite ? "Remove" : "Add"} ${action.label} ${favorite ? "from" : "to"} favorites`}
+                aria-pressed={favorite}
+                disabled={favoritesDisabled}
+                title={favorite ? "Remove from favorites" : "Add to favorites"}
+                onClick={() => onToggleFavorite(action.id)}
+              >
+                <span aria-hidden="true">{favorite ? "★" : "☆"}</span>
+              </button>
+            ) : <span className="command-palette__favorite-spacer" aria-hidden="true" />}
+          </div>
+        </div>
+      );
+    });
+  }
+
+  function choiceRows(): ReactNode {
+    return rankedChoiceOptions.map((option, index) => (
+      <div className="command-palette__result" key={option.value} role="presentation">
+        <div className="command-palette__option-row command-palette__option-row--plain">
+          {optionButton(index, { label: option.label, detail: option.description })}
+        </div>
+      </div>
+    ));
+  }
+
+  const breadcrumb = choosing && choiceAction
+    ? [choiceAction.label, ...chosenLabels(choiceAction, choices, choiceIndex)].join(" › ")
+    : "";
 
   return (
     <div
@@ -332,47 +508,7 @@ export function CommandPalette({
           Command palette
         </h2>
 
-        {choiceAction && currentChoice ? (
-          <div className="command-palette__confirmation command-palette__choices">
-            <span className="eyebrow">Choose an option</span>
-            <h3>{currentChoice.label}</h3>
-            {currentChoice.description ? <p>{currentChoice.description}</p> : null}
-            {choiceError ? <p role="alert">{choiceError}</p> : (
-              <div className="command-palette__choice-list" role="group" aria-label={currentChoice.label}>
-                {choiceOptions.map((option) => (
-                  <button className="button button--quiet command-palette__choice" type="button" key={option.value} onClick={(event) => {
-                    keepOpenRef.current ||= event.metaKey;
-                    const next = { ...choices, [currentChoice.id]: option.value };
-                    let nextIndex = choiceIndex + 1;
-                    while (
-                      nextIndex < choiceAction.choices!.length
-                      && next[choiceAction.choices![nextIndex]!.id] !== undefined
-                    ) nextIndex += 1;
-                    if (choiceAction.choices && nextIndex < choiceAction.choices.length) {
-                      setChoices(next);
-                      setChoiceIndex(nextIndex);
-                    } else if (choiceAction.confirmation) {
-                      setChoices(next);
-                      setChoiceIndex(nextIndex);
-                      setConfirmationId(choiceAction.id);
-                    } else {
-                      execute(choiceAction.id, next);
-                    }
-                  }}>
-                    <strong>{option.label}</strong>{option.description ? <span>{option.description}</span> : null}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="command-palette__confirmation-actions">
-              <button className="button button--quiet" type="button" onClick={() => {
-                if (choiceIndex > 0) setChoiceIndex((index) => index - 1);
-                else { setChoiceActionId(null); setChoices({}); requestAnimationFrame(() => inputRef.current?.focus()); }
-              }}>Back</button>
-              <button className="button button--quiet" type="button" onClick={dismiss}>Cancel</button>
-            </div>
-          </div>
-        ) : confirmationAction?.confirmation ? (
+        {confirmationAction?.confirmation ? (
           <div className="command-palette__confirmation">
             <span className="command-palette__confirmation-mark" aria-hidden="true">
               ?
@@ -389,18 +525,7 @@ export function CommandPalette({
               </div>
             </div>
             <div className="command-palette__confirmation-actions">
-              <button
-                className="button button--quiet"
-                type="button"
-                onClick={() => {
-                  setConfirmationId(null);
-                  if (choiceAction?.choices?.length) {
-                    setChoiceIndex(choiceAction.choices.length - 1);
-                  } else {
-                    requestAnimationFrame(() => inputRef.current?.focus());
-                  }
-                }}
-              >
+              <button className="button button--quiet" type="button" onClick={goBack}>
                 Cancel
               </button>
               <button
@@ -420,10 +545,28 @@ export function CommandPalette({
         ) : (
           <>
             <div className="command-palette__search">
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="8.5" cy="8.5" r="5" />
-                <path d="m12.2 12.2 4 4" />
-              </svg>
+              {choosing ? (
+                <button
+                  className="command-palette__crumb"
+                  type="button"
+                  title="Back (Esc)"
+                  onClick={() => {
+                    goBack();
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="m11.5 5.5-4.5 4.5 4.5 4.5" />
+                  </svg>
+                  <span className="visually-hidden">Back: </span>
+                  <span className="command-palette__crumb-label">{breadcrumb}</span>
+                </button>
+              ) : (
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <circle cx="8.5" cy="8.5" r="5" />
+                  <path d="m12.2 12.2 4 4" />
+                </svg>
+              )}
               <input
                 ref={inputRef}
                 role="combobox"
@@ -431,8 +574,8 @@ export function CommandPalette({
                 aria-controls="command-palette-results"
                 aria-expanded="true"
                 aria-activedescendant={activeOption}
-                aria-label="Search actions and commands"
-                placeholder="Search actions and commands…"
+                aria-label={choosing ? `Search ${currentChoice!.label.toLocaleLowerCase()} options` : "Search actions and commands"}
+                placeholder={choosing ? `${currentChoice!.label}…` : "Search actions and commands…"}
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -450,89 +593,35 @@ export function CommandPalette({
               className="command-palette__results"
               id="command-palette-results"
               role="listbox"
-              aria-label="Available commands"
+              aria-label={choosing ? currentChoice!.label : "Available commands"}
             >
-              {ranked.length === 0 ? (
-                <div className="command-palette__empty">
-                  <strong>No matching actions</strong>
-                  <span>Try a component, configured command, or app control.</span>
+              {choosing && choiceError ? (
+                <div className="command-palette__empty" role="alert">
+                  <strong>No options available</strong>
+                  <span>{choiceError}</span>
                 </div>
-              ) : (
-                ranked.map((action, index) => {
-                  const favorite = favoriteActionIds.has(action.id);
-                  const displayGroup = favorite ? "Favorites" : action.group;
-                  const showGroup = displayGroup !== previousGroup;
-                  previousGroup = displayGroup;
-                  return (
-                    <div
-                      className="command-palette__result"
-                      key={action.id}
-                      role="presentation"
-                    >
-                      {showGroup ? (
-                        <div
-                          className="command-palette__group"
-                          aria-hidden="true"
-                          role="presentation"
-                        >
-                          {displayGroup}
-                        </div>
-                      ) : null}
-                      <div className="command-palette__option-row">
-                        <button
-                          id={optionId(index)}
-                          type="button"
-                          role="option"
-                          tabIndex={-1}
-                          aria-selected={index === selectedIndex}
-                          aria-disabled={!action.enabled}
-                          className={`command-palette__option${
-                            index === selectedIndex ? " command-palette__option--selected" : ""
-                          }${!action.enabled ? " command-palette__option--disabled" : ""}`}
-                          onMouseMove={(event) => {
-                            // Opening, filtering, and scrolling can put a row under a stationary cursor.
-                            if (event.movementX !== 0 || event.movementY !== 0) setSelectedIndex(index);
-                          }}
-                          onClick={(event) => choose(action, event.metaKey)}
-                        >
-                          <span className="command-palette__option-copy">
-                            <strong>{action.label}</strong>
-                            <span>
-                              {!action.enabled
-                                ? action.disabledReason
-                                : action.description ?? action.source ?? "Ready"}
-                            </span>
-                          </span>
-                          <span className="command-palette__option-meta">
-                            {actionShortcuts[action.id] ? <kbd>{keyboardShortcutLabel(actionShortcuts[action.id], mac)}</kbd> : null}
-                            {action.source ? <code>{action.source}</code> : null}
-                            {action.confirmation ? <span>Confirm</span> : null}
-                          </span>
-                        </button>
-                        <button
-                          className={`command-palette__favorite${favorite ? " command-palette__favorite--active" : ""}`}
-                          type="button"
-                          aria-label={`${favorite ? "Remove" : "Add"} ${action.label} ${favorite ? "from" : "to"} favorites`}
-                          aria-pressed={favorite}
-                          disabled={favoritesDisabled}
-                          title={favorite ? "Remove from favorites" : "Add to favorites"}
-                          onClick={() => onToggleFavorite(action.id)}
-                        >
-                          <span aria-hidden="true">{favorite ? "★" : "☆"}</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+              ) : rowCount === 0 ? (
+                <div className="command-palette__empty">
+                  <strong>{choosing ? "No matching options" : "No matching actions"}</strong>
+                  <span>
+                    {choosing
+                      ? "Try another name or ID."
+                      : "Try a component, configured command, or app control."}
+                  </span>
+                </div>
+              ) : choosing ? choiceRows() : actionRows()}
             </div>
 
             <footer className="command-palette__footer">
               <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
-              <span><kbd>↵</kbd> Run</span>
-              <span><kbd>⌘↵</kbd> Run and keep open</span>
+              <span><kbd>↵</kbd> {choosing ? "Select" : "Run"}</span>
+              {choosing
+                ? <span><kbd>Esc</kbd> Back</span>
+                : <span><kbd>⌘↵</kbd> Run and keep open</span>}
               <span className="command-palette__count">
-                {ranked.length} {ranked.length === 1 ? "action" : "actions"}
+                {choosing
+                  ? `${rankedChoiceOptions.length} of ${choiceOptions.length} ${choiceOptions.length === 1 ? "option" : "options"}`
+                  : `${entries.length} ${entries.length === 1 ? "result" : "results"}`}
               </span>
             </footer>
           </>
@@ -541,7 +630,9 @@ export function CommandPalette({
           {status ||
             (confirmationAction
               ? `Confirmation required for ${confirmationAction.label}.`
-              : `${ranked.length} ${ranked.length === 1 ? "action" : "actions"} available.`)}
+              : choosing
+                ? `${rankedChoiceOptions.length} ${rankedChoiceOptions.length === 1 ? "option" : "options"} available.`
+                : `${entries.length} ${entries.length === 1 ? "result" : "results"} available.`)}
         </div>
       </div>
     </div>

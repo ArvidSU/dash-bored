@@ -320,7 +320,9 @@ is out of scope here.
    action's `description` shows where it sits, and you should say which one
    you used. Pass an action's `reference` to `dash-bored app run`; an unknown
    one returns close `suggestions`. Choices show as counts; `--choices` lists
-   options for `--select <choice>=<option>`.
+   options for `--select <choice>=<option>`. In the desktop command palette,
+   users reach the same options by searching a name or node ID, which lists
+   rows such as `Focus component › Backlog`.
 3. `dash-bored app read <node-id>` returns a panel's full rendered text (all of
    it, even below the fold or on another tab) once its sources have loaded,
    and leaves the user's view as it was (`changes.revealed: true` means it

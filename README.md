@@ -816,10 +816,16 @@ until the expanded permission set is trusted.
 Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application controls, component navigation in the
 selected dashboard, its declared process resources, and component actions.
-Manifest-declared actions also stay in the palette and Settings while their
-component is collapsed or hidden; they show why they cannot run until mounted.
+Type a component, panel, theme, or dashboard name to jump straight to it:
+matches appear as rows such as **Focus component › Backlog** or
+**Select panel › Docs**. Choosing an action with options (**Focus component**,
+**Set dashboard theme**) narrows the same search box and list to its options;
+press <kbd>Esc</kbd> or <kbd>Backspace</kbd> in the empty box to step back.
+Manifest-declared actions also stay searchable in the palette and listed in
+Settings while their component is collapsed or hidden; they show why they cannot
+run until mounted.
 Choose **Switch dashboard** in the palette to open another registered dashboard;
-searching its name also finds that chooser. Other dashboards remain reachable
+searching its name lists it as a **Switch dashboard** option. Other dashboards remain reachable
 from the sidebar. With the palette closed, hold <kbd>Command</kbd> to show
 number hints on the first nine dashboard icons and press <kbd>1</kbd>–<kbd>9</kbd>
 to switch to that dashboard. Drag a dashboard icon or row above or below another

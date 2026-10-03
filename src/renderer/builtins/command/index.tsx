@@ -8,6 +8,7 @@ import type { ComponentRendererProps } from "../types";
 import { CapabilityGate, stringProp } from "../shared";
 import { isProcessLive, isProcessRunActive, processRun, processRunFailed, processRunOutcome } from "../../../shared/process-state";
 import { fitTerminal } from "../../lib/terminal-fit";
+import { verbLabel } from "../../lib/actions";
 
 export default function Command({
   props,
@@ -39,7 +40,7 @@ export default function Command({
 
   useEffect(() => componentHost.actions.register({
     id: "run",
-    label: `Run ${label}`,
+    label: verbLabel("Run", label),
     description: "Run the configured command with selected item values in DASH_ITEM_* environment variables.",
     enabled: Boolean(processApi?.start) && !runActive && !stopping,
     disabledReason: !processApi?.start ? "Trust this project to run the command."

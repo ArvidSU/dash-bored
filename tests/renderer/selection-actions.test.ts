@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ProjectSnapshot, ResolvedComponentNode } from "../../src/shared/contracts";
 import { buildRevealActions, buildSelectionActions, revealItemArgument } from "../../src/renderer/lib/selection-actions";
 import { getBuiltinManifest } from "../../src/core/builtins";
-import { rankActions } from "../../src/renderer/lib/actions";
+import { rankActions, rankPaletteEntries } from "../../src/renderer/lib/actions";
 
 const child: ResolvedComponentNode = { id: "overview", component: "@dash-bored/status", props: { title: "Overview" }, source: "builtin" };
 const other: ResolvedComponentNode = { id: "details", component: "@dash-bored/markdown", props: { title: "Details" }, source: "builtin" };
@@ -17,14 +17,27 @@ describe("selection and reveal actions", () => {
   test("offers one active selection action per managed child", () => {
     const actions = buildSelectionActions(snapshot, {}, () => {});
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
-      ["select:panels/overview", true], ["select:panels/details", false],
+      ["project:select", undefined], ["select:panels/overview", true], ["select:panels/details", false],
     ]);
+  });
+
+  test("lists unselected panels under one chooser and keeps direct selection actions out of the main list", async () => {
+    const selected: string[] = [];
+    const actions = buildSelectionActions(snapshot, {}, (containerId, childId) => { selected.push(`${containerId}/${childId}`); });
+    expect(actions.slice(1).every(({ parentActionId }) => parentActionId === "project:select")).toBeTrue();
+    expect(actions[0]!.choices?.[0]?.options).toEqual([
+      { value: "select:panels/details", label: "Details", description: "details · Dashboard" },
+    ]);
+    expect(rankActions(actions, "").map(({ id }) => id)).toEqual(["project:select"]);
+    await actions[0]!.run({ panel: "select:panels/details" });
+    expect(selected).toEqual(["panels/details"]);
+    expect(() => actions[0]!.run({ panel: "select:panels/overview" })).toThrow("Choose an available panel");
   });
 
   test("labels selection actions with the edge's panel label before the node's own name", () => {
     const labelled = { ...container, children: [{ node: child, metadata: { label: "Health" } }, { node: other }] };
     const actions = buildSelectionActions({ ...snapshot, tree: labelled }, {}, () => {});
-    expect(actions.map(({ label }) => label)).toEqual(["Select Health", "Select Details"]);
+    expect(actions.map(({ label }) => label)).toEqual(["Select panel", "Select Health", "Select Details"]);
   });
 
   test("ships a generic selection container and honors its YAML default child", () => {
@@ -34,7 +47,7 @@ describe("selection and reveal actions", () => {
     const configured = { ...container, props: { defaultChild: "details" } };
     const actions = buildSelectionActions({ ...snapshot, tree: configured }, {}, () => {});
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
-      ["select:panels/overview", false], ["select:panels/details", true],
+      ["project:select", undefined], ["select:panels/overview", false], ["select:panels/details", true],
     ]);
   });
 
@@ -53,13 +66,16 @@ describe("selection and reveal actions", () => {
       calls.push(nodeId);
     });
     expect(rankActions(actions, "reveal").map(({ id }) => id)).toEqual(["project:reveal"]);
-    expect(rankActions(actions, "details").map(({ id }) => id)).toEqual(["project:reveal"]);
+    expect(rankActions(actions, "details").map(({ id }) => id)).toEqual([]);
+    expect(rankPaletteEntries(actions, "details").map((entry) =>
+      entry.kind === "option" ? `${entry.action.id} › ${entry.option.value}` : entry.action.id,
+    )).toEqual(["project:reveal › details"]);
     expect(rankActions(actions, "", new Set(["reveal:details"])).map(({ id }) => id)).toEqual(["project:reveal"]);
     expect(rankActions(actions, "reveal", new Set(), true).map(({ id }) => id)).toContain("reveal:details");
     expect(actions[0]!.choices?.[0]?.options).toEqual([
-      { value: "panels", label: "Dashboard", description: actions[1]!.description },
-      { value: "overview", label: "Overview", description: actions[2]!.description },
-      { value: "details", label: "Details", description: actions[3]!.description },
+      { value: "panels", label: "Dashboard", description: "panels" },
+      { value: "overview", label: "Overview", description: "overview" },
+      { value: "details", label: "Details", description: "details" },
     ]);
     await actions[0]!.run({ node: "details" });
     expect(calls).toEqual(["details"]);

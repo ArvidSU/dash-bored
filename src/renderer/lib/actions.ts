@@ -32,6 +32,8 @@ export interface PaletteAction {
   choices?: readonly ComponentActionChoice[];
   process?: ProcessSnapshot;
   invocationOutcome?: "started" | "completed" | "prepared";
+  /** Declared by a manifest but not registered by mounted component code; listed only in searches. */
+  declaredOnly?: boolean;
   run(selections?: ComponentActionSelections, args?: Record<string, unknown>, callerNodeId?: string): void | Promise<void>;
 }
 
@@ -250,6 +252,7 @@ function sameActionPresentation(left: readonly PaletteAction[], right: readonly 
       })),
       candidate.process,
       candidate.invocationOutcome,
+      candidate.declaredOnly,
     ];
     return JSON.stringify(fields(action)) === JSON.stringify(fields(other));
   });
@@ -532,48 +535,72 @@ function normalize(value: string): string {
     .replace(/\s+/g, " ");
 }
 
-function subsequenceScore(haystack: string, needle: string): number | null {
-  let position = 0;
-  let first = -1;
-  let gaps = 0;
-  for (const character of needle) {
-    const found = haystack.indexOf(character, position);
-    if (found === -1) return null;
-    if (first === -1) first = found;
-    gaps += found - position;
-    position = found + 1;
-  }
-  return 60 + first + gaps;
+/** Prefix a verb unless the label already starts with it ("Run QA", not "Run Run QA"). */
+export function verbLabel(verb: string, label: string): string {
+  return normalize(label).split(" ")[0] === normalize(verb) ? label : `${verb} ${label}`;
 }
 
-function fieldScore(field: string, query: string): number | null {
-  const value = field;
+/**
+ * How permissive matching is for a field. Visible labels allow substrings and
+ * fuzzy abbreviations; author keywords allow substrings; descriptive metadata
+ * (descriptions, shell commands, paths, groups) only matches whole words or
+ * word prefixes so incidental letters in long text never surface a result.
+ */
+type MatchMode = "label" | "keyword" | "metadata";
+
+interface SearchField {
+  value: string;
+  penalty: number;
+  mode: MatchMode;
+}
+
+function subsequenceScore(haystack: string, needle: string): number | null {
+  if (needle.length < 2) return null;
+  let best: number | null = null;
+  // Abbreviations start at a word boundary and stay reasonably compact.
+  for (let start = haystack.indexOf(needle[0]!); start !== -1; start = haystack.indexOf(needle[0]!, start + 1)) {
+    if (start > 0 && haystack[start - 1] !== " ") continue;
+    let position = start + 1;
+    let gaps = 0;
+    for (const character of needle.slice(1)) {
+      const found = haystack.indexOf(character, position);
+      if (found === -1) return best;
+      gaps += found - position;
+      position = found + 1;
+    }
+    if (gaps > needle.length * 3) continue;
+    const score = 60 + start + gaps;
+    if (best === null || score < best) best = score;
+  }
+  return best;
+}
+
+function fieldScore(value: string, query: string, mode: MatchMode): number | null {
   if (!value) return null;
   if (value === query) return 0;
   if (value.startsWith(query)) return 5;
-  const tokenIndex = value
-    .split(/\s+/)
-    .findIndex((token) => token.startsWith(query));
+  const tokens = value.split(" ");
+  const tokenIndex = tokens.findIndex((token) => token.startsWith(query));
   if (tokenIndex !== -1) return 10 + tokenIndex;
+  if (mode === "metadata") return null;
+  if (mode === "label" && query.length > 1 && !query.includes(" ")) {
+    // Word initials: "sdt" finds "Set dashboard theme".
+    const initials = tokens.map((token) => token[0]).join("");
+    const initialsIndex = initials.indexOf(query);
+    if (initialsIndex !== -1) return 20 + initialsIndex;
+  }
   const substring = value.indexOf(query);
   if (substring !== -1) return 25 + substring;
-  return subsequenceScore(value, query);
+  return mode === "label" ? subsequenceScore(value, query) : null;
 }
 
-function actionScore(action: PaletteAction, query: string): number | null {
+function searchableFieldsScore(fields: readonly SearchField[], query: string): number | null {
   if (!query) return 0;
-  // Visible names should beat incidental description, group, or path matches.
-  const fields = [
-    { value: action.label, penalty: 0 },
-    ...action.keywords.map((value) => ({ value, penalty: 15 })),
-    { value: action.description ?? "", penalty: 30 },
-    { value: action.group, penalty: 40 },
-    { value: action.source ?? "", penalty: 40 },
-  ].map(({ value, penalty }) => ({ value: normalize(value), penalty }));
+  const normalizedFields = fields.map((field) => ({ ...field, value: normalize(field.value) }));
   const bestFieldScore = (term: string): number | null => {
     let best: number | null = null;
-    for (const { value, penalty } of fields) {
-      const score = fieldScore(value, term);
+    for (const { value, penalty, mode } of normalizedFields) {
+      const score = fieldScore(value, term, mode);
       if (score !== null && (best === null || score + penalty < best)) {
         best = score + penalty;
       }
@@ -593,6 +620,67 @@ function actionScore(action: PaletteAction, query: string): number | null {
   return best;
 }
 
+function actionScore(action: PaletteAction, query: string): number | null {
+  // Visible names should beat incidental description, group, or path matches.
+  return searchableFieldsScore([
+    { value: action.label, penalty: 0, mode: "label" },
+    ...action.keywords.map((value) => ({ value, penalty: 15, mode: "keyword" as const })),
+    { value: action.description ?? "", penalty: 30, mode: "metadata" },
+    { value: action.group, penalty: 40, mode: "metadata" },
+    { value: action.source ?? "", penalty: 40, mode: "metadata" },
+  ], query);
+}
+
+function optionScore(option: ComponentActionOption, query: string): number | null {
+  return searchableFieldsScore([
+    { value: option.label, penalty: 0, mode: "label" },
+    { value: option.value, penalty: 15, mode: "keyword" },
+    { value: option.description ?? "", penalty: 30, mode: "metadata" },
+  ], query);
+}
+
+/** Rank a choice's options with the palette's exact, prefix, word, and fuzzy label matching. */
+export function rankActionChoiceOptions(
+  options: readonly ComponentActionOption[],
+  rawQuery: string,
+): ComponentActionOption[] {
+  const query = normalize(rawQuery);
+  return options
+    .map((option, index) => ({ option, index, score: optionScore(option, query) }))
+    .filter((item): item is { option: ComponentActionOption; index: number; score: number } => item.score !== null)
+    .sort((left, right) => left.score - right.score || left.index - right.index)
+    .map(({ option }) => option);
+}
+
+interface ScoredAction {
+  action: PaletteAction;
+  index: number;
+  score: number;
+}
+
+function scoreActions(
+  actions: readonly PaletteAction[],
+  query: string,
+  includeSubActions: boolean,
+): ScoredAction[] {
+  return actions
+    .filter((action) => includeSubActions || !action.parentActionId)
+    .map((action, index) => {
+      const score = actionScore(action, query);
+      // While searching, unavailable actions sit below available matches of similar relevance.
+      return { action, index, score: score === null ? null : score + (query && !action.enabled ? 20 : 0) };
+    })
+    .filter((item): item is ScoredAction => item.score !== null);
+}
+
+function groupOrderOf(actions: readonly PaletteAction[]): Map<string, number> {
+  const groupOrder = new Map<string, number>();
+  for (const action of actions) {
+    if (!groupOrder.has(action.group)) groupOrder.set(action.group, groupOrder.size);
+  }
+  return groupOrder;
+}
+
 export function rankActions(
   actions: readonly PaletteAction[],
   rawQuery: string,
@@ -600,18 +688,8 @@ export function rankActions(
   includeSubActions = false,
 ): PaletteAction[] {
   const query = normalize(rawQuery);
-  const groupOrder = new Map<string, number>();
-  for (const action of actions) {
-    if (!groupOrder.has(action.group)) groupOrder.set(action.group, groupOrder.size);
-  }
-
-  return actions
-    .filter((action) => includeSubActions || !action.parentActionId)
-    .map((action, index) => ({ action, index, score: actionScore(action, query) }))
-    .filter(
-      (item): item is { action: PaletteAction; index: number; score: number } =>
-        item.score !== null,
-    )
+  const groupOrder = groupOrderOf(actions);
+  return scoreActions(actions, query, includeSubActions)
     .sort(
       (left, right) =>
         Number(favoriteActionIds.has(right.action.id)) -
@@ -622,6 +700,126 @@ export function rankActions(
         left.index - right.index,
     )
     .map(({ action }) => action);
+}
+
+/** A command-palette row: an action, or one option of an action's first choice. */
+export type PaletteEntry =
+  | {
+      kind: "action";
+      key: string;
+      action: PaletteAction;
+      /** Options of this action's first choice that match the search; the chooser opens filtered. */
+      optionMatches?: number;
+    }
+  | {
+      kind: "option";
+      key: string;
+      action: PaletteAction;
+      choice: ComponentActionChoice;
+      option: ComponentActionOption;
+    };
+
+/** Option rows shown per chooser before the chooser itself stands in for the rest. */
+export const PALETTE_OPTION_RESULT_LIMIT = 3;
+
+/** Present an action once when several providers describe the same control. */
+function dedupePaletteActions(actions: readonly PaletteAction[]): PaletteAction[] {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    if (!action.source) return true;
+    const key = `${normalize(action.label)}\u0000${action.source}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function firstChoiceOptions(action: PaletteAction): { options: readonly ComponentActionOption[] } | { error: string } | null {
+  const choice = action.choices?.[0];
+  if (!choice) return null;
+  try {
+    return { options: resolveActionChoiceOptions(choice, {}) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "This action has no usable options." };
+  }
+}
+
+/**
+ * Rank palette rows. Sub-actions stay out of the list; instead a search also
+ * matches the options of each chooser, so a component, dashboard, or panel can
+ * be reached by name without opening its chooser first.
+ */
+export function rankPaletteEntries(
+  actions: readonly PaletteAction[],
+  rawQuery: string,
+  favoriteActionIds: ReadonlySet<string> = new Set(),
+): PaletteEntry[] {
+  const query = normalize(rawQuery);
+  // Placeholders for unmounted components stay searchable without crowding the full list.
+  const listed = query ? actions : actions.filter((action) => !action.declaredOnly);
+  const unique = dedupePaletteActions(listed).map((action): PaletteAction => {
+    const resolved = action.enabled ? firstChoiceOptions(action) : null;
+    return resolved && "error" in resolved
+      ? { ...action, enabled: false, disabledReason: "No options are available right now." }
+      : action;
+  });
+  const groupOrder = groupOrderOf(unique);
+  type Scored = { entry: PaletteEntry; score: number; index: number; order: number; favorite: boolean };
+  const scored: Scored[] = scoreActions(unique, query, false).map(({ action, index, score }) => ({
+    entry: { kind: "action", key: action.id, action },
+    score,
+    index,
+    order: 0,
+    favorite: favoriteActionIds.has(action.id),
+  }));
+  if (query) {
+    unique.forEach((action, index) => {
+      const choice = action.choices?.[0];
+      const resolved = firstChoiceOptions(action);
+      if (action.parentActionId || !choice || !resolved || "error" in resolved) return;
+      const matches = resolved.options
+        .map((option, position) => {
+          // Options match by name or stable value; their descriptions are context, not search targets.
+          const score = searchableFieldsScore([
+            { value: option.label, penalty: 0, mode: "keyword" },
+            { value: option.value, penalty: 10, mode: "metadata" },
+          ], query);
+          return { option, position, score: score === null ? null : score + 5 + (action.enabled ? 0 : 20) };
+        })
+        .filter((item): item is { option: ComponentActionOption; position: number; score: number } => item.score !== null)
+        .sort((left, right) => left.score - right.score || left.position - right.position);
+      if (matches.length === 0) return;
+      const shown = matches.slice(0, PALETTE_OPTION_RESULT_LIMIT);
+      shown.forEach(({ option, score }, order) => scored.push({
+        entry: { kind: "option", key: `${action.id}\u0000${option.value}`, action, choice, option },
+        score,
+        index,
+        order: order + 1,
+        favorite: false,
+      }));
+      if (matches.length <= PALETTE_OPTION_RESULT_LIMIT) return;
+      const own = scored.find((item) => item.entry.kind === "action" && item.entry.action.id === action.id);
+      if (own) return;
+      // The chooser follows the options it summarizes and opens filtered to the rest.
+      scored.push({
+        entry: { kind: "action", key: action.id, action, optionMatches: matches.length },
+        score: shown.at(-1)!.score,
+        index,
+        order: shown.length + 1,
+        favorite: favoriteActionIds.has(action.id),
+      });
+    });
+  }
+  return scored
+    .sort(
+      (left, right) =>
+        Number(right.favorite) - Number(left.favorite) ||
+        left.score - right.score ||
+        (groupOrder.get(left.entry.action.group) ?? 0) - (groupOrder.get(right.entry.action.group) ?? 0) ||
+        left.index - right.index ||
+        left.order - right.order,
+    )
+    .map(({ entry }) => entry);
 }
 
 export type ActionRunResult =

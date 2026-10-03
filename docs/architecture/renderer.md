@@ -260,8 +260,8 @@ the structural editor's temporary tree-branch collapse state.
 Managed containers may declare `select: single` in their child contract. The
 renderer persists one selected direct child ID per container and dashboard;
 unselected child handles remain available to the owning component but do not
-mount their rendered subtree. Core supplies `select:<container>/<child>` palette
-actions with active state. `reveal:<node>` expands its ancestors, selects the
+mount their rendered subtree. Core supplies `select:<container>/<child>`
+actions with active state, listed in the palette through **Select panel**. `reveal:<node>` expands its ancestors, selects the
 path through every switching ancestor, and scrolls it into view. An optional
 `{ item: <stable ID> }` argument (validated at load, with whole-value item
 templates allowed in `itemActions`) then scrolls to the element carrying that
@@ -621,14 +621,19 @@ choice options always close over current state. The command palette merges three
 - one **Focus component** action whose choice step lists the available nodes in
   the currently selected dashboard, using the same focused projection as the
   inline Focus controls. Individual `focus:<node-id>` actions declare
-  `parentActionId: project:focus` and stay out of top-level palette results,
-  including searches and favorites, while remaining callable through buttons,
-  shortcuts, and agent tools;
+  `parentActionId: project:focus` and stay out of top-level palette results and
+  favorites while remaining callable through buttons, shortcuts, and agent
+  tools;
 - one **Reveal component** action whose choice step lists every resolved node
   in the selected dashboard. Individual `reveal:<node-id>` actions declare
-  `parentActionId: project:reveal` and stay out of top-level palette results,
-  including searches and favorites. Buttons, shortcuts, and agent tools retain
-  those stable actions and their optional item argument;
+  `parentActionId: project:reveal` and stay out of top-level palette results
+  and favorites. Buttons, shortcuts, and agent tools retain those stable
+  actions and their optional item argument;
+- one **Select panel** action whose choice step lists the unselected children of
+  every single-selection container. Individual
+  `select:<container-id>/<child-id>` actions declare
+  `parentActionId: project:select`; they stay callable and still define the
+  selections the agent-control status reports;
 - run actions (`process:<node-id>`) derived from every resolved process
   resource and its authoritative process snapshot, disabled only while a run
   is active, plus a separate close/stop action while the terminal or process
@@ -636,10 +641,19 @@ choice options always close over current state. The command palette merges three
 - manifest-declared component actions for mounted and unmounted nodes, plus
   registrations from mounted, trusted local component instances.
 
+Focus, Reveal, and Select panel options name a node by the panel label on its
+parent edge, falling back to its own title or component name, and describe it
+by stable node ID followed by its ancestors below the dashboard root.
+
 Known actions remain searchable when unavailable and carry a reason. For
 example, configured commands remain visible before project trust, while
-manifest-declared component actions remain visible before their code mounts
-with the reason `Component is not mounted`. Process actions call
+manifest-declared component actions remain searchable before their code mounts
+with the reason `Component is not mounted`. Those `declaredOnly` placeholders
+are left out of the unsearched list so hidden tabs do not fill it, and their
+rows name the owning node ID. When several providers describe the same control
+(the same label and source node, such as a Command component's mounted `run`
+action and its `process:<node-id>` action), the palette lists the first once.
+A chooser whose first choice resolves no options is shown unavailable. Process actions call
 the same typed `processCommand` RPC used by any component UI;
 the palette never executes a shell command directly.
 
@@ -667,14 +681,25 @@ add-dashboard, and any confirmation-requiring action, so the channel never
 widens what a palette action may do. See [Security](./security.md).
 
 Actions may declare ordered choices. The palette collects each selection before
-running the action, presents options as full-width stacked buttons in a bounded,
-scrollable single-column dialog, and focuses the first option on each step.
-Up/Down moves focus between options, wrapping at either end and scrolling the
-focused option into view; Enter selects it. Tab still reaches Back and Cancel.
-Escape returns one step, restores search focus from the first step, and closes
-the palette only from search. Back follows the same step navigation. It passes the
-completed selection map to the action. Choice options may depend on earlier
-selections; shortcuts open the same choice flow rather than bypassing it.
+running the action, and every choice step reuses the action search's input,
+row list, keyboard model, and footer: the input's placeholder names the
+choice, and a breadcrumb chip before it names the action and the options
+already chosen. Options filter by label, value, and description with the action
+search's matching rules. Up/Down moves the active row, wrapping at either end
+and scrolling it into view; Enter selects it while keyboard focus stays in the
+input. Escape, Backspace in an empty input, and clicking the breadcrumb return
+one step; returning from the first step restores the action search text and
+selection, and Escape closes the palette only from the action search. The
+palette passes the completed selection map to the action. Choice options may
+depend on earlier selections; shortcuts open the same choice flow rather than
+bypassing it. Confirmation remains a separate dialog step.
+
+A non-empty search also matches the options of each chooser's first choice by
+option label or stable value (not description). Up to three matching options
+per chooser appear as `Action › Option` rows that run the action with that
+selection, continuing to any later choice or confirmation. When more options
+match, the chooser row itself follows them with a match count and opens filtered
+by the same search. Sub-actions with `parentActionId` never appear as rows.
 
 The palette is application-scoped. A visible header control and the native
 application-menu accelerator `CommandOrControl+K` open it; the menu sends a
@@ -682,10 +707,18 @@ typed main-to-renderer message. This is not an operating-system-global hotkey.
 Search and keyboard interaction are implemented in the renderer without an
 external palette dependency. Non-empty searches rank match quality across
 provider groups, weighting visible action labels above keywords and incidental
-description, group, or source matches. Exact and prefix matches beat loose fuzzy
-matches; multiword queries also match partial words in any order and across
-fields, requiring every word. Empty queries retain provider group order, and
-groups plus registration order break relevance ties. Opening the palette and
+description, group, or source matches. Labels match exactly, by prefix, by word
+prefix, by word initials, by substring, and by compact fuzzy abbreviations that
+start at a word boundary; keywords match up to substrings; descriptions, groups,
+and sources (which hold shell commands, paths, and node IDs) match only whole
+words or word prefixes, so scattered letters in long metadata never surface a
+result. Multiword queries also match partial words in any order and across
+fields, requiring every word. Unavailable actions rank below available ones of
+similar relevance while searching. Empty queries retain provider group order
+under group headings; search results are ordered by relevance without headings,
+and groups plus registration order break ties. Rows show one secondary line
+(description, unavailable reason, or option context); stars appear on the
+selected or hovered row and on favorites. Opening the palette and
 editing the search select the top result. Hover selection changes only on mouse
 movement; results moving under a stationary cursor cannot override search or
 keyboard selection.
@@ -694,8 +727,9 @@ Palette results retain application controls and the selected dashboard's
 actions. One **Switch dashboard** action offers available registered dashboards
 as choices, identified by canonical config path. The individual
 `dashboard:<encoded-config-path>` actions declare
-`parentActionId: app:switch-dashboard`, keeping them out of main results,
-searches, and favorites. The sidebar, shortcut registry, Settings action catalog,
+`parentActionId: app:switch-dashboard`, keeping them out of main results and
+favorites; a search naming a dashboard lists it as a `Switch dashboard › Name`
+option row. The sidebar, shortcut registry, Settings action catalog,
 and agent-control channel retain their existing dashboard navigation actions.
 Holding Command on Enter or an action click keeps the palette open. That intent
 also carries through choice and confirmation steps; it can be set on the final

@@ -3680,7 +3680,7 @@ html:has(.editor-modal) {
 .command-palette__option {
   display: flex;
   width: 100%;
-  min-height: 52px;
+  min-height: 40px;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -3699,8 +3699,65 @@ html:has(.editor-modal) {
   align-items: center;
 }
 
-.command-palette__favorite {
+.command-palette__favorite,
+.command-palette__favorite-spacer {
+  width: 32px;
   margin-right: 5px;
+}
+
+/* Stars stay out of the way until a row is pointed at, selected, or already a favorite. */
+.command-palette__option-row:not(:hover, .command-palette__option-row--selected)
+  .command-palette__favorite:not(.command-palette__favorite--active, :focus-visible) {
+  opacity: 0;
+}
+
+.command-palette__option-row--plain {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.command-palette__option-parent {
+  color: var(--muted);
+  font-weight: 560;
+}
+
+.command-palette__option-separator {
+  margin: 0 6px;
+  color: var(--faint);
+}
+
+.command-palette__crumb {
+  display: inline-flex;
+  max-width: min(300px, 42vw);
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px 5px 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.command-palette__crumb:hover,
+.command-palette__crumb:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.command-palette__search .command-palette__crumb svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.command-palette__crumb-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-palette__option--selected {
@@ -3744,14 +3801,6 @@ html:has(.editor-modal) {
   gap: 6px;
   color: var(--faint);
   font-size: 9px;
-}
-
-.command-palette__option-meta code {
-  display: block;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .command-palette__option-meta > span {
@@ -3812,42 +3861,6 @@ html:has(.editor-modal) {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 17px;
   padding: 24px;
-}
-
-.command-palette__confirmation.command-palette__choices {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  max-height: min(70vh, 640px);
-  overflow-y: auto;
-  overflow-wrap: anywhere;
-}
-
-.command-palette__choices h3 {
-  margin: 0;
-}
-
-.command-palette__choice-list {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.command-palette__choice {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-  padding: 12px 14px;
-  text-align: left;
-  white-space: normal;
-}
-
-.command-palette__choice > span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
 }
 
 .command-palette__confirmation-mark {
@@ -4110,10 +4123,6 @@ html:has(.editor-modal) {
   }
 
   .command-palette__search > kbd {
-    display: none;
-  }
-
-  .command-palette__option-meta code {
     display: none;
   }
 

@@ -11,6 +11,8 @@ import type { PaletteAction } from "./actions";
 import { componentActionReference } from "../../shared/action-reference";
 import { isProcessLive, isProcessRunActive } from "../../shared/process-state";
 import { childNodes } from "./component-children";
+import { verbLabel } from "./actions";
+import { dashboardNodeEntries, dashboardNodeOptionDescription } from "./virtual-root";
 
 export type AppView = "dashboard" | "settings";
 
@@ -89,31 +91,6 @@ function blockedReason(pendingAction: string | null): string | undefined {
     : "Another application action is in progress.";
 }
 
-function focusNodeLabel(node: ResolvedComponentNode, isRoot: boolean): string {
-  if (isRoot) return "Dashboard";
-  const title = node.props.title ?? node.props.label ?? node.props.name;
-  if (typeof title === "string" && title.trim()) return title.trim();
-  return node.manifest?.name ?? node.component.replace(/^@dash-bored\//, "");
-}
-
-interface FocusNodeContext {
-  node: ResolvedComponentNode;
-  path: string[];
-}
-
-function dashboardNodes(
-  node: ResolvedComponentNode,
-  path: readonly string[] = [],
-  isRoot = true,
-): FocusNodeContext[] {
-  const label = focusNodeLabel(node, isRoot);
-  const nextPath = [...path, label];
-  return [
-    { node, path: nextPath },
-    ...childNodes(node).flatMap((child) => dashboardNodes(child, nextPath, false)),
-  ];
-}
-
 export function buildNodeFocusActions(
   snapshot: ProjectSnapshot | null,
   focusedNodeId: string | null,
@@ -122,15 +99,16 @@ export function buildNodeFocusActions(
 ): PaletteAction[] {
   if (!snapshot?.projectRoot || !snapshot.tree) return [];
 
-  const nodes = dashboardNodes(snapshot.tree);
-  const targets = nodes.map(({ node, path }) => {
+  const nodes = dashboardNodeEntries(snapshot.tree);
+  const targets = nodes.map((entry) => {
+    const { node, path } = entry;
     const alreadyFocused = node.id === focusedNodeId;
     const disabledReason = editing
       ? "Finish dashboard editing before focusing a node."
       : alreadyFocused
         ? "This node is already focused."
         : undefined;
-    return {
+    return { action: {
       id: `focus:${encodeURIComponent(node.id)}`,
       parentActionId: "project:focus",
       label: `Focus ${path.at(-1)}`,
@@ -149,9 +127,9 @@ export function buildNodeFocusActions(
       enabled: disabledReason === undefined,
       ...(disabledReason ? { disabledReason } : {}),
       run: () => focusNode(node.id),
-    } satisfies PaletteAction;
+    } satisfies PaletteAction, entry };
   });
-  const availableTargets = targets.filter((action) => action.enabled);
+  const availableTargets = targets.filter(({ action }) => action.enabled);
   const disabledReason = editing
     ? "Finish dashboard editing before focusing a node."
     : availableTargets.length === 0 ? "This node is already focused." : undefined;
@@ -159,25 +137,26 @@ export function buildNodeFocusActions(
     id: "project:focus",
     label: "Focus component",
     description: "Choose a component to show in the active dashboard.",
-    keywords: ["focus", "node", snapshot.dashboardName ?? "", ...targets.flatMap((action) => action.keywords)],
+    // Search reaches individual targets through the chooser's options.
+    keywords: ["focus", "node"],
     group: "Dashboard nodes",
     enabled: disabledReason === undefined,
     ...(disabledReason ? { disabledReason } : {}),
     choices: [{
       id: "node",
       label: "Focus component",
-      options: availableTargets.map((action) => ({
-        value: action.source!,
-        label: action.label.replace(/^Focus /, ""),
-        description: action.description,
+      options: availableTargets.map(({ entry }) => ({
+        value: entry.node.id,
+        label: entry.label,
+        description: dashboardNodeOptionDescription(entry),
       })),
     }],
     run: (selections) => {
-      const target = availableTargets.find((action) => action.source === selections?.node);
+      const target = availableTargets.find(({ entry }) => entry.node.id === selections?.node);
       if (!target) throw new Error("Choose an available component to focus.");
-      target.run();
+      target.action.run();
     },
-  } satisfies PaletteAction, ...targets];
+  } satisfies PaletteAction, ...targets.map(({ action }) => action)];
 }
 
 /** Stable palette entries for declared actions whose component code is not mounted. */
@@ -206,6 +185,7 @@ export function buildDeclaredComponentActions(
         source: node.id,
         enabled: false,
         disabledReason,
+        declaredOnly: true,
         run: () => undefined,
       } satisfies PaletteAction];
     });
@@ -383,7 +363,8 @@ export function buildApplicationActions(
       id: "app:switch-dashboard",
       label: "Switch dashboard",
       description: "Choose a registered dashboard to open.",
-      keywords: ["open", "switch", "dashboard", "project", ...projects.flatMap((project) => [projectLabel(project), project.configPath])],
+      // Search reaches individual dashboards through the chooser's options.
+      keywords: ["open", "switch", "dashboard", "project"],
       group: "Dashboards",
       enabled: disabledReason === undefined,
       ...(disabledReason ? { disabledReason } : {}),
@@ -558,7 +539,7 @@ export function buildProcessActions(
       ?? (runActive ? "This command is already running." : blockedReason(pendingAction));
     const runAction: PaletteAction = {
       id: `process:${encodeURIComponent(node.id)}`,
-      label: `Run ${label}`,
+      label: verbLabel("Run", label),
       ...(command ? { description: command } : {}),
       keywords: [node.id, "process", "command", command ?? ""],
       group: "Project commands",

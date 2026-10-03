@@ -403,9 +403,11 @@ The application shell should expose its own navigation and lifecycle actions,
 configured project commands, and actions contributed by active components
 through one searchable command palette.
 The palette keeps application controls available while limiting dashboard
-actions to the selected dashboard. One Switch dashboard chooser keeps navigation
-to other registered dashboards available without listing their individual
-actions in the main results. Users can drag sidebar dashboards into their
+actions to the selected dashboard. Choosers keep long target lists out of the
+main results: one Switch dashboard chooser covers other registered dashboards,
+and Focus, Reveal, and Select panel choosers cover the selected dashboard's
+components and panels. Searching a target's name still finds it directly under
+its chooser, and every choice step uses the same search box and result list. Users can drag sidebar dashboards into their
 preferred saved order. With the palette closed, Command reveals number hints on
 the first nine dashboard icons, and Command plus 1–9 navigates in that order.
 Selecting the already active dashboard by sidebar click or Command number toggles

@@ -2,8 +2,12 @@ import { describe, expect, test } from "bun:test";
 import {
   ActionStore,
   matchActionChoiceSelections,
+  PALETTE_OPTION_RESULT_LIMIT,
+  rankActionChoiceOptions,
   rankActions,
+  rankPaletteEntries,
   resolveActionChoiceOptions,
+  verbLabel,
 } from "../../src/renderer/lib/actions";
 import type {
   ComponentActionOwner,
@@ -16,6 +20,7 @@ import {
   buildNodeFocusActions,
 } from "../../src/renderer/lib/action-providers";
 import type {
+  ComponentActionOption,
   ProjectSnapshot,
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
@@ -349,12 +354,87 @@ describe("action search and execution", () => {
     expect(rankActions(actions, "start nonexistent")).toEqual([]);
   });
 
+  test("ranks large choice lists by searchable labels, descriptions, and stable values", () => {
+    const options: ComponentActionOption[] = Array.from({ length: 500 }, (_, index) => ({
+      value: `node-${String(index).padStart(3, "0")}`,
+      label: `Panel ${String(index).padStart(3, "0")}`,
+      description: `Overview / group ${index % 10}`,
+    }));
+    expect(rankActionChoiceOptions(options, "panel 417").map(({ value }) => value)).toEqual(["node-417"]);
+    expect(rankActionChoiceOptions(options, "node-417").map(({ value }) => value)).toEqual(["node-417"]);
+    expect(rankActionChoiceOptions(options, "overview group").length).toBe(500);
+    expect(rankActionChoiceOptions(options, "missing target")).toEqual([]);
+  });
+
   test("retains fuzzy abbreviations below direct matches", () => {
     const actions = [
       action("fuzzy", { label: "Reload dashboard" }),
       action("direct", { label: "Rld status", group: "Component" }),
     ];
     expect(rankActions(actions, "rld").map(({ id }) => id)).toEqual(["direct", "fuzzy"]);
+  });
+
+  test("matches long metadata only by whole words, never by scattered letters", () => {
+    const actions = [
+      action("echo", { label: "Echo item values", description: "printf 'DASH_ITEM_NAME=%s DASH_ITEM_COUNT=%s'", group: "Project commands" }),
+      action("theme", { label: "Set dashboard theme", group: "Themes" }),
+      action("tests", { label: "Verify diffs", description: "bun test tests/main/diff.test.ts" }),
+    ];
+    expect(rankActions(actions, "theme").map(({ id }) => id)).toEqual(["theme"]);
+    expect(rankActions(actions, "test").map(({ id }) => id)).toEqual(["tests"]);
+    expect(rankActions(actions, "count").map(({ id }) => id)).toEqual(["echo"]);
+    expect(rankActions(actions, "ount").map(({ id }) => id)).toEqual([]);
+    expect(rankActions(actions, "sdt").map(({ id }) => id)).toEqual(["theme"]);
+  });
+
+  test("ranks unavailable actions below available matches while searching", () => {
+    const actions = [
+      action("disabled", { label: "Show dashboard", enabled: false, disabledReason: "Already visible." }),
+      action("enabled", { label: "Show dashboard settings" }),
+    ];
+    expect(rankActions(actions, "show dashboard").map(({ id }) => id)).toEqual(["enabled", "disabled"]);
+    expect(rankActions(actions, "").map(({ id }) => id)).toEqual(["disabled", "enabled"]);
+  });
+
+  test("prefixes verbs once", () => {
+    expect(verbLabel("Run", "QA (fast)")).toBe("Run QA (fast)");
+    expect(verbLabel("Run", "Run QA (fast)")).toBe("Run QA (fast)");
+    expect(verbLabel("Run", "Running total")).toBe("Run Running total");
+  });
+
+  test("palette search reaches chooser options by name and keeps long option lists behind their chooser", () => {
+    const options = Array.from({ length: 6 }, (_, index) => ({
+      value: `markdown-${index}`, label: `Markdown ${index}`, description: `docs · Dashboard › Docs`,
+    }));
+    const actions = [
+      action("project:focus", { label: "Focus component", group: "Dashboard nodes", choices: [{ id: "node", label: "Focus component", options }] }),
+      action("focus:markdown-1", { label: "Focus Markdown 1", parentActionId: "project:focus" }),
+      action("theme", { label: "Set theme", choices: [{ id: "theme", label: "Theme", options: [{ value: "ocean", label: "Ocean" }] }] }),
+    ];
+    const describe = (entries: ReturnType<typeof rankPaletteEntries>) => entries.map((entry) =>
+      entry.kind === "option" ? `${entry.action.id} › ${entry.option.value}` : `${entry.action.id}${entry.optionMatches ? ` (${entry.optionMatches})` : ""}`);
+    expect(describe(rankPaletteEntries(actions, ""))).toEqual(["project:focus", "theme"]);
+    expect(describe(rankPaletteEntries(actions, "ocean"))).toEqual(["theme › ocean"]);
+    expect(describe(rankPaletteEntries(actions, "markdown 4"))).toEqual(["project:focus › markdown-4"]);
+    // Options never match on their descriptions, which repeat shared paths.
+    expect(describe(rankPaletteEntries(actions, "docs"))).toEqual([]);
+    const many = describe(rankPaletteEntries(actions, "markdown"));
+    expect(many).toHaveLength(PALETTE_OPTION_RESULT_LIMIT + 1);
+    expect(many.at(-1)).toBe("project:focus (6)");
+    expect(describe(rankPaletteEntries(actions, "focus"))).toEqual(["project:focus"]);
+  });
+
+  test("palette rows collapse duplicate controls, disable empty choosers, and keep unmounted placeholders to searches", () => {
+    const actions = [
+      action("process:qa", { label: "Run QA", source: "qa", group: "Project commands" }),
+      action("component:qa:run", { label: "Run QA", source: "qa", group: "Component · Command" }),
+      action("filter", { label: "Filter list by tag", choices: [{ id: "tag", label: "Choose a tag", options: () => [] }] }),
+    ];
+    actions.push(action("component:docs:refresh", { label: "Refresh Markdown", source: "docs", enabled: false, declaredOnly: true }));
+    const entries = rankPaletteEntries(actions, "");
+    expect(entries.map(({ action }) => action.id)).toEqual(["process:qa", "filter"]);
+    expect(rankPaletteEntries(actions, "refresh").map(({ action }) => action.id)).toEqual(["component:docs:refresh"]);
+    expect(entries[1]!.action).toMatchObject({ enabled: false, disabledReason: "No options are available right now." });
   });
 
   test("promotes favorites only after search has selected matching actions", () => {
@@ -684,9 +764,9 @@ describe("application action providers", () => {
     expect(chooser.choices?.[0]?.options).toEqual([{
       value: projects[1]!.configPath, label: "Other", description: projects[1]!.configPath,
     }]);
-    const matches = rankActions(actions, "Other");
-    expect(matches[0]?.id).toBe("app:switch-dashboard");
-    expect(matches.some(({ id }) => id.startsWith("dashboard:"))).toBeFalse();
+    const matches = rankPaletteEntries(actions, "Other");
+    expect(matches[0]).toMatchObject({ kind: "option", action: { id: "app:switch-dashboard" }, option: { label: "Other" } });
+    expect(matches.some(({ action }) => action.id.startsWith("dashboard:"))).toBeFalse();
     expect(rankActions(actions, "", new Set([`dashboard:${encodeURIComponent(projects[1]!.configPath)}`]))
       .some(({ id }) => id.startsWith("dashboard:"))).toBeFalse();
     expect(rankActions(actions, "reload app").some(({ id }) => id === "app:reload")).toBeTrue();
@@ -734,7 +814,7 @@ describe("application action providers", () => {
     expect(rankActions(actions, "", new Set(["focus:root"])).map((action) => action.id)).toEqual(["project:focus"]);
     expect(rankActions(actions, "focus", new Set(), true).map((action) => action.id)).toContain("focus:root");
     expect(actions[0]?.choices?.[0]?.options).toEqual([{
-      value: "root", label: "Dashboard", description: "Show Dashboard in the active dashboard.",
+      value: "root", label: "Dashboard", description: "root",
     }]);
     actions[0]?.run({ node: "root" });
     expect(focusedNode).toBe("root");

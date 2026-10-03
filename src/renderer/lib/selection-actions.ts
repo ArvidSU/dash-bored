@@ -1,8 +1,8 @@
-import type { ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { ComponentActionOption, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import type { PaletteAction } from "./actions";
 import { childNodes } from "./component-children";
 import { selectedChildId } from "./component-view-state";
-import { nodeLabel } from "./virtual-root";
+import { dashboardNodeEntries, dashboardNodeOptionDescription, nodeLabel } from "./virtual-root";
 
 function visit(node: ResolvedComponentNode, callback: (node: ResolvedComponentNode) => void): void {
   callback(node);
@@ -16,10 +16,14 @@ export function buildSelectionActions(
 ): PaletteAction[] {
   if (!snapshot?.tree) return [];
   const actions: PaletteAction[] = [];
+  const options: ComponentActionOption[] = [];
+  const entries = new Map(dashboardNodeEntries(snapshot.tree).map((entry) => [entry.node.id, entry] as const));
   visit(snapshot.tree, (container) => {
     const definition = container.manifest?.children;
     if (definition?.select !== "single" || !Array.isArray(container.children)) return;
     const selected = selectedChildId(container, selections);
+    const containerEntry = entries.get(container.id);
+    const containerLabel = containerEntry?.label ?? nodeLabel(container, false);
     for (const edge of container.children) {
       const child = edge.node;
       // A panel label is metadata on the parent-child edge; fall back to the node's own name.
@@ -29,8 +33,9 @@ export function buildSelectionActions(
       actions.push({
         id,
         reference: id,
+        parentActionId: "project:select",
         label: `Select ${label}`,
-        description: `Show ${label} in ${nodeLabel(container, false)}.`,
+        description: `Show ${label} in ${containerLabel}.`,
         keywords: ["select", "panel", container.id, child.id, label],
         group: "Dashboard presentation",
         source: child.id,
@@ -39,9 +44,28 @@ export function buildSelectionActions(
         ...(selected === child.id ? { disabledReason: "This child is already selected." } : {}),
         run: () => selectChild(container.id, child.id),
       });
+      if (selected !== child.id) {
+        const location = containerEntry?.path.slice(1) ?? [];
+        options.push({ value: id, label, description: `${child.id} · ${(location.length > 0 ? location : [containerLabel]).join(" › ")}` });
+      }
     }
   });
-  return actions;
+  if (actions.length === 0) return [];
+  return [{
+    id: "project:select",
+    label: "Select panel",
+    description: "Choose a tab or panel to show in the active dashboard.",
+    keywords: ["select", "panel", "tab", "switch"],
+    group: "Dashboard presentation",
+    enabled: options.length > 0,
+    ...(options.length === 0 ? { disabledReason: "Every panel is already selected." } : {}),
+    ...(options.length > 0 ? { choices: [{ id: "panel", label: "Select panel", options }] } : {}),
+    run: (choice) => {
+      const target = actions.find((action) => action.id === choice?.panel && action.enabled);
+      if (!target) throw new Error("Choose an available panel to select.");
+      return target.run();
+    },
+  } satisfies PaletteAction, ...actions];
 }
 
 /** Read the optional `item` argument of `reveal:<node>`; anything else is refused. */
@@ -60,10 +84,9 @@ export function buildRevealActions(
   revealNode: (nodeId: string, itemId?: string) => void | Promise<void>,
 ): PaletteAction[] {
   if (!snapshot?.tree) return [];
-  const actions: PaletteAction[] = [];
-  visit(snapshot.tree, (node) => {
-    const label = nodeLabel(node, node.id === snapshot.tree!.id);
-    actions.push({
+  const targets = dashboardNodeEntries(snapshot.tree).map((entry) => {
+    const { node, label } = entry;
+    const action: PaletteAction = {
       id: `reveal:${encodeURIComponent(node.id)}`,
       reference: `reveal:${encodeURIComponent(node.id)}`,
       parentActionId: "project:reveal",
@@ -74,22 +97,25 @@ export function buildRevealActions(
       source: node.id,
       enabled: true,
       run: (_selections, args) => revealNode(node.id, revealItemArgument(args)),
-    });
+    };
+    return { action, entry };
   });
+  const actions = targets.map(({ action }) => action);
   return [{
     id: "project:reveal",
     label: "Reveal component",
     description: "Choose a component to expand and show in the active dashboard.",
-    keywords: ["reveal", "show", snapshot.dashboardName ?? "", ...actions.flatMap((action) => action.keywords)],
+    // Search reaches individual targets through the chooser's options.
+    keywords: ["reveal", "show"],
     group: "Dashboard presentation",
     enabled: true,
     choices: [{
       id: "node",
       label: "Reveal component",
-      options: actions.map((action) => ({
-        value: action.source!,
-        label: action.label.replace(/^Reveal /, ""),
-        description: action.description,
+      options: targets.map(({ entry }) => ({
+        value: entry.node.id,
+        label: entry.label,
+        description: dashboardNodeOptionDescription(entry),
       })),
     }],
     run: (selections) => {
