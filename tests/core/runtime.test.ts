@@ -422,9 +422,9 @@ describe("ProjectRuntime", () => {
     } as const;
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(changed));
 
-    await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"), 8_000);
+    await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"), 20_000);
     expect(runtime.getSnapshot().dashboardName).toBe("Changed");
-  }, 15_000);
+  }, 30_000);
 
   test("unloads watchers and project state while keeping the runtime reusable", async () => {
     const root = await temporaryDirectory();

@@ -32,7 +32,7 @@ the app also need the live check described in `AGENTS.md`.
 | L5 (part) | `useSourceComponent` in `src/renderer/lib/use-dashboard-source.ts` owns source loading, capability checks, and the `refresh` action. |
 | L4 | `ProjectRuntime` resolves drafts with the saved-config resolver and returns the tree, diagnostics, trust decision, and approved local modules. `composition-preview.ts` and the `DashboardEditor` fallback are deleted. `ComponentDialog` and the draft toolbar share the one session. The host supplies typed `sourceNodePath`; the editor no longer parses YAML path strings. Frame menus use `siblingMoveTarget` and the existing operation planner. |
 | S16 | The narrow `TagFilter` boundary is keyed by source provider identity. Valid tags survive observations; removed tags and disabled filtering reset permanently to All. Todo row state, edit buffers, and focus survive tag updates. |
-| Timeout follow-up | The observable watcher check has a 15 s test budget; renderer-suite cleanup has 30 s. Their waits and assertions remain unchanged. |
+| Timeout follow-up | The observable watcher check allows 20 s for the reload and has a 30 s test budget; renderer-suite cleanup has 30 s. The check still polls the observed snapshot rather than sleeping for a fixed interval. |
 | Small items | One `childEdges` helper (`src/shared/child-edges.ts`). One reference walker: a trailing `*` makes each item a reference (`referenceLocations`). The config-link manifest is shared. The todo ID backfill lives in `src/migrations/`. |
 
 L4 decisions: resolve in the host, show invalid-draft diagnostics in place, and
