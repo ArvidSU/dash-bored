@@ -1,3 +1,4 @@
+import { restoreMissingPackages } from "../core/package-restore";
 import {
   initializeNamedProjectFiles,
   initializeProjectFiles,
@@ -20,6 +21,8 @@ export async function initializeProject(
   const result = configName === "."
     ? await initializeProjectFiles(projectInput)
     : await initializeNamedProjectFiles(projectInput, configName);
+  const diagnostics = await restoreMissingPackages(result.location.configPath);
+  if (diagnostics.length) throw new Error(diagnostics.map((item) => item.message).join("; "));
   return {
     projectRoot: result.location.projectRoot,
     configPath: result.location.configPath,

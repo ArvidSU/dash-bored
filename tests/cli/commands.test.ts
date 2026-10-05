@@ -234,14 +234,14 @@ describe("dash-bored command arguments", () => {
     expect(inspected.exitCode).toBe(0);
     const result = JSON.parse(inspected.stdout);
     const command = result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/command",
+      (item: { reference: string }) => item.reference === "./components/external/core/command",
     );
     expect(command.available).toBeTrue();
     expect(command.manifest.propsSchema.required).toEqual(["label", "command"]);
     expect(command.manifest.permissions).toEqual(["process:execute"]);
     expect(command.manifest.resources.process.interactive).toBeTrue();
     const conditional = result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/conditional",
+      (item: { reference: string }) => item.reference === "./components/external/core/conditional",
     );
     expect(conditional.available).toBeTrue();
     expect(conditional.manifest.renderMode).toBe("layout");
@@ -253,23 +253,23 @@ describe("dash-bored command arguments", () => {
     });
     expect(conditional.manifest.permissions).toEqual(["process:execute"]);
     expect(result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/terminal",
+      (item: { reference: string }) => item.reference === "./components/external/core/terminal",
     )).toBeUndefined();
     const todoList = result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/todo-list",
+      (item: { reference: string }) => item.reference === "./components/external/core/todo-list",
     );
     expect(todoList.available).toBeTrue();
     expect(todoList.manifest.propsSchema.properties.todos.items.required).toEqual(["description", "done", "tags"]);
     expect(todoList.manifest.permissions).toBeUndefined();
     const group = result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/group",
+      (item: { reference: string }) => item.reference === "./components/external/core/group",
     );
     expect(group.manifest.children).toEqual({
       min: 0,
       presentation: { type: "tiled", axes: "both" },
     });
     const tabs = result.componentCatalog.find(
-      (item: { reference: string }) => item.reference === "@dash-bored/tabs",
+      (item: { reference: string }) => item.reference === "./components/external/core/tabs",
     );
     expect(tabs.manifest.children).toMatchObject({
       min: 1,
@@ -277,10 +277,10 @@ describe("dash-bored command arguments", () => {
       metadataSchema: { required: ["label"] },
     });
     expect(result.componentCatalog.some(
-      (item: { reference: string }) => item.reference === "@dash-bored/split",
+      (item: { reference: string }) => item.reference === "./components/external/core/split",
     )).toBeFalse();
     expect(result.componentCatalog.some(
-      (item: { reference: string }) => item.reference === "@dash-bored/stack",
+      (item: { reference: string }) => item.reference === "./components/external/core/stack",
     )).toBeFalse();
   });
 });
@@ -294,7 +294,7 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect(summary.exitCode).toBe(0);
   expect(summary.stdout.length).toBeLessThan(full.stdout.length / 2);
   expect(JSON.parse(summary.stdout).componentCatalog[0].manifest).toBeUndefined();
-  const selected = await run(project, "inspect", ".", "--component", "@dash-bored/command");
+  const selected = await run(project, "inspect", ".", "--component", "./components/external/core/command");
   expect(selected.exitCode).toBe(0);
   expect(JSON.parse(selected.stdout).component.manifest.propsSchema.required).toContain("command");
   expect((await run(project, "inspect", ".", "--component", "missing")).exitCode).toBe(1);

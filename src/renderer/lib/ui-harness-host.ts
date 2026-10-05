@@ -2,13 +2,15 @@ import { BUILTIN_THEME, projectThemeReference, type ThemeCatalogItem } from "../
 import { cloneDefaultAppSettings, DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
 import Ajv, { type ErrorObject } from "ajv";
 import { permissionsForComponent } from "../../shared/component-permissions";
-import { listBuiltinManifests } from "../../core/builtins";
+import fixturePayload from "../../../.cottontail-tmp/core-fixture.json";
+const coreFixture = fixturePayload as unknown as { manifests: ComponentManifest[]; components: CompiledLocalComponent[] };
 import type {
   AppSettings,
   CompiledLocalComponent,
   ComponentAgentLaunch,
   ComponentAgentRequest,
   ComponentCatalogItem,
+  ComponentManifest,
   ComponentChildEdge,
   ComponentChildLayout,
   ComponentPropsValidation,
@@ -55,11 +57,11 @@ function builtin(
   return {
     id,
     component: reference ?? (id === "harness-root"
-      ? "@dash-bored/tabs"
-      : id.startsWith("@") ? id : `@dash-bored/${id}`),
+      ? "./components/external/core/tabs"
+      : id.startsWith("./") ? id : `./components/external/core/${id}`),
     props,
     ...(children ? { children } : {}),
-    source: "builtin",
+    source: "external",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: id === "harness-root" ? "root" : `harness.${id}`,
     sourceNodePath: [],
@@ -79,12 +81,12 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, [
         }, {
           axis: "vertical",
           first: {
-            node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "@dash-bored/status"),
+            node: builtin("renderer-proof-status", { label: "Fixture status", state: "healthy", detail: "Resize, switch tabs, open the sidebar, and inspect the component library." }, undefined, "./components/external/core/status"),
           },
           second: {
-            node: builtin("renderer-proof-detail", { label: "Card composition", state: "healthy", detail: "Cards frame related component groups, not a single component." }, undefined, "@dash-bored/status"),
+            node: builtin("renderer-proof-detail", { label: "Card composition", state: "healthy", detail: "Cards frame related component groups, not a single component." }, undefined, "./components/external/core/status"),
           },
-        }, "@dash-bored/card"),
+        }, "./components/external/core/card"),
       },
       second: {
         axis: "vertical",
@@ -95,12 +97,12 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, [
           node: builtin("responsive-card", { title: "Responsive tile", description: "Nested tiled composition must remain legible at narrow widths." }, {
             axis: "vertical",
             first: {
-              node: builtin("responsive-card-status", { label: "Responsive surface", state: "healthy", detail: "The tile remains valid with two related children." }, undefined, "@dash-bored/status"),
+              node: builtin("responsive-card-status", { label: "Responsive surface", state: "healthy", detail: "The tile remains valid with two related children." }, undefined, "./components/external/core/status"),
             },
             second: {
-              node: builtin("responsive-card-detail", { label: "Responsive detail", state: "healthy", detail: "Inspect this card at the narrow viewport." }, undefined, "@dash-bored/status"),
+              node: builtin("responsive-card-detail", { label: "Responsive detail", state: "healthy", detail: "Inspect this card at the narrow viewport." }, undefined, "./components/external/core/status"),
             },
-          }, "@dash-bored/card"),
+          }, "./components/external/core/card"),
         },
       },
     }),
@@ -115,23 +117,23 @@ const tree = builtin("harness-root", { label: "Visual verification fixture" }, [
       first: {
         node: builtin("renderer-proof-todos", {
           todos: [{ description: "Keep this surface mounted", done: false, tags: ["fixture"] }],
-        }, undefined, "@dash-bored/todo-list"),
+        }, undefined, "./components/external/core/todo-list"),
       },
       second: {
         axis: "vertical",
         first: {
-          node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "@dash-bored/status"),
+          node: builtin("boundary-status", { label: "Renderer boundary", state: "healthy", detail: "Use the fixture for responsive review; desktop proof remains separate." }, undefined, "./components/external/core/status"),
         },
         second: {
           node: builtin("local-host-stability", {}, undefined, "./components/host-stability"),
         },
       },
-    }, "@dash-bored/card"),
+    }, "./components/external/core/card"),
   },
 ]);
 
 const initialConfig: DashboardConfig = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   name: "Visual verification fixture",
   root: {
     id: tree.id,
@@ -140,85 +142,7 @@ const initialConfig: DashboardConfig = {
   },
 };
 
-const catalog: ComponentCatalogItem[] = ["group", "conditional", "tabs", "card", "markdown", "command", "todo-list"].map((name) => ({
-  reference: `@dash-bored/${name}`,
-  source: "builtin" as const,
-  available: true,
-  diagnostics: [],
-  manifest: {
-    schemaVersion: 2,
-    id: `@dash-bored/${name}`,
-    name: name[0]!.toUpperCase() + name.slice(1),
-    description: `Fixture ${name} component.`,
-    entry: `builtin:${name}`,
-    actions: listBuiltinManifests().find((manifest) => manifest.id === `@dash-bored/${name}`)?.actions,
-    ...(name === "group" || name === "conditional" || name === "tabs" ? { renderMode: "layout" as const } : {}),
-    ...(name === "command" || name === "conditional" ? { permissions: ["process:execute" as const] } : {}),
-    ...(name === "markdown" ? { permissions: ["filesystem:read" as const, "filesystem:write" as const] } : {}),
-    propsSchema: name === "markdown"
-      ? {
-          type: "object",
-          additionalProperties: false,
-          properties: { content: { type: "string" }, path: { type: "string", minLength: 1 } },
-          oneOf: [{ required: ["content"] }, { required: ["path"] }],
-        }
-      : name === "card"
-          ? { type: "object", additionalProperties: false, properties: { title: { type: "string" }, description: { type: "string" } } }
-          : name === "tabs"
-            ? { type: "object", additionalProperties: false, properties: { defaultTab: { type: "integer", minimum: 0 } } }
-            : name === "command"
-              ? {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    label: { type: "string" },
-                    command: { type: "string", minLength: 1 },
-                    cwd: { type: "string", minLength: 1 },
-                    env: { type: "object", additionalProperties: { type: "string" } },
-                  },
-                  required: ["command"],
-                }
-              : name === "todo-list"
-                ? listBuiltinManifests().find((manifest) => manifest.id === "@dash-bored/todo-list")!.propsSchema
-              : name === "conditional"
-                ? {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      command: { type: "string", minLength: 1 },
-                      cwd: { type: "string", minLength: 1 },
-                      env: { type: "object", additionalProperties: { type: "string" } },
-                      invert: { type: "boolean" },
-                      pollIntervalMs: { type: "integer", minimum: 1000, maximum: 300000 },
-                      timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
-                    },
-                    required: ["command"],
-                  }
-                : { type: "object", additionalProperties: false },
-    ...(name === "card" ? { children: { min: 2, presentation: { type: "tiled" as const, axes: "both" as const } } } : {}),
-    ...(name === "tabs" ? {
-      children: {
-        min: 1,
-        presentation: { type: "managed" as const },
-        metadataSchema: {
-          type: "object",
-          properties: { label: { type: "string" } },
-          required: ["label"],
-        },
-      },
-    } : name === "group" || name === "card" || name === "conditional" ? {
-      children: {
-        min: name === "conditional" ? 1 : 0,
-        ...(name === "conditional" ? { max: 1 } : {}),
-        presentation: { type: "tiled" as const, axes: "both" as const },
-      },
-    } : {}),
-  },
-}));
-
-catalog.push(...listBuiltinManifests()
-  .filter((manifest) => manifest.id === "@dash-bored/status" || manifest.id === "@dash-bored/setup-agent" || manifest.id === "@dash-bored/env" || manifest.id === "@dash-bored/chart" || manifest.id === "@dash-bored/focus-timer" || manifest.id === "@dash-bored/button" || manifest.id === "@dash-bored/list")
-  .map((manifest) => ({ reference: manifest.id, source: "builtin" as const, available: true, diagnostics: [], manifest })));
+const catalog: ComponentCatalogItem[] = coreFixture.manifests.map((manifest) => ({ reference: `./components/external/core/${manifest.id.slice(5)}`, source: "external", available: true, diagnostics: [], manifest }));
 
 catalog.push({
   reference: "./components/host-stability",
@@ -288,7 +212,7 @@ const FIXTURE_APPLICATION_THEMES: ThemeCatalogItem[] = [
 ];
 function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation {
   const diagnostics: Diagnostic[] = [];
-  if (config.schemaVersion !== 3) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 3.", "schemaVersion"));
+  if (config.schemaVersion !== 4) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 4.", "schemaVersion"));
   if (typeof config.name !== "string" || config.name.trim() === "") diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "name is required.", "name"));
   const ids = new Set<string>();
   const permissions = new Set<DashboardDraftValidation["requestedPermissions"][number]>();
@@ -364,7 +288,7 @@ function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation
     diagnostics,
     requestedPermissions: [...permissions],
     tree: ok ? resolveFixtureNode(config.root) : null,
-    components: ok && references.has("./components/host-stability") ? [structuredClone(hostStabilityComponent)] : [],
+    components: ok ? [...coreFixture.components.filter(component => references.has(`./components/external/${component.componentId}`)), ...(references.has("./components/host-stability") ? [structuredClone(hostStabilityComponent)] : [])] : [],
     trusted: true,
   };
 }
@@ -381,7 +305,7 @@ function resolveFixtureNode(
     props: structuredClone(node.props ?? {}),
     // External catalog sources are core-owned and ResolvedComponentNode does
     // not carry them yet; the fixture falls back without inventing a mapping.
-    source: (item?.source === "external" ? undefined : item?.source) ?? "builtin",
+    source: (item?.source === "external" ? undefined : item?.source) ?? "external",
     sourceConfigPath: CONFIG_PATH,
     sourcePath: path,
     sourceNodePath,
@@ -482,7 +406,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     trusted: true,
     requestedPermissions: validateFixtureDraft(persistedConfig).requestedPermissions,
     tree,
-    components: [hostStabilityComponent],
+    components: validateFixtureDraft(persistedConfig).components,
     processes: [...processSnapshots.values()].map((process) => structuredClone(process)),
     diagnostics: structuredClone(currentDiagnostics),
     revision: snapshotRevision,

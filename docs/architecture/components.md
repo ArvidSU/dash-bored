@@ -1,36 +1,34 @@
 # dash-bored - Architecture: Component system
 
-The built-in catalog includes inline display and managed-container components.
-`@dash-bored/group` supports optional `title` and `description` props. When
+The pinned external core package includes inline display and managed-container components.
+`./components/external/core/group` supports optional `title` and `description` props. When
 present, they frame the same tiled child surface previously provided by card;
-without them the group remains transparent. Schema-v3 card remains available
-until the contract migration.
-`@dash-bored/status` accepts a source model `{ state, detail? }` or a supervised
+without them the group remains transparent. The legacy card remains available; component retirement is a separate roadmap change.
+`./components/external/core/status` accepts a source model `{ state, detail? }` or a supervised
 process snapshot, deriving warning (running) and healthy/error (exit code or
 signal) from its latest run; an interactive terminal that stays open between
 runs does not count as running.
 Its original `label` plus hand-written `state` contract remains valid for
-schema-v3 dashboards during migration. `@dash-bored/chart` accepts a bounded
+schema-v3 dashboards during migration. `./components/external/core/chart` accepts a bounded
 source that emits `{ labels, series }` as well as its existing static YAML
 model. Both views show a source-shape diagnostic and keep the last valid value
 when a refresh fails. They share the Markdown source engine, pause polling
-while hidden, and declare a manual `refresh` action. `@dash-bored/live-chart`
+while hidden, and declare a manual `refresh` action. `./components/external/core/live-chart`
 remains as a schema-v3 adapter for endpoint/dataPath dashboards; it delegates
 fetching, polling, refresh, and rendering to the source-bound chart view until
 the WP9 migration removes that authored form. All chart views share a
 dependency-free SVG renderer.
-It also includes `@dash-bored/conditional`, a generic shell-backed visibility
+It also includes `./components/external/core/conditional`, a generic shell-backed visibility
 boundary for keeping setup or recovery actions relevant without special-casing
 their component IDs.
-`@dash-bored/focus-timer` provides permission-free work and break sessions
+`./components/external/core/focus-timer` provides permission-free work and break sessions
 (default 25/5 minutes). A wall-clock deadline avoids interval drift, including
 background throttling. Pause retains remaining time; Reset restarts the current
 phase; completion waits for an explicit next-session start. State is local to
 the mounted instance and resets on unmount or duration changes; it does not
 write session state to YAML or issue background notifications.
 The project dashboard now exercises the same timer behavior through the
-`./components/focus-timer` example local component. The built-in remains
-available to schema-v3 dashboards until migration.
+`./components/focus-timer` example local component. The core package retains the original timer as well.
 Core composition branches are YAML topology and do not appear in the component
 catalog.
 
@@ -54,7 +52,7 @@ available during migration.
 
 ## Standalone dashboard paths
 
-A component reference outside the built-in `@dash-bored/*` namespace and the
+A component reference outside the legacy `@dash-bored/*` namespace and the
 bundle-local `./components/*` directory may resolve to another standalone
 dashboard bundle or its `dash-bored.yaml`. For example,
 `component: "./arvid"` in the canonical config loads
@@ -75,7 +73,7 @@ boundary.
 
 ## Resolution
 
-The `@dash-bored/*` namespace is reserved for built-ins. Project components are
+The `@dash-bored/*` namespace is reserved for legacy migration references. Project components are
 referenced by a relative path below `./components/`, for example:
 
 ```yaml
@@ -90,7 +88,7 @@ which intentionally allow absolute references.
 
 Tree handling in `src/core/` is split along its jobs:
 
-- `tree-catalog.ts` scans packaged and project components, reports
+- `tree-catalog.ts` scans project-local and external components, reports
   unavailable entries and ambiguities, and loads contained local manifests.
 - `tree-resolve.ts` owns `resolveComponentTree`: traversal limits (depth,
   node count, cycles), node-ID assignment and duplicates, manifest lookup, and
@@ -179,14 +177,14 @@ series:
     values: [18, 24, 21, 29]
 ```
 
-`@dash-bored/chart` receives that model from its `source` prop or its static
+`./components/external/core/chart` receives that model from its `source` prop or its static
 `labels` and `series` props. A source must return a string `labels` array and a
 `series` array with string labels and numeric or null values. A shape mismatch
 is displayed on the component. Status sources return `{ state, detail? }`; a
 source that points at a supervised process derives its state from the process
 phase and exit code. All source-backed views use the shared bounded source
 engine, pause polling while hidden, and expose a declared manual `refresh`
-action. The schema-v3 `@dash-bored/live-chart` adapter maps its HTTP endpoint,
+action. The schema-v3 `./components/external/core/live-chart` adapter maps its HTTP endpoint,
 optional dot-separated `dataPath`, and `pollIntervalMs: 1000..300000` to the
 chart source view until WP9 migration. Its endpoint may be absolute HTTP(S) or
 an app-relative path such as `/metrics/chart.json`; `maxPoints` remains
@@ -194,20 +192,21 @@ an app-relative path such as `/metrics/chart.json`; `maxPoints` remains
 
 Generic tree validation runs before component-specific props and children are
 validated. The requested project permission set is the union of permissions
-declared by every resolved component, packaged, project-local, or external.
+declared by every resolved component, project-local or external.
 
-## Generated built-in reference
+## Generated core reference
 
-`scripts/generate-component-reference.ts` renders
-`skills/dash-bored/references/builtins.md` directly from `BUILTIN_COMPONENTS`
-in `src/core/builtins.ts` — never by parsing source text — so agents using the
-shipped skill get per-component props, permissions, `resources.process`
-mappings, and children contracts without reading app source. The output is
-deterministic (manifest order, no timestamps) and committed; regenerate it
-with `bun run generate:components` after changing any built-in manifest. The
-agent tool embeds the file at build time via `src/cli/skill-payload.ts`, and the
-drift test in `tests/scripts/generate-component-reference.test.ts` regenerates
-the markdown in memory and fails when it diverges from the committed file.
+`scripts/generate-component-reference.ts` reads the pinned manifests at
+`.dash-bored/components/external/core` and renders the committed
+`skills/dash-bored/references/builtins.md`. Restore packages before regeneration.
+`bun run generate:components` emits deterministic props, permission, resource,
+action and children contracts; its drift test compares generated output.
+The component repository owns readable sources and committed self-contained
+`component.yaml`, `index.tsx` and CSS outputs for all 17 components, including
+legacy forms. Its deterministic build bundles dependencies, while React and
+`@dash-bored/component` remain external to use the application runtime.
+Installation needs Git, with no dependency installation. App compiler containment
+rules apply to every component directory.
 
 ## External components
 
@@ -269,7 +268,8 @@ commands.
 External components and theme packages share one package store,
 `src/core/package-store.ts`. A store is a directory holding a lock file; each
 package is a checkout at its pinned commit, placed by one of two strategies:
-`submodule` (a submodule of the repository around a bundle, pinned in
+`submodule` (a submodule of a private repository at the bundle's
+`components/external/` or `themes/external/`, pinned in
 `dash-bored-lock.yaml`) or `clone` (a plain clone in the personal themes
 directory, pinned in `pins.yaml`). The store owns:
 
@@ -289,12 +289,33 @@ directory, pinned in `pins.yaml`). The store owns:
 
 File watchers ignore `.package-*` entries. Package kinds keep their own
 policy: components resolve refs only to advertised commits, tolerate a failed
-opportunistic fetch on update, force-remove their submodule, and report
+opportunistic fetch on update, refuse dirty removal, and report
 `COMPONENT_*` error codes; themes validate `theme.yaml` at every checkout,
 refuse to touch dirty checkouts, and roll an update or sync back to the prior
 commit. Store-level failures use `PACKAGE_GIT_REQUIRED`,
 `PACKAGE_LOCK_INVALID`, `PACKAGE_LOCK_WRITE_FAILED`, and
 `PACKAGE_OPERATION_ACTIVE`.
+
+The bundle lock location is separate from these two Git roots. Their indexes,
+`.gitmodules` and submodule objects belong to dash-bored. No Git identity,
+parent repository or user commit is needed. Managed bundle ignore rules exclude
+`/components/external/` and `/themes/external/`, preserving existing rules.
+Init and open restore missing component and theme checkouts at exact lock SHAs,
+including linked bundles. Existing checkouts stay untouched; revision mismatches
+produce a diagnostic directing explicit Sync. Inspect, validate and watcher
+reloads never download. Failed stages are removed while YAML and pins survive;
+app-owned recovery offers Retry and Sync before any component execution.
+`component migrate-ownership` explicitly converts parent-owned packages after
+preflighting their gitlinks, `.gitmodules` and checkout edits. It prepares the
+replacement before changing parent registrations and preserves pins and paths.
+Ordinary operations refuse parent-owned packages rather than converting them.
+
+The SDK exports `useComponentVisibility()` to pause hidden polling and
+`trackActivity(work)` to include asynchronous work in agent idle detection.
+`TerminalSurface` accepts `process?: ProcessSnapshot`, bound `onWrite` and
+`onResize` callbacks, and a numeric `scrollToLatest` trigger. Its xterm lifecycle
+and theme are app-owned; the external command and Agent work both use it.
+Supervision and capability checks remain in main.
 
 ## Local React contract and compilation
 

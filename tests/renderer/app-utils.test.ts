@@ -17,11 +17,11 @@ import type {
 
 function dashboard(): DashboardConfig {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name: "Example",
     root: {
       id: "root",
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       props: { nested: { value: 1 } },
     },
   };
@@ -76,7 +76,7 @@ describe("renderer app helpers", () => {
 
     const inherited = patchDashboardAppearance(changed, { theme: undefined });
     expect(Object.hasOwn(inherited, "theme")).toBeFalse();
-    expect(inherited).toMatchObject({ schemaVersion: 3, name: "Example" });
+    expect(inherited).toMatchObject({ schemaVersion: 4, name: "Example" });
   });
 
   test("merges application themes before project-local themes and preserves duplicates", () => {

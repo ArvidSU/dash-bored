@@ -39,10 +39,10 @@ function externalItem(
   } as unknown as ComponentCatalogItem;
 }
 
-function builtinItem(reference: string): ComponentCatalogItem {
+function localItem(reference: string): ComponentCatalogItem {
   return {
     reference,
-    source: "builtin",
+    source: "local",
     available: true,
     manifest: testManifest({ id: "group", name: "Group" }),
     diagnostics: [],
@@ -54,11 +54,11 @@ const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 describe("external components flyout contract", () => {
   test("partitions stub source:external items into the External section", () => {
     const catalog = [
-      builtinItem("@dash-bored/group"),
+      localItem("./components/group"),
       externalItem("./components/external/clock", { url: "https://example.com/clock.git", commit: COMMIT }),
     ];
     const { internal, external } = partitionCatalogByExternal(catalog);
-    expect(internal.map((entry) => entry.reference)).toEqual(["@dash-bored/group"]);
+    expect(internal.map((entry) => entry.reference)).toEqual(["./components/group"]);
     expect(external.map((entry) => entry.reference)).toEqual(["./components/external/clock"]);
     expect(isExternalCatalogItem(catalog[1]!)).toBe(true);
     expect(isExternalCatalogItem(catalog[0]!)).toBe(false);
@@ -66,7 +66,7 @@ describe("external components flyout contract", () => {
 
   test("search finds externals by URL and pin", () => {
     const catalog = [
-      builtinItem("@dash-bored/group"),
+      localItem("./components/group"),
       externalItem("./components/external/clock", { url: "https://github.com/acme/clock.git", commit: COMMIT }),
     ];
     expect(filterComponentCatalog(catalog, "github.com/acme").map((entry) => entry.reference))
@@ -79,15 +79,14 @@ describe("external components flyout contract", () => {
 
   test("labels external provenance and counts parity without renaming existing fields", () => {
     const catalog = [
-      builtinItem("@dash-bored/group"),
+      localItem("./components/group"),
       externalItem("./components/external/clock", { url: "https://example.com/clock.git", commit: COMMIT }),
     ];
     expect(componentProvenanceLabel(catalog[1]!)).toBe("External");
-    expect(componentProvenanceLabel(catalog[0]!)).toBe("Packaged");
+    expect(componentProvenanceLabel(catalog[0]!)).toBe("Project-local");
     expect(componentCatalogParity(catalog)).toMatchObject({
       total: 2,
-      packaged: 1,
-      projectLocal: 0,
+      projectLocal: 1,
       external: 1,
       dashboardLinks: 0,
     });
@@ -139,7 +138,7 @@ describe("external components flyout contract", () => {
     expect(externalComponentInfo(flat)?.commit).toBe(COMMIT);
     const missing = externalItem("./components/external/empty", { url: "https://example.com/empty.git" }, { available: false });
     expect(externalComponentInfo(missing)?.initialized).toBe(false);
-    expect(externalComponentInfo(builtinItem("@dash-bored/group"))).toBeNull();
+    expect(externalComponentInfo(localItem("./components/group"))).toBeNull();
   });
 
   test("treats core-shaped externals (pin in lock, not on the item) as initialized", () => {

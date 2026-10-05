@@ -56,6 +56,9 @@ const runtime = globalThis.${RUNTIME_GLOBAL};
 if (!runtime) throw new Error("dash-bored component runtime is not installed");
 const React = runtime.React;
 export const useTheme = runtime.useTheme;
+export const useComponentVisibility = runtime.useComponentVisibility;
+export const trackActivity = runtime.trackActivity;
+export const TerminalSurface = runtime.TerminalSurface;
 export const defineComponent = runtime.defineComponent ?? ((component) => component);
 export const createElement = runtime.createElement ?? React.createElement;
 export const Fragment = runtime.Fragment ?? React.Fragment;
@@ -221,8 +224,9 @@ export async function compileLocalComponents(
 ): Promise<CompileLocalComponentsResult> {
   const components: CompiledLocalComponent[] = [];
   const diagnostics: Diagnostic[] = [];
-  for (let offset = 0; offset < definitions.length; offset += 2) {
-    const batch = definitions.slice(offset, offset + 2);
+  const ordered = [...definitions].sort((a,b) => a.manifest.id.localeCompare(b.manifest.id));
+  for (let offset = 0; offset < ordered.length; offset += 2) {
+    const batch = ordered.slice(offset, offset + 2);
     const results = await Promise.allSettled(batch.map((definition) => compileDefinition(definition, options)));
     for (const result of results) {
       if (result.status === "rejected") throw result.reason;

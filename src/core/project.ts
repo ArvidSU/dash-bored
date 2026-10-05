@@ -1,8 +1,9 @@
+import { checkedOutCommit } from "./package-store";
 import { loadThemeCatalog } from "./themes";
 import { resolveTheme, type ThemeCatalogItem } from "../shared/themes";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
 import type {
   ComponentCatalogItem,
   CompiledLocalComponent,
@@ -67,6 +68,16 @@ async function buildProjectDefinition(
   componentCatalog: ComponentCatalogItem[],
   options: InspectProjectOptions,
 ): Promise<ProjectDefinition> {
+  if (lock) {
+    for (const entry of [...Object.values(lock.components), ...Object.values(lock.themes ?? {})]) {
+      const checkout = join(location.configDirectory, entry.path);
+      const current = await checkedOutCommit(checkout);
+      if (current && current !== entry.commit.toLowerCase()) diagnostics.push(diagnostic({
+        code: "PACKAGE_PIN_MISMATCH", file: location.lockPath, path: entry.path,
+        message: `${entry.path} is at ${current}, but the lock pins ${entry.commit}. Existing checkout was left untouched. Use explicit Sync to restore the pin.`,
+      }));
+    }
+  }
   let tree: ResolvedComponentNode | null = null;
   let manifests: InspectResult["components"] = [];
   let localComponents: LocalComponentDefinition[] = [];

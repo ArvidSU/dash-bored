@@ -32,7 +32,7 @@ const catalog: ComponentCatalogItem[] = [
   manifest("text"),
 ].map((entry) => ({
   reference: entry.id,
-  source: "builtin" as const,
+  source: "external" as const,
   available: true,
   manifest: entry,
   diagnostics: [],
@@ -44,7 +44,7 @@ function leaf(id: string): ComponentNode {
 
 function tiledConfig(rootComponent = "group"): DashboardConfig {
   return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Planner fixture",
       root: {
           id: "root",
@@ -104,7 +104,7 @@ describe("composition operation planner", () => {
 
   test("moves existing edges without losing IDs, props, or managed metadata", () => {
     const config: DashboardConfig = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Managed",
         root: {
             id: "tabs",

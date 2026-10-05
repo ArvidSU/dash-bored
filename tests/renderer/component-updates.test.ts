@@ -18,7 +18,7 @@ function node(
     ...(children.length > 0 ? {
       children: children.map((child) => ({ node: child })),
     } : {}),
-    source: "builtin",
+    source: "external",
   };
 }
 
@@ -39,9 +39,9 @@ function localNode(id: string, componentId: string): ResolvedComponentNode {
 
 describe("component update detection", () => {
   test("marks only the component whose own props changed", () => {
-    const before = node("root", "@dash-bored/group", {}, [
-      node("card", "@dash-bored/card", { title: "Before" }, [
-        node("text", "@dash-bored/markdown", { content: "Unchanged" }),
+    const before = node("root", "./components/external/core/group", {}, [
+      node("card", "./components/external/core/card", { title: "Before" }, [
+        node("text", "./components/external/core/markdown", { content: "Unchanged" }),
       ]),
     ]);
     const after = structuredClone(before);
@@ -51,34 +51,34 @@ describe("component update detection", () => {
   });
 
   test("marks inserted and repositioned components in visual order", () => {
-    const before = node("root", "@dash-bored/group", {}, [
-      node("first", "@dash-bored/card"),
-      node("second", "@dash-bored/card"),
+    const before = node("root", "./components/external/core/group", {}, [
+      node("first", "./components/external/core/card"),
+      node("second", "./components/external/core/card"),
     ]);
-    const after = node("root", "@dash-bored/group", {}, [
-      node("new", "@dash-bored/card"),
-      node("first", "@dash-bored/card"),
-      node("second", "@dash-bored/card"),
+    const after = node("root", "./components/external/core/group", {}, [
+      node("new", "./components/external/core/card"),
+      node("first", "./components/external/core/card"),
+      node("second", "./components/external/core/card"),
     ]);
 
     expect(changedComponentIds(before, after)).toEqual(["new", "first", "second"]);
   });
 
   test("marks the surviving parent when a component is removed", () => {
-    const before = node("root", "@dash-bored/group", {}, [
-      node("only", "@dash-bored/card"),
+    const before = node("root", "./components/external/core/group", {}, [
+      node("only", "./components/external/core/card"),
     ]);
-    const after = node("root", "@dash-bored/group");
+    const after = node("root", "./components/external/core/group");
 
     expect(changedComponentIds(before, after)).toEqual(["root"]);
   });
 
   test("treats reordered object keys as semantically unchanged", () => {
-    const before = node("card", "@dash-bored/card", {
+    const before = node("card", "./components/external/core/card", {
       title: "Stable",
       detail: { first: true, second: 2 },
     });
-    const after = node("card", "@dash-bored/card", {
+    const after = node("card", "./components/external/core/card", {
       detail: { second: 2, first: true },
       title: "Stable",
     });
@@ -87,14 +87,14 @@ describe("component update detection", () => {
   });
 
   test("marks a stable id when its component is replaced", () => {
-    const before = node("main", "@dash-bored/card");
-    const after = node("main", "@dash-bored/markdown", { content: "Replacement" });
+    const before = node("main", "./components/external/core/card");
+    const after = node("main", "./components/external/core/markdown", { content: "Replacement" });
 
     expect(changedComponentIds(before, after)).toEqual(["main"]);
   });
 
   test("marks every mounted instance after its local component successfully reloads", () => {
-    const tree = node("root", "@dash-bored/group", {}, [
+    const tree = node("root", "./components/external/core/group", {}, [
       localNode("first-pulse", "project-pulse"),
       localNode("package-scripts", "package-scripts"),
       localNode("second-pulse", "project-pulse"),

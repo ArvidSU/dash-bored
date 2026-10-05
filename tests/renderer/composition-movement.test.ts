@@ -15,7 +15,7 @@ function leaf(id: string): ComponentNode {
 
 function config(children: DashboardConfig["root"]["children"]): DashboardConfig {
   return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Movement",
       root: { id: "root", component: "container", children }
   };
@@ -41,8 +41,8 @@ const containerManifest: ComponentManifest = {
 };
 
 const catalog: ComponentCatalogItem[] = [
-  { reference: "container", source: "builtin", available: true, manifest: containerManifest, diagnostics: [] },
-  { reference: "leaf", source: "builtin", available: true, manifest: {
+  { reference: "container", source: "external", available: true, manifest: containerManifest, diagnostics: [] },
+  { reference: "leaf", source: "external", available: true, manifest: {
     schemaVersion: 2,
     id: "leaf",
     name: "Leaf",

@@ -2,12 +2,13 @@ import { expect, test } from "bun:test";
 import Ajv from "ajv";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { getBuiltinManifest } from "../../src/core/builtins";
-import List from "../../src/renderer/builtins/list";
+import { getCoreManifest as getBuiltinManifest } from "../../scripts/core-package-fixture";
+import { loadCoreTestComponent } from "./load-core-test-component";
+const { default: List } = await loadCoreTestComponent("list");
 import type { LocalComponentHost } from "../../src/shared/contracts";
 
 test("list accepts stable-ID editable todos and renders them without a shell source", () => {
-  const schema = getBuiltinManifest("@dash-bored/list")?.propsSchema;
+  const schema = getBuiltinManifest("./components/external/core/list")?.propsSchema;
   if (!schema) throw new Error("missing list manifest");
   const validate = new Ajv({ strict: false, validateFormats: false }).compile(schema);
   const item = { id: "task-1", description: "Prove editable list", done: false, tags: ["atoms"] };

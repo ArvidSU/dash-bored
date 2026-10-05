@@ -12,9 +12,9 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map(removeTemporaryDirectory));
 });
 
-const leaf = { node: { component: "@dash-bored/markdown", props: { content: "Ready" } } };
+const leaf = { node: { component: "./components/external/core/markdown", props: { content: "Ready" } } };
 const config = (children: unknown) => ({
-  schemaVersion: 3, name: "Compact topology", root: { component: "@dash-bored/group", children },
+  schemaVersion: 4, name: "Compact topology", root: { component: "./components/external/core/group", children },
 });
 
 describe("dashboard schema v3", () => {
@@ -49,14 +49,14 @@ describe("dashboard schema v3", () => {
     await createProject(root);
     const configPath = join(root, ".dash-bored", "dash-bored.yaml");
     const authored: DashboardConfig = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Compact topology",
       root: {
-        id: "tabs", component: "@dash-bored/tabs",
+        id: "tabs", component: "./components/external/core/tabs",
         children: [{
           metadata: { label: "Work" },
           node: {
-            id: "work", component: "@dash-bored/group",
+            id: "work", component: "./components/external/core/group",
             children: {
               axis: "horizontal", first: structuredClone(leaf),
               second: { axis: "vertical", first: structuredClone(leaf), second: structuredClone(leaf) },

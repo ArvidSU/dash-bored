@@ -53,6 +53,7 @@ and Electrobun versions; a global Electrobun install is not needed.
 
 ```sh
 bun install --frozen-lockfile
+bun run packages:restore
 bun run setup
 ```
 
@@ -64,7 +65,7 @@ bun run worktree:setup
 
 It installs locked dependencies, creates an ignored `.env.worktree` with a
 checkout-specific port and application identity, seeds an isolated Hutch home,
-prepares Hutch, and validates the dashboard. `bun run dev` also creates this
+restores the pinned dashboard packages, prepares Hutch, and validates both bundles. `bun run dev` also creates this
 environment automatically. Separate worktrees can run native dev apps together.
 
 Dev builds are agent-owned: agents may restart this checkout's app without
@@ -109,7 +110,7 @@ bun run native:probe    # isolated manual Electrobun webview visibility/dimensio
 ```
 
 `styles:dead` scans `src/renderer/styles.css` against runtime source under
-`src/renderer`, including `src/renderer/builtins/**`. It reports class and ID
+`src/renderer`. Core component styles live in the component repository. It reports class and ID
 hooks with no static reference, while listing state/value-prefixed hooks
 assembled dynamically for manual review. Add `--check` when a non-zero exit
 code is wanted for definitely dead hooks.
@@ -274,7 +275,7 @@ The Markdown view can display JSON or text from a bounded project source. A
 small project script owns any domain-specific processing:
 
 ```yaml
-component: "@dash-bored/markdown"
+component: "./components/external/core/markdown"
 props:
   title: Project summary
   source:
@@ -389,11 +390,11 @@ configuration, lock, or dashboard environment file already exists.
 Set a dashboard-specific sidebar icon directly in its `dash-bored.yaml`:
 
 ```yaml
-schemaVersion: 3
+schemaVersion: 4
 name: Example project
 icon: ../assets/icon.svg
 root:
-  component: "@dash-bored/markdown"
+  component: "./components/external/core/markdown"
   props:
     content: Ready
 ```
@@ -442,7 +443,7 @@ dash-bored inspect .
 
 `validate` exits non-zero when it finds errors. `inspect` emits JSON containing
 the resolved tree, requested permissions, diagnostics, and a `componentCatalog`
-for every built-in and discovered local component. Each catalog manifest is the
+for every core component and discovered local component. Each catalog manifest is the
 machine-readable contract for its rendering mode, JSON Schema props, children
 contract, and required permissions. Agents use this version-matched catalog instead of guessing from
 examples; invalid local components remain in the catalog with diagnostics.
@@ -478,16 +479,16 @@ named bundles from the same project can be switched independently.
 `.dash-bored/dash-bored.yaml` contains one recursive component node:
 
 ```yaml
-schemaVersion: 3
+schemaVersion: 4
 name: Example project
 root:
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   children:
     axis: horizontal
     first:
       node:
         id: intro
-        component: "@dash-bored/markdown"
+        component: "./components/external/core/markdown"
         props:
           content: |
             # Development
@@ -495,7 +496,7 @@ root:
     second:
       node:
         id: api-status
-        component: "@dash-bored/status"
+        component: "./components/external/core/status"
         props:
           label: API
           state: unknown
@@ -503,7 +504,7 @@ root:
 
 Each node supports:
 
-- `component`: a built-in ID or local path; required.
+- `component`: a bundle-relative component path or linked dashboard path; required.
 - `id`: a tree-unique stable identity; optional for display-only nodes and
   required for stateful/actionable nodes.
 - `props`: data validated by the component's JSON Schema.
@@ -522,31 +523,31 @@ breadcrumbs still follow the original configured path. The selected focus
 target is local presentation state; only the optional persistence markers live
 in YAML.
 
-The initial built-ins are:
+The pinned core components are:
 
-- Composition: `@dash-bored/group` for transparent tiled children and
-  `@dash-bored/selection` for one core-selected managed child.
-- Controls and display: `@dash-bored/button`, `@dash-bored/markdown`, and
-  `@dash-bored/status` (a tile or `density: compact` row, with optional source
+- Composition: `./components/external/core/group` for transparent tiled children and
+  `./components/external/core/selection` for one core-selected managed child.
+- Controls and display: `./components/external/core/button`, `./components/external/core/markdown`, and
+  `./components/external/core/status` (a tile or `density: compact` row, with optional source
   trend and part-of-whole segments).
-- Lists: `@dash-bored/list` for bounded source data with stable item IDs,
+- Lists: `./components/external/core/list` for bounded source data with stable item IDs,
   tag filtering, and open-first sorting.
-- Charts: `@dash-bored/chart` for static YAML data or a bounded source, with
-  `@dash-bored/live-chart` retained as a compatibility form for endpoint data.
-- Host-backed: `@dash-bored/command`, `@dash-bored/conditional`,
-  `@dash-bored/env`, `@dash-bored/todo-list`, and
-  `@dash-bored/webview`.
+- Charts: `./components/external/core/chart` for static YAML data or a bounded source, with
+  `./components/external/core/live-chart` retained as a compatibility form for endpoint data.
+- Host-backed: `./components/external/core/command`, `./components/external/core/conditional`,
+  `./components/external/core/env`, `./components/external/core/todo-list`, and
+  `./components/external/core/webview`.
 
 These shipped components are examples of the public component contracts, not
 privileged types. Local components can declare the same child contracts,
 process resources, references, and permissions.
 
-`@dash-bored/button` accepts one `name`/`action` pair or a compact `items`
+`./components/external/core/button` accepts one `name`/`action` pair or a compact `items`
 array. Item actions use the same executor as the command palette, including
 trust, confirmation, choices, availability, and bounded last-result feedback:
 
 ```yaml
-component: "@dash-bored/button"
+component: "./components/external/core/button"
 props:
   variant: tabs
   label: Project sections
@@ -574,12 +575,12 @@ will replace that transitional support with ID-only validation. A valid action
 that is currently unmounted remains valid and renders as a disabled button with
 its reason.
 
-`@dash-bored/markdown` accepts either inline `content` or a project-relative
+`./components/external/core/markdown` accepts either inline `content` or a project-relative
 `path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes
 the source editor, with Save/Cancel behavior. Inline saves update the owning
 dashboard draft, while path-backed saves write the bounded project file.
 
-`@dash-bored/list` reads JSON from one bounded source and expects an array of
+`./components/external/core/list` reads JSON from one bounded source and expects an array of
 items with source-owned, unique string `id` and non-empty string `title`
 fields. Optional `detail`, `tags`, `state`, and `done` fields have fixed types;
 shape errors are shown beside the list. It filters by tags and puts items with
@@ -587,7 +588,7 @@ an open state before completed items by default. A source may be inline, a
 project file, a bounded shell command, HTTP, or a supervised process:
 
 ```yaml
-component: "@dash-bored/list"
+component: "./components/external/core/list"
 props:
   title: Package scripts
   source:
@@ -603,7 +604,7 @@ props:
           runner: "${item.runner}"
 ```
 
-The referenced `@dash-bored/command` node can use the fixed command
+The referenced `./components/external/core/command` node can use the fixed command
 `"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"`. Item templates occupy whole,
 typed argument values; the host passes them as bounded `DASH_ITEM_*`
 environment variables when it starts the supervised process. The list keeps
@@ -615,15 +616,15 @@ For editable YAML todos, set `todos` instead of `source` on the same list atom.
 Each todo needs a stable `id`, `description`, `done`, and `tags`; the editor
 keeps add, remove, toggle, and inline edits within the dashboard draft's
 Save/Cancel boundary. `itemActions` work in either mode. The older
-`@dash-bored/todo-list` reference remains available for schema-v3 dashboards.
+`./components/external/core/todo-list` reference remains available for schema-v3 dashboards.
 
-`@dash-bored/group` is an ordinary transparent component boundary with
+`./components/external/core/group` is an ordinary transparent component boundary with
 `renderMode: layout`: it accepts the core-tiled child surface and projects
 those children without becoming a layout engine. Optional `title` and
 `description` frame the group. Split topology and resize behavior remain
 app-owned.
 
-`@dash-bored/selection` projects one managed child. Give its children stable
+`./components/external/core/selection` projects one managed child. Give its children stable
 IDs and labels in edge metadata; optional `props.defaultChild` names the child
 shown before a saved local selection exists. `select:<container-id>/<child-id>`
 actions can drive a button bar with `variant: tabs`. Use focus for global pages
@@ -660,7 +661,7 @@ its content scrolls inside it. Transparent `renderMode: layout` components and
 linked-config boundaries have no height control, and the dashboard document
 continues growing as more components are added.
 
-`@dash-bored/env` takes a relative `path` prop, reads a project-local dotenv
+`./components/external/core/env` takes a relative `path` prop, reads a project-local dotenv
 file, and provides a key-value editor with a bulk/raw mode. Saving requires
 project trust because the component requests both `filesystem:read` and
 `filesystem:write`; comments, blank lines, and unrecognized lines remain in
@@ -672,7 +673,7 @@ that observes a supervised process derives the state from its phase and exit
 code. Both forms keep schema-v3 dashboards readable while migration is in
 progress.
 
-`@dash-bored/todo-list` stores its `todos` array directly in the component's
+`./components/external/core/todo-list` stores its `todos` array directly in the component's
 dashboard YAML props. Items have stable `id` strings, descriptions, boolean
 completion state, and tags. Legacy items receive IDs when the user next edits
 the list; add, remove, toggle, and inline edits use the normal dashboard draft
@@ -680,16 +681,16 @@ Save/Cancel boundary. `itemActions` use the same whole-value item templates and
 per-item feedback as source lists; an agent action can use
 `prompt: "${item.description}"` without changing todo completion state.
 
-Charts use a shared `{ labels, series }` model. `@dash-bored/chart` renders
+Charts use a shared `{ labels, series }` model. `./components/external/core/chart` renders
 static line or bar data from YAML or reads the same shape from a bounded source
 (shell, file, HTTP, supervised process, or inline). Source shape errors are
-shown on the chart. The schema-v3 `@dash-bored/live-chart` form remains
+shown on the chart. The schema-v3 `./components/external/core/live-chart` form remains
 compatible with HTTP endpoint dashboards and delegates polling and rendering to
 the shared chart source view. Its endpoint may be absolute HTTP(S) or an
 app-relative path such as `/metrics/chart.json`; it also supports an optional
 dot-separated `dataPath`. Source polling pauses while its panel is hidden.
 
-`@dash-bored/conditional` accepts one tiled child and a bounded shell `command`.
+`./components/external/core/conditional` accepts one tiled child and a bounded shell `command`.
 The child is projected when the command exits successfully; set `invert: true`
 to show it until the check succeeds. Checks poll only while their panel is
 visible and fail open before trust or when the host cannot complete a check.
@@ -721,16 +722,30 @@ control. Named bundles below the active bundle are covered by its recursive
 file watcher; an absolute target outside that tree is refreshed on the next
 manual or otherwise-triggered reload.
 
-The lock file is also required:
+The lock file is authoritative. New bundles include the release-owned `core`
+pin from [dash-bored-components](https://github.com/ArvidSU/dash-bored-components),
+with a full commit SHA and `path: components/external/core`. Core references use
+`./components/external/core/<name>` and follow normal project trust.
 
-```yaml
-lockfileVersion: 1
-components: {}
-```
+Dash-bored owns private Git repositories inside `components/external/` and
+`themes/external/`. Generated bundle `.gitignore` rules exclude both directories;
+commit your YAML, local components and `dash-bored-lock.yaml`. Package operations
+work in plain directories and never edit parent Git metadata. Init and opening a
+bundle restore missing locked packages, including linked bundles, at exact pins.
+Existing checkouts stay untouched. Updates are explicit.
 
-Keep `components` empty in this version. npm, Git, registry, and marketplace
-component resolution are not implemented; built-ins and local components do
-not need lock entries.
+Use `component restore <bundle>` to retry missing checkouts, `component sync
+<bundle>` to align existing clean checkouts, and `component migrate-ownership
+<bundle>` only when explicitly converting older parent-owned submodules. This
+conversion changes parent gitlinks and `.gitmodules`, refuses staged changes or
+local edits on those targets, and preserves paths and pins. Inspection, validation
+and watcher reloads stay read-only. Offline failures preserve YAML and pins and
+show an app-owned recovery screen with Retry and Sync.
+
+Dashboard contract 4 replaces recognized `@dash-bored/<name>` references with
+external core paths. Cumulative migration recipes preserve IDs, props, metadata,
+actions and topology and add the release core pin. Linked bundles migrate
+independently. All 17 components remain available; retirement is a separate change.
 
 The application watches the configuration, lock file, component manifests, and
 component source. A valid edit replaces the current dashboard. An invalid edit
@@ -739,7 +754,7 @@ leaves the last known-good dashboard visible and adds diagnostics.
 ### Compose a dashboard in the app
 
 Select **Components** in the header to open the right-hand library. It lists
-the complete packaged and project-local catalog, with search, descriptions,
+the complete core, external and project-local catalog, with search, descriptions,
 child contracts, permissions, provenance, and unavailable diagnostics. Use an
 **Insert** button for keyboard-accessible insertion or drag a card onto a
 contextual dashboard target. Use an existing component's drag handle to move it,
@@ -766,7 +781,7 @@ Configure edits component props through `propsSchema`. New managed edges expose
 their parent's generic `children.metadataSchema`; edge metadata moves with the
 child. If search finds no suitable catalog entry, the flyout retains the
 **Build with agent** path. Its prompt, visible in the Agent work drawer, asks
-the agent to prefer a built-in view fed by a small source script over new
+the agent to prefer a core view fed by a small source script over new
 component code, and states exactly where and how the new node joins the
 chosen insertion position.
 
@@ -1009,10 +1024,10 @@ requested permission requires a new trust decision; the same or a smaller
 permission set preserves the existing decision.
 
 The repository's dogfood dashboard uses `.dash-bored/scripts/package-scripts.ts`
-as a source for `@dash-bored/list`. The script reads `package.json`, detects
+as a source for `./components/external/core/list`. The script reads `package.json`, detects
 its `packageManager`, and emits one stable-ID item per string-valued script.
 The list's declared Run action passes the selected name and runner to a
-`@dash-bored/command` through bounded `DASH_ITEM_*` environment variables.
+`./components/external/core/command` through bounded `DASH_ITEM_*` environment variables.
 The command surface and item button show process and invocation results.
 
 Local components are trusted project code running together in one renderer,
@@ -1021,7 +1036,7 @@ and prevent accidental capability use, but do not isolate local components from
 one another; sufficiently adversarial trusted code could forge another node's
 ID at the internal RPC layer. Project trust is the security boundary.
 
-Use `@dash-bored/command` for a user-controlled terminal. It never starts
+Use `./components/external/core/command` for a user-controlled terminal. It never starts
 automatically: **Open terminal** creates its persistent PTY-backed shell and
 the configured YAML `command` is its remembered quick action. Use the command
 button to run that action again, or type directly into the terminal to run
@@ -1058,7 +1073,7 @@ files for comparison. This does not migrate schema-v1 dashboards. Keep their
 the new bundle before retiring the original.
 
 For bounded agent discovery, use `dash-bored inspect . --summary` followed by
-`dash-bored inspect . --component @dash-bored/command` (or another exact catalog
+`dash-bored inspect . --component ./components/external/core/command` (or another exact catalog
 reference). Full `inspect` output remains available when the entire tree is needed.
 
 ## UI themes
@@ -1116,8 +1131,8 @@ can run the same operations with the agent tool's `theme` command.
 The project installation becomes `./themes/external/ocean`; commit its gitlink,
 `.gitmodules`, and `dash-bored-lock.yaml`. A fresh clone uses Sync to
 restore the exact pinned revision. Personal installation becomes `global:ocean`
-and lives under `~/.config/dash-bored/themes`. Git is required for
-installations, and project installs require a Git checkout. Updates are always
+and lives under `~/.config/dash-bored/themes`. Git is required for installations; project installs work in Git projects and
+plain directories. Updates are always
 explicit and refuse local changes. Installation does not select a theme.
 Two themes ship with the app and need no installation: `builtin:default`
 (calm blue) and `builtin:neon-dusk` (synthwave plum with a hot-magenta accent).

@@ -26,7 +26,7 @@ These are renderer/app state, never YAML — do not try to configure them:
   searchable while unavailable, with a reason. Users favorite actions and
   assign shortcuts in Settings (General/Actions tabs); favorites sort first
   without bypassing trust or availability.
-- **Action buttons.** `@dash-bored/button` uses `{ name, action }`. References
+- **Action buttons.** `./components/external/core/button` uses `{ name, action }`. References
   target explicit node IDs, such as `focus:yaml-todo` or
   `component:project-pulse:refresh-project-pulse`; the editor picker assigns an
   ID when needed. Schema-v3 dashboards still resolve positional references

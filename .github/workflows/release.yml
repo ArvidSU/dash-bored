@@ -32,10 +32,14 @@ jobs:
       - name: Install locked dependencies
         run: bun ci
 
+      - name: Restore pinned dashboard packages
+        run: bun run packages:restore
+
       - name: Run release QA
         run: |
           bun run qa
           bun run dash-bored -- validate .
+          bun run dash-bored -- validate .dash-bored/dogfood
 
       - name: Build clean unsigned macOS artifacts
         run: bun run build:release

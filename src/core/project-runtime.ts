@@ -1,3 +1,4 @@
+import { restoreMissingPackages } from "./package-restore";
 import { watch as watchFileSystem, type FSWatcher } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -371,7 +372,11 @@ export class ProjectRuntime {
         };
       }
       this.location = nextLocation;
-      return this.applyDefinition(await loadProjectDefinition(nextLocation));
+      const restored = await restoreMissingPackages(nextLocation.configPath);
+      const definition = await loadProjectDefinition(nextLocation);
+      definition.diagnostics.push(...restored);
+      if (restored.length) definition.ok = false;
+      return this.applyDefinition(definition);
     });
   }
 

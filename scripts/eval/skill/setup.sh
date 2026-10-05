@@ -30,6 +30,7 @@ EOF
   chmod +x "$eval_dir/skill-$skill/scripts/dash-bored"
 done
 tool="$eval_dir/skill-candidate/scripts/dash-bored"
+core_pin=$(cd "$repo" && bun -e 'import { CORE_PACKAGE } from "./src/shared/core-package.ts"; console.log(JSON.stringify(CORE_PACKAGE));')
 commit() { git -C "$1" add -A && git -C "$1" -c user.name="Dana Reyes" -c user.email=dana@example.com commit -qm "$2"; }
 
 # Fixture 1: acme-api — Node service with the starter dashboard (setup path).
@@ -102,47 +103,47 @@ printf 'from fastapi import FastAPI\n\napp = FastAPI()\n\n\n@app.get("/health")\
 printf 'def test_placeholder():\n    assert True\n' > "$b/tests/test_api.py"
 printf '# Ledger tools\n\nReconciliation API (`make serve`, port 8000, `/health`) and CLI helpers.\n' > "$b/README.md"
 cat > "$b/.dash-bored/dash-bored.yaml" <<'EOF'
-schemaVersion: 3
+schemaVersion: 4
 name: Ledger tools
 root:
   id: ledger-root
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   children:
     axis: vertical
     first:
       node:
         id: service
-        component: "@dash-bored/group"
+        component: "./components/external/core/group"
         props: { title: Service }
         children:
           axis: horizontal
           first:
             node:
               id: service-status
-              component: "@dash-bored/status"
+              component: "./components/external/core/status"
               props: { label: API, state: healthy, detail: Running on port 8000 }
           second:
             node:
               id: serve
-              component: "@dash-bored/command"
+              component: "./components/external/core/command"
               props: { label: Serve API, command: make serve }
     second:
       axis: horizontal
       first:
         node:
           id: readme
-          component: "@dash-bored/markdown"
+          component: "./components/external/core/markdown"
           props: { path: README.md }
       second:
         node:
           id: reconciliation-todos
-          component: "@dash-bored/todo-list"
+          component: "./components/external/core/todo-list"
           props:
             todos:
               - { id: march-close, description: Reconcile March close, done: false, tags: [finance] }
               - { id: fx-rates, description: Backfill FX rates, done: true, tags: [data] }
 EOF
-printf 'lockfileVersion: 1\ncomponents: {}\n' > "$b/.dash-bored/dash-bored-lock.yaml"
+printf 'lockfileVersion: 1\ncomponents:\n  core: %s\n' "$core_pin" > "$b/.dash-bored/dash-bored-lock.yaml"
 commit "$b" "feat: reconciliation api"
 echo "# draft" >> "$b/src/ledger/api.py"; echo "notes" > "$b/scratch.txt"
 
@@ -155,29 +156,30 @@ printf '# Field notes\n\nResearch notes for the wetland survey. TODO: add site m
 printf '# Methods\n\nSampling follows the 2024 protocol.\n\nFIXME: cite the protocol DOI.\n\n<!-- TODO: describe the drone transects -->\n' > "$c/docs/methods.md"
 printf '# Field notes\n\nMkDocs site. `make serve` previews on http://127.0.0.1:8000.\n' > "$c/README.md"
 cat > "$c/.dash-bored/dash-bored.yaml" <<'EOF'
-schemaVersion: 3
+schemaVersion: 4
 name: Field notes
 root:
   id: notes-root
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   props: { title: Field notes }
   children:
     axis: vertical
     first:
       node:
         id: readme
-        component: "@dash-bored/markdown"
+        component: "./components/external/core/markdown"
         props: { path: README.md }
     second:
       node:
         id: serve-docs
-        component: "@dash-bored/command"
+        component: "./components/external/core/command"
         props: { label: Preview the site, command: make serve }
 EOF
-printf 'lockfileVersion: 1\ncomponents: {}\n' > "$c/.dash-bored/dash-bored-lock.yaml"
+printf 'lockfileVersion: 1\ncomponents:\n  core: %s\n' "$core_pin" > "$c/.dash-bored/dash-bored-lock.yaml"
 commit "$c" "docs: survey notes"
 
 for fixture in acme-api ledger-tools field-notes; do
+  (cd "$eval_dir/fixtures/$fixture" && "$tool" component restore . >/dev/null)
   (cd "$eval_dir/fixtures/$fixture" && "$tool" validate . >/dev/null)
   for skill in baseline candidate; do cp -R "$eval_dir/fixtures/$fixture" "$eval_dir/runs/$fixture-$skill"; done
 done

@@ -11,7 +11,6 @@ export interface ComponentCatalogParity {
   total: number;
   withManifest: number;
   unavailable: number;
-  packaged: number;
   projectLocal: number;
   external: number;
   dashboardLinks: number;
@@ -190,7 +189,6 @@ export function componentCatalogParity(
 ): ComponentCatalogParity {
   const manifests = catalog.flatMap((item) => item.manifest ? [item.manifest] : []);
   const shapes = new Set(manifests.map(manifestShape));
-  const packaged = catalog.filter((item) => item.source === "builtin").length;
   const projectLocal = catalog.filter((item) => item.source === "local").length;
   const external = catalog.filter((item) => isExternalCatalogItem(item)).length;
   const dashboardLinks = catalog.filter((item) => item.source === "config").length;
@@ -199,7 +197,6 @@ export function componentCatalogParity(
     total: catalog.length,
     withManifest: manifests.length,
     unavailable: catalog.filter((item) => !item.available).length,
-    packaged,
     projectLocal,
     external,
     dashboardLinks,
@@ -234,9 +231,8 @@ export function componentPermissionLabels(
 
 export function componentProvenanceLabel(
   item: Pick<ComponentCatalogItem, "source"> | { source: string },
-): "Packaged" | "Project-local" | "Dashboard link" | "External" {
+): "Project-local" | "Dashboard link" | "External" {
   const source = (item as { source: string }).source;
-  if (source === "builtin") return "Packaged";
   if (source === "local") return "Project-local";
   if (source === "external") return "External";
   return "Dashboard link";

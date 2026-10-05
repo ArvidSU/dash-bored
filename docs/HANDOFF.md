@@ -2,7 +2,12 @@
 
 As of 2026-10-03, this continuation is on `codex/handoff-l4-s16`, based on
 `382cc9a` (`main` and the local `origin/main` ref). L4 and S16 are integrated
-in the working tree; the schema-v4 and package-pipeline work remains deferred.
+in the working tree; the atoms consolidation and package-pipeline work remained deferred at that handoff.
+
+October 5 update: contract 4 extracts all 17 components to the pinned external
+core repository. It retains legacy forms; atoms retirement needs a future
+contract. The source hook below now lives in that component repository, and
+package storage now uses private Git repositories owned by dash-bored.
 
 Final verification: `caffeinate -is bun run qa:fast` passed 550 tests across
 75 files, typecheck, renderer build, and agent-tool build.
@@ -54,7 +59,7 @@ The backlog lives in `props.todos` of node `id: yaml-todo` in
 `.dash-bored/dash-bored.yaml`. Find the node by ID, not by tree position.
 Add deferred work there.
 
-1. **The rest of L5** waits for the schema-v4 migration
+1. **The rest of L5** waits for a future atoms contract migration
    (`todo-atoms-schema-migration`). `tabs` becomes a single-child selection
    container. `card` and `conditional` retire, and conditional visibility
    moves to edge metadata.

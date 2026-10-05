@@ -5,7 +5,7 @@ import type { ComponentAgentLaunch, DashboardAgentTask, Permission, ProcessSnaps
 import { ensureProjectFiles, loadProjectDefinition, resolveProjectLocation } from "../../src/core";
 import { DashboardSetupSupervisor } from "../../src/main/dashboard-setup";
 import { DashboardAgentHarness } from "../../src/main/component-agent";
-import { removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
+import { installCoreFixture, removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
 
 const cleanup: string[] = [];
 afterEach(async () => Promise.all(cleanup.splice(0).map(removeTemporaryDirectory)));
@@ -29,9 +29,10 @@ function runtime(location: Awaited<ReturnType<typeof resolveProjectLocation>>, n
 async function fixture() {
   const root = await temporaryDirectory(); cleanup.push(root);
   await ensureProjectFiles(root);
+  await installCoreFixture((await resolveProjectLocation(root)).configDirectory);
   const location = await resolveProjectLocation(root);
   const config = parse(await readFile(location.configPath, "utf8"));
-  const node: ResolvedComponentNode = { id: "setup", component: "@dash-bored/setup-agent", props: {}, source: "builtin", sourceConfigPath: location.configPath, sourcePath: "root", manifest: { schemaVersion: 2, id: "@dash-bored/setup-agent", name: "Setup", description: "", entry: "builtin:setup-agent", propsSchema: {}, permissions: ["process:execute"] } };
+  const node: ResolvedComponentNode = { id: "setup", component: "./components/external/core/setup-agent", props: {}, source: "external", sourceConfigPath: location.configPath, sourcePath: "root", manifest: { schemaVersion: 2, id: "./components/external/core/setup-agent", name: "Setup", description: "", entry: "builtin:setup-agent", propsSchema: {}, permissions: ["process:execute"] } };
   const definition = await loadProjectDefinition(location, { compile: true });
   return { location, node, config, permissions: definition.permissions };
 }
@@ -78,7 +79,7 @@ describe("DashboardSetupSupervisor", () => {
 
   test("repairs invalid config once and validates the repair", async () => {
     const { location, node, config, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
-    await writeFile(location.configPath, stringify({ ...config, root: { component: "@dash-bored/setup-agent", props: { unexpected: true } } }));
+    await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
     const supervisor = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await supervisor.launch(node);
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches).toHaveLength(2); expect(h.launches[1].options.componentPath).toBe(`${location.configPath}#diagnostics`);
@@ -92,12 +93,12 @@ describe("DashboardSetupSupervisor", () => {
   });
 
   test("does not repair after active config switch or trust revoke", async () => {
-    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "@dash-bored/setup-agent", props: { unexpected: true } } }));
+    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
     const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); rt.revoke(); await h.launches[0].options.onFinished(h.launches[0].task); expect(h.launches).toHaveLength(1); expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
   });
 
   test("does not retry twice when repair remains invalid", async () => {
-    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "@dash-bored/setup-agent", props: { unexpected: true } } }));
+    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
     const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); await h.launches[0].options.onFinished(h.launches[0].task); await h.launches[1].options.onFinished(h.launches[1].task); expect(h.launches).toHaveLength(2);
   });
   test.each(["navigation", "cancel", "session"] as const)("does not repair after %s", async (reason) => {
@@ -106,7 +107,7 @@ describe("DashboardSetupSupervisor", () => {
     let session = 1; let cancelled = false;
     const s = new DashboardSetupSupervisor({ runtime: { ...rt, getSessionToken: () => session }, harness: { ...h, isCancelled: () => cancelled }, command: "fake-agent", location });
     await s.launch(node);
-    await writeFile(location.configPath, stringify({ ...config, root: { component: "@dash-bored/setup-agent", props: { unexpected: true } } }));
+    await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
     if (reason === "navigation") rt.switchConfig("/other/dashboard.yaml");
     if (reason === "cancel") cancelled = true;
     if (reason === "session") session += 1;
@@ -118,7 +119,7 @@ describe("DashboardSetupSupervisor", () => {
   test("finishes after the agent replaces the starter and removes its setup node", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    await writeFile(location.configPath, stringify({ schemaVersion: 3, name: "Finished", root: { component: "@dash-bored/status", props: { label: "Ready", state: "healthy" } } }));
+    await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Finished", root: { component: "./components/external/core/status", props: { label: "Ready", state: "healthy" } } }));
     rt.removeNode();
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches[0].validations.at(-1).status).toBe("valid");
@@ -136,7 +137,7 @@ describe("DashboardSetupSupervisor", () => {
   test("new permissions require trust even when the saved dashboard validates", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    await writeFile(location.configPath, stringify({ schemaVersion: 3, name: "Needs trust", root: { component: "@dash-bored/webview", props: { url: "https://example.com" } } }));
+    await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Needs trust", root: { component: "./components/external/core/webview", props: { url: "https://example.com" } } }));
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches).toHaveLength(1);
     expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
@@ -149,7 +150,7 @@ describe("DashboardSetupSupervisor", () => {
     await mkdir(directory, { recursive: true });
     await writeFile(`${directory}/component.yaml`, stringify({ schemaVersion: 2, id: "broken", name: "Broken", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } }));
     await writeFile(`${directory}/index.tsx`, "export default (;");
-    await writeFile(location.configPath, stringify({ schemaVersion: 3, name: "Compile check", root: { component: "./components/broken" } }));
+    await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Compile check", root: { component: "./components/broken" } }));
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches).toHaveLength(2);
     expect(h.launches[1].options.prompt).toContain("COMPONENT_COMPILE_FAILED");
@@ -160,7 +161,7 @@ describe("DashboardSetupSupervisor", () => {
     const realLaunch = h.launch;
     h.launch = (options: any) => h.launches.length ? Promise.reject(new Error("repair executable unavailable")) : realLaunch(options);
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    await writeFile(location.configPath, stringify({ ...config, root: { component: "@dash-bored/setup-agent", props: { unexpected: true } } }));
+    await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
     await h.launches[0].options.onFinished(h.launches[0].task);
     expect(h.launches[0].validations.at(-1)).toMatchObject({ status: "failed", diagnostics: [{ severity: "error", code: "DASHBOARD_SETUP_FOLLOWUP_FAILED", message: "repair executable unavailable" }] });
   });
@@ -172,7 +173,7 @@ test.each(['edit', 'migration'] as const)('%s uses the shared verification bound
   const rt = runtime(location, node, permissions); const h = harness();
   const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
   await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
-  await writeFile(location.configPath, 'schemaVersion: 3\nroot: invalid\n');
+  await writeFile(location.configPath, 'schemaVersion: 4\nroot: invalid\n');
   await h.launches[0].options.onFinished(h.launches[0].task);
   expect(h.launches).toHaveLength(2);
   await h.launches[1].options.onFinished(h.launches[1].task);
@@ -186,7 +187,7 @@ test.each(['edit', 'migration'] as const)('%s respects migration authorization w
   const rt = runtime(location, node, permissions); const h = harness();
   const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
   await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
-  await writeFile(location.configPath, 'schemaVersion: 2\nname: Old dashboard\nroot:\n  component: "@dash-bored/group"\n');
+  await writeFile(location.configPath, 'schemaVersion: 2\nname: Old dashboard\nroot:\n  component: "./components/external/core/group"\n');
   await h.launches[0].options.onFinished(h.launches[0].task);
   expect(h.launches).toHaveLength(purpose === 'migration' ? 2 : 1);
   if (purpose === 'migration') {

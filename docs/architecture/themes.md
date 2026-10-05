@@ -21,7 +21,7 @@ optional blue-accent package and `./themes/retro-industrial` an optional warm eq
 ochre warnings and crimson failures kept apart from its orange accent. Shared
 spacing, type-scale (`--font-size-2xs` … `--font-size-xl`, 10–17 px),
 control-state, and border tokens remain renderer-owned in `styles.css` so
-themes do not become layout overrides; built-in components use the type-scale
+themes do not become layout overrides; core components use the type-scale
 tokens instead of literal sizes.
 
 ## Package and selection contract
@@ -95,8 +95,9 @@ serialize through the store's operation guard, which a bundle shares with
 external-component commands. Adds validate a staged checkout (`theme.yaml`)
 before registering a package. Updates validate the target revision,
 protect dirty checkouts, and restore the prior checkout if validation or pin
-publication fails. Sync restores pinned revisions only; no dashboard load runs
-Git fetch/update. An interrupted operation leaves a
+publication fails. Sync restores pinned revisions only; opening a bundle restores missing pins while leaving existing checkouts untouched.
+Inspection and watcher reloads never fetch. Project package Git roots belong to
+dash-bored at themes/external, separately from the bundle lock and parent Git. An interrupted operation leaves a
 `.package-operation.lock` directory that requires explicit removal after
 verifying no package operation is running. Git-managed package
 removal protects local changes; authored local directories are not removed by

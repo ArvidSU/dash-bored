@@ -10,23 +10,23 @@ import {
 
 const leaf: ResolvedComponentNode = {
   id: "only-button",
-  component: "@dash-bored/command",
+  component: "./components/external/core/command",
   props: { label: "Deploy" },
-  source: "builtin",
+  source: "external",
 };
 
 const tree: ResolvedComponentNode = {
   id: "root",
-  component: "@dash-bored/group",
+  component: "./components/external/core/group",
   props: {},
   children: { node: {
           id: "card",
-          component: "@dash-bored/card",
+          component: "./components/external/core/card",
           props: { title: "Operations" },
           children: { node: leaf },
-          source: "builtin"
+          source: "external"
       } },
-  source: "builtin",
+  source: "external",
 };
 
 describe("virtual dashboard roots", () => {
@@ -55,20 +55,20 @@ describe("virtual dashboard roots", () => {
   test("retains marked ancestors, marked direct siblings, and original breadcrumbs", () => {
     const navigation: ResolvedComponentNode = {
       id: "navigation",
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       props: {},
       persistOnFocus: true,
       children: { node: { ...leaf, id: "navigation-child" } },
-      source: "builtin",
+      source: "external",
     };
     const discarded: ResolvedComponentNode = { ...leaf, id: "discarded" };
     const target: ResolvedComponentNode = { ...leaf, id: "target" };
     const skipped: ResolvedComponentNode = {
       id: "skipped",
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       props: {},
       children: { node: target },
-      source: "builtin",
+      source: "external",
     };
     const persistentRoot: ResolvedComponentNode = {
       ...tree,
@@ -146,9 +146,9 @@ describe("virtual dashboard roots", () => {
   });
 
   test("reveal widens focus only when the focused projection hides the node", () => {
-    const sibling: ResolvedComponentNode = { id: "notes", component: "@dash-bored/markdown", props: {}, source: "builtin" };
-    const inner: ResolvedComponentNode = { id: "inner", component: "@dash-bored/group", props: {}, source: "builtin", children: { axis: "vertical", first: { node: leaf }, second: { node: sibling } } };
-    const wide: ResolvedComponentNode = { id: "root", component: "@dash-bored/group", props: {}, source: "builtin", children: { axis: "vertical", first: { node: inner }, second: { node: { id: "other", component: "@dash-bored/markdown", props: {}, source: "builtin" } } } };
+    const sibling: ResolvedComponentNode = { id: "notes", component: "./components/external/core/markdown", props: {}, source: "external" };
+    const inner: ResolvedComponentNode = { id: "inner", component: "./components/external/core/group", props: {}, source: "external", children: { axis: "vertical", first: { node: leaf }, second: { node: sibling } } };
+    const wide: ResolvedComponentNode = { id: "root", component: "./components/external/core/group", props: {}, source: "external", children: { axis: "vertical", first: { node: inner }, second: { node: { id: "other", component: "./components/external/core/markdown", props: {}, source: "external" } } } };
     expect(revealFocusTarget(wide, null, "only-button")).toBeNull();
     expect(revealFocusTarget(wide, "inner", "only-button")).toBeNull();
     expect(revealFocusTarget(wide, "only-button", "notes")).toBe("inner");

@@ -29,7 +29,7 @@ for (const { name } of runs) {
       configDirectory: join(root, ".dash-bored"),
       component: {
         id: "service-status",
-        reference: "@dash-bored/status",
+        reference: "./components/external/core/status",
         path: `${configPath}#id=service-status`,
         name: "service-status",
       },
@@ -40,11 +40,11 @@ for (const { name } of runs) {
     const insertion: DashboardInsertion = {
       path: "root.children.second.second",
       parentPath: "root",
-      parent: { id: "notes-root", component: "@dash-bored/group" },
+      parent: { id: "notes-root", component: "./components/external/core/group" },
       placement: {
         type: "split",
         edgePath: "root.children.second",
-        existing: { id: "serve-docs", component: "@dash-bored/command" },
+        existing: { id: "serve-docs", component: "./components/external/core/command" },
         axis: "horizontal",
         position: "second",
       },

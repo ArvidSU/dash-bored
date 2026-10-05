@@ -26,7 +26,7 @@ function request(overrides: Partial<AgentPromptRequest> = {}): AgentPromptReques
     configDirectory: "/project/.dash-bored",
     component: {
       id: "yaml-todo",
-      reference: "@dash-bored/list",
+      reference: "./components/external/core/list",
       path: "/project/.dash-bored/dash-bored.yaml#id=yaml-todo",
       name: "Project backlog",
     },
@@ -51,7 +51,7 @@ describe("prompt templates", () => {
     expect(template.scope).toBe("project");
     expect(prompt).toContain("do work in this project");
     expect(prompt).toContain("not the dashboard configuration");
-    expect(prompt).toContain("Requested from: Project backlog (component `yaml-todo`, @dash-bored/list)");
+    expect(prompt).toContain("Requested from: Project backlog (component `yaml-todo`, ./components/external/core/list)");
     expect(prompt).toContain("Context:\n- backlogItem: todo-022\n");
     expect(prompt).toEndWith("Request:\nAdd a Save button to the unsaved-changes alert.");
     expect(prompt).not.toContain("{{");
@@ -137,8 +137,8 @@ describe("prompt templates", () => {
   });
 
   test("dashboard loading checks agent:prompt templates and vars", async () => {
-    const dashboard = (withArgs: Record<string, unknown>): DashboardConfig => ({ schemaVersion: 3, name: "Templates", root: {
-      id: "backlog", component: "@dash-bored/list", props: { todos: [],
+    const dashboard = (withArgs: Record<string, unknown>): DashboardConfig => ({ schemaVersion: 4, name: "Templates", root: {
+      id: "backlog", component: "./components/external/core/list", props: { todos: [],
         itemActions: [{ name: "Implement", action: { run: "agent:prompt", with: withArgs } }] },
     } });
     const { root } = await bundleWithPrompts({ "implement-todo.md": "---\nvars:\n  id: Item\n---\nImplement {{vars.id}}." });

@@ -75,7 +75,7 @@ const configSchema = {
   additionalProperties: false,
   required: ["schemaVersion", "name", "root"],
   properties: {
-    schemaVersion: { const: 3 },
+    schemaVersion: { const: 4 },
     name: { type: "string", minLength: 1, maxLength: 200 },
     theme: { type: "string", minLength: 1, maxLength: 2048 },
     themeMode: { enum: ["light", "dark", "system"] },

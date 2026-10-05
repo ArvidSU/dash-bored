@@ -256,6 +256,8 @@ export function App(): ReactNode {
           onFocus={viewState.focusComponent}
           onTrust={() => void notices.perform("trust", () => host.setTrust(true))}
           onReload={() => void notices.perform("reload", host.reloadProject)}
+          onRestorePackages={() => void notices.perform("package-restore", () => host.manageExternalComponent({ op: "restore" }))}
+          onSyncPackages={() => void notices.perform("package-sync", () => host.manageExternalComponent({ op: "sync" }))}
           onFixWithAgent={() => void agent.runDiagnosticsAgent()}
           onRepairInstalledTools={() => void repairInstalledTools()}
         />

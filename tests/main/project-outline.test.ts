@@ -56,18 +56,18 @@ describe("getRegisteredProjectOutline", () => {
     cleanup.push(directory);
     const projectRoot = join(directory, "project");
     await createProject(projectRoot, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Outline dashboard",
         root: {
             id: "layout",
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: {
                 axis: "vertical",
                 first: {
-                    node: { id: "welcome", component: "@dash-bored/markdown", props: { content: "Welcome" } }
+                    node: { id: "welcome", component: "./components/external/core/markdown", props: { content: "Welcome" } }
                 },
                 second: {
-                    node: { id: "status", component: "@dash-bored/status", props: { label: "API", state: "healthy" } }
+                    node: { id: "status", component: "./components/external/core/status", props: { label: "API", state: "healthy" } }
                 }
             }
         }

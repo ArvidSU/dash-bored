@@ -51,7 +51,9 @@ try {
   await run(["bun", "install", "--frozen-lockfile"]);
 
   Object.assign(process.env, await ensureDevEnvironment(root));
+  await run(["bun", "run", "packages:restore"]);
   await run(["bun", "run", "dash-bored", "--", "validate", "."]);
+  await run(["bun", "run", "dash-bored", "--", "validate", ".dash-bored/dogfood"]);
 
   if (await hutchDevelopmentFilesReady()) {
     console.log("Electrobun/Hutch development files already prepared.");

@@ -5,6 +5,7 @@ import { parse, stringify } from "yaml";
 import { ensureProjectFiles, inspectProject, resolveProjectLocation } from "../../src/core";
 import {
   defaultConfig,
+  installCoreFixture,
   removeTemporaryDirectory,
   temporaryDirectory,
 } from "./helpers";
@@ -36,9 +37,10 @@ describe("ensureProjectFiles", () => {
     expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
     const config = parse(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8"));
     const authored = JSON.stringify(config);
-    expect(authored).not.toContain("@dash-bored/setup-agent");
+    expect(authored).not.toContain("./components/external/core/setup-agent");
     expect(authored).toContain('"run":"agent:prompt"');
     expect(authored).toContain("Set up the dash-bored dashboard");
+    await installCoreFixture(join(root, ".dash-bored"));
     expect((await inspectProject(root)).ok).toBeTrue();
   });
 
@@ -62,6 +64,7 @@ describe("ensureProjectFiles", () => {
       componentsDirectory: true,
     });
     expect(await readFile(configPath, "utf8")).toBe(existingConfig);
+    await installCoreFixture(join(root, ".dash-bored"));
     expect((await inspectProject(root)).ok).toBeTrue();
 
     const repeated = await ensureProjectFiles(root);

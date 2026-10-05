@@ -79,7 +79,7 @@ A status for a local service that treats "not running" as a warning:
 
 ```yaml
 id: api-health
-component: "@dash-bored/status"
+component: "./components/external/core/status"
 props:
   label: API on :3000
   source:
@@ -103,7 +103,7 @@ as "Failed to connect".
 
 ```sh
 #!/bin/sh
-# @dash-bored/status source: prints { state, detail } for the working tree.
+# ./components/external/core/status source: prints { state, detail } for the working tree.
 set -eu
 branch=$(git branch --show-current)
 changed=$(git status --porcelain | wc -l | tr -d ' ')
@@ -116,7 +116,7 @@ fi
 
 ```yaml
 id: working-tree
-component: "@dash-bored/status"
+component: "./components/external/core/status"
 props:
   label: Working tree
   source: { shell: sh .dash-bored/scripts/working-tree.sh, every: 10000 }
@@ -127,7 +127,7 @@ props:
 `.dash-bored/scripts/recent-commits.py`:
 
 ```python
-"""@dash-bored/list source: prints recent commits as list items."""
+"""./components/external/core/list source: prints recent commits as list items."""
 import json
 import subprocess
 import sys
@@ -153,7 +153,7 @@ print(json.dumps(items))
 
 ```yaml
 id: recent-commits-panel
-component: "@dash-bored/group"
+component: "./components/external/core/group"
 props: { title: Recent commits }
 children:
   axis: horizontal
@@ -161,7 +161,7 @@ children:
   first:
     node:
       id: recent-commits
-      component: "@dash-bored/list"
+      component: "./components/external/core/list"
       props:
         title: Last 20 commits
         sort: source-order
@@ -174,7 +174,7 @@ children:
   second:
     node:
       id: show-commit
-      component: "@dash-bored/command"
+      component: "./components/external/core/command"
       props:
         label: Show selected commit
         command: 'git --no-pager show --stat --color=always "$DASH_ITEM_SHA"'
@@ -249,7 +249,7 @@ edits them through the app's draft Save/Cancel:
 
 ```yaml
 id: next-up
-component: "@dash-bored/list"
+component: "./components/external/core/list"
 props:
   title: Next up
   todos:
@@ -276,7 +276,7 @@ the command's latest **run**:
 
 ```yaml
 id: tests
-component: "@dash-bored/group"
+component: "./components/external/core/group"
 props:
   title: Tests
 children:
@@ -284,7 +284,7 @@ children:
   first:
     node:
       id: tests-status
-      component: "@dash-bored/status"
+      component: "./components/external/core/status"
       props:
         label: Last test run
         source:
@@ -292,7 +292,7 @@ children:
   second:
     node:
       id: run-tests
-      component: "@dash-bored/command"
+      component: "./components/external/core/command"
       props:
         label: Run tests
         command: bun test

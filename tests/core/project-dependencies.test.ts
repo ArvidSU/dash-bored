@@ -11,6 +11,7 @@ import type {
 } from "../../src/shared/contracts";
 import {
   createProject,
+  installCoreFixture,
   removeTemporaryDirectory,
   temporaryDirectory,
   writeLocalComponent,
@@ -42,10 +43,10 @@ function linkConfig(name: string, references: readonly string[]): DashboardConfi
     component,
   }));
   return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name,
       root: {
-          component: "@dash-bored/group",
+          component: "./components/external/core/group",
           ...(nodes.length === 0
               ? {}
               : { children: vertical(nodes) })
@@ -88,6 +89,7 @@ describe("project deletion dependency analysis", () => {
 
     const nested = join(transitiveSource, ".dash-bored", "nested");
     await mkdir(nested, { recursive: true });
+    await installCoreFixture(nested);
     await writeFile(
       join(nested, "dash-bored.yaml"),
       stringify(linkConfig("Nested link", [targetFiles])),
@@ -108,7 +110,8 @@ describe("project deletion dependency analysis", () => {
     );
 
     expect(preview.filesExist).toBeTrue();
-    expect(preview.analysisComplete).toBeTrue();
+    expect(preview.analysisComplete).toBeFalse();
+    expect(preview.analysisIssues.some(issue => issue.includes("external/core"))).toBeTrue();
     expect(preview.dependencies.map((item) => item.dashboardName)).toEqual([
       "Absolute source",
       "Relative source",
@@ -199,7 +202,7 @@ describe("project deletion dependency analysis", () => {
     const target = join(source, "new-dashboard");
     cleanup.push(source);
     await createProject(source, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Local source",
         root: { component: "./components/reader" }
     });
@@ -225,7 +228,7 @@ describe("project deletion dependency analysis", () => {
     await createProject(target);
     await mkdir(source, { recursive: true });
     await createProject(source, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Local source",
         root: { component: "./components/reader" }
     });

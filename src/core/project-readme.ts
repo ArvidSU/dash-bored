@@ -20,6 +20,19 @@ This directory is its portable dashboard bundle; it travels with the project.
   (\`DASH_BORED_AGENT\`); keep credentials out of version control.
 - \`install-app.sh\`: downloads, verifies, and opens a compatible macOS installer.
 
+## Managed packages
+
+The lock includes the release-pinned core package. Dash-bored restores missing
+checkouts at exact pins on opening, including linked bundles. Git is required;
+no dependency installation, parent Git repository or Git identity is needed.
+Private repositories in \`components/external/\` and \`themes/external/\` belong
+to dash-bored. This bundle's generated ignore rules exclude those directories;
+commit the YAML, local components and lock file. Existing checkouts are untouched
+until explicit Sync or Update. Inspection and file reloads do not download.
+Offline failures preserve configuration and pins and offer Retry/Sync in the app.
+Older parent-owned submodules require explicit ownership migration, which refuses
+staged registration changes or package edits.
+
 ## Install and open
 
 Requires an Apple Silicon Mac with macOS 14 or newer. No Bun, Node, or coding
@@ -41,7 +54,7 @@ DMG's SHA-256, and opens it. It stops if no compatible release is published.
 2. Choose **Add dashboard** and select this project's \`${bundle}\` directory.
    The app loads this bundle without replacing its configuration.
 3. Review the requested capabilities before choosing **Trust project** to enable
-   checks, commands, and project-file access. Safe text and layout work before trust.
+   checks, commands, and project-file access. Manifests can be inspected before trust; component execution follows trust.
 4. For a starter dashboard, follow **Get started**: choose an installed CLI coding
    agent, install the dash-bored skill globally or for this project, then use
    **Set up this dashboard** and review the command and prompt before **Send**.

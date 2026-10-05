@@ -1,8 +1,7 @@
 /**
- * Legacy migration, scheduled for deletion at dashboard schema v4: todo props
- * written before todos carried stable IDs. After v4 every todo has a unique
- * `id` in YAML and this file goes away with its callers in
- * `renderer/lib/todo.ts` and the todo-list component.
+ * Legacy todo props written before todos carried stable IDs. Contract 4 keeps
+ * these forms; the extracted core components carry the same migration until
+ * the separate atoms contract replaces them.
  *
  * Node-free on purpose: the renderer bundles it.
  */

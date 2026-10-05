@@ -14,23 +14,23 @@ import {
 
 const leaf: ResolvedComponentNode = {
   id: "chart",
-  component: "@dash-bored/chart",
+  component: "./components/external/core/chart",
   props: {},
-  source: "builtin",
+  source: "external",
 };
 
 const tree: ResolvedComponentNode = {
   id: "dashboard",
-  component: "@dash-bored/group",
+  component: "./components/external/core/group",
   props: {},
   children: { node: {
           id: "operations",
-          component: "@dash-bored/card",
+          component: "./components/external/core/card",
           props: {},
           children: { node: leaf },
-          source: "builtin"
+          source: "external"
       } },
-  source: "builtin",
+  source: "external",
 };
 
 describe("component view state", () => {

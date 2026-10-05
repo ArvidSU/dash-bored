@@ -15,6 +15,7 @@ import type {
 } from "../../src/shared/contracts";
 import {
   createProject,
+  installCoreFixture,
   defaultConfig,
   removeTemporaryDirectory,
   temporaryDirectory,
@@ -66,25 +67,25 @@ describe("project paths and YAML", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Typed paths",
       root: {
         id: "root",
-        component: "@dash-bored/tabs",
+        component: "./components/external/core/tabs",
         children: [
-          { metadata: { label: "First" }, node: { id: "first", component: "@dash-bored/markdown", props: { content: "First" } } },
+          { metadata: { label: "First" }, node: { id: "first", component: "./components/external/core/markdown", props: { content: "First" } } },
           {
             metadata: { label: "Nested" },
             node: {
               id: "nested",
-              component: "@dash-bored/group",
+              component: "./components/external/core/group",
               children: {
                 axis: "horizontal",
-                first: { node: { id: "tile-a", component: "@dash-bored/markdown", props: { content: "A" } } },
+                first: { node: { id: "tile-a", component: "./components/external/core/markdown", props: { content: "A" } } },
                 second: {
                   axis: "vertical",
-                  first: { node: { id: "tile-b", component: "@dash-bored/markdown", props: { content: "B" } } },
-                  second: { node: { id: "tile-c", component: "@dash-bored/markdown", props: { content: "C" } } },
+                  first: { node: { id: "tile-b", component: "./components/external/core/markdown", props: { content: "B" } } },
+                  second: { node: { id: "tile-c", component: "./components/external/core/markdown", props: { content: "C" } } },
                 },
               },
             },
@@ -119,7 +120,7 @@ describe("project paths and YAML", () => {
     cleanup.push(root);
     await createProject(root, {
       ...defaultConfig,
-      root: { id: "observed", component: "@dash-bored/markdown", props: { source: { inline: { state: "ready" } } } },
+      root: { id: "observed", component: "./components/external/core/markdown", props: { source: { inline: { state: "ready" } } } },
     });
     let result = await loadProjectDefinition(root);
     expect(result.ok).toBeTrue();
@@ -128,7 +129,7 @@ describe("project paths and YAML", () => {
 
     await createProject(root, {
       ...defaultConfig,
-      root: { id: "observed", component: "@dash-bored/markdown", props: { source: { shell: "bun run data" } } },
+      root: { id: "observed", component: "./components/external/core/markdown", props: { source: { shell: "bun run data" } } },
     });
     result = await loadProjectDefinition(root);
     expect(result.ok).toBeTrue();
@@ -142,11 +143,11 @@ describe("project paths and YAML", () => {
     await createProject(root, {
       ...defaultConfig,
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: tiled([
-          { id: "status", component: "@dash-bored/status", props: { label: "QA", source: { process: "run-qa" } } },
-          { id: "chart", component: "@dash-bored/chart", props: { source: { shell: "bun run metrics" } } },
-          { id: "run-qa", component: "@dash-bored/command", props: { label: "Run QA", command: "bun test" } },
+          { id: "status", component: "./components/external/core/status", props: { label: "QA", source: { process: "run-qa" } } },
+          { id: "chart", component: "./components/external/core/chart", props: { source: { shell: "bun run metrics" } } },
+          { id: "run-qa", component: "./components/external/core/command", props: { label: "Run QA", command: "bun test" } },
         ]),
       },
     });
@@ -157,7 +158,7 @@ describe("project paths and YAML", () => {
 
     await createProject(root, {
       ...defaultConfig,
-      root: { component: "@dash-bored/status", props: { label: "Broken", source: { process: "missing" } } },
+      root: { component: "./components/external/core/status", props: { label: "Broken", source: { process: "missing" } } },
     });
     const invalid = await loadProjectDefinition(root);
     expect(invalid.ok).toBeFalse();
@@ -170,10 +171,10 @@ describe("project paths and YAML", () => {
     const config: DashboardConfig = {
       ...defaultConfig,
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: tiled([
-          { id: "process-output", component: "@dash-bored/markdown", props: { source: { process: "run-qa" } } },
-          { id: "run-qa", component: "@dash-bored/command", props: { label: "Run QA", command: "bun test" } },
+          { id: "process-output", component: "./components/external/core/markdown", props: { source: { process: "run-qa" } } },
+          { id: "run-qa", component: "./components/external/core/command", props: { label: "Run QA", command: "bun test" } },
         ]),
       },
     };
@@ -183,7 +184,7 @@ describe("project paths and YAML", () => {
     expect(result.permissionsByNode.get("process-output")).toEqual(new Set(["process:observe"]));
     expect(resolvedChildren(result.tree)[0]?.props.source).toEqual({ process: "run-qa" });
 
-    await createProject(root, { ...config, root: { ...config.root, children: child({ id: "process-output", component: "@dash-bored/markdown", props: { source: { process: "missing" } } }) } });
+    await createProject(root, { ...config, root: { ...config.root, children: child({ id: "process-output", component: "./components/external/core/markdown", props: { source: { process: "missing" } } }) } });
     const invalid = await loadProjectDefinition(root);
     expect(invalid.ok).toBeFalse();
     expect(invalid.diagnostics.some((item) => item.code === "COMPONENT_RESOURCE_REFERENCE_UNKNOWN")).toBeTrue();
@@ -209,12 +210,13 @@ describe("project paths and YAML", () => {
     await createProject(root);
     const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
     await writeFile(
       join(named, "dash-bored.yaml"),
       stringify({
-          schemaVersion: 3,
+          schemaVersion: 4,
           name: "Arvid",
-          root: { component: "@dash-bored/markdown", props: { content: "Personal" } }
+          root: { component: "./components/external/core/markdown", props: { content: "Personal" } }
       }),
     );
     await writeFile(
@@ -235,7 +237,7 @@ describe("project paths and YAML", () => {
     await createProject(root);
     await writeFile(
       join(root, ".dash-bored", "dash-bored.yaml"),
-      "schemaVersion: 3\nname: First\nname: Second\nroot:\n  component: '@dash-bored/markdown'\n  props:\n    content: hi\n",
+      "schemaVersion: 4\nname: First\nname: Second\nroot:\n  component: './components/external/core/markdown'\n  props:\n    content: hi\n",
     );
     const duplicate = await inspectProject(root);
     expect(duplicate.ok).toBeFalse();
@@ -335,7 +337,7 @@ describe("project paths and YAML", () => {
     const outside = await temporaryDirectory();
     cleanup.push(root, outside);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Unsafe",
         root: { component: "./components/escape" }
     });
@@ -354,29 +356,30 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Base",
       root: { id: "personal", component: "./arvid" },
     });
     const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Arvid",
         root: {
           id: "linked-root",
-          component: "@dash-bored/group",
+          component: "./components/external/core/group",
           children: {
             axis: "horizontal",
             first: child({
               id: "navigate",
-              component: "@dash-bored/button",
+              component: "./components/external/core/button",
               props: { name: "Focus target", action: "focus:${root.children.second.node}" },
             }),
             second: child({
               id: "target",
-              component: "@dash-bored/status",
+              component: "./components/external/core/status",
               props: { label: "Target", state: "healthy" },
             }),
           },
@@ -395,20 +398,21 @@ describe("tree resolution and local compilation", () => {
   test("remaps and validates a process source inside a linked bundle", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
-    await createProject(root, { schemaVersion: 3, name: "Base", root: { id: "personal", component: "./arvid" } });
+    await createProject(root, { schemaVersion: 4, name: "Base", root: { id: "personal", component: "./arvid" } });
     const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Arvid",
         root: {
           id: "linked-root",
-          component: "@dash-bored/group",
+          component: "./components/external/core/group",
           children: {
             axis: "horizontal",
-            first: child({ id: "source", component: "@dash-bored/markdown", props: { source: { process: "run-qa" } } }),
-            second: child({ id: "run-qa", component: "@dash-bored/command", props: { label: "QA", command: "bun test" } }),
+            first: child({ id: "source", component: "./components/external/core/markdown", props: { source: { process: "run-qa" } } }),
+            second: child({ id: "run-qa", component: "./components/external/core/command", props: { label: "QA", command: "bun test" } }),
           },
         },
       })),
@@ -429,10 +433,10 @@ describe("tree resolution and local compilation", () => {
     cleanup.push(root, external);
     const namedDirectory = join(root, ".dash-bored", "arvid");
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Base",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: tiled([
                 { id: "relative", component: "./arvid" },
                 { id: "broken", component: "./moved-away" },
@@ -441,25 +445,26 @@ describe("tree resolution and local compilation", () => {
         }
     });
     await mkdir(join(namedDirectory, "components"), { recursive: true });
+    await installCoreFixture(namedDirectory);
     await Promise.all([
       writeFile(join(namedDirectory, "dash-bored.yaml"), stringify({
-          schemaVersion: 3,
+          schemaVersion: 4,
           name: "Arvid",
-          root: { component: "@dash-bored/markdown", props: { content: "Personal" } }
+          root: { component: "./components/external/core/markdown", props: { content: "Personal" } }
       })),
       writeFile(join(namedDirectory, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
     await createProject(external, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "External",
-        root: { component: "@dash-bored/status", props: { label: "External", state: "healthy" } }
+        root: { component: "./components/external/core/status", props: { label: "External", state: "healthy" } }
     });
 
     const result = await loadProjectDefinition(root);
     expect(result.ok).toBeTrue();
     const children = resolvedChildren(result.tree);
     expect(children[0]).toMatchObject({ source: "config", configName: "Arvid" });
-    expect(resolvedChildren(children[0])[0]?.component).toBe("@dash-bored/markdown");
+    expect(resolvedChildren(children[0])[0]?.component).toBe("./components/external/core/markdown");
     expect(children[1]).toMatchObject({ source: "config" });
     expect(children[1]?.configError?.length).toBeGreaterThan(0);
     expect(children[2]).toMatchObject({ source: "config", configName: "External" });
@@ -487,7 +492,7 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Base",
         root: { id: "personal", component: "./arvid" }
     });
@@ -496,7 +501,7 @@ describe("tree resolution and local compilation", () => {
     await mkdir(component, { recursive: true });
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-          schemaVersion: 3,
+          schemaVersion: 4,
           name: "Arvid",
           root: { component: "./components/personal-button" }
       })),
@@ -530,9 +535,9 @@ describe("tree resolution and local compilation", () => {
     await writeFile(join(invalid, "component.yaml"), "schemaVersion: nope\n");
 
     const result = await loadProjectDefinition(root);
-    expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/group" && item.available)).toBeTrue();
-    expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/env" && item.available)).toBeTrue();
-    expect(result.componentCatalog.some((item) => item.reference === "@dash-bored/todo-list" && item.available)).toBeTrue();
+    expect(result.componentCatalog.some((item) => item.reference === "./components/external/core/group" && item.available)).toBeTrue();
+    expect(result.componentCatalog.some((item) => item.reference === "./components/external/core/env" && item.available)).toBeTrue();
+    expect(result.componentCatalog.some((item) => item.reference === "./components/external/core/todo-list" && item.available)).toBeTrue();
     expect(result.componentCatalog.some((item) => item.reference === "./components/available" && item.available)).toBeTrue();
     const unavailable = result.componentCatalog.find((item) => item.reference === "./components/invalid");
     expect(unavailable?.available).toBeFalse();
@@ -543,13 +548,13 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const config: DashboardConfig = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Ids",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: tiled([
-                { id: "same", component: "@dash-bored/markdown", props: { content: "one" } },
-                { id: "same", component: "@dash-bored/markdown", props: { content: "two" } },
+                { id: "same", component: "./components/external/core/markdown", props: { content: "one" } },
+                { id: "same", component: "./components/external/core/markdown", props: { content: "two" } },
             ])
         }
     };
@@ -559,7 +564,7 @@ describe("tree resolution and local compilation", () => {
     expect(duplicate.diagnostics.map((item) => item.code)).toContain("NODE_ID_DUPLICATE");
 
     config.root.children = tiled([
-      { component: "@dash-bored/markdown", props: { content: "one" } },
+      { component: "./components/external/core/markdown", props: { content: "one" } },
     ]);
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(config));
     const generated = await inspectProject(root);
@@ -571,13 +576,13 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Processes",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: tiled([
                 {
-                    component: "@dash-bored/command",
+                    component: "./components/external/core/command",
                     props: { label: "Run", command: "echo ok" }
                 },
             ])
@@ -592,13 +597,13 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Children",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: {
-                ...tiled([{ component: "@dash-bored/markdown", props: { content: "visible" } }]),
-                constructor: { component: "@dash-bored/markdown", props: { content: "hidden" } }
+                ...tiled([{ component: "./components/external/core/markdown", props: { content: "visible" } }]),
+                constructor: { component: "./components/external/core/markdown", props: { content: "hidden" } }
             } as unknown as DashboardConfig["root"]["children"]
         }
     });
@@ -612,7 +617,7 @@ describe("tree resolution and local compilation", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Local",
         root: { component: "./components/example", props: { message: "Hello" } }
     });
@@ -648,7 +653,7 @@ export default defineComponent(({ props, host }) => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Restricted",
         root: { component: "./components/restricted" }
     });
@@ -667,7 +672,7 @@ export default defineComponent(({ props, host }) => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Reserved",
         root: { component: "./components/reserved" }
     });

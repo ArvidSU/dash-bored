@@ -440,7 +440,7 @@ function collectIds(node: ComponentNode, ids: Set<string>, nodePath = "root"): v
 export function generateNodeId(config: DashboardConfig, manifest: ComponentManifest): string {
   const ids = new Set<string>();
   collectIds(config.root, ids);
-  const raw = manifest.id.replace(/^@dash-bored\//, "");
+  const raw = manifest.id.split("/").at(-1)!;
   const normalized = raw.toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^[^a-z]+/, "")
@@ -469,12 +469,12 @@ export function switchablePanelsNode(config: DashboardConfig): ComponentNode {
   const secondId = reserve("second-panel");
   return {
     id: groupId,
-    component: "@dash-bored/group",
+    component: "./components/external/core/group",
     children: {
       axis: "vertical",
       first: { node: {
         id: barId,
-        component: "@dash-bored/button",
+        component: "./components/external/core/button",
         props: {
           variant: "tabs",
           label: "Panels",
@@ -486,11 +486,11 @@ export function switchablePanelsNode(config: DashboardConfig): ComponentNode {
       } },
       second: { node: {
         id: selectionId,
-        component: "@dash-bored/selection",
+        component: "./components/external/core/selection",
         props: { defaultChild: firstId },
         children: [
-          { metadata: { label: "First" }, node: { id: firstId, component: "@dash-bored/markdown", props: { content: "# First panel\n\nReplace this content." } } },
-          { metadata: { label: "Second" }, node: { id: secondId, component: "@dash-bored/markdown", props: { content: "# Second panel\n\nReplace this content." } } },
+          { metadata: { label: "First" }, node: { id: firstId, component: "./components/external/core/markdown", props: { content: "# First panel\n\nReplace this content." } } },
+          { metadata: { label: "Second" }, node: { id: secondId, component: "./components/external/core/markdown", props: { content: "# Second panel\n\nReplace this content." } } },
         ],
       } },
     },

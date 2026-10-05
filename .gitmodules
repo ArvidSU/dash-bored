@@ -1,0 +1,3 @@
+[submodule ".dash-bored/components/external/test"]
+	path = .dash-bored/components/external/test
+	url = https://github.com/ArvidSU/dash-bored.git

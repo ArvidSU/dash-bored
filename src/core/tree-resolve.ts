@@ -12,13 +12,11 @@ import type {
 } from "../shared/contracts";
 import { permissionsForComponent } from "../shared/component-permissions";
 import { migrateLegacyActionReferences } from "../migrations/action-references";
-import { getBuiltinManifest } from "./builtins";
 import { childEdges } from "../shared/child-edges";
 import { diagnostic } from "./diagnostics";
 import type { ProjectLocation } from "./paths";
 import { loadPromptTemplates } from "./prompt-templates";
 import {
-  LOCAL_REFERENCE_PREFIX,
   loadLocalDefinition,
   validateLocalDefinitionContainment,
   type LocalComponentDefinition,
@@ -75,8 +73,6 @@ export async function resolveComponentTree(
   let nodeCount = 0;
 
   const manifestForReference = async (reference: string): Promise<ComponentManifest | null> => {
-    const builtin = getBuiltinManifest(reference);
-    if (builtin !== undefined) return builtin;
     const cached = definitions.get(reference);
     if (cached !== undefined) return cached.manifest;
     if (failedReferences.has(reference)) return null;
@@ -312,7 +308,7 @@ export async function resolveComponentTree(
       props,
       ...(resolvedChildren === undefined ? {} : { children: resolvedChildren }),
       ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
-      source: node.component.startsWith(LOCAL_REFERENCE_PREFIX) ? "local" : "builtin",
+      source: node.component.startsWith("./components/external/") ? "external" : "local",
       sourceConfigPath: location.configPath,
       sourcePath,
       sourceNodePath,

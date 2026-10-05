@@ -4506,14 +4506,11 @@ select:focus,
   text-transform: uppercase;
 }
 
-.component-state,
-.status,
-.command,
-.card {
+.component-state {
   box-shadow: var(--shadow-panel);
 }
 
-.command__terminal,
+.terminal-surface,
 .agent-task-modal__diff,
 .agent-task-modal__command {
   border-color: var(--border-dark);
@@ -4705,12 +4702,7 @@ tr:last-child td {
 
 [data-item-id]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* Source reads signal activity in existing chrome, without adding a row. */
-.source-list[data-refreshing] > header,
-.markdown-viewer[data-refreshing] > header { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
-
 @media (prefers-reduced-motion: no-preference) {
-  .card, .source-list, .todo, .chart, .status { animation: surface-arrive 180ms ease-out; }
   .command-palette, .editor-modal__panel { animation: surface-arrive 140ms ease-out; }
 }
 

@@ -1,17 +1,19 @@
+import { execFileSync } from "node:child_process";
+import { CORE_PACKAGE } from "../../src/shared/core-package";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { stringify } from "yaml";
 import type { DashboardConfig, DashboardLock } from "../../src/shared/contracts";
 
 export const defaultConfig: DashboardConfig = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name: "Test project",
     root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: {
             node: {
-                component: "@dash-bored/markdown",
+                component: "./components/external/core/markdown",
                 props: { content: "# Ready" }
             }
         }
@@ -35,6 +37,10 @@ export async function createProject(
   lock: DashboardLock = { lockfileVersion: 1, components: {} },
 ): Promise<void> {
   const directory = join(root, ".dash-bored");
+  if (JSON.stringify(config).includes("./components/external/core/")) {
+    lock = { ...lock, components: { ...lock.components, core: { ...CORE_PACKAGE } } };
+    await installCoreFixture(directory);
+  }
   await mkdir(join(directory, "components"), { recursive: true });
   await Promise.all([
     writeFile(join(directory, "dash-bored.yaml"), stringify(config), "utf8"),
@@ -88,4 +94,13 @@ export async function waitFor(
     if (Date.now() >= deadline) throw new Error("Timed out waiting for test condition.");
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
+}
+
+/** Static fixtures contain the exact published output, with no network or built-in registry. */
+export async function installCoreFixture(bundle: string): Promise<void> {
+ await mkdir(join(bundle, "components", "external"), {recursive:true});
+ const target = join(bundle,"components","external","core");
+ if (!await Bun.file(join(target,"component.yaml")).exists() && !await Bun.file(join(target,"group","component.yaml")).exists()) {
+  execFileSync("git", ["-c", "protocol.file.allow=always", "clone", "--quiet", resolve(import.meta.dirname, "../../.dash-bored/components/external/core"), target]);
+ }
 }

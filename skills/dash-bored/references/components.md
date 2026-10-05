@@ -1,7 +1,7 @@
 # Component authoring reference
 
 Use this reference when neither the catalog from `dash-bored inspect .` nor a
-source script feeding a built-in view ([sources.md](sources.md)) covers a
+source script feeding a core view ([sources.md](sources.md)) covers a
 project-specific need. Packaged and local components use the same manifest,
 render props, child handles, and permission-shaped host contract; this document
 defines the local component contract.
@@ -26,14 +26,14 @@ version 3; component manifests use schema version 2. Child entries may carry
 
 ## Transparent child-surface grouping
 
-`@dash-bored/group` is an ordinary transparent component boundary that accepts
+`./components/external/core/group` is an ordinary transparent component boundary that accepts
 and projects a core-tiled child surface. It is useful when a multi-component
 panel needs a component boundary; it is not a layout engine, and it does not
 own split topology or resize behavior. A card is not required for grouping.
 
 ## Conditional visibility
 
-`@dash-bored/conditional` is a transparent layout boundary for setup and
+`./components/external/core/conditional` is a transparent layout boundary for setup and
 recovery actions; a later migration replaces it with source-bound visibility
 on the edge, so use it only for "show until done" setup steps. It accepts
 exactly one tiled child and projects that child when a bounded shell command
@@ -41,14 +41,14 @@ exits successfully. Use `invert: true` to show the child until the condition
 succeeds:
 
 ```yaml
-component: "@dash-bored/conditional"
+component: "./components/external/core/conditional"
 id: show-install-skill
 props:
   command: test -f ".agents/skills/dash-bored/SKILL.md"
   invert: true
 children:
   node:
-    component: "@dash-bored/command"
+    component: "./components/external/core/command"
     id: install-project-skill
     props:
       label: Install the project skill
@@ -205,7 +205,7 @@ root associated with the component instance.
 
 ## Built-in views
 
-`@dash-bored/status`, `list`, `chart`, and `markdown` read one bounded
+`./components/external/core/status`, `list`, `chart`, and `markdown` read one bounded
 `source`; [sources.md](sources.md) has their data shapes, tested scripts, and
 the app's shell environment. A local component that only fetches and displays
 data is usually a source script plus one of these views.
@@ -213,7 +213,7 @@ data is usually a source script plus one of these views.
 Keep chart values in YAML only when they are fixed facts:
 
 ```yaml
-component: "@dash-bored/chart"
+component: "./components/external/core/chart"
 props:
   title: Release scope
   type: bar
@@ -227,7 +227,7 @@ For values that change, give the chart a `source` that returns
 `{ labels, series }`, such as an HTTP endpoint that already has that shape:
 
 ```yaml
-component: "@dash-bored/chart"
+component: "./components/external/core/chart"
 id: request-rate
 props:
   title: Requests per minute
@@ -237,14 +237,14 @@ props:
     every: 30000
 ```
 
-`@dash-bored/live-chart` is the older form of the same view; do not add new
+`./components/external/core/live-chart` is the older form of the same view; do not add new
 ones.
 
 For a small todo list that the user edits in the app, give
-`@dash-bored/list` its own `todos`. Every item needs a stable `id`:
+`./components/external/core/list` its own `todos`. Every item needs a stable `id`:
 
 ```yaml
-component: "@dash-bored/list"
+component: "./components/external/core/list"
 id: next-up
 props:
   title: Next up
@@ -258,7 +258,7 @@ props:
 Todos live in node props, not a separate file. Each item has exactly
 `id`, `description`, boolean `done`, and `tags`. The list provides status
 sorting, tag filtering, add/remove, and inline editing through the app's
-draft Save/Cancel. `@dash-bored/todo-list` is the older form; do not add new
+draft Save/Cancel. `./components/external/core/todo-list` is the older form; do not add new
 ones.
 
 ## TSX contract
@@ -308,7 +308,7 @@ interface LocalComponentHost {
 
 The callback always receives exactly `LocalComponentRenderProps`: `props`,
 generic rendered children/handles, and `host`. Shipped examples such as
-`@dash-bored/command` and `@dash-bored/webview` are not special component types;
+`./components/external/core/command` and `./components/external/core/webview` are not special component types;
 local components may declare the same resources and
 permissions.
 
@@ -336,7 +336,7 @@ runtime exports.
 
 ## Validation loop
 
-1. Run `dash-bored inspect . --summary` and reuse a built-in view, fed by a
+1. Run `dash-bored inspect . --summary` and reuse a core view, fed by a
    source script where needed, if it already fits.
 2. When nothing fits the project need, add a small local manifest and implementation.
 3. Add the local component node to the owning `dash-bored.yaml`.
@@ -439,19 +439,19 @@ interface ComponentChildHandle {
 ```
 
 For switchable panels, pair a tab-styled action bar with
-`@dash-bored/selection`. Labels belong on the managed-child edges:
+`./components/external/core/selection`. Labels belong on the managed-child edges:
 
 ```yaml
-schemaVersion: 3
+schemaVersion: 4
 name: Service dashboard
 root:
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   id: service-layout
   children:
     axis: vertical
     first:
       node:
-        component: "@dash-bored/button"
+        component: "./components/external/core/button"
         id: service-tabs
         props:
           variant: tabs
@@ -460,13 +460,13 @@ root:
             - { name: Tasks, action: "select:service-panels/service-tasks" }
     second:
       node:
-        component: "@dash-bored/selection"
+        component: "./components/external/core/selection"
         id: service-panels
         props: { defaultChild: service-state }
         children:
           - metadata: { label: Overview }
             node:
-              component: "@dash-bored/status"
+              component: "./components/external/core/status"
               id: service-state
               props:
                 label: Service
@@ -475,7 +475,7 @@ root:
                   every: 15000
           - metadata: { label: Tasks }
             node:
-              component: "@dash-bored/list"
+              component: "./components/external/core/list"
               id: service-tasks
               props:
                 todos: []
@@ -692,7 +692,7 @@ existing dashboard insert only its `root` node at the intended child edge;
 preserve the rest of the tree.
 
 ```yaml
-schemaVersion: 3
+schemaVersion: 4
 name: Git overview
 root:
   component: ./components/git-summary
@@ -711,3 +711,17 @@ and a narrow tile. Do not claim runtime behavior from compilation alone.
 Polling never overlaps within an effect, and cleanup ignores late responses;
 changing props or toggling polling can leave an older bounded request finishing
 while the new effect starts. Pausing stops future polls, not that request.
+
+Core lives at `./components/external/core/<name>` and requires normal project
+trust. The lock owns its URL and exact SHA. Init/open restore missing pins; use
+`component restore` for retry and explicit `component sync` for clean revision
+mismatches. Inspection and file reloads do not download. Package Git metadata
+belongs to dash-bored under components/external and themes/external; retain the
+generated ignore rules and commit the lock. Older parent-owned packages need
+explicit `component migrate-ownership`, never automatic gitlink conversion.
+
+Use SDK `useComponentVisibility()` for hidden polling and `trackActivity(work)`
+for asynchronous idle tracking. `TerminalSurface` renders a supplied process
+snapshot with bound input/resize callbacks and a numeric scroll-to-latest trigger;
+keep process supervision in the host. Published components bundle dependencies
+inside their own directory, keeping React and @dash-bored/component external.

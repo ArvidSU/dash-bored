@@ -16,7 +16,7 @@ export function nodeLabel(node: ResolvedComponentNode, root: boolean): string {
   if (root) return "Dashboard";
   const title = node.props.title ?? node.props.label ?? node.props.name;
   if (typeof title === "string" && title.trim()) return title.trim();
-  return node.manifest?.name ?? node.component.replace(/^@dash-bored\//, "");
+  return node.manifest?.name ?? node.component.split("/").at(-1)!;
 }
 
 export interface DashboardNodeEntry {

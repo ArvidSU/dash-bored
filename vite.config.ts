@@ -1,7 +1,10 @@
+import { execFileSync } from "node:child_process";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import { electrobunViteAliases } from "./.hutch/devkit/api/config/electrobun-vite";
+
+execFileSync("bun", ["scripts/build-core-fixture.ts"], { cwd: import.meta.dirname });
 
 export default defineConfig({
   plugins: [react()],

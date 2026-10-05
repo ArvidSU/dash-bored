@@ -127,7 +127,7 @@ for (const global of [true, false]) test(`git theme lifecycle, rollback and dirt
   const source = await temp(); await repo(source); await writeFile(join(source, 'theme.yaml'), stringify(manifest)); const first = await commit(source);
   const root = await temp(); await repo(root);
   await mkdir(join(root, '.dash-bored'));
-  await writeFile(join(root, '.dash-bored', 'dash-bored.yaml'), 'schemaVersion: 3\nname: Test\nroot:\n  component: "@dash-bored/group"\n');
+  await writeFile(join(root, '.dash-bored', 'dash-bored.yaml'), 'schemaVersion: 4\nname: Test\nroot:\n  component: "./components/external/core/group"\n');
   const component = { url: 'https://example.invalid/component.git', commit: 'a'.repeat(40), path: 'components/external/keep' };
   await writeFile(join(root, '.dash-bored', 'dash-bored-lock.yaml'), serializeDashboardLock({ lockfileVersion: 1, components: { keep: component } }));
   await commit(root);
@@ -153,7 +153,7 @@ for (const global of [true, false]) test(`git theme lifecycle, rollback and dirt
   expect((await statusThemes(target)).map((i) => i.name)).toEqual(['ocean']);
   if (!global) { expect((await parseDashboardLock(join(root, '.dash-bored', 'dash-bored-lock.yaml'))).value?.components.keep).toEqual(component); await commit(root); }
   if (global) await rm(checkout, { recursive: true });
-  else await git(root, ['submodule', 'deinit', '--', '.dash-bored/themes/external/ocean']);
+  else await git(join(root,'.dash-bored','themes','external'), ['submodule', 'deinit', '-f', '--', 'ocean']);
   const missingCatalog = await loadThemeCatalog(join(root, '.dash-bored'), join(root, 'personal'));
   const missing = missingCatalog.find((item) => item.reference === (global ? 'global:ocean' : './themes/external/ocean'));
   expect(missing?.git).toEqual({ name: 'ocean', url: source, commit: second });
@@ -170,9 +170,9 @@ test('theme reload updates token data without changing component revision, trust
   const { ProjectRuntime, TrustStore } = await import('../../src/core');
   const { createProject, writeLocalComponent } = await import('./helpers');
   const root = await temp();
-  await createProject(root, { schemaVersion: 3, name: 'Themes', theme: './themes/ocean', root: {
-          id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
-              first: { node: { id: 'terminal', component: '@dash-bored/command', props: { label: 'Terminal', command: 'sleep 30' } } },
+  await createProject(root, { schemaVersion: 4, name: 'Themes', theme: './themes/ocean', root: {
+          id: 'root', component: './components/external/core/group', children: { axis: 'vertical',
+              first: { node: { id: 'terminal', component: './components/external/core/command', props: { label: 'Terminal', command: 'sleep 30' } } },
               second: { node: { id: 'local', component: './components/example' } }
           }
       } });

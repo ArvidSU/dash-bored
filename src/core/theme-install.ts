@@ -5,10 +5,14 @@ import {
   hasLocalChanges,
   installPackage,
   readPackageStore,
-  removeSubmodule,
+  removePackage,
+  snapshotPackageMetadata,
   resolveRemoteCommit,
   restoreClone,
-  submoduleLocation,
+  assertManagedCheckout,
+  recordSubmodulePin,
+  checkedOutCommit,
+  hasMissingManagedMetadata,
   packageWorkPath,
   withPackageStore,
   writePackageLock,
@@ -101,43 +105,49 @@ export async function updateTheme(target: ThemeInstallTarget, name: string, ref?
     if (!entry) throw new Error(`Theme ${name} is not installed.`);
     const path = await checkoutPath(store, name);
     if (!await exists(join(path, '.git'))) throw new Error('Theme checkout is uninitialized; run theme sync first.');
+    if (store.strategy === "submodule") await assertManagedCheckout(store, path);
     await cleanCheckout(path);
     const previous = await git(path, ['rev-parse', 'HEAD']);
     const commit = await resolveThemeCommit(entry.url, ref);
     await git(path, ['fetch', 'origin']);
     parseTheme(await git(path, ['show', `${commit}:theme.yaml`]));
+    const rollback = store.strategy === "submodule" ? await snapshotPackageMetadata(store,path) : async()=>{};
     try {
       await git(path, ['checkout', '--detach', commit]);
       await readTheme(path);
+      if (store.strategy === "submodule") await recordSubmodulePin(store, path);
       await writePins(store, { ...store.lock.themes, [name]: { ...entry, commit } });
-    } catch (error) { await git(path, ['checkout', '--detach', previous]); throw error; }
+    } catch (error) { await git(path, ['checkout', '--detach', previous]); await rollback(); throw error; }
     return { name, commit, changed: previous !== commit };
   });
 }
-export async function syncThemes(target: ThemeInstallTarget) {
+export async function syncThemes(target: ThemeInstallTarget, options: { missingOnly?: boolean } = {}) {
   return withThemeStore(target, async (store) => {
-    const global = store.strategy === 'clone';
+    const synced: string[] = [];
     for (const [name, entry] of Object.entries(store.lock.themes ?? {})) {
       const path = await checkoutPath(store, name);
-      const initialized = await exists(join(path, '.git'));
-      if (initialized) await cleanCheckout(path);
-      else if (global && await exists(path)) throw new Error(`Unmanaged directory at ${path}; refusing to overwrite it.`);
-      if (global) {
-        if (!await exists(path)) {
-          await restoreClone(store, entry.url, entry.commit, path, readTheme);
-          continue;
+      const previous = await checkedOutCommit(path);
+      if (previous && options.missingOnly) continue;
+      if (!previous) {
+        if (await exists(path)) {
+          if ((await readdir(path)).length) {
+            if (store.strategy === "clone" || !await hasMissingManagedMetadata(store,path)) throw new Error(`Unmanaged files at ${path}; refusing to overwrite them.`);
+          } else await rm(path, { recursive: true });
         }
-        await git(path, ['fetch', 'origin']);
+        if (store.strategy === "clone") await restoreClone(store, entry.url, entry.commit, path, readTheme);
+        else await installPackage(store, { url: entry.url, commit: entry.commit, checkout: path, validate: readTheme, commitLock: async () => {} });
       } else {
-        const { repo, gitPath } = await submoduleLocation(store, path);
-        if (!initialized) await git(repo, ['submodule', 'update', '--init', '--', gitPath]);
-        await git(path, ['fetch', 'origin']);
+        if (store.strategy === "submodule") await assertManagedCheckout(store, path);
+        await cleanCheckout(path);
+        try {
+          if (previous !== entry.commit) { await git(path, ["fetch", "origin"]); await git(path, ["checkout", "--detach", entry.commit]); }
+          await readTheme(path);
+          if (store.strategy === "submodule") await recordSubmodulePin(store, path);
+        } catch (error) { await git(path, ["checkout", "--detach", previous]); throw error; }
       }
-      const previous = await git(path, ['rev-parse', 'HEAD']);
-      try { await git(path, ['checkout', '--detach', entry.commit]); await readTheme(path); }
-      catch (error) { await git(path, ['checkout', '--detach', previous]); throw error; }
+      synced.push(name);
     }
-    return Object.keys(store.lock.themes ?? {});
+    return synced;
   });
 }
 export async function removeTheme(target: ThemeInstallTarget, name: string) {
@@ -155,8 +165,7 @@ export async function removeTheme(target: ThemeInstallTarget, name: string) {
       try { await writePins(store, remaining); } catch (error) { if (present) await rename(stage, path); throw error; }
       await rm(stage, { recursive: true, force: true });
     } else {
-      await removeSubmodule(store, path);
-      await writePins(store, remaining);
+      await removePackage(store, path, () => writePins(store, remaining));
     }
     return { name };
   });

@@ -25,15 +25,15 @@ describe("parameterized action arguments", () => {
   test("validates agent:prompt arguments while loading a dashboard", async () => {
     const root = await temporaryDirectory();
     temporaryProjects.push(root);
-    await createProject(root, { schemaVersion: 3, name: "Action arguments", root: {
-      id: "prompt-button", component: "@dash-bored/button",
+    await createProject(root, { schemaVersion: 4, name: "Action arguments", root: {
+      id: "prompt-button", component: "./components/external/core/button",
       props: { name: "Start", action: { run: "agent:prompt", with: { prompt: "Inspect the failing workflow." } } },
     } });
     const result = await loadProjectDefinition(root);
     expect(result.diagnostics.filter((item) => item.code === "COMPONENT_ACTION_ARGUMENTS_INVALID")).toEqual([]);
 
-    await createProject(root, { schemaVersion: 3, name: "Invalid arguments", root: {
-      id: "prompt-button", component: "@dash-bored/button",
+    await createProject(root, { schemaVersion: 4, name: "Invalid arguments", root: {
+      id: "prompt-button", component: "./components/external/core/button",
       props: { name: "Start", action: { run: "agent:prompt", with: { prompt: 42 } } },
     } });
     const invalid = await loadProjectDefinition(root);
@@ -43,11 +43,11 @@ describe("parameterized action arguments", () => {
   test("reveal accepts only an item ID, including item templates in list actions", async () => {
     const root = await temporaryDirectory();
     temporaryProjects.push(root);
-    const dashboard = (withArgs: Record<string, unknown>): DashboardConfig => ({ schemaVersion: 3, name: "Reveal item", root: {
-      id: "root", component: "@dash-bored/group", children: { axis: "vertical",
-        first: { node: { id: "attention", component: "@dash-bored/list", props: { source: { inline: [] },
+    const dashboard = (withArgs: Record<string, unknown>): DashboardConfig => ({ schemaVersion: 4, name: "Reveal item", root: {
+      id: "root", component: "./components/external/core/group", children: { axis: "vertical",
+        first: { node: { id: "attention", component: "./components/external/core/list", props: { source: { inline: [] },
           itemActions: [{ name: "Show", action: { run: "reveal:backlog", with: withArgs } }] } } },
-        second: { node: { id: "backlog", component: "@dash-bored/list", props: { todos: [] } } },
+        second: { node: { id: "backlog", component: "./components/external/core/list", props: { todos: [] } } },
       } } });
     await createProject(root, dashboard({ item: "${item.id}" }));
     const valid = await loadProjectDefinition(root);

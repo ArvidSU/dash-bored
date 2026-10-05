@@ -20,7 +20,6 @@ import { syncThemes } from "../../src/core/theme-install";
 import type { DashboardConfig } from "../../src/shared/contracts";
 import {
   createProject,
-  defaultConfig,
   removeTemporaryDirectory,
   temporaryDirectory,
 } from "./helpers";
@@ -107,13 +106,13 @@ async function commitSourceVersion(
 
 function externalConfig(): DashboardConfig {
   return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "External parent",
       root: { component: "./components/external/widgets" }
   };
 }
 
-async function makeParentRepo(root: string, name: string, config: DashboardConfig = defaultConfig): Promise<string> {
+async function makeParentRepo(root: string, name: string, config: DashboardConfig = {schemaVersion: 4, name: "Packages", root: { component: "./components/widgets" }}): Promise<string> {
   const directory = join(root, name);
   await createProject(directory, config);
   await initRepo(directory);
@@ -189,15 +188,15 @@ describe("external component submodule operations", () => {
     const source = await makeSourceRepo(root, "widgets", ["filesystem:read"]);
     const parent = await makeParentRepo(root, "parent");
     await addComponent(parent, source.url, { name: "widgets" });
-    const submodule = join(".dash-bored", "components", "external", "widgets");
 
-    git(parent, "submodule", "deinit", "-f", "--", submodule);
+    const submodule = join(".dash-bored", "components", "external", "widgets");
+    git(join(parent, ".dash-bored", "components", "external"), "submodule", "deinit", "-f", "--", "widgets");
     const uninitialized = await statusComponents(parent, "widgets");
     expect(uninitialized[0]).toMatchObject({ initialized: false, checkedOutCommit: null });
     // The pin is still known and the remote reachable: no phantom update.
     expect(uninitialized[0]?.updateAvailable).toBe(false);
 
-    git(parent, "submodule", "update", "--init", "--", submodule);
+    git(join(parent, ".dash-bored", "components", "external"), "submodule", "update", "--init", "--", "widgets");
     await writeFile(
       join(parent, submodule, "index.tsx"),
       "export default () => \"dirty\";\n",
@@ -292,7 +291,7 @@ describe("external component submodule operations", () => {
     const parsed = await parseDashboardLock(join(parent, ".dash-bored", "dash-bored-lock.yaml"));
     expect(parsed.value?.components).toEqual({});
     expect(await listComponents(parent)).toEqual([]);
-    const gitmodules = await readFile(join(parent, ".gitmodules"), "utf8").catch(() => "");
+    const gitmodules = await readFile(join(parent, ".dash-bored", "components", "external", ".gitmodules"), "utf8").catch(() => "");
     expect(gitmodules).not.toContain("widgets");
 
     await expect(removeComponent(parent, "widgets")).rejects.toThrow(/Unknown external component/);
@@ -308,9 +307,9 @@ describe("external component submodule operations", () => {
     const source = await makeSourceRepo(root, "widgets", ["filesystem:read"]);
     const parent = await makeParentRepo(root, "parent");
     await addComponent(parent, source.url, { name: "widgets" });
-    const submodule = join(".dash-bored", "components", "external", "widgets");
 
-    git(parent, "submodule", "deinit", "-f", "--", submodule);
+    const submodule = join(".dash-bored", "components", "external", "widgets");
+    git(join(parent, ".dash-bored", "components", "external"), "submodule", "deinit", "-f", "--", "widgets");
     const synced = await syncComponents(parent);
     expect(synced).toEqual([{
       name: "widgets",

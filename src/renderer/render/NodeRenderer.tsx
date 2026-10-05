@@ -8,7 +8,6 @@ import type { SplitRatioOverrides } from "./split-layout";
 import type { LayoutBranch } from "../lib/component-children";
 import { changedComponentIds, updateStaggerMs } from "../lib/component-updates";
 import { composeComponentChildren } from "../composition/ComponentCompositor";
-import { packagedComponent } from "../builtins";
 import { LocalComponentErrorBoundary } from "./local-components";
 import type { LoadedLocalComponent } from "./local-components";
 import type { ActionStore } from "../lib/actions";
@@ -153,29 +152,6 @@ export function NodeRenderer({ node }: { node: ResolvedComponentNode }): ReactNo
         selectedChildId: selectedChildId(node, childSelections),
         renderNode: (child) => <NodeRenderer key={child.id} node={child} />,
       });
-
-  if (node.source === "builtin") {
-    const Component = packagedComponent(node.component);
-    return (
-      <ComponentFrame
-        {...frameProps}
-        className="component-node"
-      >
-        {!collapsed ? (
-          <>
-            {Component ? (
-              <Component props={node.props} children={renderedChildren} host={localHost} />
-            ) : (
-              <div className="component-state component-state--error" role="alert">
-                Unknown packaged component <code>{node.component}</code>.
-              </div>
-            )}
-            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-          </>
-        ) : null}
-      </ComponentFrame>
-    );
-  }
 
   if (node.source === "config") {
     const name = node.configName?.trim() || node.component;

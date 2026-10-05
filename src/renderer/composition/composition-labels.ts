@@ -35,7 +35,7 @@ export function configuredNodeLabel(
   const title = node.props?.title ?? node.props?.label ?? node.props?.name;
   if (typeof title === "string" && title.trim()) return title.trim();
   return catalogManifest(catalog, node.component)?.name
-    ?? node.component.replace(/^@dash-bored\//, "");
+    ?? node.component.split("/").at(-1)!;
 }
 
 /** A compact label for the thing currently being placed, not its destination. */
@@ -46,7 +46,7 @@ export function compositionPayloadLabel(
 ): string {
   if (payload.type === "component") {
     return catalogManifest(catalog, payload.reference)?.name
-      ?? payload.reference.replace(/^@dash-bored\//, "");
+      ?? payload.reference.split("/").at(-1)!;
   }
   try {
     return configuredNodeLabel(nodeAtPath(config.root, payload.path), catalog);

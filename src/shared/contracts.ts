@@ -49,7 +49,7 @@ export type ComponentChildren<Node = ComponentNode> =
   | ComponentChildEdge<Node>[];
 
 export interface DashboardConfig {
-  schemaVersion: 3;
+  schemaVersion: 4;
   name: string;
   /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
   icon?: string;
@@ -142,7 +142,7 @@ export interface ComponentManifest {
 
 export interface ComponentCatalogItem {
   reference: string;
-  source: "builtin" | "local" | "config" | "external";
+  source: "local" | "config" | "external";
   available: boolean;
   manifest: ComponentManifest | null;
   diagnostics: Diagnostic[];
@@ -166,7 +166,7 @@ export interface ResolvedComponentNode {
   props: Record<string, unknown>;
   children?: ComponentChildren<ResolvedComponentNode>;
   persistOnFocus?: boolean;
-  source: "builtin" | "local" | "config";
+  source: "local" | "config" | "external";
   manifest?: ComponentManifest;
   /** Canonical source path for a standalone config-link component. */
   configPath?: string;
@@ -619,6 +619,14 @@ export interface ComponentEnvironmentSnapshot {
   error?: string;
 }
 
+export interface TerminalSurfaceProps {
+  process?: ProcessSnapshot;
+  onWrite?: (input: string) => Promise<ProcessSnapshot>;
+  onResize?: (cols: number, rows: number) => Promise<ProcessSnapshot>;
+  scrollToLatest?: number;
+  label?: string;
+}
+
 export interface LocalComponentHost {
   /** Read-only, allowlisted configuration values and their winning source. */
   environment?: ComponentEnvironmentSnapshot;
@@ -667,7 +675,9 @@ export type ExternalComponentOperation =
   | { op: "add"; url: string; name?: string; ref?: string }
   | { op: "update"; name: string; ref?: string }
   | { op: "remove"; name: string }
-  | { op: "sync" };
+  | { op: "sync" }
+  | { op: "restore" }
+  | { op: "migrate-ownership" };
 
 /** A theme-package change run by the app, personally or for one dashboard. */
 export interface ThemePackageOperation {

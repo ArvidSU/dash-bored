@@ -127,10 +127,10 @@ source equals the link target and that target is a bundled
   `references/sources.md` carries the source contract, view shapes, the
   app's source shell environment, and tested source-script examples; the
   skill loads it when a panel shows observed data.
-  The generated per-component built-in reference
+  The generated per-component core reference
   (`references/builtins.md`, rendered by `bun run generate:components` from
   `BUILTIN_COMPONENTS`) is embedded the same way; see
-  `docs/architecture/components.md` ("Generated built-in reference").
+  `docs/architecture/components.md` ("Generated core reference").
   Installation is idempotent when files and aliases match and refuses to
   replace modified files or conflicting paths. A `skill-version.json` sidecar
   records the shipped version and SHA-256 hash of each payload file, allowing

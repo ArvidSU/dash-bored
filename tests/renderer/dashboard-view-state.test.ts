@@ -22,9 +22,9 @@ function node(
 ): ResolvedComponentNode {
   return {
     id,
-    component: id === "root" ? "@dash-bored/group" : "@dash-bored/card",
+    component: id === "root" ? "./components/external/core/group" : "./components/external/core/card",
     props: {},
-    source: "builtin",
+    source: "external",
     ...(children === undefined ? {} : { children }),
     ...(select ? {
       manifest: {

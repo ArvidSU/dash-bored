@@ -1,0 +1,14 @@
+.terminal-surface {
+  grid-column: 1 / -1;
+  min-height: 220px;
+  height: 320px;
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--terminal-background);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
+.terminal-surface .xterm { height: 100%; }

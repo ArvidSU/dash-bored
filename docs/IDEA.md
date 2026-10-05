@@ -40,6 +40,12 @@ The application provides:
 
 Everything else is user/project/component defined.
 
+The standard component set lives in the public `ArvidSU/dash-bored-components`
+repository. Every new bundle pins it as `core` in its lock file and references
+its components through `./components/external/core/<name>`. These are ordinary
+external components, inspected before project trust and executed only after
+trust; the application does not carry a second core component registry.
+
 ## Atoms, not a browser and not a product
 
 dash-bored sits deliberately between two failure modes. It must not reinvent
@@ -67,7 +73,7 @@ The test for the atom set is the project's own dashboard: a project-specific
 list, fact sheet, or runnable-script catalog should be a few lines of YAML plus
 a script. When something still needs a local React component, first ask which
 atom is missing before adding one, and never promote a domain-specific
-component to a builtin.
+component to a core component.
 
 The planned sequence of work toward this atom set lives in
 [docs/roadmap/atoms.md](./roadmap/atoms.md).
@@ -217,10 +223,9 @@ wrapper records and values that have no effect: equal horizontal widths are
 the default, and vertical document flow has no ratio. The saved tree, editor
 draft, and runtime use the same representation.
 
-Packaged and project-local components use exactly the same
-manifest, render, host, children, and capability contract. They differ only by
-provenance and trust: packaged app code is pretrusted, while project code
-requires project trust.
+Core, other external and project-local components use exactly the same
+manifest, render, host, children and capability contract. They differ in
+provenance; all require normal project trust before execution.
 
 Validation, editor behavior, and runtime behavior are generic. No logic is
 keyed to a component ID; differences come from declarative schemas, formats,
@@ -234,6 +239,15 @@ is added from a URL, pinned to an exact commit in `dash-bored-lock.yaml`, and
 updated only by an explicit user action in the app, or by an agent the
 user asked to do so. This keeps reuse reproducible and
 reviewable without a second distribution model.
+
+Dash-bored owns private Git repositories at each bundle's `components/external/`
+and `themes/external/`. Generated bundle ignore rules keep these checkouts and
+their Git metadata out of the parent project's repository. The parent can
+track the dashboard, local code, and lock file. The lock is authoritative:
+initialization and opening restore missing packages at their exact pins, even
+outside a parent Git project; existing checkouts are never implicitly updated.
+Ordinary package operations do not edit the parent's Git metadata. Conversion
+of an existing parent-owned submodule is an explicit migration.
 
 An external component uses exactly the same manifest, render, host, children,
 and capability contract as a project-local one. It differs only by provenance
@@ -340,6 +354,13 @@ rectangular space as any other component; configs are not merged and neither
 inherits from the other.
 
 ### 3. Components over integrations
+
+This guidance is about the component set shipped with dash-bored: keep that
+core set small and composable instead of adding a separate integration for
+each domain. It does not constrain components created for a particular
+dashboard. A purpose-built component is appropriate whenever it best serves
+that dashboard's use case; for example, a button that runs `npm run check`
+can be exactly the right component.
 
 Avoid building special cases:
 

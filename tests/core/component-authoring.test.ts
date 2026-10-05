@@ -4,8 +4,8 @@ import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import { loadProjectDefinition } from "../../src/core";
 import type { DashboardConfig } from "../../src/shared/contracts";
-import { parseDashboardList } from "../../src/renderer/lib/list-data";
-import { parseStatusValue } from "../../src/renderer/lib/view-shapes";
+import { parseDashboardList } from "../../.dash-bored/components/external/core/src/renderer/lib/list-data";
+import { parseStatusValue } from "../../.dash-bored/components/external/core/src/renderer/lib/view-shapes";
 import { createProject, removeTemporaryDirectory, temporaryDirectory } from "./helpers";
 
 const cleanup: string[] = [];
@@ -40,7 +40,7 @@ describe("shipped component authoring examples", () => {
   test("complete dashboard YAML examples resolve and the worked local component compiles", async () => {
     const configs = Object.values(guidance).flat().filter((block) => block.language === "yaml")
       .map((block) => parse(block.source))
-      .filter((value) => value.schemaVersion === 3 && value.root);
+      .filter((value) => value.schemaVersion === 4 && value.root);
     expect(configs.length).toBeGreaterThan(1);
 
     for (const config of configs) {
@@ -73,10 +73,10 @@ describe("shipped component authoring examples", () => {
     const nodes = Object.values(guidance).flat().filter((block) => block.language === "yaml")
       .map((block) => parse(block.source))
       .filter((value) => typeof value.component === "string"
-        && !JSON.stringify(value).includes("./components/"));
+        && !JSON.stringify(value).includes("./components/service-"));
     expect(nodes.length).toBeGreaterThan(0);
     for (const node of nodes) {
-      const root = await exampleProject({ schemaVersion: 3, name: "Authoring example", root: node });
+      const root = await exampleProject({ schemaVersion: 4, name: "Authoring example", root: node });
       const result = await loadProjectDefinition(root, { compile: true });
       expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
       expect(result.ok).toBeTrue();
@@ -85,8 +85,8 @@ describe("shipped component authoring examples", () => {
 
   test("source script examples emit the shapes their views require", async () => {
     const scripts = guidance["references/sources.md"].filter((block) => block.language === "sh" || block.language === "python");
-    const statusScript = scripts.find((block) => block.source.includes("@dash-bored/status source"));
-    const listScript = scripts.find((block) => block.source.includes("@dash-bored/list source"));
+    const statusScript = scripts.find((block) => block.source.includes("./components/external/core/status source"));
+    const listScript = scripts.find((block) => block.source.includes("./components/external/core/list source"));
     if (!statusScript || !listScript) throw new Error("The source script examples are incomplete.");
 
     const root = await temporaryDirectory();

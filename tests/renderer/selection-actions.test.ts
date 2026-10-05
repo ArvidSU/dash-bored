@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import type { ProjectSnapshot, ResolvedComponentNode } from "../../src/shared/contracts";
 import { buildRevealActions, buildSelectionActions, revealItemArgument } from "../../src/renderer/lib/selection-actions";
-import { getBuiltinManifest } from "../../src/core/builtins";
+import { getCoreManifest as getBuiltinManifest } from "../../scripts/core-package-fixture";
 import { rankActions, rankPaletteEntries } from "../../src/renderer/lib/actions";
 
-const child: ResolvedComponentNode = { id: "overview", component: "@dash-bored/status", props: { title: "Overview" }, source: "builtin" };
-const other: ResolvedComponentNode = { id: "details", component: "@dash-bored/markdown", props: { title: "Details" }, source: "builtin" };
+const child: ResolvedComponentNode = { id: "overview", component: "./components/external/core/status", props: { title: "Overview" }, source: "external" };
+const other: ResolvedComponentNode = { id: "details", component: "./components/external/core/markdown", props: { title: "Details" }, source: "external" };
 const container: ResolvedComponentNode = {
-  id: "panels", component: "@dash-bored/group", props: {}, source: "builtin",
+  id: "panels", component: "./components/external/core/group", props: {}, source: "external",
   manifest: { schemaVersion: 2, id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single" } },
   children: [{ node: child }, { node: other }],
 };
@@ -41,7 +41,7 @@ describe("selection and reveal actions", () => {
   });
 
   test("ships a generic selection container and honors its YAML default child", () => {
-    expect(getBuiltinManifest("@dash-bored/selection")?.children).toMatchObject({
+    expect(getBuiltinManifest("./components/external/core/selection")?.children).toMatchObject({
       presentation: { type: "managed" }, select: "single",
     });
     const configured = { ...container, props: { defaultChild: "details" } };

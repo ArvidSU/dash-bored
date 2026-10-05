@@ -59,20 +59,19 @@ Everything else lives in focused modules under feature directories:
 - `lib/` — shared model and services: `component-children.ts`,
   `component-height.ts`, `component-view-state.ts`, `component-updates.ts`,
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
-  `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`, `chart-data.ts`,
-  `clipboard.ts`, `state-visual.tsx` (shared semantic state shapes and action verbs), `env.ts`, `safe-url.ts`, `todo.ts`, `pointer-session.ts`,
+  `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`,
+  `clipboard.ts`, `pointer-session.ts`,
   `selection-actions.ts` (core select/reveal actions), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
-- `builtins/` — `index.tsx` (lazy `packagedComponent` aggregator) plus one
-  directory per shipped component (`types.ts`, `shared.tsx` helpers).
-  `tag-filter.tsx` owns the tag selection and filter actions for both list modes.
+- Core rendering and portable helpers live in `dash-bored-components`, with
+  self-contained outputs pinned below each bundle's `components/external/core`.
 
 Placement rules for new modules: app chrome goes in `app/`, a full-screen
-view in `panels/`, draft/topology editing in `composition/`, per-node
-rendering in `render/`. Anything imported from two or more of those goes in
-`lib/`. A new `@dash-bored/*` component gets `builtins/<name>/index.tsx` plus
-registration in `builtins/index.tsx` and `src/core/builtins.ts`. Vite entries
+view in `panels/`, draft/topology editing in `composition/`, per-node rendering
+in `render/`. Shared app code goes in `lib/`. Component implementations and
+component-only helpers belong in their repository, never an app registry.
+Vite entries
 stay at the root (`index.html`, `ui-harness.html` → `app/main.tsx`). Update
 this map when adding a module.
 
@@ -108,11 +107,11 @@ examples, not privileged component types:
 
 - Core tile branches compose layout; components such as cards may declare
   children presentation but do not own topology or resizing.
-- `@dash-bored/selection` is a generic managed-child layout boundary. Core
+- `./components/external/core/selection` is a generic managed-child layout boundary. Core
   persists its selected child and exposes `select:<container>/<child>` actions;
   `props.defaultChild` selects a direct child when no local choice exists.
   Selection is local to a panel, while focus is dashboard-wide navigation.
-- `@dash-bored/button` resolves and invokes one action or an `items` action bar
+- `./components/external/core/button` resolves and invokes one action or an `items` action bar
   through the shared executor. It reflects active navigation, running work,
   interaction steps, and unavailable reasons; a process action stays running
   until its supervised run ends. Process snapshots remain the authority for
@@ -127,18 +126,18 @@ examples, not privileged component types:
   Without a `template` it uses `project`. The composer shows the resolved
   command, the template and its scope, and the complete rendered prompt, and
   waits for an explicit Send. See [prompt templates](./project-contract.md#prompt-templates).
-- `@dash-bored/markdown`, `@dash-bored/status`, and `@dash-bored/chart` display
+- `./components/external/core/markdown`, `./components/external/core/status`, and `./components/external/core/chart` display
   project information from inline configuration or bounded sources. Status
   sources expose a state/detail model or derive state from supervised process
   snapshots; chart sources require `{ labels, series }` and surface shape
-  diagnostics. Source-backed built-ins (markdown, status, chart, list) call the
+  diagnostics. Source-backed core components (markdown, status, chart, list) call the
   one `useSourceComponent(source, host, options)` hook in
-  `lib/use-dashboard-source.ts`. It owns the permission check (the missing
+  the component repository's `src/renderer/lib/use-dashboard-source.ts`. It owns the permission check (the missing
   `process:execute`, `filesystem:read`, `network:http`, or `process:observe`;
   the source is not read while one is missing), the load, `every` polling,
   process-snapshot binding, pausing while hidden, the refresh counter, and the
   declared `refresh` action, whose label, no-source reason, missing-permission
-  reason, and confirmation each built-in supplies. It returns
+  reason, and confirmation each component supplies. It returns
   `{ state, unavailable, refresh, refreshes }`; on-screen Refresh buttons call
   `refresh`. Conditional and the environment editor run their own checks and
   files, not dashboard sources, and keep their own `refresh` actions. Status keeps the last observed value during refresh and
@@ -157,7 +156,7 @@ examples, not privileged component types:
   editor with Save/Cancel behavior. Inline
   edits update the owning dashboard draft, and path-backed edits use the
   declared bounded filesystem capability.
-- `@dash-bored/list` reads one bounded source and renders items keyed by
+- `./components/external/core/list` reads one bounded source and renders items keyed by
   source-owned string IDs. Its output must be an array of objects with unique,
   non-empty `id` and `title` strings; optional `detail`, `tags`, `state`, and
   `done` fields have fixed types. Invalid entries remain visible as shape
@@ -172,7 +171,7 @@ examples, not privileged component types:
   ID and content) in the latest observation that differed from the previous
   one carry a `New`/`Changed` badge and a short tint; identical polls keep the
   markers and the first observation after mount is the baseline.
-- `@dash-bored/list` also accepts a `todos` array as its own editable YAML
+- `./components/external/core/list` also accepts a `todos` array as its own editable YAML
   source. This mode uses the same stable item IDs and action templates while
   retaining draft-backed add, remove, toggle, and inline editing. `source` and
   `todos` are mutually exclusive.
@@ -183,7 +182,7 @@ examples, not privileged component types:
   observations do not reset it. Editable todos use a stable filter boundary,
   preserving row identity, edit buffers, and keyboard focus during draft updates.
   Missing-tag invalidation happens before commit rather than in a reset effect.
-- `@dash-bored/command` opens a persistent interactive terminal after a user
+- `./components/external/core/command` opens a persistent interactive terminal after a user
   click, remembers its configured command as a quick action, and displays its
   terminal session with the latest run's outcome (`running`, `exit 0`,
   `exit 2`, a signal). Its declared `run` action starts one run with bounded
@@ -191,15 +190,15 @@ examples, not privileged component types:
   finished command runs again, with new values, while the terminal stays open.
   The run's later exit is the process snapshot's `run` record, not the
   terminal's lifetime.
-- `@dash-bored/conditional` runs a bounded shell condition while its panel is
+- `./components/external/core/conditional` runs a bounded shell condition while its panel is
   visible and projects one tiled child on success, with optional inversion for
   "show until done" setup actions. It starts visible and fails open when a check
   cannot run; do not use it to assert positive health. A health observation
   should expose one explicit unknown/healthy/unavailable state.
-- `@dash-bored/env` edits a project-local dotenv file through a key-value or
+- `./components/external/core/env` edits a project-local dotenv file through a key-value or
   bulk/raw editor. Key-value saves preserve comments, blank lines, and
   unrecognized lines; writes are bounded, project-contained, and atomic.
-- `@dash-bored/todo-list` edits its `todos` prop in the owning
+- `./components/external/core/todo-list` edits its `todos` prop in the owning
   `dash-bored.yaml`, with stable item IDs, descriptions, boolean completion
   state, and tags. Legacy items receive IDs the next time a user edits the
   list; IDs are retained in each dashboard draft write. It sorts open items
@@ -208,7 +207,7 @@ examples, not privileged component types:
   `itemActions` use the shared item-template resolver and action executor;
   invoking an agent prompt never toggles completion. Its
   interactions use the normal draft Save/Cancel boundary.
-- `@dash-bored/webview` embeds a sandboxed application page. Native child
+- `./components/external/core/webview` embeds a sandboxed application page. Native child
   webviews are initialized only while their tab is visible and are explicitly
   hidden while an already-initialized tab is inactive. The native surface is an
   overlay rather than a DOM descendant, so the component first reserves a
@@ -470,7 +469,7 @@ dashboards stops the prior dashboard's watcher and supervised processes before
 the next target becomes active.
 
 The header's Components button opens the right-hand library without entering a
-separate mode. The flyout keeps one searchable catalog for packaged, local,
+separate mode. The flyout keeps one searchable catalog for external, local,
 and external components, offers keyboard insertion and an agent fallback, and supplies
 contextual insertion targets plus full-frame node dragging on the rendered
 composition. Every movable non-root frame supplies a small drag handle and a
@@ -530,7 +529,7 @@ normal discard confirmation for an already-dirty draft), asks the main process t
 revalidate the target against the authoritative reachable config, and launches
 the configured agent. The catalog search only matches text, so the prompt tells
 the agent to use the installed dash-bored skill when available, to prefer a
-built-in view fed by a small source script (with item actions or `agent:prompt`
+core view fed by a small source script (with item actions or `agent:prompt`
 for follow-up work), and to build a project-local component only when no view
 can present the description. The main process restates the revalidated target
 as the exact edit the structural editor's `insertNode` would make: the YAML path
@@ -811,3 +810,11 @@ found by ID, preserving source order within priority groups.
 
 The renderer fixture uses the shipped status manifest so source-backed status
 refreshes receive the same props, action, and permission contract as the app.
+
+The renderer has no built-in component registry or rendering branch. Core is
+compiled and loaded by `render/local-components.tsx` through the same blob-module
+and CSS lifecycle as other external code. `render/TerminalSurface.tsx` is an
+app-owned SDK primitive shared by external command and Agent work; it lazily
+loads `render/TerminalSurfaceView.tsx` and xterm when a terminal is mounted. Fixture
+coverage builds the pinned core with the actual compiler; fixture payloads are
+excluded from production through the development-only host branch.

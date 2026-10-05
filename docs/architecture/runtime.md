@@ -94,7 +94,7 @@ project/.dash-bored/                 # canonical standalone bundle
 Electrobun Bun main process
   - locate, parse, validate, and watch project files
   - validate and atomically persist dashboard drafts
-  - resolve built-in and local components
+  - resolve external and local components
   - compile trusted local TSX with Bun.build()
   - enforce trust and component permissions
   - own subprocesses, file access, and HTTP requests
@@ -115,36 +115,19 @@ the Bun bundler at runtime. Vite builds the renderer. Electrobun's projected SDK
 is prepared through Hutch and aliased into Vite. The application uses native
 system webviews and does not bundle CEF.
 
-Packaged built-in renderers are resolved through a synchronous registry, but a
-registry entry may be a React `lazy` boundary. This keeps the component lookup
-and node-rendering contract unchanged while allowing implementation modules to
-load only when a live node needs them. The loading state is local to the
-component surface, so one deferred built-in does not block unrelated dashboard
-content. Heavy dependencies and component-owned CSS stay in the implementation
-module rather than in the eager registry module. Every shipped renderer entry
-is now a boundary under `src/renderer/builtins/`: group, conditional, tabs, card,
-markdown, list, status, chart, live-chart, command, env, todo-list, and webview. The
-registry itself contains only the synchronous lookup map, lazy boundaries, and
-the local loading fallback. `@dash-bored/command` keeps its
-xterm runtime and CSS in `command.tsx`, while `@dash-bored/markdown` keeps
-`react-markdown` and `markdown.css` in `markdown.tsx`; both are browser-fixture
-verified on insertion. The production renderer build emits separate async
-chunks for every implementation module, including the heavy command and
-Markdown dependencies, while the main renderer chunk stays below the default
-Vite warning threshold.
-
-This is a renderer loading optimization only. The main-process built-in
-manifests, schemas, permissions, and resource contracts remain eager and
-authoritative; lazy loading must not change catalog discovery, validation,
-trust, process ownership, or the persistent PTY lifecycle. A new lazy boundary
-must be verified in the browser fixture both before and after insertion, and
-the production build must retain the default Vite chunk warning as a regression
-signal. Manual chunk grouping alone does not count as lazy loading because
-static imports can still make every grouped module part of startup.
+Core is discovered from the bundle's pinned external manifests and compiled
+through the normal component compiler. The renderer loads trusted outputs as
+blob modules and installs their CSS per component revision. There is no shipped
+manifest catalog or renderer registry. Heavy Markdown dependencies are bundled
+at publication; React and the SDK use the app's runtime. The generic app-owned
+TerminalSurface keeps xterm lifecycle and theme in the app and is shared by the
+external command and Agent work. Fixture coverage builds pinned output with the
+same compiler and checks insertion, polling, editing and terminal interaction.
+Production excludes fixture host data.
 
 `ui-harness.html` is a development-only renderer proof surface. It selects an
 in-memory `DashboardHost` before mounting the normal application entrypoint,
-then renders the same App, CSS, packaged components, composition, and sidebar
+then renders the same App, CSS, external components, composition, and sidebar
 with deterministic fixture data. The entrypoint awaits host initialization
 before mounting React, and only the harness page dynamically imports the
 fixture host. The host mirrors the browser-safe dashboard
@@ -231,7 +214,7 @@ and composition UI remain separate from the shell so shell changes cannot
 weaken the renderer/main-process or draft persistence boundaries.
 
 Snapshots also carry the parsed dashboard configuration, a SHA-256 revision of
-the source file, and a component catalog. The catalog contains every built-in
+the source file, and a component catalog. The catalog contains every discovered component
 plus bounded, containment-checked local manifest discovery. Invalid local
 manifests are represented as unavailable catalog entries with diagnostics, so
 they can be explained in the picker without breaking an otherwise valid tree.

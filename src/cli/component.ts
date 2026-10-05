@@ -1,3 +1,5 @@
+import { restoreMissingPackages } from "../core/package-restore";
+import { migratePackageOwnership } from "../core/package-ownership";
 import {
   addComponent,
   listComponents,
@@ -9,7 +11,7 @@ import {
 } from "../core/external-components";
 import { CoreError, errorMessage } from "../core/diagnostics";
 
-const SUBCOMMANDS = ["add", "list", "status", "update", "remove", "sync"] as const;
+const SUBCOMMANDS = ["add", "list", "status", "update", "remove", "sync", "restore", "migrate-ownership"] as const;
 
 type ComponentSubcommand = (typeof SUBCOMMANDS)[number];
 
@@ -63,8 +65,10 @@ Commands:
   dash-bored component update <name> [--to <ref>] [project]
   dash-bored component remove <name> [project]
   dash-bored component sync [project]
+  dash-bored component restore [project]
+  dash-bored component migrate-ownership [project]
 
-Manage external components: git submodules below components/external/ pinned
+Manage external components: dash-bored-owned submodules below components/external/ pinned
 in dash-bored-lock.yaml. <url> is a git clone URL; --ref pins a branch, tag,
 or commit (default: the remote HEAD). status with one bare argument shows that
 component; pass a path (./proj, ../proj, /abs, a/b) to target a project.`;
@@ -262,6 +266,8 @@ export function parseComponentArguments(args: string[]): ParsedComponentArgument
         error: null,
       };
     }
+    case "restore":
+    case "migrate-ownership":
     case "sync": {
       if (positional.length > 1) {
         return failed(command, "component sync accepts at most one project path.");
@@ -355,6 +361,12 @@ export async function runComponentCommand(args: string[]): Promise<number> {
         const result = await removeComponent(parsed.project, parsed.name!);
         console.log(`Removed external component ${result.name}.`);
         return 0;
+      }
+      case "migrate-ownership": console.log(JSON.stringify(await migratePackageOwnership(parsed.project))); return 0;
+      case "restore": {
+        const diagnostics = await restoreMissingPackages(parsed.project);
+        if (diagnostics.length) throw new Error(diagnostics.map(item=>item.message).join("; "));
+        console.log("Missing pinned packages restored."); return 0;
       }
       case "sync": {
         const synced = await syncComponents(parsed.project);

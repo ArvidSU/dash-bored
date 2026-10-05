@@ -2,8 +2,9 @@
 
 ## Trust and host capabilities
 
-An untrusted project may be parsed and may render safe built-in layout and
-inline content. It cannot compile local code, start a command, read or write a
+An untrusted project may be parsed and its manifests inspected. Missing locked
+packages may be restored on opening before trust. Component code, including core,
+does not execute until project trust. It cannot start a command, read or write a
 project file, make an HTTP request, or instantiate a project webview.
 
 The application presents one project-level trust decision with the complete
@@ -79,10 +80,10 @@ interface LocalComponentHost {
 }
 ```
 
-Packaged and local renderers receive exactly the same `LocalComponentRenderProps`
+External and local renderers receive exactly the same `LocalComponentRenderProps`
 shape: typed `props`, generic rendered `children` and handles, and a
 `LocalComponentHost`. The host is shaped solely by manifest permissions. No
-packaged component receives an API that a local component cannot declare.
+external component receives an API that a local component cannot declare.
 
 The optional `dashboard.setupWithAgent` method is exposed only to trusted
 nodes declaring `process:execute`. Its RPC rechecks the current node's permission
@@ -237,7 +238,7 @@ from component IDs or a special built-in list.
 
 ## Long-running commands
 
-`@dash-bored/command` is the shipped example of an explicit user-action
+`./components/external/core/command` is the shipped example of an explicit user-action
 component. A command never runs
 just because a project was opened, trusted, or reloaded.
 

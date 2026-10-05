@@ -31,7 +31,7 @@ function catalogItem(
 ): ComponentCatalogItem {
   return {
     reference,
-    source: "builtin",
+    source: "external",
     available: true,
     manifest: {
       schemaVersion: 2,
@@ -52,7 +52,7 @@ function configSource(
 ): DashboardConfigSource {
   return {
     configPath: "/project/.dash-bored/dash-bored.yaml",
-    config: { schemaVersion: 3, name: "Test", root },
+    config: { schemaVersion: 4, name: "Test", root },
     configRevision: "revision",
     componentCatalog,
   };
@@ -75,17 +75,17 @@ function tree(): ResolvedComponentNode {
   const sourceConfigPath = "/project/.dash-bored/dash-bored.yaml";
   return {
     id: "root",
-    component: "@dash-bored/group",
+    component: "./components/external/core/group",
     props: {},
-    source: "builtin",
+    source: "external",
     sourceConfigPath,
     sourcePath: "root",
     children: {
         node: {
             id: "status",
-            component: "@dash-bored/status",
+            component: "./components/external/core/status",
             props: { label: "API" },
-            source: "builtin",
+            source: "external",
             sourceConfigPath,
             sourcePath: "root.children.node"
         }
@@ -136,11 +136,11 @@ describe("component agent context", () => {
           placement: { type: "tiled", path: [], axis: "vertical", position: "second" },
         }, "split"),
         parentPath: "root",
-        parent: { id: "cockpit", component: "@dash-bored/group" },
+        parent: { id: "cockpit", component: "./components/external/core/group" },
         placement: {
           type: "split",
           edgePath: "root.children",
-          existing: { id: "status", component: "@dash-bored/status" },
+          existing: { id: "status", component: "./components/external/core/status" },
           axis: "vertical",
           position: "second",
         },
@@ -155,7 +155,7 @@ describe("component agent context", () => {
     expect(prompt).toContain("build a small project-local component only when no view can present it");
     expect(prompt).toContain("YAML insertion path: root.children.second");
     expect(prompt).toContain(
-      "Placement: Split the tile of node `status` (@dash-bored/status) so the new node sits below it: "
+      "Placement: Split the tile of node `status` (./components/external/core/status) so the new node sits below it: "
         + "replace the edge at root.children with "
         + "`{ axis: vertical, first: <existing edge, unchanged>, second: { node: <new node> } }`. "
         + "Vertical splits have no `ratio`.",

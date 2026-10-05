@@ -284,7 +284,7 @@ export function useCompositionSession({
     const planned = planCompositionOperation({
       config: session.draft,
       catalog: session.componentCatalog,
-      payload: { type: "component", reference: "@dash-bored/group" },
+      payload: { type: "component", reference: "./components/external/core/group" },
       target,
     });
     if (planned.status !== "planned") {

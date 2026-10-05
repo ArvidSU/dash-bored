@@ -12,10 +12,10 @@ import { createCompositionTargets } from "../../src/renderer/composition/composi
 import type { CompositionDragPayload, CompositionDropZone } from "../../src/renderer/composition/composition-context";
 import { compatibleCompositionDropZones } from "../../src/renderer/composition/composition-targets";
 
-const GROUP = "@dash-bored/group";
-const TABS = "@dash-bored/tabs";
-const LEAF = "@dash-bored/leaf";
-const CONDITIONAL = "@dash-bored/conditional";
+const GROUP = "./components/external/core/group";
+const TABS = "./components/external/core/tabs";
+const LEAF = "./components/external/core/leaf";
+const CONDITIONAL = "./components/external/core/conditional";
 
 function manifest(
   id: string,
@@ -54,7 +54,7 @@ const conditionalManifest = manifest(CONDITIONAL, "Conditional", {
 });
 
 function catalogItem(reference: string, itemManifest: ComponentManifest): ComponentCatalogItem {
-  return { reference, source: "builtin", available: true, manifest: itemManifest, diagnostics: [] };
+  return { reference, source: "external", available: true, manifest: itemManifest, diagnostics: [] };
 }
 
 const catalog = [
@@ -69,11 +69,11 @@ function resolved(
   component: string,
   children?: ComponentChildren<ResolvedComponentNode>,
 ): ResolvedComponentNode {
-  return { id, component, props: {}, source: "builtin", ...(children ? { children } : {}) };
+  return { id, component, props: {}, source: "external", ...(children ? { children } : {}) };
 }
 
 function configWithRoot(root: ComponentNode): DashboardConfig {
-  return { schemaVersion: 3, name: "test", root };
+  return { schemaVersion: 4, name: "test", root };
 }
 
 const leafPayload: CompositionDragPayload = { type: "component", reference: LEAF };
@@ -274,7 +274,7 @@ describe("compatible composition drop zones", () => {
       { id: "invalid", label: "Invalid", side: "left", target: invalidTarget },
       { id: "valid", label: "Valid", side: "right", target: validTarget },
     ];
-    const payload = { type: "component" as const, reference: "@dash-bored/card" };
+    const payload = { type: "component" as const, reference: "./components/external/core/card" };
 
     expect(compatibleCompositionDropZones(zones, payload, (target) => target === validTarget))
       .toEqual([zones[1]!]);

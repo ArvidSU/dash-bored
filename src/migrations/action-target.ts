@@ -1,4 +1,4 @@
-/** Schema-v3 positional action targets; remove with the schema-v4 migration. */
+/** Legacy positional action targets, retained until the future atoms migration. */
 export function isLegacyActionTarget(target: string): boolean {
   return target.includes("${") || /[{}]/.test(target);
 }

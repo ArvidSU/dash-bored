@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { environmentSnapshot, mergeEnvironment, readBundleEnvironment } from "../../src/core/environment";
 import { CapabilityService } from "../../src/core/capabilities";
 import { ProcessManager } from "../../src/core/process-manager";
+import { installCoreFixture } from "./helpers";
 import type { ResolvedComponentNode } from "../../src/shared/contracts";
 
 const temporaryRoots: string[] = [];
@@ -35,7 +36,7 @@ afterEach(async () => {
 async function bundle(values: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "dash-bored-env-"));
   temporaryRoots.push(root);
-  await writeFile(join(root, "dash-bored.yaml"), "name: test\nroot:\n  id: root\n  component: '@dash-bored/stack'\n", "utf8");
+  await writeFile(join(root, "dash-bored.yaml"), "name: test\nroot:\n  id: root\n  component: './components/external/core/stack'\n", "utf8");
   await writeFile(join(root, ".env"), values, "utf8");
   return join(root, "dash-bored.yaml");
 }
@@ -77,22 +78,24 @@ describe("environment contracts", () => {
     const dashboard = join(root, ".dash-bored");
     const named = join(dashboard, "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
+    await installCoreFixture(dashboard);
     await writeFile(join(dashboard, ".env"), "DASH_BORED_AGENT=canonical\n", "utf8");
     await writeFile(join(named, ".env"), "DASH_BORED_AGENT=named\n", "utf8");
     await writeFile(join(dashboard, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n", "utf8");
     await writeFile(join(named, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n", "utf8");
     await writeFile(join(named, "dash-bored.yaml"), [
-      "schemaVersion: 3",
+      "schemaVersion: 4",
       "name: Named",
       "root:",
       "  id: named-command",
-      "  component: '@dash-bored/command'",
+      "  component: './components/external/core/command'",
       "  props:",
       "    label: Named",
       "    command: 'sleep 30'",
     ].join("\n") + "\n", "utf8");
     await writeFile(join(dashboard, "dash-bored.yaml"), [
-      "schemaVersion: 3",
+      "schemaVersion: 4",
       "name: Canonical",
       "root:",
       "  id: linked-bundle",

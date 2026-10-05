@@ -37,7 +37,7 @@ app, where the tool is `"$DASH_BORED_TOOL"`.
 | --- | --- |
 | Build or set up a dashboard, or replace the starter | The full workflow below |
 | Change a node "from its component context menu" (the prompt names a target component) | Change that node and only what the request needs; read the owning YAML and the files the request mentions, not the whole project. Then steps 3–7 |
-| Add a component at a YAML insertion path from the structural editor | Make exactly the edit its `Placement:` line states. Prefer a built-in view fed by a source script (step 4), and say so in the report; write a local component only when no view can present it |
+| Add a component at a YAML insertion path from the structural editor | Make exactly the edit its `Placement:` line states. Prefer a core view fed by a source script (step 4), and say so in the report; write a local component only when no view can present it |
 | Fix listed diagnostics | Fix each at its file and path, then steps 5–7 |
 | After an app update, or an old `schemaVersion` | [references/migrations.md](references/migrations.md) |
 | Use the running app: run a dashboard button or command, read a panel, explain why something is red or failed | [Use the running app](#use-the-running-app); change no YAML |
@@ -105,23 +105,23 @@ say so in its label, and list it under **Needs you** in the report.
 
 Look up each component's contract before you write it:
 `dash-bored inspect . --component <ref>`, or
-[references/builtins.md](references/builtins.md) for every built-in. Never
+[references/builtins.md](references/builtins.md) for every core component. Never
 guess props from a component's name. A valid dashboard in the recommended
 shape:
 
 ```yaml
-schemaVersion: 3
+schemaVersion: 4
 name: Example
 icon: ./assets/icon.svg
 root:
   id: cockpit
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   children:
     axis: vertical
     first:
       node:
         id: section-tabs
-        component: "@dash-bored/button"
+        component: "./components/external/core/button"
         props:
           variant: tabs
           items:
@@ -130,20 +130,20 @@ root:
     second:
       node:
         id: sections
-        component: "@dash-bored/selection"
+        component: "./components/external/core/selection"
         props: { defaultChild: overview }
         children:
           - metadata: { label: Overview }
             node:
               id: overview
-              component: "@dash-bored/group"
+              component: "./components/external/core/group"
               props: { title: Where things stand }
               children:
                 axis: vertical
                 first:
                   node:
                     id: working-tree
-                    component: "@dash-bored/status"
+                    component: "./components/external/core/status"
                     props:
                       label: Working tree
                       source: { shell: sh .dash-bored/scripts/working-tree.sh, every: 10000 }
@@ -153,7 +153,7 @@ root:
                   first:
                     node:
                       id: recent-commits
-                      component: "@dash-bored/list"
+                      component: "./components/external/core/list"
                       props:
                         title: Recent commits
                         sort: source-order
@@ -164,19 +164,19 @@ root:
                   second:
                     node:
                       id: show-commit
-                      component: "@dash-bored/command"
+                      component: "./components/external/core/command"
                       props: { label: Show selected commit, command: 'git --no-pager show --stat "$DASH_ITEM_SHA"' }
           - metadata: { label: Develop }
             node:
               id: develop
-              component: "@dash-bored/group"
+              component: "./components/external/core/group"
               props: { title: Run and test }
               children:
                 axis: vertical
                 first:
-                  node: { id: dev-server, component: "@dash-bored/command", props: { label: Start dev server, command: npm run dev } }
+                  node: { id: dev-server, component: "./components/external/core/command", props: { label: Start dev server, command: npm run dev } }
                 second:
-                  node: { id: tests, component: "@dash-bored/command", props: { label: Run tests, command: npm test } }
+                  node: { id: tests, component: "./components/external/core/command", props: { label: Run tests, command: npm test } }
 ```
 
 Composition rules:

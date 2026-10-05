@@ -33,8 +33,13 @@ jobs:
       - name: Install locked dependencies
         run: bun ci
 
+      - name: Restore pinned dashboard packages
+        run: bun run packages:restore
+
       - name: Run QA
         run: bun run qa
 
       - name: Validate the dogfooding dashboard
-        run: bun run dash-bored -- validate .
+        run: |
+          bun run dash-bored -- validate .
+          bun run dash-bored -- validate .dash-bored/dogfood

@@ -1,12 +1,12 @@
 /**
- * Renders the built-in component reference (skills/dash-bored/references/builtins.md)
- * from BUILTIN_COMPONENTS in src/core/builtins.ts. The output is deterministic
+ * Renders the pinned core component reference (skills/dash-bored/references/builtins.md)
+ * from the installed core package manifests. The output is deterministic
  * (manifest order, no timestamps, trailing newline) and committed; a drift test
  * regenerates it in memory and fails when it diverges from the catalog.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { listBuiltinManifests } from "../src/core/builtins";
+import { coreManifests, coreReference } from "./core-package-fixture";
 import type { ComponentManifest } from "../src/shared/contracts";
 
 type Schema = Record<string, any>;
@@ -193,20 +193,20 @@ function renderComponent(manifest: ComponentManifest): string[] {
 }
 
 export function generateComponentReference(): string {
-  const manifests = listBuiltinManifests();
+  const manifests = coreManifests;
   const lines: string[] = [
     "<!-- GENERATED FILE — do not edit by hand.",
     `     Regenerate with: ${REGENERATION_COMMAND} -->`,
     "",
-    "# Built-in component reference",
+    "# Core component reference",
     "",
-    "Generated from `BUILTIN_COMPONENTS` in `src/core/builtins.ts`; this file",
+    "Generated from the pinned external core manifests; this file",
     "ships inside the dash-bored skill for this version. Types come from each",
     "component's JSON Schema `propsSchema`.",
     "",
   ];
   for (const manifest of manifests) {
-    lines.push(`## ${manifest.id}`, "", ...renderComponent(manifest));
+    lines.push(`## ${coreReference(manifest.id)}`, "", ...renderComponent(manifest));
   }
   return lines.join("\n").replace(/\n+$/, "\n");
 }

@@ -272,7 +272,7 @@ export function ComponentDialog({
       ) : (
         <form className="component-config" onSubmit={(event) => {
           event.preventDefault();
-          if (item.reference === "@dash-bored/button" && typeof props.action === "string" && isLegacyActionTarget(props.action)) {
+          if (item.reference === "./components/external/core/button" && typeof props.action === "string" && isLegacyActionTarget(props.action)) {
             setApplyError("Choose a stable target ID before applying this action button.");
             return;
           }
@@ -329,7 +329,7 @@ export function ComponentDialog({
             </p>
           ) : null}
           {applyError ? <p className="inline-error" role="alert">{applyError}</p> : null}
-          {item.reference === "@dash-bored/button" ? (
+          {item.reference === "./components/external/core/button" ? (
             <fieldset className="action-target-picker">
               <legend>Stable action target</legend>
               <label className="props-field"><span>Target node</span>

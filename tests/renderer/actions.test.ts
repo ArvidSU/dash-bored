@@ -50,16 +50,16 @@ function action(
 function commandTree(): ResolvedComponentNode {
   return {
     id: "root",
-    component: "@dash-bored/group",
+    component: "./components/external/core/group",
     props: {},
     children: { node: {
             id: "server",
-            component: "@dash-bored/command",
+            component: "./components/external/core/command",
             props: { label: "Development server", command: "bun run dev" },
-            source: "builtin",
+            source: "external",
             manifest: {
                 schemaVersion: 2,
-                id: "@dash-bored/command",
+                id: "./components/external/core/command",
                 name: "Command",
                 description: "Runs a supervised command.",
                 entry: "builtin:command",
@@ -68,7 +68,7 @@ function commandTree(): ResolvedComponentNode {
                 permissions: ["process:execute"]
             }
         } },
-    source: "builtin",
+    source: "external",
   };
 }
 

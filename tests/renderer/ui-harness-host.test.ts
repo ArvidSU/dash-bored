@@ -14,7 +14,7 @@ describe("ui harness host", () => {
     expect(snapshot.trusted).toBeTrue();
     expect(snapshot.tree).toMatchObject({
       id: "harness-root",
-      component: "@dash-bored/tabs",
+      component: "./components/external/core/tabs",
     });
     expect(Array.isArray(snapshot.tree?.children)).toBeTrue();
     const [wideTab] = childNodes(snapshot.tree!);
@@ -33,13 +33,13 @@ describe("ui harness host", () => {
     };
     collectIds(snapshot.tree!);
     expect(new Set(nodeIds).size).toBe(nodeIds.length);
-    expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/group")?.manifest?.children)
+    expect(snapshot.componentCatalog.find((entry) => entry.reference === "./components/external/core/group")?.manifest?.children)
       .toEqual({ min: 0, presentation: { type: "tiled", axes: "both" } });
-    expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/group")?.manifest?.renderMode)
+    expect(snapshot.componentCatalog.find((entry) => entry.reference === "./components/external/core/group")?.manifest?.renderMode)
       .toBe("layout");
-    expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/tabs")?.manifest?.children?.presentation)
+    expect(snapshot.componentCatalog.find((entry) => entry.reference === "./components/external/core/tabs")?.manifest?.children?.presentation)
       .toEqual({ type: "managed" });
-    expect(snapshot.componentCatalog.find((entry) => entry.reference === "@dash-bored/tabs")?.manifest?.renderMode)
+    expect(snapshot.componentCatalog.find((entry) => entry.reference === "./components/external/core/tabs")?.manifest?.renderMode)
       .toBe("layout");
     expect(await host.listProjects()).toEqual([{
       projectRoot: "/ui-harness/.dash-bored",
@@ -53,7 +53,8 @@ describe("ui harness host", () => {
     const source = await host.getDashboardConfigSource();
     const valid = await host.validateDashboardDraft(source.config);
     expect(valid).toMatchObject({ ok: true, tree: { id: "harness-root" } });
-    expect(valid.components.map((component) => component.componentId)).toEqual(["host-stability"]);
+    expect(valid.components.map((component) => component.componentId)).toContain("host-stability");
+    expect(valid.components.map((component) => component.componentId)).toContain("core/tabs");
     const invalid = structuredClone(source.config);
     invalid.root.children = [];
 

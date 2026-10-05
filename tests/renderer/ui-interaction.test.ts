@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { chromium, type Browser, type Page } from "playwright-core";
 import type { ComponentNode, ComponentChildLayout } from "../../src/shared/contracts";
 import { startFixtureServer, type FixtureServer } from "../helpers/fixture-server";
@@ -43,7 +43,7 @@ async function persistedGroupCount(active: Page = currentPage()): Promise<number
       const nested = children === undefined ? 0 : Array.isArray(children)
         ? children.reduce((sum, edge) => sum + visit(edge.node), 0)
         : visitLayout(children);
-      return (node.component === "@dash-bored/group" && node.id !== "group" ? 1 : 0) + nested;
+      return (node.component === "./components/external/core/group" && node.id !== "group" ? 1 : 0) + nested;
     };
     return config ? visit(config.root) : 0;
   });
@@ -123,12 +123,64 @@ afterAll(async () => {
 }, 30_000);
 
 describe("renderer fixture interactions", () => {
+  test("package recovery keeps configuration visible to the host and wires Retry and Sync", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const saved = await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig());
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const original = host.manageExternalComponent.bind(host);
+        host.manageExternalComponent = async (operation) => {
+          const result = await original(operation);
+          if (operation.op === "restore") throw new Error("Remote remains offline; pins are preserved.");
+          await host.setDiagnostics([]);
+          return result;
+        };
+        await host.setDiagnostics([{ severity: "error", code: "PACKAGE_RESTORE_FAILED", message: "Could not restore core: remote offline.", file: "/ui-harness/.dash-bored/dash-bored-lock.yaml" }]);
+      });
+      const recovery = proof.getByRole("region", { name: "Package recovery", exact: true });
+      await recovery.waitFor();
+      await proof.getByText("Could not restore core: remote offline.", { exact: true }).waitFor();
+      await recovery.getByRole("button", { name: "Retry package restoration", exact: true }).click();
+      await proof.getByText("Remote remains offline; pins are preserved.", { exact: true }).waitFor();
+      expect(await recovery.isVisible()).toBe(true);
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig())).toEqual(saved);
+      await recovery.getByRole("button", { name: "Sync pinned packages", exact: true }).click();
+      await recovery.waitFor({ state: "detached" });
+      const operations = await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPackageOperations());
+      expect(operations).toEqual([{ kind: "external", op: "restore" }, { kind: "external", op: "sync" }]);
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig())).toEqual(saved);
+    } finally { await proof.close(); }
+  }, 20_000);
+
+  test("all 17 pinned core outputs export ordinary components through the actual compiler", async () => {
+    const proof = await browser!.newPage();
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const payload = JSON.parse(await readFile(".cottontail-tmp/core-fixture.json", "utf8"));
+      const exports = await proof.evaluate(async (components: {componentId:string;javascript:string}[]) => {
+        const results: string[] = [];
+        for (const component of components) {
+          const url = URL.createObjectURL(new Blob([component.javascript], {type:"text/javascript"}));
+          try { const module = await import(url); if(typeof module.default !== "function") throw new Error(`${component.componentId} has no default renderer`); results.push(component.componentId); }
+          finally { URL.revokeObjectURL(url); }
+        }
+        return results;
+      }, payload.components);
+      expect(exports.length).toBe(17);
+      expect(exports.every(id => id.startsWith("core/"))).toBe(true);
+    } finally { await proof.close(); }
+  }, 20_000);
+
   test("component cards show their manifest summary", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open component library" }).click();
     try {
-      const conditional = active.locator(".right-drawer li").filter({ hasText: "@dash-bored/conditional" });
-      await conditional.getByText("Fixture conditional component.").waitFor();
+      const conditional = active.locator(".right-drawer li").filter({ hasText: "./components/external/core/conditional" });
+      await conditional.getByText(/Recovery visibility for one tiled child/).waitFor();
       const summary = await conditional.innerText();
       expect(summary).toContain("Sizing: organizational layout");
       expect(summary).toContain("Children: minimum 1, maximum 1; tiled horizontally or vertically");
@@ -309,13 +361,13 @@ describe("renderer fixture interactions", () => {
       const palette = proof.getByRole("dialog", { name: "Command palette" });
       const actionSearch = palette.getByRole("combobox");
       await actionSearch.fill("renderer-proof-todos");
-      const target = palette.getByRole("option", { name: /^Focus component\W+Todo-list/ });
+      const target = palette.getByRole("option", { name: /^Focus component\W+YAML todo list/ });
       await target.waitFor();
       expect(await palette.getByRole("option").first().getAttribute("id")).toBe(await target.getAttribute("id"));
       expect(await actionSearch.getAttribute("aria-activedescendant")).toBe(await target.getAttribute("id"));
       await actionSearch.press("Enter");
       await palette.waitFor({ state: "hidden" });
-      await proof.getByRole("navigation", { name: "Focused component path" }).getByText("Todo-list", { exact: true }).waitFor();
+      await proof.getByRole("navigation", { name: "Focused component path" }).getByText("YAML todo list", { exact: true }).waitFor();
     } finally {
       await proof.close();
     }
@@ -1490,20 +1542,19 @@ describe("renderer fixture interactions", () => {
     expect(await persistedGroupCount()).toBe(2);
   }, 20_000);
 
-  test("lazy-loads the command renderer when a fresh snapshot first needs it", async () => {
+  test("loads the external command and its CSS when a fresh snapshot needs it", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
-      const moduleRequested = () => proof.evaluate(() => performance.getEntriesByType("resource").some((entry) =>
-        entry.name.includes("builtins/command") || entry.name.includes("/assets/command-")));
+      const moduleRequested = () => proof.evaluate(() => Boolean(document.querySelector('style[data-dash-bored-component^="dash-bored-component:core/command:"]')));
       expect(await moduleRequested()).toBe(false);
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();
-        await host.saveDashboardConfig({ schemaVersion: 3, name: "Lazy command proof", root: {
-          id: "lazy-command", component: "@dash-bored/command", props: { command: "printf fixture" },
+        await host.saveDashboardConfig({ schemaVersion: 4, name: "Lazy command proof", root: {
+          id: "lazy-command", component: "./components/external/core/command", props: { label: "Command", command: "printf fixture" },
         } }, snapshot.configRevision!);
       });
       await proof.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
@@ -1520,15 +1571,14 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
     await active.getByRole("dialog", { name: "Discard dashboard changes?" }).getByRole("button", { name: "Discard changes", exact: true }).click();
     const commandModuleRequested = async (): Promise<boolean> => active.evaluate(() =>
-      performance.getEntriesByType("resource").some((entry) =>
-        entry.name.includes("builtins/command") || entry.name.includes("/assets/command-"),
-      ));
+      Boolean(document.querySelector('style[data-dash-bored-component^="dash-bored-component:core/command:"]')));
 
     await active.getByRole("button", { name: "Open component library" }).click();
     await active.getByRole("button", { name: "Insert Command", exact: true }).click();
 
     const dialog = active.getByRole("dialog", { name: "Add component" });
     await dialog.waitFor();
+    await dialog.getByLabel(/^label/i).first().fill("Fixture command");
     await dialog.getByLabel(/^command/i).fill("printf fixture");
     await dialog.getByRole("button", { name: "Add component", exact: true }).click();
 
@@ -1562,12 +1612,10 @@ describe("renderer fixture interactions", () => {
     expect(await effectRuns.textContent()).toBe(beforeProcessUpdate);
   }, 20_000);
 
-  test("lazy-loads the Markdown renderer only when it is inserted", async () => {
+  test("loads the external Markdown renderer when it is inserted", async () => {
     const active = currentPage();
     const markdownModuleRequested = async (): Promise<boolean> => active.evaluate(() =>
-      performance.getEntriesByType("resource").some((entry) =>
-        entry.name.includes("builtins/markdown") || entry.name.includes("/assets/markdown-"),
-      ));
+      Boolean(document.querySelector('style[data-dash-bored-component^="dash-bored-component:core/markdown:"]')));
 
     expect(await markdownModuleRequested()).toBe(false);
     await active.getByRole("button", { name: "Open component library" }).click();
@@ -1632,8 +1680,8 @@ describe("renderer fixture interactions", () => {
           ...(phase === 1 ? [{ id: 'three', title: 'New tag item', tags: ['new'] }] : []),
         ];
         host.runShell = async () => ({ stdout: JSON.stringify(items), stderr: '', exitCode: 0, signal: null, timedOut: false });
-        await host.saveDashboardConfig({ schemaVersion: 3, name: 'Filter proof', root: {
-          id: 'filter-list', component: '@dash-bored/list', props: {
+        await host.saveDashboardConfig({ schemaVersion: 4, name: 'Filter proof', root: {
+          id: 'filter-list', component: './components/external/core/list', props: {
             title: 'Filter proof', source: phase < 4 ? { inline: items } : { shell: 'filter-proof', env: { PROVIDER: String(phase) } },
           },
         } }, snapshot.configRevision!);
@@ -1669,8 +1717,8 @@ describe("renderer fixture interactions", () => {
       await proof.evaluate(async (phase) => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();
-        await host.saveDashboardConfig({ schemaVersion: 3, name: 'Todo filter proof', root: {
-          id: 'filter-todos', component: '@dash-bored/list', props: {
+        await host.saveDashboardConfig({ schemaVersion: 4, name: 'Todo filter proof', root: {
+          id: 'filter-todos', component: './components/external/core/list', props: {
             filterByTags: phase !== 2,
             todos: [
               { id: 'one', description: 'Editing task', done: false, tags: ['proof'] },
@@ -1796,7 +1844,7 @@ describe("renderer fixture interactions", () => {
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();
-        await host.saveDashboardConfig({ schemaVersion: 3, name: "Configured project", root: { id: "ready", component: "@dash-bored/status", props: { label: "Project ready", state: "healthy" } } }, snapshot.configRevision!);
+        await host.saveDashboardConfig({ schemaVersion: 4, name: "Configured project", root: { id: "ready", component: "./components/external/core/status", props: { label: "Project ready", state: "healthy" } } }, snapshot.configRevision!);
       });
       expect(await proof.locator(".setup-agent").count()).toBe(0);
       await row.getByText("Working", { exact: true }).waitFor();
@@ -1934,8 +1982,8 @@ describe("renderer fixture interactions", () => {
         await proof.evaluate(async () => {
           const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
           const snapshot = await host.getSnapshot();
-          await host.saveDashboardConfig({ schemaVersion: 3, name: "Scroll background", root: {
-            id: "background", component: "@dash-bored/markdown", props: { content: "Background paragraph.\n\n".repeat(150) },
+          await host.saveDashboardConfig({ schemaVersion: 4, name: "Scroll background", root: {
+            id: "background", component: "./components/external/core/markdown", props: { content: "Background paragraph.\n\n".repeat(150) },
           } }, snapshot.configRevision!);
           const task = await host.launchAgent({ kind: "component",  nodeId: "background", prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
           await host.appendAgentOutput(task.taskId, Array.from({ length: 120 }, (_, i) => `Activity ${i}\r\n`).join("") + "LAST ACTIVITY\r\n");
@@ -1992,7 +2040,7 @@ describe("renderer fixture interactions", () => {
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         const snapshot = await host.getSnapshot();
-        await host.saveDashboardConfig({ schemaVersion: 3, name: "Environment proof", root: { id: "env-proof", component: "@dash-bored/env", props: { path: ".dash-bored/.env" } } }, snapshot.configRevision!);
+        await host.saveDashboardConfig({ schemaVersion: 4, name: "Environment proof", root: { id: "env-proof", component: "./components/external/core/env", props: { path: ".dash-bored/.env" } } }, snapshot.configRevision!);
       });
       const editor = proof.getByRole("region", { name: "Environment editor for .dash-bored/.env", exact: true });
       await editor.locator(".env-editor__effective").getByText("codex exec", { exact: true }).waitFor();
@@ -2053,11 +2101,11 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'UI harness project', root: { id: 'theme-proof', component: '@dash-bored/group', children: { axis: 'vertical',
-                  first: { node: { id: 'theme-terminal', component: '@dash-bored/command', props: { label: 'Theme terminal', command: 'echo theme' } } },
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'UI harness project', root: { id: 'theme-proof', component: './components/external/core/group', children: { axis: 'vertical',
+                  first: { node: { id: 'theme-terminal', component: './components/external/core/command', props: { label: 'Theme terminal', command: 'echo theme' } } },
                   second: { axis: 'horizontal', ratio: 0.5,
-                      first: { node: { id: 'theme-chart', component: '@dash-bored/chart', props: { title: 'Theme chart', labels: ['One', 'Two'], series: [{ label: 'Series', values: [1, 2] }] } } },
-                      second: { node: { id: 'theme-markdown', component: '@dash-bored/markdown', props: { content: '# Theme preview\n\nReadable text and `code` in both variants.' } } }
+                      first: { node: { id: 'theme-chart', component: './components/external/core/chart', props: { title: 'Theme chart', labels: ['One', 'Two'], series: [{ label: 'Series', values: [1, 2] }] } } },
+                      second: { node: { id: 'theme-markdown', component: './components/external/core/markdown', props: { content: '# Theme preview\n\nReadable text and `code` in both variants.' } } }
                   }
               } } }, snapshot.configRevision!);
       await host.processCommand("theme-terminal", { type: "start" });
@@ -2193,8 +2241,8 @@ test('focus timer pauses, resumes, completes and starts breaks explicitly', asyn
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Focus studio', root: {
-              id: 'focus-proof', component: '@dash-bored/focus-timer',
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Focus studio', root: {
+              id: 'focus-proof', component: './components/external/core/focus-timer',
               props: { title: 'Make something worth shipping', focusMinutes: 1, breakMinutes: 1 }
           } }, snapshot.configRevision!);
     });
@@ -2235,21 +2283,21 @@ test('action buttons compose persistent tab and sidebar navigation at narrow wid
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Action navigation', root: {
-        id: 'shell', component: '@dash-bored/group', persistOnFocus: true, children: {
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Action navigation', root: {
+        id: 'shell', component: './components/external/core/group', persistOnFocus: true, children: {
           axis: 'vertical',
           first: { node: {
-            id: 'navigation', component: '@dash-bored/group', persistOnFocus: true, children: {
+            id: 'navigation', component: './components/external/core/group', persistOnFocus: true, children: {
               axis: 'horizontal',
-              first: { node: { id: 'focus-todo', component: '@dash-bored/button', props: { name: 'Focus todos', action: 'focus:todo' } } },
+              first: { node: { id: 'focus-todo', component: './components/external/core/button', props: { name: 'Focus todos', action: 'focus:todo' } } },
               second: { axis: 'horizontal',
-                first: { node: { id: 'focus-local', component: '@dash-bored/button', props: { name: 'Focus fixture', action: 'focus:local-action' } } },
-                second: { node: { id: 'refresh-local', component: '@dash-bored/button', props: { name: 'Refresh fixture', action: 'component:local-action:refresh' } } },
+                first: { node: { id: 'focus-local', component: './components/external/core/button', props: { name: 'Focus fixture', action: 'focus:local-action' } } },
+                second: { node: { id: 'refresh-local', component: './components/external/core/button', props: { name: 'Refresh fixture', action: 'component:local-action:refresh' } } },
               },
             },
           } },
           second: { axis: 'horizontal',
-            first: { node: { id: 'todo', component: '@dash-bored/todo-list', props: { todos: [{ description: 'Persistent navigation proof', done: false, tags: ['focus'] }] } } },
+            first: { node: { id: 'todo', component: './components/external/core/todo-list', props: { todos: [{ description: 'Persistent navigation proof', done: false, tags: ['focus'] }] } } },
             second: { node: { id: 'local-action', component: './components/host-stability' } },
           },
         },
@@ -2297,9 +2345,9 @@ test('built-in timer and Markdown actions share button invocation and availabili
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Built-in actions', root: {
-        id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
-          first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Built-in actions', root: {
+        id: 'root', component: './components/external/core/group', children: { axis: 'vertical',
+          first: { node: { id: 'controls', component: './components/external/core/button', props: { items: [
             { name: 'Remote start', action: 'component:timer:start' },
             { name: 'Remote pause', action: 'component:timer:pause' },
             { name: 'Remote reset', action: 'component:timer:reset' },
@@ -2307,8 +2355,8 @@ test('built-in timer and Markdown actions share button invocation and availabili
             { name: 'Remote preview', action: 'component:markdown:preview' },
           ] } } },
           second: { axis: 'horizontal',
-            first: { node: { id: 'timer', component: '@dash-bored/focus-timer', props: { focusMinutes: 1, breakMinutes: 1 } } },
-            second: { node: { id: 'markdown', component: '@dash-bored/markdown', props: { content: 'Original Markdown' } } },
+            first: { node: { id: 'timer', component: './components/external/core/focus-timer', props: { focusMinutes: 1, breakMinutes: 1 } } },
+            second: { node: { id: 'markdown', component: './components/external/core/markdown', props: { content: 'Original Markdown' } } },
           },
         },
       } }, snapshot.configRevision!);
@@ -2343,16 +2391,16 @@ test('stable-ID tab and todo actions select locally and change only the draft', 
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Tab and todo actions', root: {
-        id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
-          first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Tab and todo actions', root: {
+        id: 'root', component: './components/external/core/group', children: { axis: 'vertical',
+          first: { node: { id: 'controls', component: './components/external/core/button', props: { items: [
             { name: 'Choose second tab', action: { run: 'component:tabs:select', with: { child: 'second' } } },
             { name: 'Complete selected todo', action: { run: 'component:second:toggle', with: { id: 'stable-todo' } } },
             { name: 'Remove selected todo', action: { run: 'component:second:remove', with: { id: 'stable-todo' } } },
           ] } } },
-          second: { node: { id: 'tabs', component: '@dash-bored/tabs', children: [
-            { metadata: { label: 'First' }, node: { id: 'first', component: '@dash-bored/markdown', props: { content: 'First panel' } } },
-            { metadata: { label: 'Second' }, node: { id: 'second', component: '@dash-bored/list', props: { todos: [{ id: 'stable-todo', description: 'Selected task', done: false, tags: ['proof'] }] } } },
+          second: { node: { id: 'tabs', component: './components/external/core/tabs', children: [
+            { metadata: { label: 'First' }, node: { id: 'first', component: './components/external/core/markdown', props: { content: 'First panel' } } },
+            { metadata: { label: 'Second' }, node: { id: 'second', component: './components/external/core/list', props: { todos: [{ id: 'stable-todo', description: 'Selected task', done: false, tags: ['proof'] }] } } },
           ] } },
         },
       } }, snapshot.configRevision!);
@@ -2388,15 +2436,15 @@ test('source lists leave todo mutations unavailable while preserving filter acti
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Source list actions', root: {
-        id: 'root', component: '@dash-bored/group', children: { axis: 'vertical',
-          first: { node: { id: 'controls', component: '@dash-bored/button', props: { items: [
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Source list actions', root: {
+        id: 'root', component: './components/external/core/group', children: { axis: 'vertical',
+          first: { node: { id: 'controls', component: './components/external/core/button', props: { items: [
             { name: 'Toggle source todo', action: { run: 'component:source-list:toggle', with: { id: 'one' } } },
             { name: 'Remove source todo', action: { run: 'component:source-list:remove', with: { id: 'one' } } },
             { name: 'Filter proof tag', action: { run: 'component:source-list:filter', with: { tag: 'proof' } } },
             { name: 'Clear proof filter', action: 'component:source-list:clear-filter' },
           ] } } },
-          second: { node: { id: 'source-list', component: '@dash-bored/list', props: { source: { inline: [
+          second: { node: { id: 'source-list', component: './components/external/core/list', props: { source: { inline: [
             { id: 'one', title: 'Tagged item', tags: ['proof'] },
             { id: 'two', title: 'Other item', tags: ['other'] },
           ] } } } },
@@ -2440,12 +2488,12 @@ test('visual overview preserves refresh geometry, state shapes, and reduced moti
         return { stdout: JSON.stringify(value), stderr: '', exitCode: 0, signal: null, timedOut: false };
       };
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Visual overview', root: {
-        id: 'visual-proof', component: '@dash-bored/group', children: { axis: 'vertical',
-          first: { node: { id: 'visual-status', component: '@dash-bored/status', props: { label: 'Source state', source: { shell: 'visual-status' } } } },
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Visual overview', root: {
+        id: 'visual-proof', component: './components/external/core/group', children: { axis: 'vertical',
+          first: { node: { id: 'visual-status', component: './components/external/core/status', props: { label: 'Source state', source: { shell: 'visual-status' } } } },
           second: { axis: 'vertical',
-            first: { node: { id: 'visual-refresh', component: '@dash-bored/button', props: { name: 'Refresh source state', action: 'component:visual-status:refresh' } } },
-            second: { node: { id: 'visual-list', component: '@dash-bored/list', props: { title: 'Open work', source: { shell: 'visual-list' } } } },
+            first: { node: { id: 'visual-refresh', component: './components/external/core/button', props: { name: 'Refresh source state', action: 'component:visual-status:refresh' } } },
+            second: { node: { id: 'visual-list', component: './components/external/core/list', props: { title: 'Open work', source: { shell: 'visual-list' } } } },
           },
         },
       } }, snapshot.configRevision!);
@@ -2500,18 +2548,18 @@ test('glance atoms show trend, proportion, changes, item reveal, and chart refre
         return { stdout: JSON.stringify(value), stderr: '', exitCode: 0, signal: null, timedOut: false };
       };
       const snapshot = await host.getSnapshot();
-      const status = (id: string, extra: Record<string, unknown> = {}) => ({ node: { id, component: '@dash-bored/status', props: { label: id, source: { shell: 'glance-status' }, ...extra } } });
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Glance proof', root: {
-        id: 'glance', component: '@dash-bored/group', children: { axis: 'vertical',
+      const status = (id: string, extra: Record<string, unknown> = {}) => ({ node: { id, component: './components/external/core/status', props: { label: id, source: { shell: 'glance-status' }, ...extra } } });
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Glance proof', root: {
+        id: 'glance', component: './components/external/core/group', children: { axis: 'vertical',
           first: { axis: 'horizontal', first: status('glance-tile'), second: status('glance-compact', { density: 'compact' }) },
           second: { axis: 'vertical',
-            first: { node: { id: 'glance-refresh', component: '@dash-bored/button', props: { name: 'Refresh glance status', action: 'component:glance-tile:refresh' } } },
+            first: { node: { id: 'glance-refresh', component: './components/external/core/button', props: { name: 'Refresh glance status', action: 'component:glance-tile:refresh' } } },
             second: { axis: 'vertical',
-              first: { node: { id: 'glance-list', component: '@dash-bored/list', props: { title: 'Attention', sort: 'source-order', filterByTags: false, source: { shell: 'glance-list' },
+              first: { node: { id: 'glance-list', component: './components/external/core/list', props: { title: 'Attention', sort: 'source-order', filterByTags: false, source: { shell: 'glance-list' },
                 itemActions: [{ name: 'Show in backlog', action: { run: 'reveal:glance-backlog', with: { item: '${item.id}' } } }] } } },
               second: { axis: 'vertical',
-                first: { node: { id: 'glance-chart', component: '@dash-bored/chart', props: { title: 'Runs', type: 'bar', source: { shell: 'glance-chart' } } } },
-                second: { node: { id: 'glance-backlog', component: '@dash-bored/list', props: { title: 'Backlog', todos: [
+                first: { node: { id: 'glance-chart', component: './components/external/core/chart', props: { title: 'Runs', type: 'bar', source: { shell: 'glance-chart' } } } },
+                second: { node: { id: 'glance-backlog', component: './components/external/core/list', props: { title: 'Backlog', todos: [
                   { id: 'a', description: 'Alpha todo', done: false, tags: [] },
                   { id: 'b', description: 'Beta todo', done: false, tags: [] },
                 ] } } },
@@ -2597,15 +2645,15 @@ test('list items keep a readable title beside many tags and actions in a half-wi
     await proof.getByRole('button', { name: 'Open component library' }).waitFor();
     await proof.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-      const list = (id: string) => ({ node: { id, component: '@dash-bored/list', props: { title: 'Working tree', sort: 'source-order', source: { inline: [
+      const list = (id: string) => ({ node: { id, component: './components/external/core/list', props: { title: 'Working tree', sort: 'source-order', source: { inline: [
         { id: 'yaml', title: '.dash-bored/dash-bored.yaml', detail: 'Modified in the working tree', state: 'modified', tags: ['unstaged', '.dash-bored'] },
       ] }, itemActions: [
         { name: 'Diff', action: 'component:narrow-left:refresh' },
         { name: 'Review with agent', action: 'component:narrow-left:refresh' },
       ] } } });
       const snapshot = await host.getSnapshot();
-      await host.saveDashboardConfig({ schemaVersion: 3, name: 'Narrow list', root: {
-        id: 'narrow', component: '@dash-bored/group', children: { axis: 'horizontal', first: list('narrow-left'), second: list('narrow-right') },
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'Narrow list', root: {
+        id: 'narrow', component: './components/external/core/group', children: { axis: 'horizontal', first: list('narrow-left'), second: list('narrow-right') },
       } }, snapshot.configRevision!);
     });
     const title = proof.locator('.source-list').first().locator('.source-list__item-text > strong');

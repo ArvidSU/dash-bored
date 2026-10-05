@@ -14,10 +14,10 @@ test("parallel local builds preserve component and diagnostic input order", asyn
   cleanup.push(root);
   const components = ["broken-first", "valid-middle", "broken-last"] as const;
   const config: DashboardConfig = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name: "Compile order",
     root: {
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       children: components.map((name) => ({ node: { component: `./components/${name}` } })),
     },
   };

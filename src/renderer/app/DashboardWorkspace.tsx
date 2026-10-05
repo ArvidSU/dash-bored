@@ -23,6 +23,8 @@ export interface DashboardWorkspaceProps {
   onFocus(nodeId: string): void;
   onTrust(): void;
   onReload(): void;
+  onRestorePackages(): void;
+  onSyncPackages(): void;
   onFixWithAgent(): void;
   onRepairInstalledTools(): void;
 }
@@ -41,12 +43,15 @@ export function DashboardWorkspace({
   onFocus,
   onTrust,
   onReload,
+  onRestorePackages,
+  onSyncPackages,
   onFixWithAgent,
   onRepairInstalledTools,
 }: DashboardWorkspaceProps): ReactNode {
   const tree: ResolvedComponentNode | null = draftPreviewUnavailable
     ? snapshot.tree
     : resolvedTree === undefined ? snapshot.tree : resolvedTree;
+  const packageFailure = diagnostics.some(item => item.code === "PACKAGE_RESTORE_FAILED" || item.code === "PACKAGE_PIN_MISMATCH");
   return (
     <main className="workspace">
       <>
@@ -65,7 +70,14 @@ export function DashboardWorkspace({
             onRepairInstalledTools={onRepairInstalledTools}
           />
 
-          {tree ? (
+          {packageFailure ? (
+            <section className="empty-dashboard" aria-label="Package recovery">
+              <h1>Pinned packages need attention</h1>
+              <p>Your configuration and lock file are preserved. Retry restores missing packages; Sync checks existing clean checkouts against their pins.</p>
+              <button className="button" disabled={pendingAction !== null} onClick={onRestorePackages}>Retry package restoration</button>
+              <button className="button button--secondary" disabled={pendingAction !== null} onClick={onSyncPackages}>Sync pinned packages</button>
+            </section>
+          ) : tree ? (
             <section className="dashboard" aria-label={`${dashboardTitle(snapshot)} dashboard`}>
               {virtualRoot && virtualRoot.crumbs.length > 1 ? (
                 <nav className="dashboard-breadcrumbs" aria-label="Focused component path">

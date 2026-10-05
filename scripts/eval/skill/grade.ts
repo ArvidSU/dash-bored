@@ -65,9 +65,9 @@ for (const run of readdirSync(join(evalDir, "runs"), { withFileTypes: true })
   const added = all.filter((node) => !node.id || !before.has(node.id));
   report.push(`nodes: ${all.length} (${added.length} new)`);
   report.push(`new legacy components: ${list(added.filter((node) => legacy.has(node.component)).map((node) => `${node.id}:${node.component}`))}`);
-  report.push(`hand-written status state: ${list(all.filter((node) => node.component === "@dash-bored/status"
+  report.push(`hand-written status state: ${list(all.filter((node) => node.component === "./components/external/core/status"
     && node.props?.state !== undefined && !node.props?.source).map((node) => node.id))}`);
-  report.push(`titled single-child frames: ${list(all.filter((node) => ["@dash-bored/group", "@dash-bored/card"].includes(node.component)
+  report.push(`titled single-child frames: ${list(all.filter((node) => ["./components/external/core/group", "./components/external/core/card"].includes(node.component)
     && node.props?.title && node.children && !Array.isArray(node.children) && "node" in node.children).map((node) => node.id))}`);
   report.push(`nodes without id: ${all.filter((node) => !node.id).length}`);
   report.push(`local components: ${list([...new Set(all.filter((node) => node.component.startsWith("./components/")).map((node) => node.component))])}`);
@@ -82,10 +82,10 @@ for (const run of readdirSync(join(evalDir, "runs"), { withFileTypes: true })
     }
     const result = runShell(source.shell, source.cwd ? join(root, source.cwd) : root);
     let shape = "unchecked";
-    if (node.component === "@dash-bored/status") shape = parseStatusValue(result.value) ? "ok" : "BAD";
-    if (node.component === "@dash-bored/chart") shape = parseSourceChart(result.value) ? "ok" : "BAD";
-    if (node.component === "@dash-bored/markdown") shape = typeof result.value === "string" ? "text" : "json";
-    if (node.component === "@dash-bored/list") {
+    if (node.component === "./components/external/core/status") shape = parseStatusValue(result.value) ? "ok" : "BAD";
+    if (node.component === "./components/external/core/chart") shape = parseSourceChart(result.value) ? "ok" : "BAD";
+    if (node.component === "./components/external/core/markdown") shape = typeof result.value === "string" ? "text" : "json";
+    if (node.component === "./components/external/core/list") {
       const parsed = parseDashboardList(result.value);
       shape = parsed.diagnostics.length ? `BAD ${JSON.stringify(parsed.diagnostics[0])}` : `ok (${parsed.items.length} items)`;
     }

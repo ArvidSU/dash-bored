@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { conditionalVisibility, shellConditionSucceeded } from "../../src/renderer/builtins/conditional";
+import { loadCoreTestComponent } from "./load-core-test-component";
+const { conditionalVisibility, shellConditionSucceeded } = await loadCoreTestComponent("conditional");
 
 describe("conditional visibility", () => {
   test("only treats a clean zero exit as a successful condition", () => {

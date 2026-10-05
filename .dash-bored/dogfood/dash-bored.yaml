@@ -1,14 +1,14 @@
-schemaVersion: 3
+schemaVersion: 4
 name: dash-bored atoms lab
 root:
   id: lab
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   children:
     axis: vertical
     first:
       node:
         id: lab-intro
-        component: "@dash-bored/markdown"
+        component: "./components/external/core/markdown"
         props:
           content: |
             **Atoms lab** — a linked standalone bundle (`.dash-bored/dogfood/`) that exercises
@@ -20,7 +20,7 @@ root:
       first:
         node:
           id: lab-sections-bar
-          component: "@dash-bored/button"
+          component: "./components/external/core/button"
           persistOnFocus: true
           props:
             variant: segmented
@@ -40,7 +40,7 @@ root:
       second:
         node:
           id: lab-sections
-          component: "@dash-bored/selection"
+          component: "./components/external/core/selection"
           props:
             defaultChild: lab-sources
           children:
@@ -48,7 +48,7 @@ root:
                 label: Sources
               node:
                 id: lab-sources
-                component: "@dash-bored/group"
+                component: "./components/external/core/group"
                 props:
                   title: One view per source kind
                   description: inline, shell (JSON and text), file, and http. Polling pauses while this panel is hidden.
@@ -60,7 +60,7 @@ root:
                     first:
                       node:
                         id: lab-inline-status
-                        component: "@dash-bored/status"
+                        component: "./components/external/core/status"
                         props:
                           label: Inline source
                           source:
@@ -70,7 +70,7 @@ root:
                     second:
                       node:
                         id: lab-file-list
-                        component: "@dash-bored/list"
+                        component: "./components/external/core/list"
                         props:
                           title: File source
                           sort: source-order
@@ -81,7 +81,7 @@ root:
                     first:
                       node:
                         id: lab-wave
-                        component: "@dash-bored/chart"
+                        component: "./components/external/core/chart"
                         props:
                           title: Shell JSON source · every 2s
                           type: line
@@ -94,7 +94,7 @@ root:
                       first:
                         node:
                           id: lab-shell-markdown
-                          component: "@dash-bored/markdown"
+                          component: "./components/external/core/markdown"
                           props:
                             title: Shell text source
                             source:
@@ -106,7 +106,7 @@ root:
                       second:
                         node:
                           id: lab-http-markdown
-                          component: "@dash-bored/markdown"
+                          component: "./components/external/core/markdown"
                           props:
                             title: HTTP source (GitHub tags JSON)
                             source:
@@ -116,7 +116,7 @@ root:
                 label: Act → observe
               node:
                 id: lab-act
-                component: "@dash-bored/group"
+                component: "./components/external/core/group"
                 props:
                   title: Act → observe
                   description: Buttons start supervised processes; status tiles observe the process snapshot or the file they write.
@@ -125,7 +125,7 @@ root:
                   first:
                     node:
                       id: lab-act-bar
-                      component: "@dash-bored/button"
+                      component: "./components/external/core/button"
                       props:
                         variant: buttons
                         items:
@@ -144,7 +144,7 @@ root:
                       first:
                         node:
                           id: lab-signal-status
-                          component: "@dash-bored/status"
+                          component: "./components/external/core/status"
                           props:
                             label: Signal (shell source · every 2s)
                             source:
@@ -156,7 +156,7 @@ root:
                         first:
                           node:
                             id: lab-countdown-status
-                            component: "@dash-bored/status"
+                            component: "./components/external/core/status"
                             props:
                               label: Countdown process
                               source:
@@ -164,7 +164,7 @@ root:
                         second:
                           node:
                             id: lab-fail-status
-                            component: "@dash-bored/status"
+                            component: "./components/external/core/status"
                             props:
                               label: Failing process
                               source:
@@ -174,7 +174,7 @@ root:
                       first:
                         node:
                           id: lab-flip
-                          component: "@dash-bored/command"
+                          component: "./components/external/core/command"
                           props:
                             label: Flip signal
                             command: bun run .dash-bored/dogfood/scripts/lab.ts flip
@@ -184,7 +184,7 @@ root:
                         first:
                           node:
                             id: lab-countdown
-                            component: "@dash-bored/command"
+                            component: "./components/external/core/command"
                             props:
                               label: Countdown then exit 0
                               command: bun run .dash-bored/dogfood/scripts/lab.ts countdown
@@ -192,7 +192,7 @@ root:
                         second:
                           node:
                             id: lab-fail-command
-                            component: "@dash-bored/command"
+                            component: "./components/external/core/command"
                             props:
                               label: Countdown then exit 1
                               command: bun run .dash-bored/dogfood/scripts/lab.ts countdown
@@ -204,7 +204,7 @@ root:
                 label: Item actions
               node:
                 id: lab-items
-                component: "@dash-bored/group"
+                component: "./components/external/core/group"
                 props:
                   title: Per-item actions
                   description: Item fields reach the command only as DASH_ITEM_* variables. Delta lacks a count to exercise the missing-field path.
@@ -214,7 +214,7 @@ root:
                   first:
                     node:
                       id: lab-item-list
-                      component: "@dash-bored/list"
+                      component: "./components/external/core/list"
                       props:
                         title: Shell list source
                         source:
@@ -232,7 +232,7 @@ root:
                   second:
                     node:
                       id: lab-item-echo
-                      component: "@dash-bored/command"
+                      component: "./components/external/core/command"
                       props:
                         label: Echo item values
                         command: printf 'DASH_ITEM_NAME=%s DASH_ITEM_COUNT=%s\n' "$DASH_ITEM_NAME" "$DASH_ITEM_COUNT"
@@ -241,7 +241,7 @@ root:
                 label: Failure modes
               node:
                 id: lab-failures
-                component: "@dash-bored/group"
+                component: "./components/external/core/group"
                 props:
                   title: Failure modes
                   description: Each view should show a readable, localized error while the rest of the dashboard keeps working.
@@ -252,7 +252,7 @@ root:
                     first:
                       node:
                         id: lab-fail-source
-                        component: "@dash-bored/status"
+                        component: "./components/external/core/status"
                         props:
                           label: Non-zero exit with stderr
                           source:
@@ -263,7 +263,7 @@ root:
                       first:
                         node:
                           id: lab-bad-shape
-                          component: "@dash-bored/status"
+                          component: "./components/external/core/status"
                           props:
                             label: Wrong JSON shape
                             source:
@@ -272,7 +272,7 @@ root:
                       second:
                         node:
                           id: lab-timeout
-                          component: "@dash-bored/status"
+                          component: "./components/external/core/status"
                           props:
                             label: Timeout (1s limit, 5s script)
                             source:
@@ -284,7 +284,7 @@ root:
                     first:
                       node:
                         id: lab-duplicate-ids
-                        component: "@dash-bored/list"
+                        component: "./components/external/core/list"
                         props:
                           title: Duplicate and missing item IDs
                           source:
@@ -293,7 +293,7 @@ root:
                     second:
                       node:
                         id: lab-missing-file
-                        component: "@dash-bored/markdown"
+                        component: "./components/external/core/markdown"
                         props:
                           title: Missing file source
                           source:
@@ -302,7 +302,7 @@ root:
                 label: Controls
               node:
                 id: lab-controls
-                component: "@dash-bored/group"
+                component: "./components/external/core/group"
                 props:
                   title: Action verbs and bar variants
                   description: app, focus, reveal, select, component, and agent:prompt references from buttons.
@@ -311,7 +311,7 @@ root:
                   first:
                     node:
                       id: lab-verb-bar
-                      component: "@dash-bored/button"
+                      component: "./components/external/core/button"
                       props:
                         variant: buttons
                         items:
@@ -330,7 +330,7 @@ root:
                     first:
                       node:
                         id: lab-agent-button
-                        component: "@dash-bored/button"
+                        component: "./components/external/core/button"
                         props:
                           name: Ask agent to explain the lab (read-only)
                           action:
@@ -342,7 +342,7 @@ root:
                       first:
                         node:
                           id: lab-nested-bar
-                          component: "@dash-bored/button"
+                          component: "./components/external/core/button"
                           props:
                             variant: tabs
                             items:
@@ -355,7 +355,7 @@ root:
                       second:
                         node:
                           id: lab-nested
-                          component: "@dash-bored/selection"
+                          component: "./components/external/core/selection"
                           props:
                             defaultChild: lab-nested-one
                           children:
@@ -363,14 +363,14 @@ root:
                                 label: Nested one
                               node:
                                 id: lab-nested-one
-                                component: "@dash-bored/markdown"
+                                component: "./components/external/core/markdown"
                                 props:
                                   content: "**Nested one.** A selection inside a selection: switch here, change lab section, come back — the choice persists."
                             - metadata:
                                 label: Nested two
                               node:
                                 id: lab-nested-two
-                                component: "@dash-bored/status"
+                                component: "./components/external/core/status"
                                 props:
                                   label: Nested two
                                   source:
@@ -381,7 +381,7 @@ root:
                                 label: Nested three
                               node:
                                 id: lab-nested-three
-                                component: "@dash-bored/chart"
+                                component: "./components/external/core/chart"
                                 props:
                                   title: Inline chart data
                                   type: bar
@@ -395,7 +395,7 @@ root:
                 label: Legacy aliases
               node:
                 id: lab-legacy
-                component: "@dash-bored/group"
+                component: "./components/external/core/group"
                 props:
                   title: Schema-v3 builtins awaiting WP9 retirement
                   description: Keep these rendering until the v4 migration turns them into aliases.
@@ -406,7 +406,7 @@ root:
                     first:
                       node:
                         id: lab-legacy-live-chart
-                        component: "@dash-bored/live-chart"
+                        component: "./components/external/core/live-chart"
                         props:
                           title: live-chart (renderer fixture endpoint)
                           endpoint: /dash-bored-chart-fixture.json
@@ -415,7 +415,7 @@ root:
                     second:
                       node:
                         id: lab-legacy-static-chart
-                        component: "@dash-bored/chart"
+                        component: "./components/external/core/chart"
                         props:
                           title: chart with static labels/series
                           type: bar
@@ -434,7 +434,7 @@ root:
                       first:
                         node:
                           id: lab-legacy-card
-                          component: "@dash-bored/card"
+                          component: "./components/external/core/card"
                           props:
                             title: card
                           children:
@@ -442,7 +442,7 @@ root:
                             first:
                               node:
                                 id: lab-legacy-hand-status
-                                component: "@dash-bored/status"
+                                component: "./components/external/core/status"
                                 props:
                                   label: Hand-written status state
                                   state: healthy
@@ -450,20 +450,20 @@ root:
                             second:
                               node:
                                 id: lab-legacy-conditional
-                                component: "@dash-bored/conditional"
+                                component: "./components/external/core/conditional"
                                 props:
                                   command: "true"
                                   pollIntervalMs: 10000
                                 children:
                                   node:
                                     id: lab-legacy-conditional-child
-                                    component: "@dash-bored/markdown"
+                                    component: "./components/external/core/markdown"
                                     props:
                                       content: "conditional: visible because `true` exits 0."
                       second:
                         node:
                           id: lab-legacy-todo-list
-                          component: "@dash-bored/todo-list"
+                          component: "./components/external/core/todo-list"
                           props:
                             todos:
                               - id: lab-legacy-todo-1
@@ -477,19 +477,19 @@ root:
                     second:
                       node:
                         id: lab-legacy-tabs
-                        component: "@dash-bored/tabs"
+                        component: "./components/external/core/tabs"
                         children:
                           - metadata:
                               label: tabs · first
                             node:
                               id: lab-legacy-tab-one
-                              component: "@dash-bored/markdown"
+                              component: "./components/external/core/markdown"
                               props:
-                                content: "`@dash-bored/tabs` keeps local tab state until it becomes a Switchable panels alias."
+                                content: "`./components/external/core/tabs` keeps local tab state until it becomes a Switchable panels alias."
                           - metadata:
                               label: tabs · second
                             node:
                               id: lab-legacy-tab-two
-                              component: "@dash-bored/env"
+                              component: "./components/external/core/env"
                               props:
                                 path: .dash-bored/dogfood/.env

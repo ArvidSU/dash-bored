@@ -78,9 +78,9 @@ describe('migration detection and durable journey', () => {
     const release = parseReleaseMetadata({ ...metadata(), ...BUNDLED_MIGRATIONS });
     const old = await inspectMigration(config, release);
     expect(old.status).toBe('required');
-    expect(old.steps.map(step => [step.from, step.to])).toEqual([[2, 3]]);
+    expect(old.steps.map(step => [step.from, step.to])).toEqual([[2, 3], [3, 4]]);
     expect(await readFile(config, 'utf8')).toBe('schemaVersion: 2\n');
-    await writeFile(config, 'schemaVersion: 3\n');
+    await writeFile(config, 'schemaVersion: 4\n');
     expect((await inspectMigration(config, release)).status).toBe('current');
   });
   test('cumulative recipes and unsupported historical/unknown schema', async () => {

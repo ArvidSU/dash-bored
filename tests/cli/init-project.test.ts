@@ -1,3 +1,4 @@
+import { CORE_PACKAGE } from "../../src/shared/core-package";
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -43,20 +44,20 @@ describe("initializeProject", () => {
     expect(readme).toContain("Add dashboard");
     expect(await readFile(result.installerPath, "utf8")).toContain("schemaVersion");
 
-    expect(config.schemaVersion).toBe(3);
-    expect(config.root.component).toBe("@dash-bored/group");
+    expect(config.schemaVersion).toBe(4);
+    expect(config.root.component).toBe("./components/external/core/group");
     expect(config.icon).toBe("./assets/icon.svg");
     const nodes = configuredNodes(config.root);
     expect(nodes.find((node) => node.id === "welcome")).toBeDefined();
     // Onboarding steps stay visible; each reports its outcome through a source-backed status.
-    expect(nodes.some((node) => node.component === "@dash-bored/conditional")).toBeFalse();
+    expect(nodes.some((node) => node.component === "./components/external/core/conditional")).toBeFalse();
     for (const id of ["get-started", "step-trust", "step-agent", "step-skill", "step-setup"]) {
-      expect(nodes.find((node) => node.id === id).component).toBe("@dash-bored/group");
-      if (id !== "get-started") expect(nodes.find((node) => node.id === `${id}-guide`).component).toBe("@dash-bored/markdown");
+      expect(nodes.find((node) => node.id === id).component).toBe("./components/external/core/group");
+      if (id !== "get-started") expect(nodes.find((node) => node.id === `${id}-guide`).component).toBe("./components/external/core/markdown");
     }
     for (const id of ["trust-status", "agent-cli-status", "skill-global-status", "skill-project-status"]) {
       const status = nodes.find((node) => node.id === id);
-      expect(status.component).toBe("@dash-bored/status");
+      expect(status.component).toBe("./components/external/core/status");
       expect(status.props.state).toBeUndefined();
       expect(status.props.source.shell).toBeString();
     }
@@ -69,38 +70,38 @@ describe("initializeProject", () => {
     // The tour switches panels through a tab bar over a selection container and
     // reads the project's own files rather than hand-written sample data.
     const tourPanels = nodes.find((node) => node.id === "tour-panels");
-    expect(tourPanels.component).toBe("@dash-bored/selection");
+    expect(tourPanels.component).toBe("./components/external/core/selection");
     const tourTabs = nodes.find((node) => node.id === "tour-tabs");
     expect(tourTabs.props.variant).toBe("tabs");
     expect(tourTabs.props.items.map((item: any) => item.action))
       .toEqual(tourPanels.children.map((edge: any) => `select:tour-panels/${edge.node.id}`));
     for (const edge of tourPanels.children) {
       expect(edge.metadata.label).toBeString();
-      expect(nodes.find((node) => node.id === `${edge.node.id}-guide`).component).toBe("@dash-bored/markdown");
+      expect(nodes.find((node) => node.id === `${edge.node.id}-guide`).component).toBe("./components/external/core/markdown");
     }
     for (const id of ["tour-activity-status", "tour-recent-files", "tour-file-types", "tour-readme"]) {
       expect(nodes.find((node) => node.id === id).props.source.shell).toBeString();
     }
     const ideas = nodes.find((node) => node.id === "tour-ideas");
-    expect(ideas.component).toBe("@dash-bored/list");
+    expect(ideas.component).toBe("./components/external/core/list");
     for (const todo of ideas.props.todos) {
       expect(todo.id).toBeString();
       expect(todo.done).toBeBoolean();
     }
-    for (const retired of ["@dash-bored/card", "@dash-bored/todo-list", "@dash-bored/tabs"]) {
+    for (const retired of ["./components/external/core/card", "./components/external/core/todo-list", "./components/external/core/tabs"]) {
       expect(nodes.some((node) => node.component === retired)).toBeFalse();
     }
     const environmentEditor = nodes.find((node) => node.id === "dashboard-environment");
     const globalSkillCommand = nodes.find((node) => node.id === "install-dash-bored-global-skill");
     const skillCommand = nodes.find((node) => node.id === "install-dash-bored-skill");
     const agentCommand = nodes.find((node) => node.id === "setup-dashboard-with-agent");
-    expect(environmentEditor.component).toBe("@dash-bored/env");
+    expect(environmentEditor.component).toBe("./components/external/core/env");
     expect(environmentEditor.props.path).toBe(".dash-bored/.env");
     expect(nodes.some((node) => String(node.props?.command ?? "").includes("install-cli"))).toBeFalse();
     expect(globalSkillCommand.props.command).toContain("install-skill --global");
     expect(skillCommand.props.command).toContain("install-skill .");
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
-    expect(agentCommand.component).toBe("@dash-bored/button");
+    expect(agentCommand.component).toBe("./components/external/core/button");
     expect(agentCommand.props.action.run).toBe("agent:prompt");
     expect(agentCommand.props.action.with.prompt).toContain("Set up the dash-bored dashboard");
     expect(agentCommand.props.env).toBeUndefined();
@@ -108,7 +109,7 @@ describe("initializeProject", () => {
     expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
     expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
-    expect(lock).toEqual({ lockfileVersion: 1, components: {} });
+    expect(lock).toEqual({ lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);
     expect((await readdir(join(project, ".dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
 
@@ -131,7 +132,7 @@ describe("initializeProject", () => {
     const canonicalProject = await realpath(project);
     expect(result.configPath).toBe(join(canonicalProject, ".dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
-    expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: {} });
+    expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } });
     expect(await readFile(result.environmentPath, "utf8")).toContain('DASH_BORED_AGENT="codex exec"');
     expect(
       configuredNodes(parse(await readFile(result.configPath, "utf8")).root)
@@ -161,8 +162,8 @@ describe("initializeProject", () => {
     const project = await mkdtemp(join(tmpdir(), "dash-bored-init-"));
     temporaryDirectories.push(project);
     const baseDirectory = join(project, ".dash-bored");
-    const baseConfig = "schemaVersion: 1\nname: Keep me\nroot:\n  component: '@dash-bored/markdown'\n  props:\n    content: custom\n";
-    const baseLock = "lockfileVersion: 1\ncomponents: {}\n";
+    const baseConfig = "schemaVersion: 1\nname: Keep me\nroot:\n  component: './components/external/core/markdown'\n  props:\n    content: custom\n";
+    const baseLock = "lockfileVersion: 1\ncomponents: { core: { ...CORE_PACKAGE } }\n";
     await mkdir(join(baseDirectory, "components"), { recursive: true });
     await writeFile(join(baseDirectory, "dash-bored.yaml"), baseConfig);
     await writeFile(join(baseDirectory, "dash-bored-lock.yaml"), baseLock);

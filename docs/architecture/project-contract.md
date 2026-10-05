@@ -55,7 +55,7 @@ merging standalone configs into one another.
 
 Opening a project, either through the desktop project chooser or the agent
 tool's `app open`, ensures that this complete project contract exists. The application
-creates the `.dash-bored/` directory, default configuration, empty lock file,
+creates the `.dash-bored/` directory, default configuration, release-pinned core lock,
 starter environment file, onboarding `README.md`, `install-app.sh` helper, and
 `components/` directory when they are missing. It
 creates only missing artifacts and never replaces an existing configuration,
@@ -112,36 +112,36 @@ dashboard nor adds a reference to the new bundle.
 `dash-bored.yaml` has one recursive root node:
 
 ```yaml
-schemaVersion: 3
+schemaVersion: 4
 name: Example project
 icon: ./assets/icon.svg
 root:
   id: project-layout
-  component: "@dash-bored/group"
+  component: "./components/external/core/group"
   children:
     axis: horizontal
     ratio: 0.4
     first:
       node:
         id: welcome
-        component: "@dash-bored/markdown"
+        component: "./components/external/core/markdown"
         props:
           content: "# Example project"
     second:
       node:
         id: agent-setup
-        component: "@dash-bored/group"
+        component: "./components/external/core/group"
         children:
           node:
             id: show-install-dash-bored-skill
-            component: "@dash-bored/conditional"
+            component: "./components/external/core/conditional"
             props:
               command: 'test -f ".agents/skills/dash-bored/SKILL.md"'
               invert: true
             children:
               node:
                 id: install-dash-bored-skill
-                component: "@dash-bored/command"
+                component: "./components/external/core/command"
                 props:
                   label: Install the portable skill
                   command: 'dash-bored install-skill .'
@@ -151,7 +151,7 @@ The public configuration types are:
 
 ```ts
 interface DashboardConfig {
-  schemaVersion: 3;
+  schemaVersion: 4;
   name: string;
   icon?: string;
   theme?: string;
@@ -288,7 +288,7 @@ nesting, unknown components, invalid props, invalid child cardinality, invalid
 axis declarations, and invalid edge metadata. Diagnostics
 carry a stable code, severity, message, and file/path location where available.
 
-`@dash-bored/conditional` is a transparent layout boundary that accepts exactly
+`./components/external/core/conditional` is a transparent layout boundary that accepts exactly
 one tiled child. It runs its declared bounded shell `command` while the
 containing panel is visible and projects the child only when the command exits
 successfully; `invert: true` shows the child when it fails. Optional `cwd`,
@@ -333,10 +333,9 @@ descriptors, and a render/visibility projection to components. Tabs and
 accordions are therefore ordinary declarations: tab labels are edge metadata,
 not a tabs-specific app prop or validation branch.
 
-Packaged and project-local components implement the same manifest, render,
-host, children, and capability contracts. Provenance and trust are the only
-difference: packaged app code is pretrusted; project-local code requires
-project trust. Validation, editor, and runtime code never branches on a
+Core, other external and project-local components implement the same manifest,
+render, host, children and capability contracts. Every component requires normal
+project trust before execution. Validation, editor, and runtime code never branches on a
 component ID. All variation is declarative through manifest rendering mode,
 schemas, formats, and capabilities.
 
@@ -394,7 +393,7 @@ blur, lost capture, replacement, or owner unmount. Gesture-specific commit
 semantics remain local to node movement, library insertion, split resizing, and
 height resizing.
 Dashboard component frames render a small drag handle for every movable non-root
-node, so packaged and project-local components are draggable without requiring
+node, so external and project-local components are draggable without requiring
 component code to add a handle. Only the deepest hovered frame reveals its
 generated handle and component menu; keyboard focus can reveal a focused
 control independently. Hidden ancestor controls are non-hit-testing, and
@@ -493,4 +492,4 @@ renderer call the same owner instead of carrying their own copies.
 | `app-theme-reference.ts` | An app default theme saved as a bare `./themes/<name>`. Main's `getAppSettings` pins it to `project:<active-config>:./themes/<name>` once the active dashboard provides that package, and persists the result. Until then app settings keep it readable. The renderer holds no migration logic; it re-reads settings when the active dashboard or theme catalog changes while the default is still unpinned. | main, settings read |
 | `skill-payloads.ts` | Skill installs without a `skill-version.json` receipt. A complete exact match of one published payload is adopted as owned; anything else stays a conflict. | agent tool `install-skill`, app skill refresh |
 | `cli-link.ts` | The `~/.local/bin/dash-bored` link earlier releases created, removed only when its receipt proves ownership. | main, app start |
-| `todo-ids.ts` | Todo props without stable `id`s, or with duplicate ones (`@dash-bored/todo-list` and list `todos`). `migrateTodoItems` backfills a `todo-<uuid>` ID for each and keeps unique existing IDs. Node-free: it imports only `shared/todo.ts`, because the renderer bundles it. | renderer, `todoItemsFromProps` and the todo-list component |
+| `todo-ids.ts` | Todo props without stable `id`s, or with duplicate ones (`./components/external/core/todo-list` and list `todos`). `migrateTodoItems` backfills a `todo-<uuid>` ID for each and keeps unique existing IDs. Node-free: it imports only `shared/todo.ts`, because the renderer bundles it. | renderer, `todoItemsFromProps` and the todo-list component |

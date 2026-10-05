@@ -1,3 +1,6 @@
+import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
+import { trackActivity } from "../lib/activity";
+import { TerminalSurface } from "./TerminalSurface";
 import { useTheme } from "../lib/theme";
 import React, {
   Fragment,
@@ -53,6 +56,9 @@ interface ComponentRuntimeBridge {
   useReducer: typeof useReducer;
   useRef: typeof useRef;
   useTheme: typeof useTheme;
+  useComponentVisibility: () => boolean;
+  trackActivity: typeof trackActivity;
+  TerminalSurface: typeof TerminalSurface;
   useState: typeof useState;
   useSyncExternalStore: typeof useSyncExternalStore;
   useTransition: typeof useTransition;
@@ -83,6 +89,9 @@ export function installComponentRuntime(): void {
     useReducer,
     useRef,
     useTheme,
+    useComponentVisibility: () => useContext(ComponentVisibilityContext),
+    trackActivity,
+    TerminalSurface,
     useState,
     useSyncExternalStore,
     useTransition,

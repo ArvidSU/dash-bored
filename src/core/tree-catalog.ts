@@ -4,7 +4,6 @@ import type { ComponentCatalogItem, ComponentManifest, Diagnostic } from "../sha
 import { diagnostic, errorMessage } from "./diagnostics";
 import { isPathContained, resolveContainedPath, type ProjectLocation } from "./paths";
 import { parseComponentManifest } from "./yaml";
-import { listBuiltinManifests } from "./builtins";
 
 const MAX_CATALOG_DIRECTORIES = 1_000;
 const MAX_CATALOG_DEPTH = 16;
@@ -66,13 +65,7 @@ export function componentDisplayName(definition: LocalComponentDefinition): stri
 export async function discoverComponentCatalog(
   location: ProjectLocation,
 ): Promise<ComponentCatalogItem[]> {
-  const catalog: ComponentCatalogItem[] = listBuiltinManifests().map((manifest) => ({
-    reference: manifest.id,
-    source: "builtin",
-    available: true,
-    manifest,
-    diagnostics: [],
-  }));
+  const catalog: ComponentCatalogItem[] = [];
   let visited = 0;
 
   interface CatalogEntryLike {
@@ -190,7 +183,7 @@ export async function discoverComponentCatalog(
 
   const localById = new Map<string, ComponentCatalogItem[]>();
   for (const item of catalog) {
-    if (item.source !== "local" || item.manifest === null) continue;
+    if (item.manifest === null) continue;
     const matches = localById.get(item.manifest.id) ?? [];
     matches.push(item);
     localById.set(item.manifest.id, matches);
@@ -210,7 +203,7 @@ export async function discoverComponentCatalog(
   }
 
   return catalog.sort((left, right) => {
-    if (left.source !== right.source) return left.source === "builtin" ? -1 : 1;
+    if (left.source !== right.source) return left.source.localeCompare(right.source);
     return left.reference.localeCompare(right.reference);
   });
 }
@@ -229,7 +222,7 @@ export async function loadLocalDefinition(
             : "COMPONENT_SOURCE_UNSUPPORTED",
           message: reference.startsWith("@dash-bored/")
             ? `Unknown built-in component: ${reference}`
-            : `Only @dash-bored/* built-ins and ${LOCAL_REFERENCE_PREFIX} local components are supported.`,
+            : `Use a ${LOCAL_REFERENCE_PREFIX} component path, including external packages.`,
           path: reference,
         }),
       ],
@@ -252,7 +245,7 @@ export async function loadLocalDefinition(
         diagnostics: [
           diagnostic({
             code: "COMPONENT_ID_RESERVED",
-            message: "The @dash-bored/* component id namespace is reserved for built-ins.",
+            message: "The @dash-bored/* component id namespace is reserved for legacy dashboard references; use an ordinary component ID.",
             file: manifestPath,
             path: "/id",
           }),

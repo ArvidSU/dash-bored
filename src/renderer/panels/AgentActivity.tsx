@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import type { DashboardAgentTask, LocalComponentHost, ProcessSnapshot } from "../../shared/contracts";
+import type { DashboardAgentTask, ProcessSnapshot } from "../../shared/contracts";
 import { EditorModal } from "../lib/editor-modal";
 import { RightDrawer } from "../lib/right-drawer";
-import { packagedComponent } from "../builtins";
+import "./agent-terminal.css";
+import { TerminalSurface } from "../render/TerminalSurface";
 import { writeClipboardText } from "../lib/clipboard";
-import { isProcessLive, isProcessRunActive } from "../../shared/process-state";
+import { isProcessLive, isProcessRunActive, processRun, processRunOutcome } from "../../shared/process-state";
 
-const AgentCommand = packagedComponent("@dash-bored/command");
 type AgentModalTab = "terminal" | "diff" | "command";
 const AGENT_MODAL_TABS: readonly AgentModalTab[] = ["terminal", "diff", "command"];
 
@@ -58,57 +58,6 @@ export function activeDashboardAgentTaskCount(tasks: readonly DashboardAgentTask
   return tasks.filter(isRunning).length;
 }
 
-function agentCommandHost(
-  task: DashboardAgentTask,
-  onStop: (taskId: string) => Promise<ProcessSnapshot>,
-  onWrite: (taskId: string, input: string) => Promise<ProcessSnapshot>,
-  onResize: (taskId: string, cols: number, rows: number) => Promise<ProcessSnapshot>,
-): LocalComponentHost {
-  const processes: NonNullable<LocalComponentHost["processes"]> = {
-    attachOnly: true,
-    get() {
-      return task.process;
-    },
-    stop() {
-      return onStop(task.id);
-    },
-  };
-  if (isProcessLive(task.process)) {
-    processes.write = (input) => onWrite(task.id, input);
-    processes.resize = (cols, rows) => onResize(task.id, cols, rows);
-  }
-  return {
-    dashboard: {
-      async reload(): Promise<void> {
-        // The command surface only needs the process portion of this host.
-      },
-      async updateProps(): Promise<void> {
-        // The command surface has no editable dashboard props.
-      },
-    },
-    actions: {
-      register() {
-        return () => undefined;
-      },
-      resolve(reference) {
-        return {
-          id: reference,
-          label: "Unavailable action",
-          enabled: false,
-          disabledReason: "Actions are unavailable in agent activity.",
-          running: false,
-          active: false,
-          requiresInteraction: false,
-        };
-      },
-      invoke() {
-        // Agent activity does not expose general application actions.
-      },
-    },
-    processes,
-  };
-}
-
 export function AgentActivity({
   open,
   tasks,
@@ -127,6 +76,7 @@ export function AgentActivity({
   onResize(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot>;
 }): ReactNode {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [scrollToLatest, setScrollToLatest] = useState(0);
   const [activeTab, setActiveTab] = useState<AgentModalTab>("terminal");
   const [diffState, setDiffState] = useState<{
     taskId: string | null;
@@ -139,6 +89,7 @@ export function AgentActivity({
   const diffRequestRef = useRef(0);
   const tabsId = useId().replaceAll(":", "");
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const selectedRun = processRun(selectedTask?.process);
 
   useEffect(() => {
     if (!open) {
@@ -262,7 +213,7 @@ export function AgentActivity({
           </ol>
         )}
       </RightDrawer>
-      {open && selectedTask && AgentCommand ? (
+      {open && selectedTask ? (
         <EditorModal title="Agent command" className="editor-modal__panel--wide agent-task-dialog" onDismiss={() => setSelectedTaskId(null)}>
           <div className="agent-task-modal">
             <p className="agent-task-modal__request" title="The Command tab contains the full command and prompt.">{taskSummary(selectedTask)}</p>
@@ -293,15 +244,19 @@ export function AgentActivity({
               aria-labelledby={`${tabsId}-terminal-tab`}
               hidden={activeTab !== "terminal"}
             >
-              {AgentCommand ? (
-                <AgentCommand
-                  key={selectedTask.id}
-                  props={{
-                    label: "Agent output",
-                    command: selectedTask.command,
-                  }}
-                  host={agentCommandHost(selectedTask, onStop, onWrite, onResize)}
-                />
+              {selectedTask ? (
+                <div className="command">
+                <div className="command__content"><strong>Agent output</strong><code>{selectedTask.command}</code>
+                  {selectedRun ? <span className="phase" title="Result of the latest run.">{processRunOutcome(selectedRun)}</span> : null}
+                </div><div className="command__actions">
+                <button className="button button--quiet" type="button" onClick={() => setScrollToLatest(value => value + 1)}>Latest output</button>
+                {isProcessLive(selectedTask.process) ? <button className="button button--quiet" type="button" onClick={() => void onStop(selectedTask.id)}>Close terminal</button> : null}
+                </div>
+                <TerminalSurface key={selectedTask.id} process={selectedTask.process} scrollToLatest={scrollToLatest}
+                  onWrite={isProcessLive(selectedTask.process) ? (input) => onWrite(selectedTask.id, input) : undefined}
+                  onResize={isProcessLive(selectedTask.process) ? (cols, rows) => onResize(selectedTask.id, cols, rows) : undefined}
+                  label="Interactive terminal for Agent output" />
+              </div>
               ) : null}
             </div>
             <div

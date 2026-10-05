@@ -15,7 +15,7 @@ function item(
 ): ComponentCatalogItem {
   return {
     reference,
-    source: options.source ?? "builtin",
+    source: options.source ?? "external",
     available: options.available ?? true,
     manifest: {
       schemaVersion: 2,
@@ -39,8 +39,8 @@ const labels: Record<Permission, string> = {
 
 describe("component library catalog helpers", () => {
   const catalog = [
-    item("@dash-bored/chart", {
-      id: "@dash-bored/chart",
+    item("./components/external/core/chart", {
+      id: "./components/external/core/chart",
       name: "Chart",
       description: "Visualize metrics",
       children: { min: 1, max: 2, presentation: { type: "tiled", axes: "horizontal" } },
@@ -63,10 +63,10 @@ describe("component library catalog helpers", () => {
   const notebook = catalog[1]!;
 
   test("searches reference, name, description, child contract, and permission", () => {
-    expect(filterComponentCatalog(catalog, "chart").map((entry) => entry.reference)).toEqual(["@dash-bored/chart"]);
+    expect(filterComponentCatalog(catalog, "chart").map((entry) => entry.reference)).toEqual(["./components/external/core/chart"]);
     expect(filterComponentCatalog(catalog, "project notes").map((entry) => entry.reference)).toEqual(["./components/notebook"]);
-    expect(filterComponentCatalog(catalog, "tiled horizontal").map((entry) => entry.reference)).toEqual(["@dash-bored/chart"]);
-    expect(filterComponentCatalog(catalog, "network:http").map((entry) => entry.reference)).toEqual(["@dash-bored/chart"]);
+    expect(filterComponentCatalog(catalog, "tiled horizontal").map((entry) => entry.reference)).toEqual(["./components/external/core/chart"]);
+    expect(filterComponentCatalog(catalog, "network:http").map((entry) => entry.reference)).toEqual(["./components/external/core/chart"]);
     expect(filterComponentCatalog(catalog, "  NOTEBOOK ")).toEqual([notebook]);
     expect(filterComponentCatalog([
       item("group", { id: "group", name: "Group", renderMode: "layout" }),
@@ -80,7 +80,7 @@ describe("component library catalog helpers", () => {
   });
 
   test("summarizes packaged and local entries through the same manifest-shaped contract", () => {
-    const packaged = item("@dash-bored/group", {
+    const packaged = item("./components/external/core/group", {
       id: "group",
       name: "Group",
       children: { min: 1, max: 3, presentation: { type: "tiled", axes: "both" } },
@@ -94,7 +94,7 @@ describe("component library catalog helpers", () => {
     expect(componentCatalogParity([packaged, local])).toMatchObject({
       total: 2,
       withManifest: 2,
-      packaged: 1,
+      external: 1,
       projectLocal: 1,
       manifestShaped: 2,
       equivalentManifestShape: true,
@@ -107,7 +107,7 @@ describe("component library catalog helpers", () => {
     expect(componentContractLabel(notebook)).toBe("min 0, max unlimited · managed");
     expect(componentPermissionLabels(notebook, labels)).toEqual(["Read files", "Write files"]);
     expect(componentPermissionLabels(notebook, { "filesystem:write": "Write" })).toEqual(["Write"]);
-    expect(componentProvenanceLabel(chart)).toBe("Packaged");
+    expect(componentProvenanceLabel(chart)).toBe("External");
     expect(componentProvenanceLabel(notebook)).toBe("Project-local");
     expect(componentProvenanceLabel({ source: "config" })).toBe("Dashboard link");
   });

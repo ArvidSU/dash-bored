@@ -258,6 +258,7 @@ export function initializeHost(): Promise<void> {
   if (!window.__DASH_BORED_UI_HARNESS__) return Promise.resolve();
   if (hostInitialization) return hostInitialization;
 
+  if (import.meta.env.PROD) return Promise.resolve();
   hostInitialization = import("./ui-harness-host").then(({ createUiHarnessHost }) => {
     const uiHarnessHost = createUiHarnessHost();
     window.__DASH_BORED_UI_HARNESS_HOST__ = uiHarnessHost;

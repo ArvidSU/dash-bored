@@ -1,7 +1,8 @@
+import { migratePackageOwnership } from "../core/package-ownership";
+import { restoreMissingPackages } from "../core/package-restore";
 import {
   addComponent,
   removeComponent,
-  syncComponents,
   updateComponent,
 } from "../core/external-components";
 import { addTheme, removeTheme, statusThemes, syncThemes, updateTheme } from "../core/theme-install";
@@ -39,14 +40,18 @@ export async function runExternalComponentOperation(
     }
     case "remove": {
       const result = await removeComponent(configPath, operation.name);
-      return { message: `Removed ${result.name}. Dashboard references keep working until you save a new revision.`, details: result };
+      return { message: `Removed ${result.name}. Remove its dashboard references before rendering it again.`, details: result };
+    }
+    case "migrate-ownership": return { message: "Package ownership migration complete.", details: await migratePackageOwnership(configPath) };
+    case "restore": {
+      const diagnostics = await restoreMissingPackages(configPath);
+      if (diagnostics.length) throw new CoreError("PACKAGE_RESTORE_FAILED", diagnostics.map(item=>item.message).join("; "));
+      return {message:"Missing pinned packages restored."};
     }
     case "sync": {
-      const synced = await syncComponents(configPath);
-      return {
-        message: synced.length === 0 ? "No external components are pinned." : `Synced ${synced.length} external component${synced.length === 1 ? "" : "s"}.`,
-        details: synced,
-      };
+      const diagnostics = await restoreMissingPackages(configPath, new Set(), false);
+      if (diagnostics.length) throw new CoreError("PACKAGE_RESTORE_FAILED", diagnostics.map(item => item.message).join("; "));
+      return { message: "Pinned component and theme checkouts synced." };
     }
   }
 }

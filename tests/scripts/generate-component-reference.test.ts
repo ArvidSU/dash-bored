@@ -5,8 +5,8 @@ import { generateComponentReference } from "../../scripts/generate-component-ref
 
 describe("generated built-in component reference", () => {
   test("shipped guidance references only catalog components or the authoring API", async () => {
-    const { listBuiltinManifests } = await import("../../src/core/builtins");
-    const known = new Set(["@dash-bored/component", ...listBuiltinManifests().map((manifest) => manifest.id)]);
+    const { coreManifests, coreReference } = await import("../../scripts/core-package-fixture");
+    const known = new Set(["@dash-bored/component", ...coreManifests.map((manifest) => coreReference(manifest.id))]);
     const guidance = await Promise.all(["SKILL.md", "references/components.md", "references/builtins.md"].map((file) =>
       readFile(resolve(import.meta.dirname, "../../skills/dash-bored", file), "utf8"),
     ));
@@ -31,12 +31,12 @@ describe("generated built-in component reference", () => {
   });
 
   test("ends with a trailing newline and renders every manifest entry", async () => {
-    const { listBuiltinManifests } = await import("../../src/core/builtins");
+    const { coreManifests, coreReference } = await import("../../scripts/core-package-fixture");
     const reference = generateComponentReference();
 
     expect(reference.endsWith("\n")).toBe(true);
-    for (const manifest of listBuiltinManifests()) {
-      expect(reference).toContain(`## ${manifest.id}`);
+    for (const manifest of coreManifests) {
+      expect(reference).toContain(`## ${coreReference(manifest.id)}`);
     }
   });
 });

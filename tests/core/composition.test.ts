@@ -26,27 +26,27 @@ describe("component child composition", () => {
     cleanup.push(root);
     const todoPath = "root.children[2].node.children.first.first.node.children.node";
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Action paths",
       root: {
-        component: "@dash-bored/tabs",
+        component: "./components/external/core/tabs",
         persistOnFocus: true,
         children: [
-          edge({ id: "focus-button", component: "@dash-bored/button", props: { name: "Focus todos", action: `focus:\${${todoPath}}` } }, { label: "Button" }),
-          edge({ component: "@dash-bored/markdown", props: { content: "Spacer" } }, { label: "Spacer" }),
+          edge({ id: "focus-button", component: "./components/external/core/button", props: { name: "Focus todos", action: `focus:\${${todoPath}}` } }, { label: "Button" }),
+          edge({ component: "./components/external/core/markdown", props: { content: "Spacer" } }, { label: "Spacer" }),
           edge({
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: {
               axis: "horizontal",
               first: {
                 axis: "horizontal",
                 first: edge({
-                  component: "@dash-bored/group",
-                  children: edge({ id: "yaml-todo", component: "@dash-bored/todo-list", props: { todos: [] } }),
+                  component: "./components/external/core/group",
+                  children: edge({ id: "yaml-todo", component: "./components/external/core/todo-list", props: { todos: [] } }),
                 }),
-                second: edge({ component: "@dash-bored/status", props: { label: "Ready", state: "healthy" } }),
+                second: edge({ component: "./components/external/core/status", props: { label: "Ready", state: "healthy" } }),
               },
-              second: edge({ component: "@dash-bored/markdown", props: { content: "Notes" } }),
+              second: edge({ component: "./components/external/core/markdown", props: { content: "Notes" } }),
             },
           }, { label: "Overview" }),
         ],
@@ -72,14 +72,14 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Generated action target",
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: {
           axis: "horizontal",
-          first: edge({ component: "@dash-bored/button", props: { name: "Focus status", action: "focus:${root.children.second.node}" } }),
-          second: edge({ component: "@dash-bored/status", props: { label: "Status", state: "healthy" } }),
+          first: edge({ component: "./components/external/core/button", props: { name: "Focus status", action: "focus:${root.children.second.node}" } }),
+          second: edge({ component: "./components/external/core/status", props: { label: "Status", state: "healthy" } }),
         },
       },
     });
@@ -95,13 +95,13 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Unknown action target",
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: [
-          edge({ id: "action-button", component: "@dash-bored/button", props: { name: "Missing target", action: "focus:missing-target" } }),
-          edge({ id: "actual-target", component: "@dash-bored/markdown", props: { content: "Target" } }),
+          edge({ id: "action-button", component: "./components/external/core/button", props: { name: "Missing target", action: "focus:missing-target" } }),
+          edge({ id: "actual-target", component: "./components/external/core/markdown", props: { content: "Target" } }),
         ],
       },
     });
@@ -112,18 +112,18 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const config: DashboardConfig = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Tiles",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: {
                 axis: "horizontal",
                 ratio: 0.42,
-                first: edge({ component: "@dash-bored/markdown", props: { content: "First" } }),
+                first: edge({ component: "./components/external/core/markdown", props: { content: "First" } }),
                 second: {
                     axis: "vertical",
-                    first: edge({ component: "@dash-bored/markdown", props: { content: "Second" } }),
-                    second: edge({ component: "@dash-bored/markdown", props: { content: "Third" } })
+                    first: edge({ component: "./components/external/core/markdown", props: { content: "Second" } }),
+                    second: edge({ component: "./components/external/core/markdown", props: { content: "Third" } })
                 }
             }
         }
@@ -133,7 +133,7 @@ describe("component child composition", () => {
     const result = await inspectProject(root);
 
     expect(result.ok).toBeTrue();
-    expect(result.tree?.manifest?.id).toBe("@dash-bored/group");
+    expect(result.tree?.manifest?.id).toBe("core/group");
     expect(Array.isArray(result.tree?.children)).toBeFalse();
     if (result.tree?.children === undefined || Array.isArray(result.tree.children)) throw new Error("Expected tiled children");
     expect(result.tree.children).toMatchObject({
@@ -145,7 +145,7 @@ describe("component child composition", () => {
         node: {
             id: "root.children.0",
             sourcePath: "root.children.first.node",
-            manifest: { id: "@dash-bored/markdown" }
+            manifest: { id: "core/markdown" }
         }
     });
   });
@@ -154,10 +154,10 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Empty tabs",
         root: {
-            component: "@dash-bored/tabs",
+            component: "./components/external/core/tabs",
             children: []
         }
     });
@@ -167,11 +167,11 @@ describe("component child composition", () => {
     );
 
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Tiled tabs",
         root: {
-            component: "@dash-bored/tabs",
-            children: edge({ component: "@dash-bored/markdown", props: { content: "One" } }, { label: "One" })
+            component: "./components/external/core/tabs",
+            children: edge({ component: "./components/external/core/markdown", props: { content: "One" } }, { label: "One" })
         }
     });
     const wrongPresentation = await inspectProject(root);
@@ -180,12 +180,12 @@ describe("component child composition", () => {
     );
 
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Tabs",
         root: {
-            component: "@dash-bored/tabs",
+            component: "./components/external/core/tabs",
             props: { defaultTab: 99 },
-            children: [{ node: { component: "@dash-bored/markdown", props: { content: "One" } } }]
+            children: [{ node: { component: "./components/external/core/markdown", props: { content: "One" } } }]
         }
     });
 
@@ -196,13 +196,13 @@ describe("component child composition", () => {
     expect(invalid.diagnostics.map((item) => item.code)).not.toContain("TABS_DEFAULT_INVALID");
 
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Tabs",
         root: {
-            component: "@dash-bored/tabs",
+            component: "./components/external/core/tabs",
             props: { defaultTab: 99 },
             children: [{
-                    node: { component: "@dash-bored/markdown", props: { content: "One" } },
+                    node: { component: "./components/external/core/markdown", props: { content: "One" } },
                     metadata: { label: "One" }
                 }]
         }
@@ -215,11 +215,11 @@ describe("component child composition", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "One-child card",
       root: {
-        component: "@dash-bored/card",
-        children: edge({ component: "@dash-bored/markdown", props: { content: "Only child" } }),
+        component: "./components/external/core/card",
+        children: edge({ component: "./components/external/core/markdown", props: { content: "Only child" } }),
       },
     });
 
@@ -230,14 +230,14 @@ describe("component child composition", () => {
     }));
 
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Paired card",
       root: {
-        component: "@dash-bored/card",
+        component: "./components/external/core/card",
         children: {
           axis: "vertical",
-          first: edge({ component: "@dash-bored/markdown", props: { content: "First child" } }),
-          second: edge({ component: "@dash-bored/status", props: { label: "Second child", state: "healthy" } }),
+          first: edge({ component: "./components/external/core/markdown", props: { content: "First child" } }),
+          second: edge({ component: "./components/external/core/status", props: { label: "Second child", state: "healthy" } }),
         },
       },
     });
@@ -250,18 +250,18 @@ describe("component child composition", () => {
     cleanup.push(root);
     const directory = join(root, ".dash-bored", "components", "horizontal-pair");
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Axes",
         root: {
             component: "./components/horizontal-pair",
             children: {
                 axis: "vertical",
-                first: edge({ component: "@dash-bored/markdown", props: { content: "One" } }),
+                first: edge({ component: "./components/external/core/markdown", props: { content: "One" } }),
                 second: {
                     axis: "horizontal",
                     ratio: 0.5,
-                    first: edge({ component: "@dash-bored/markdown", props: { content: "Two" } }),
-                    second: edge({ component: "@dash-bored/markdown", props: { content: "Three" } })
+                    first: edge({ component: "./components/external/core/markdown", props: { content: "Two" } }),
+                    second: edge({ component: "./components/external/core/markdown", props: { content: "Three" } })
                 }
             }
         }
@@ -295,14 +295,14 @@ describe("component child composition", () => {
     cleanup.push(root);
     await createProject(root);
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Ratio",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: {
                 axis: "horizontal",
                 ratio: 0.95,
-                first: edge({ component: "@dash-bored/markdown", props: { content: "One" } })
+                first: edge({ component: "./components/external/core/markdown", props: { content: "One" } })
             }
         }
     }));
@@ -392,10 +392,10 @@ describe("component child composition", () => {
     const listDirectory = join(root, ".dash-bored", "components", "action-list");
     const workerDirectory = join(root, ".dash-bored", "components", "worker");
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Trailing star references",
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: [
           edge({ id: "list", component: "./components/action-list", props: { actions: ["component:worker:refresh", "component:worker:typo"] } }),
           edge({ id: "worker", component: "./components/worker" }),
@@ -433,10 +433,10 @@ describe("component child composition", () => {
     const buttonDirectory = join(root, ".dash-bored", "components", "action-button");
     const workerDirectory = join(root, ".dash-bored", "components", "worker");
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Action reference validation",
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: [
           edge({ component: "./components/action-button", props: { action: "component:worker:typo" } }),
           edge({ id: "worker", component: "./components/worker" }),

@@ -14,15 +14,15 @@ import {
 } from "../../src/renderer/render/split-layout";
 
 function leaf(id: string): ComponentChildLayout<ResolvedComponentNode> {
-  return { node: { id, component: "@dash-bored/markdown", props: {}, source: "builtin" } };
+  return { node: { id, component: "./components/external/core/markdown", props: {}, source: "external" } };
 }
 
 function tree(): ResolvedComponentNode {
   return {
     id: "root",
-    component: "@dash-bored/group",
+    component: "./components/external/core/group",
     props: {},
-    source: "builtin",
+    source: "external",
     children: {
         axis: "horizontal",
         ratio: 0.4,
@@ -143,17 +143,17 @@ describe("core tiled split sizing", () => {
 
     const nestedPanel: ResolvedComponentNode = {
       id: "panel",
-      component: "@dash-bored/markdown",
+      component: "./components/external/core/markdown",
       props: {},
-      source: "builtin",
+      source: "external",
     };
     const nestedPanelEdge = { node: nestedPanel };
     const nestedChildEdge = {
       node: {
         id: "nested",
-        component: "@dash-bored/markdown",
+        component: "./components/external/core/markdown",
         props: {},
-        source: "builtin" as const,
+        source: "external" as const,
       },
     };
     const nestedOriginal: ComponentChildLayout<ResolvedComponentNode> = {

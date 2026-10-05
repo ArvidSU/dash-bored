@@ -56,7 +56,7 @@ const catalog: ComponentCatalogItem[] = [
   manifest("text"),
 ].map((value) => ({
   reference: value.id,
-  source: "builtin",
+  source: "external",
   available: true,
   manifest: value,
   diagnostics: [],
@@ -68,7 +68,7 @@ function leaf(id: string): ComponentNode {
 
 function config(): DashboardConfig {
   return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Editor",
       root: {
           id: "root",
@@ -170,7 +170,7 @@ describe("dashboard editor tree operations", () => {
 
   test("manages edge metadata without component-specific label synchronization", () => {
     const tabs: DashboardConfig = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Tabs",
         root: {
             id: "tabs",
@@ -279,7 +279,7 @@ describe("dashboard editor tree operations", () => {
     });
     const limitedItem: ComponentCatalogItem = {
       reference: limitedManifest.id,
-      source: "builtin",
+      source: "external",
       available: true,
       manifest: limitedManifest,
       diagnostics: [],

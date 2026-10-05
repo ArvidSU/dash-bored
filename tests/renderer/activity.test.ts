@@ -1,7 +1,5 @@
 import { expect, test } from "bun:test";
 import { pendingActivity, trackActivity, whenIdle } from "../../src/renderer/lib/activity";
-import { readDashboardSource } from "../../src/renderer/lib/source";
-import type { LocalComponentHost } from "../../src/shared/contracts";
 
 const frame = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -34,17 +32,5 @@ test("whenIdle reports false at the timeout and counts rejected work as finished
   await slow;
   const failing = trackActivity(Promise.reject(new Error("boom")));
   await failing.catch(() => undefined);
-  expect(pendingActivity()).toBe(0);
-});
-
-test("source reads are tracked until they settle", async () => {
-  let release!: () => void;
-  const host = {
-    http: { request: () => new Promise((resolve) => { release = () => resolve({ status: 200, body: "{}" }); }) },
-  } as unknown as LocalComponentHost;
-  const read = readDashboardSource({ http: "http://example.test" }, host);
-  expect(pendingActivity()).toBe(1);
-  release();
-  await read;
   expect(pendingActivity()).toBe(0);
 });

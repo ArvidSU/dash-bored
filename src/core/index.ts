@@ -1,4 +1,3 @@
-export * from "./builtins";
 export * from "./capabilities";
 export * from "./compiler";
 export * from "./diagnostics";

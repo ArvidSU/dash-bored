@@ -16,14 +16,18 @@ keep working between packages; enforce a replacement contract only after its
 users have migrated. Exercise each new atom against one real project-dashboard
 case as it lands, then complete the full replacement in WP10.
 
+The core repository extraction is dashboard contract 4 and retains all 17
+components, including legacy forms. The WP9 retirement below remains a separate
+future contract change; extraction does not authorize retiring these components.
+
 ## Implementation status
 
 | Package | Status | Evidence and remaining work |
 |---|---|---|
 | WP1–WP5 | Implemented additively | Stable ID references, declared and parameterized actions, bounded sources, and source-bound views validate in the project dashboard. Schema-v3 compatibility forms remain until WP9. |
-| WP6 | Implemented additively | Source lists and editable YAML todo lists use `@dash-bored/list`; per-item actions target stable IDs. The schema-v3 `todo-list` form remains available until WP9 migration. |
+| WP6 | Implemented additively | Source lists and editable YAML todo lists use `./components/external/core/list`; per-item actions target stable IDs. The schema-v3 `todo-list` form remains available until WP9 migration. |
 | WP7–WP8 | Implemented additively | One action bar replaces the navigation buttons; root and documentation sections use selection containers and tab bars. The library inserts a Switchable panels pattern. |
-| WP9 | In progress | `group` accepts title and description, the focus timer is a local example, and starter setup uses a reviewed `agent:prompt` button with the shared validation supervisor. Source-bound edge visibility and the schema-v4 migration remain. |
+| WP9 | In progress | `group` accepts title and description, the focus timer is a local example, and starter setup uses a reviewed `agent:prompt` button with the shared validation supervisor. Source-bound edge visibility and a future contract migration for component retirement remain. |
 | WP10 | Implemented | Branches, package scripts, and project pulse now use YAML plus scripts. The script list's Run action passes item values to a command and exposes invocation and process results. |
 
 The remaining WP9 work is tracked in `yaml-todo` so the additive
@@ -224,12 +228,12 @@ failed `run-qa` is visible on the button that started it.
   navigation use it where appropriate.
 - Library pattern "Switchable panels" inserts a selection container plus a
   tab-variant action bar with correct references.
-- `@dash-bored/tabs` becomes a migration alias to the pattern.
+- `./components/external/core/tabs` becomes a migration alias to the pattern.
 - Document when to use focus pages (top level, global) versus selection
   (local, nested).
 
 **Done when:** a nested set of switchable panels and the root section switcher
-both work without `@dash-bored/tabs`.
+both work without `./components/external/core/tabs`.
 
 ## WP9 — Consolidation
 

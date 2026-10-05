@@ -13,6 +13,7 @@ import type {
 } from "../../src/shared/contracts";
 import {
   createProject,
+  installCoreFixture,
   removeTemporaryDirectory,
   temporaryDirectory,
   waitFor,
@@ -313,14 +314,14 @@ describe("ProcessManager", () => {
 
 describe("ProjectRuntime", () => {
   const processConfig: DashboardConfig = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Runtime",
       root: {
-          component: "@dash-bored/group",
+          component: "./components/external/core/group",
           children: tiled([
               {
                   id: "server",
-                  component: "@dash-bored/command",
+                  component: "./components/external/core/command",
                   props: { label: "Server", command: "sleep 30" }
               },
           ])
@@ -416,9 +417,9 @@ describe("ProjectRuntime", () => {
     await runtime.load(root);
     runtime.watch();
     const changed = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Changed",
-        root: { component: "@dash-bored/markdown", props: { content: "updated" } }
+        root: { component: "./components/external/core/markdown", props: { content: "updated" } }
     } as const;
     await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(changed));
 
@@ -483,7 +484,7 @@ describe("ProjectRuntime", () => {
     runtimes.push(runtime);
     const loaded = await runtime.load(root, { inputKind: "project-root" });
 
-    expect(loaded.tree?.component).toBe("@dash-bored/group");
+    expect(loaded.tree?.component).toBe("./components/external/core/group");
     expect((await stat(join(root, ".dash-bored", "components"))).isDirectory()).toBeTrue();
     await expect(access(join(root, "dash-bored.yaml"))).rejects.toThrow();
     expect(() => runtime.watch()).not.toThrow();
@@ -494,19 +495,20 @@ describe("ProjectRuntime", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Canonical",
-        root: { component: "@dash-bored/markdown", props: { content: "Canonical" } }
+        root: { component: "./components/external/core/markdown", props: { content: "Canonical" } }
     });
     const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
     await Promise.all([
       writeFile(
         join(named, "dash-bored.yaml"),
         stringify({
-            schemaVersion: 3,
+            schemaVersion: 4,
             name: "Arvid",
-            root: { component: "@dash-bored/markdown", props: { content: "Personal" } }
+            root: { component: "./components/external/core/markdown", props: { content: "Personal" } }
         }),
       ),
       writeFile(
@@ -537,16 +539,16 @@ describe("ProjectRuntime", () => {
     runtimes.push(runtime);
     const loaded = await runtime.load(root);
     const expectedRevision = loaded.configRevision!;
-    expect((await runtime.validateComponentProps("@dash-bored/markdown", {})).ok).toBeFalse();
-    expect((await runtime.validateComponentProps("@dash-bored/markdown", { content: "Valid" })).ok).toBeTrue();
-    expect((await runtime.validateComponentProps("@dash-bored/markdown", { content: "Both", path: "README.md" })).ok).toBeFalse();
+    expect((await runtime.validateComponentProps("./components/external/core/markdown", {})).ok).toBeFalse();
+    expect((await runtime.validateComponentProps("./components/external/core/markdown", { content: "Valid" })).ok).toBeTrue();
+    expect((await runtime.validateComponentProps("./components/external/core/markdown", { content: "Both", path: "README.md" })).ok).toBeFalse();
     const changed: DashboardConfig = {
       ...loaded.config!,
       name: "Edited in app",
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: tiled([
-          { id: "message", component: "@dash-bored/markdown", props: { content: "Saved" } },
+          { id: "message", component: "./components/external/core/markdown", props: { content: "Saved" } },
         ]),
       },
     };
@@ -554,7 +556,7 @@ describe("ProjectRuntime", () => {
     const beforeValidation = runtime.getSnapshot();
     const validation = await runtime.validateDashboardDraft(changed);
     expect(validation.ok).toBeTrue();
-    expect(validation.tree).toMatchObject({ id: "root", component: "@dash-bored/group" });
+    expect(validation.tree).toMatchObject({ id: "root", component: "./components/external/core/group" });
     expect(validation.tree?.sourceNodePath).toEqual([]);
     expect(resolvedChildren(validation.tree)[0]).toMatchObject({ id: "message", props: { content: "Saved" } });
     expect(resolvedChildren(validation.tree)[0]?.sourceNodePath).toEqual([{ type: "tiled", path: [] }]);
@@ -571,7 +573,7 @@ describe("ProjectRuntime", () => {
       code: "DASHBOARD_CONFIG_CONFLICT",
     });
     const invalid = structuredClone(changed);
-    invalid.root = { component: "@dash-bored/markdown" };
+    invalid.root = { component: "./components/external/core/markdown" };
     expect((await runtime.validateDashboardDraft(invalid)).ok).toBeFalse();
     await expect(runtime.saveDashboardConfig(invalid, saved.configRevision!)).rejects.toMatchObject({
       code: "DASHBOARD_DRAFT_INVALID",
@@ -594,7 +596,7 @@ describe("ProjectRuntime", () => {
     expect(trusted.trusted).toBeTrue();
 
     const broken: DashboardConfig = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Broken",
         root: { id: "broken", component: "./components/broken" }
     };
@@ -610,12 +612,12 @@ describe("ProjectRuntime", () => {
     expect(await readFile(configPath, "utf8")).toBe(before);
 
     const command: DashboardConfig = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Command",
         root: {
-            component: "@dash-bored/group",
+            component: "./components/external/core/group",
             children: tiled([
-                { id: "server", component: "@dash-bored/command", props: { label: "Run", command: "echo ok" } },
+                { id: "server", component: "./components/external/core/command", props: { label: "Run", command: "echo ok" } },
             ])
         }
     };
@@ -637,7 +639,7 @@ describe("ProjectRuntime", () => {
     const initial = await runtime.load(root);
     await runtime.trust();
     const draft: DashboardConfig = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Privileged draft",
       root: { id: "privileged", component: "./components/privileged" },
     };
@@ -675,7 +677,7 @@ describe("ProjectRuntime", () => {
     expect(loaded.requestedPermissions).toEqual([]);
 
     const validation = await runtime.validateDashboardDraft({
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Privileged draft",
       root: { id: "privileged", component: "./components/privileged" },
     });
@@ -687,7 +689,7 @@ describe("ProjectRuntime", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Local process resource",
         root: {
             id: "local-runner",
@@ -730,17 +732,18 @@ describe("ProjectRuntime", () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Base",
         root: { id: "personal", component: "./arvid" }
     });
     const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-          schemaVersion: 3,
+          schemaVersion: 4,
           name: "Arvid",
-          root: { component: "@dash-bored/markdown", props: { content: "Before" } }
+          root: { component: "./components/external/core/markdown", props: { content: "Before" } }
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);
@@ -757,7 +760,7 @@ describe("ProjectRuntime", () => {
     const source = await runtime.getDashboardConfigSource(linkedRoot?.sourceConfigPath);
     const edited: DashboardConfig = {
       ...source.config,
-      root: { component: "@dash-bored/markdown", props: { content: "After" } },
+      root: { component: "./components/external/core/markdown", props: { content: "After" } },
     };
     const saved = await runtime.saveDashboardConfig(
       edited,
@@ -775,10 +778,10 @@ describe("ProjectRuntime", () => {
     const linkedDirectory = join(root, ".dash-bored", "arvid");
     await mkdir(join(linkedDirectory, "components", "local-tile"), { recursive: true });
     await createProject(root, {
-      schemaVersion: 3,
+      schemaVersion: 4,
       name: "Base",
       root: {
-        component: "@dash-bored/group",
+        component: "./components/external/core/group",
         children: tiled([
           { id: "left", component: "./arvid" },
           { id: "right", component: "./arvid" },
@@ -787,7 +790,7 @@ describe("ProjectRuntime", () => {
     });
     await Promise.all([
       writeFile(join(linkedDirectory, "dash-bored.yaml"), stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         name: "Arvid",
         root: { component: "./components/local-tile", props: { message: "Before" } },
       })),
@@ -835,14 +838,15 @@ describe("ProjectRuntime", () => {
   test("edits a registered dashboard appearance without opening that dashboard", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
-    await createProject(root, { schemaVersion: 3, name: "Base", root: { component: "@dash-bored/markdown", props: { content: "Base" } } });
+    await createProject(root, { schemaVersion: 4, name: "Base", root: { component: "./components/external/core/markdown", props: { content: "Base" } } });
     const named = join(root, ".dash-bored", "arvid");
     await mkdir(join(named, "components"), { recursive: true });
+    await installCoreFixture(named);
     await Promise.all([
       writeFile(join(named, "dash-bored.yaml"), stringify({
-          schemaVersion: 3,
+          schemaVersion: 4,
           name: "Arvid",
-          root: { component: "@dash-bored/markdown", props: { content: "Arvid" } }
+          root: { component: "./components/external/core/markdown", props: { content: "Arvid" } }
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
     ]);

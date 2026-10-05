@@ -18,7 +18,7 @@ function node(
     id,
     component: id,
     props: {},
-    source: "builtin",
+    source: "external",
     manifest: {
       schemaVersion: 2,
       id,

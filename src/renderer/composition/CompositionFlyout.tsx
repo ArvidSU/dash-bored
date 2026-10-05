@@ -565,6 +565,7 @@ export function CompositionFlyout({
             >
               {externalBusy ? "Working…" : "Sync external components"}
             </button>
+            <button className="button button--quiet" type="button" disabled={externalBusy || !onExternalOperation} onClick={() => void runExternalOperation({ op: "migrate-ownership" })}>Move package ownership</button>
           </div>
         </div>
         <p style={{ margin: 0, color: "var(--muted)" }}>

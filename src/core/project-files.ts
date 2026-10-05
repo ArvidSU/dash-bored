@@ -12,6 +12,8 @@ import type {
   DashboardConfig,
   DashboardLock,
 } from "../shared/contracts";
+import { CORE_PACKAGE } from "../shared/core-package";
+import { ensurePackageIgnore } from "./package-store";
 import { CONFIG_DIRECTORY } from "../shared/contracts";
 import { INSTALL_APP_SCRIPT, projectReadme } from "./project-readme";
 import {
@@ -118,7 +120,7 @@ export function starterAgentPrompt(projectName: string, configPath?: string): st
     "Inspect this project before making changes; use \"$DASH_BORED_TOOL\" inspect . --summary, then --component <reference> for selected contracts.",
     "Customize the owning dashboard configuration into a useful project cockpit, preserving unrelated dashboards and files.",
     "Keep the dashboard project-owned and task-focused: every tab should explain what its panels do, demonstrate live status where possible, and expose the repeatable actions.",
-    "Prefer built-in components when they fit. When nothing in the catalog fits, build a small project-local component by default — one-off components are a core capability of the product, not a last resort.",
+    "Prefer the pinned core components when they fit. When nothing in the catalog fits, build a small project-local component by default — one-off components are a core capability of the product, not a last resort.",
     "The dashboard belongs to the project: never include explanations of the dash-bored app itself, its onboarding, or its concepts in the finished dashboard content.",
     "If the dash-bored skill is not installed for your agent, run \"$DASH_BORED_TOOL\" install-skill . and read it before composing.",
     "Generate a small SVG icon customized for this project: write it to assets/icon.svg inside the owning bundle directory (next to that dash-bored.yaml), creating the directory if needed, and set that file's top-level icon to ./assets/icon.svg. Keep the artwork simple and geometric so it stays readable at sidebar size, with no scripts or external references.",
@@ -208,19 +210,19 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   };
   const markdown = (id: string, lines: string[]): ComponentNode => ({
     id,
-    component: "@dash-bored/markdown",
+    component: "./components/external/core/markdown",
     props: { content: `${lines.join("\n")}\n` },
   });
   const status = (id: string, label: string, shell: string, every?: number): ComponentNode => ({
     id,
-    component: "@dash-bored/status",
+    component: "./components/external/core/status",
     props: { label, source: { shell, cwd: ".", timeoutMs: 10_000, ...(every ? { every } : {}) } },
   });
   // A guide on the left says what the controls on the right do and what to
   // expect; the live status beside each action reports what actually happened.
   const guided = (id: string, title: string, guide: string[], panel: ComponentNode[]): ComponentNode => ({
     id,
-    component: "@dash-bored/group",
+    component: "./components/external/core/group",
     props: { title },
     children: {
       axis: "horizontal",
@@ -240,7 +242,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     status("trust-status", "Project trust", String.raw`echo '{"state":"healthy","detail":"Trusted: checks and commands on this dashboard can run."}'`),
     {
       id: "trust-actions",
-      component: "@dash-bored/button",
+      component: "./components/external/core/button",
       props: { items: [{ name: "Trust project", action: "project:trust" }, { name: "Open settings", action: "app:show-settings" }] },
     },
   ]);
@@ -253,7 +255,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     "**Expect:** *Agent CLI* turns healthy once the program is found on your PATH.",
   ], [
     status("agent-cli-status", "Agent CLI", starterAgentStatusSource(), 5_000),
-    { id: "dashboard-environment", component: "@dash-bored/env", props: { path: environmentPath } },
+    { id: "dashboard-environment", component: "./components/external/core/env", props: { path: environmentPath } },
   ]);
 
   const skillStep = guided("step-skill", "3 · Install the dash-bored skill", [
@@ -268,12 +270,12 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     status("skill-project-status", "Skill · this project", starterSkillStatusSource("project"), 5_000),
     {
       id: "install-dash-bored-global-skill",
-      component: "@dash-bored/command",
+      component: "./components/external/core/command",
       props: { label: "Install skill globally", command: '"$DASH_BORED_TOOL" install-skill --global', cwd: "." },
     },
     {
       id: "install-dash-bored-skill",
-      component: "@dash-bored/command",
+      component: "./components/external/core/command",
       props: { label: "Install skill for this project", command: '"$DASH_BORED_TOOL" install-skill .', cwd: "." },
     },
   ]);
@@ -290,7 +292,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   ], [
     {
       id: "setup-dashboard-with-agent",
-      component: "@dash-bored/button",
+      component: "./components/external/core/button",
       props: {
         name: "Set up this dashboard",
         action: { run: "agent:prompt", with: { prompt: starterAgentPrompt(projectName) } },
@@ -302,7 +304,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     metadata: { label },
     node: {
       id,
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       children: {
         axis: "horizontal",
         ratio: 0.4,
@@ -330,7 +332,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     ], [
       {
         id: "tour-recent-files",
-        component: "@dash-bored/list",
+        component: "./components/external/core/list",
         props: {
           title: "Recently modified files",
           sort: "source-order",
@@ -340,7 +342,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       },
       {
         id: "tour-file-details",
-        component: "@dash-bored/command",
+        component: "./components/external/core/command",
         props: {
           label: "Show the selected file",
           command: 'ls -l -- "$DASH_ITEM_PATH" && file -b -- "$DASH_ITEM_PATH" && case "$(file -b --mime-type -- "$DASH_ITEM_PATH")" in text/*) echo && head -n 40 -- "$DASH_ITEM_PATH";; esac',
@@ -357,7 +359,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       "**Try it:** hover a bar for its value. Add a few files and press **Refresh** from the command palette.",
     ], [{
       id: "tour-file-types",
-      component: "@dash-bored/chart",
+      component: "./components/external/core/chart",
       props: { title: "Files by type", type: "bar", source: { shell: starterFileTypesSource(), cwd: ".", timeoutMs: 10_000, every: 60_000 } },
     }]),
     tourPanel("tour-markdown", "Markdown", [
@@ -369,7 +371,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       "**Try it:** edit `README.md` and switch tabs to reload it. A Markdown panel pointed at a file with `path:` can also be edited and saved in place.",
     ], [{
       id: "tour-readme",
-      component: "@dash-bored/markdown",
+      component: "./components/external/core/markdown",
       props: { title: "README.md", source: { shell: starterReadmeSource(), cwd: ".", timeoutMs: 5_000 } },
     }]),
     tourPanel("tour-command", "Command", [
@@ -379,7 +381,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       "**Try it:** run the command beside this text to list this folder. Run and stop commands from the command palette (**Command-K**, then type the command's name), or bind them to a keyboard shortcut in **Settings → Actions**.",
     ], [{
       id: "tour-list-folder",
-      component: "@dash-bored/command",
+      component: "./components/external/core/command",
       props: { label: "List this project folder", command: "ls -la", cwd: "." },
     }]),
     tourPanel("tour-todos", "Todos", [
@@ -389,7 +391,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       "**Try it:** tick an item. dash-bored opens a draft; press **Save dashboard** to write the change to `dash-bored.yaml`, or **Cancel** to discard it.",
     ], [{
       id: "tour-ideas",
-      component: "@dash-bored/list",
+      component: "./components/external/core/list",
       props: {
         title: "Ideas for this dashboard",
         todos: [
@@ -414,7 +416,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
       "**Try it:** open the component library, or right-click this panel.",
     ], [{
       id: "tour-layout-actions",
-      component: "@dash-bored/button",
+      component: "./components/external/core/button",
       props: { items: [{ name: "Open component library", action: "project:edit" }, { name: "Focus a component", action: "project:focus" }] },
     }]),
   ];
@@ -429,18 +431,18 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     ]),
     {
       id: "get-started",
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       props: { title: "Get started", description: "Each step explains its action and shows a live check of the result." },
       children: vertical([trustStep, agentStep, skillStep, setupStep]),
     },
     {
       id: "tour",
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       props: { title: "Tour the components", description: "Each tab explains one component, shows it working on this project, and suggests something to try." },
       children: vertical([
         {
           id: "tour-tabs",
-          component: "@dash-bored/button",
+          component: "./components/external/core/button",
           props: {
             variant: "tabs",
             label: "Component tour",
@@ -449,7 +451,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
         },
         {
           id: "tour-panels",
-          component: "@dash-bored/selection",
+          component: "./components/external/core/selection",
           props: { defaultChild: tourPanels[0]!.node.id, label: "Component tour" },
           children: tourPanels,
         },
@@ -457,11 +459,11 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
     },
   ];
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name: projectName,
     icon: "./assets/icon.svg",
     root: {
-      component: "@dash-bored/group",
+      component: "./components/external/core/group",
       children: vertical(rootNodes),
     },
   };
@@ -489,6 +491,7 @@ async function createProjectFilesAtLocation(
     "dash-bored components directory",
   );
   await assertProjectLocationContained(location);
+  await ensurePackageIgnore(location.configDirectory);
   const environmentPath = join(location.configDirectory, ".env");
   const readmePath = join(location.configDirectory, "README.md");
   const installerPath = join(location.configDirectory, "install-app.sh");
@@ -513,7 +516,7 @@ async function createProjectFilesAtLocation(
       : location.configDirectory,
     relativeEnvironmentPath,
   );
-  const lock: DashboardLock = { lockfileVersion: 1, components: {} };
+  const lock: DashboardLock = { lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } };
   const environment = [
     "# Starter values shown in the dashboard environment editor.",
     "# DASH_BORED_AGENT is also configurable app-wide in Settings.",
