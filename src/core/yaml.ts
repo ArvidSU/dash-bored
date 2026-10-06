@@ -9,6 +9,7 @@ import type {
   Diagnostic,
   ExternalComponentLockEntry,
 } from "../shared/contracts";
+import { SUPPORTED_COMPONENT_API_VERSIONS } from "../shared/component-api";
 import { diagnostic, errorMessage } from "./diagnostics";
 
 const MAX_YAML_BYTES = 2 * 1024 * 1024;
@@ -119,13 +120,15 @@ const lockSchema = {
 const manifestSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["schemaVersion", "id", "name", "description", "entry", "propsSchema"],
+  required: ["schemaVersion", "apiVersion", "id", "name", "description", "entry", "propsSchema"],
   properties: {
-    schemaVersion: { const: 2 },
+    schemaVersion: { const: 3 },
+    apiVersion: { type: "string", pattern: "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
     id: { type: "string", minLength: 1 },
     name: { type: "string", minLength: 1 },
     description: { type: "string", minLength: 1 },
     entry: { type: "string", pattern: "^\\./", minLength: 3 },
+    types: { type: "string", pattern: "^\\./.+\\.d\\.ts$" },
     renderMode: { enum: ["surface", "layout"] },
     propsSchema: { type: "object" },
     actions: {
@@ -354,7 +357,7 @@ export function validateDashboardConfigValue(
   ) {
     return [diagnostic({
       code: "CONFIG_SCHEMA_MIGRATION_REQUIRED",
-      message: "Dashboard schema version 2 requires migration to version 3. Migrate it from Updates in the app, or ask an agent to follow the dash-bored skill's migration guidance; component manifests remain at version 2.",
+      message: "Dashboard schema version 2 requires migration to version 3. Migrate it from Updates in the app, or ask an agent to follow the dash-bored skill's migration guidance; component manifests use schema version 3 and require a supported apiVersion.",
       file,
       path: "schemaVersion",
     })];
@@ -424,8 +427,47 @@ export function serializeDashboardLock(lock: DashboardLock): string {
 }
 
 export async function parseComponentManifest(file: string): Promise<ParsedYaml<ComponentManifest>> {
-  const result = await parseTyped<ComponentManifest>(file, "MANIFEST", validateManifest);
+  const raw = await readYaml(file);
+  if (raw.value === null || raw.diagnostics.length > 0) return { value: null, diagnostics: raw.diagnostics };
+  if (raw.value !== null && typeof raw.value === "object") {
+    const manifest = raw.value as Record<string, unknown>;
+    if (manifest.schemaVersion === 2) {
+      return { value: null, diagnostics: [diagnostic({
+        code: "MANIFEST_SCHEMA_MIGRATION_REQUIRED",
+        message: "Component manifest schema version 2 requires explicit migration to version 3. Update schemaVersion to 3, add the supported apiVersion, and review the authoring contract before loading this component.",
+        file,
+        path: "schemaVersion",
+      })] };
+    }
+    if (!("apiVersion" in manifest) || manifest.apiVersion === undefined || manifest.apiVersion === null || manifest.apiVersion === "") {
+      return { value: null, diagnostics: [diagnostic({
+        code: "COMPONENT_API_REQUIRED",
+        message: "Component manifests must declare apiVersion as an exact stable semantic version (for example 1.0.0). Run `component api` to inspect supported versions.",
+        file,
+        path: "apiVersion",
+      })] };
+    }
+    if (typeof manifest.apiVersion !== "string" || !SUPPORTED_COMPONENT_API_VERSIONS.includes(manifest.apiVersion)) {
+      return { value: null, diagnostics: [diagnostic({
+        code: "COMPONENT_API_UNSUPPORTED",
+        message: `Component API version ${String(manifest.apiVersion)} is unsupported. Run 'component api' to inspect supported versions and migrate explicitly.`,
+        file,
+        path: "apiVersion",
+      })] };
+    }
+  }
+  const result: ParsedYaml<ComponentManifest> = validateManifest(raw.value)
+    ? { value: raw.value as ComponentManifest, diagnostics: [] }
+    : { value: null, diagnostics: schemaDiagnostics(file, "MANIFEST", validateManifest.errors) };
   if (result.value === null) return result;
+  if (/\.js$/i.test(result.value.entry) && result.value.types === undefined) {
+    return { value: null, diagnostics: [diagnostic({
+      code: "MANIFEST_TYPES_REQUIRED",
+      message: "JavaScript component entries must declare a relative .d.ts file in `types` so the authoring API can be checked semantically.",
+      file,
+      path: "types",
+    })] };
+  }
 
   const actionIds = new Set<string>();
   for (const [index, action] of (result.value.actions ?? []).entries()) {

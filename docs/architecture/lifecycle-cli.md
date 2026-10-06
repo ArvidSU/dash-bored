@@ -53,6 +53,10 @@ dash-bored init [name ...] [--project <path>]
 dash-bored install-skill [project] [--global] [--check]
 dash-bored validate [project] [--json]
 dash-bored inspect [project] [--summary | --component <reference>]
+dash-bored component api [--api-version <version>] [--json]
+dash-bored component init <directory>
+dash-bored component setup <directory> [--tsconfig <file>]
+dash-bored component check <directory> [--source-project <tsconfig>] [--json]
 dash-bored migrate inspect <dashboard>
 dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
@@ -144,6 +148,27 @@ source equals the link target and that target is a bundled
   not accept a project path.
 - `validate` runs project, manifest, resolver, schema, and local compilation
   validation. It emits stable diagnostics and a non-zero status on errors.
+- `component api` reports supported API targets, app and dashboard/manifest
+  contract versions, React and TypeScript versions, virtual-module exports,
+  capabilities, and an SDK digest for the exact shipped declaration set;
+  `--api-version` selects a supported target. The app ships the
+  offline `.dash-bored-sdk/` files. `component init` scaffolds a component in
+  the selected directory. `component setup` installs those files beside its
+  tsconfig and includes ambient public-module declarations plus private type
+  mappings, preserving runtime resolution and unrelated settings. It migrates
+  earlier SDK runtime aliases only when a receipt and matching managed targets
+  establish ownership. API discovery and scaffold READMEs point back to the
+  skill's standalone authoring route, and the scaffold includes a tool launcher
+  for fresh shells without dash-bored on PATH. `component check` semantically
+  checks TS/TSX source entries. For
+  JavaScript artifacts it checks the declared `.d.ts` interface against the
+  component render contract and bundles the runtime artifact;
+  `--source-project` supplies a tsconfig to semantically check the original
+  publication sources as well. Its output and SDK receipt include the digest.
+  These commands never install dependencies or execute the component, and do
+  not change the fast live-reload validation path. There is no separate
+  component preview command: add the node to a dashboard and use normal live
+  reload plus the ordinary `app screenshot --focus <node-id>` workflow.
 - `inspect --summary` emits project status, diagnostics, permissions and a compact
   catalog without schemas or repeated tree/config data. `--component <reference>`
   emits one authoritative catalog entry (including its schema) and project

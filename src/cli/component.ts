@@ -10,6 +10,7 @@ import {
   type ExternalComponentStatus,
 } from "../core/external-components";
 import { CoreError, errorMessage } from "../core/diagnostics";
+import { runComponentAuthoringCommand } from "./component-authoring";
 
 const SUBCOMMANDS = ["add", "list", "status", "update", "remove", "sync", "restore", "migrate-ownership"] as const;
 
@@ -59,6 +60,10 @@ export function componentUsage(): string {
   return `dash-bored component <command>
 
 Commands:
+  dash-bored component api [--api-version <version>] [--json]
+  dash-bored component init <directory>
+  dash-bored component setup <directory> [--tsconfig <file>]
+  dash-bored component check <directory> [--source-project <file>] [--json]
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
   dash-bored component status [<name>] [project]
@@ -305,6 +310,8 @@ function printStatus(status: ExternalComponentStatus): void {
 }
 
 export async function runComponentCommand(args: string[]): Promise<number> {
+  const authoringResult = await runComponentAuthoringCommand(args);
+  if (authoringResult !== null) return authoringResult;
   const parsed = parseComponentArguments(args);
   if (parsed.help) {
     console.log(componentUsage());

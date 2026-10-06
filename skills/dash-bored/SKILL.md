@@ -1,6 +1,6 @@
 ---
 name: dash-bored
-description: Use this skill to build, extend, fix, or check a dash-bored dashboard — a local, project-owned cockpit in .dash-bored/dash-bored.yaml that shows a project's live state and turns its recurring commands, docs, and checks into one-click panels. Use it whenever the user wants such a persistent overview or control panel for a project (what is running, healthy, changed, or next; buttons to start, test, or release it), or mentions dash-bored, .dash-bored/, dash-bored.yaml, or a project cockpit, even if they do not name dash-bored. Also use it to add panels or source scripts, repair dashboard validation errors, migrate a dashboard after an app update, or operate the running dash-bored app: run a dashboard button or command and report the result, explain why a panel is red, or screenshot a panel. Not for the project's own work (starting services, deploying, running tests) when neither the dashboard nor the app is involved, for dashboard UIs inside the user's own application code, or for Grafana/BI dashboards.
+description: Use this skill to build, extend, fix, or check a dash-bored dashboard — a local, project-owned cockpit in .dash-bored/dash-bored.yaml that shows a project's live state and turns its recurring commands, docs, and checks into one-click panels. Use it whenever the user wants such a persistent overview or control panel for a project (what is running, healthy, changed, or next; buttons to start, test, or release it), or mentions dash-bored, .dash-bored/, dash-bored.yaml, or a project cockpit, even if they do not name dash-bored. Also use it to author, scaffold, type-check or publish standalone dash-bored components with the versioned component SDK, add panels or source scripts, repair dashboard validation errors, migrate a dashboard after an app update, or operate the running dash-bored app. Not for the project's own work (starting services, deploying, running tests) when neither dash-bored components nor the dashboard nor the app is involved, for dashboard UIs inside the user's own application code, or for Grafana/BI dashboards.
 ---
 
 # dash-bored
@@ -13,8 +13,9 @@ project may be software, docs, research, ops, or anything with files and
 commands: work from what it actually contains, not from a generic template.
 
 The user works in the dash-bored desktop app; you work through this skill's
-tool. `dash-bored.yaml` is the only source of truth: anything you do not write
-there does not exist.
+tool. For dashboards, `dash-bored.yaml` is the source of truth. For standalone
+component authoring, work in the component's manifest, sources and assets;
+use the separate authoring workflow below.
 
 ## Running the tool
 
@@ -35,6 +36,7 @@ app, where the tool is `"$DASH_BORED_TOOL"`.
 
 | Request | What to do |
 | --- | --- |
+| Author, scaffold, check or publish a standalone component or work in a component repository | [Standalone component authoring](references/components.md#standalone-component-authoring); start with API discovery and SDK setup, and use a dashboard later for preview |
 | Build or set up a dashboard, or replace the starter | The full workflow below |
 | Change a node "from its component context menu" (the prompt names a target component) | Change that node and only what the request needs; read the owning YAML and the files the request mentions, not the whole project. Then steps 3–7 |
 | Add a component at a YAML insertion path from the structural editor | Make exactly the edit its `Placement:` line states. Prefer a core view fed by a source script (step 4), and say so in the report; write a local component only when no view can present it |
@@ -218,7 +220,12 @@ that must run in the panel. Read
 [references/components.md](references/components.md) by section (**Local
 component layout**, **TSX contract**, **HTTP and bounded shell payloads**;
 **Child projection and managed tabs** only for containers). Declare only the
-permissions the code uses, and leave `renderMode` out.
+permissions the code uses, and leave `renderMode` out. Every manifest needs
+`schemaVersion: 3` and a supported exact stable-semver `apiVersion`; use
+`dash-bored component api` to inspect the app's offline SDK. Scaffold with
+`component init`, preserve editor configuration with `component setup`, and
+run `component check` for semantic source and declaration checks before
+dashboard validation. Schema-v2 manifests require an explicit migration.
 
 ### 4. Back observed panels with sources
 
@@ -251,15 +258,16 @@ tested example scripts, list item actions, and the app's shell environment.
 
 ### 5. Validate
 
-1. Run `dash-bored validate . --json`. It checks YAML, props, IDs, action and
+1. For any local component, run `dash-bored component check <directory>`.
+   Then run `dash-bored validate . --json`. It checks YAML, props, IDs, action and
    process references, item templates, and permissions, and compiles local
    components. The text output omits each diagnostic's `path`, which you
    need to find the failing prop.
 2. Fix each cause and rerun until `"ok": true`. Do not stop on a failing
    dashboard: the app keeps showing the last valid one, so your change would
    be silently missing.
-3. Validation does not run sources or type-check TSX; step 4 covers sources,
-   and local component code needs one more careful read.
+3. Validation semantically checks local TSX and published declaration interfaces,
+   but never executes sources or components; step 4 and app preview cover those.
 4. Run `dash-bored inspect . --summary` and compare `permissions` with what you
    meant to add. Each new permission makes the user re-approve trust.
 

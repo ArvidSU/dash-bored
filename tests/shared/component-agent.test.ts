@@ -34,7 +34,7 @@ function catalogItem(
     source: "external",
     available: true,
     manifest: {
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       id: reference,
       name: reference,
       description: `${reference} test component`,

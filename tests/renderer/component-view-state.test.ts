@@ -47,7 +47,7 @@ describe("component view state", () => {
   test("persists only selections whose container and child still exist", () => {
     const selectable = {
       ...tree,
-      manifest: { schemaVersion: 2 as const, id: "x", name: "X", description: "", entry: "./x", propsSchema: {}, children: { min: 0, presentation: { type: "managed" as const }, select: "single" as const } },
+      manifest: { schemaVersion: 3 as const, apiVersion: "1.0.0", id: "x", name: "X", description: "", entry: "./x", propsSchema: {}, children: { min: 0, presentation: { type: "managed" as const }, select: "single" as const } },
       children: [{ node: leaf }, { node: { ...leaf, id: "other" } }],
     };
     expect(childSelectionsStorageKey("a")).not.toBe(childSelectionsStorageKey("b"));

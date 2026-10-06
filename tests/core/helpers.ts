@@ -65,7 +65,7 @@ export async function writeLocalComponent(
   await writeFile(
     join(directory, "component.yaml"),
     stringify({
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       id: name,
       name,
       description: `${name} component`,

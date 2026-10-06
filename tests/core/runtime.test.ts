@@ -796,7 +796,7 @@ describe("ProjectRuntime", () => {
       })),
       writeFile(join(linkedDirectory, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
       writeFile(join(linkedDirectory, "components", "local-tile", "component.yaml"), stringify({
-        schemaVersion: 2,
+        schemaVersion: 3, apiVersion: "1.0.0",
         id: "local-tile",
         name: "Local tile",
         description: "Fixture component",

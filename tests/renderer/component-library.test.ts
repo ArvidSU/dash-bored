@@ -18,7 +18,7 @@ function item(
     source: options.source ?? "external",
     available: options.available ?? true,
     manifest: {
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       description: "",
       entry: "./component",
       propsSchema: {},

@@ -22,7 +22,7 @@ function config(children: DashboardConfig["root"]["children"]): DashboardConfig 
 }
 
 const containerManifest: ComponentManifest = {
-  schemaVersion: 2,
+  schemaVersion: 3, apiVersion: "1.0.0",
   id: "container",
   name: "Container",
   description: "Managed test container",
@@ -43,7 +43,7 @@ const containerManifest: ComponentManifest = {
 const catalog: ComponentCatalogItem[] = [
   { reference: "container", source: "external", available: true, manifest: containerManifest, diagnostics: [] },
   { reference: "leaf", source: "external", available: true, manifest: {
-    schemaVersion: 2,
+    schemaVersion: 3, apiVersion: "1.0.0",
     id: "leaf",
     name: "Leaf",
     description: "Leaf",

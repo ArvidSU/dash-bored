@@ -8,7 +8,7 @@ const child: ResolvedComponentNode = { id: "overview", component: "./components/
 const other: ResolvedComponentNode = { id: "details", component: "./components/external/core/markdown", props: { title: "Details" }, source: "external" };
 const container: ResolvedComponentNode = {
   id: "panels", component: "./components/external/core/group", props: {}, source: "external",
-  manifest: { schemaVersion: 2, id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single" } },
+  manifest: { schemaVersion: 3, apiVersion: "1.0.0", id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single" } },
   children: [{ node: child }, { node: other }],
 };
 const snapshot = { tree: container } as ProjectSnapshot;

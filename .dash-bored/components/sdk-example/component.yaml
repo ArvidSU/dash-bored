@@ -1,0 +1,44 @@
+schemaVersion: 3
+apiVersion: 1.0.0
+id: sdk-example
+name: Focus timer
+description: A small work and break timer with clear, local controls.
+entry: ./index.tsx
+propsSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    title:
+      type: string
+      description: Heading shown above the timer.
+      default: One thing at a time
+    focusMinutes:
+      type: integer
+      description: Length of each focus session in minutes.
+      minimum: 1
+      maximum: 180
+      default: 25
+    breakMinutes:
+      type: integer
+      description: Length of each break in minutes.
+      minimum: 1
+      maximum: 60
+      default: 5
+  required: []
+children:
+  min: 0
+  max: 0
+  presentation:
+    type: tiled
+    axes: both
+permissions: []
+actions:
+  - id: start
+    label: Start timer
+    description: Start or continue the current focus or break session.
+  - id: pause
+    label: Pause timer
+    description: Pause the current session and retain its remaining time.
+  - id: reset
+    label: Reset timer
+    description: Return the current work or break session to its configured duration.

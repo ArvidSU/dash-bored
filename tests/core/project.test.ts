@@ -473,7 +473,8 @@ describe("tree resolution and local compilation", () => {
       source: "config",
       available: true,
       manifest: {
-        schemaVersion: 2,
+        schemaVersion: 3,
+        apiVersion: "1.0.0",
         id: "config:./arvid",
         name: "Arvid",
         entry: "config:link",
@@ -507,7 +508,7 @@ describe("tree resolution and local compilation", () => {
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
       writeFile(join(component, "component.yaml"), stringify({
-        schemaVersion: 2,
+        schemaVersion: 3, apiVersion: "1.0.0",
         id: "personal-button",
         name: "Personal button",
         description: "A bundle-local button.",

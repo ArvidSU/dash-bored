@@ -269,7 +269,7 @@ describe("component child composition", () => {
     await mkdir(directory, { recursive: true });
     await Promise.all([
       writeFile(join(directory, "component.yaml"), stringify({
-        schemaVersion: 2,
+        schemaVersion: 3, apiVersion: "1.0.0",
         id: "horizontal-pair",
         name: "Horizontal pair",
         description: "Two horizontal children.",
@@ -320,7 +320,7 @@ describe("component child composition", () => {
     const resourceManifest = join(directory, "resource.yaml");
     const referenceManifest = join(directory, "reference.yaml");
     const base = {
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       name: "Local capability",
       description: "Exercises the public capability contract.",
       entry: "./index.tsx",
@@ -352,7 +352,7 @@ describe("component child composition", () => {
     await mkdir(directory, { recursive: true });
     const file = join(directory, "actions.yaml");
     const base = {
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       id: "actions",
       name: "Actions",
       description: "Declared action test.",
@@ -403,7 +403,7 @@ describe("component child composition", () => {
       },
     });
     await Promise.all([mkdir(listDirectory, { recursive: true }), mkdir(workerDirectory, { recursive: true })]);
-    const common = { schemaVersion: 2, description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } };
+    const common = { schemaVersion: 3, apiVersion: "1.0.0", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } };
     await Promise.all([
       writeFile(join(listDirectory, "component.yaml"), stringify({
         ...common,
@@ -447,7 +447,7 @@ describe("component child composition", () => {
       mkdir(buttonDirectory, { recursive: true }),
       mkdir(workerDirectory, { recursive: true }),
     ]);
-    const common = { schemaVersion: 2, description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } };
+    const common = { schemaVersion: 3, apiVersion: "1.0.0", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } };
     await Promise.all([
       writeFile(join(buttonDirectory, "component.yaml"), stringify({
         ...common,

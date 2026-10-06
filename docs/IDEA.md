@@ -256,6 +256,26 @@ the shared renderer after a project trust decision, and changing its pin
 re-runs the permission-union trust check. The library flyout surfaces that
 trust delta and never bypasses it.
 
+## Versioned component authoring
+
+Component manifests declare both their manifest schema version and the
+component API version they target. `schemaVersion: 3` identifies the current
+manifest format; every core, external, and project-local component also
+declares a required, exact stable-semver `apiVersion`. The application rejects
+missing or unsupported API versions before loading component code and gives
+authors an actionable diagnostic. Schema-v2 manifests require an explicit
+migration; the app never upgrades their meaning silently.
+
+The public authoring SDK has its own stable version line, beginning at
+`1.0.0`. Its runtime contracts and offline type definitions ship with the app
+and are exposed to component authors through `@dash-bored/component`. Additive
+optional APIs may use minor releases, with deprecation notes before removal;
+breaking changes require a major release and migration guidance. Host
+capabilities remain optional and are checked at the boundary at runtime.
+Published components include generated JavaScript runtime and declaration
+output, and their source and declarations can be checked semantically before
+they are loaded.
+
 ## Themes
 
 Themes are first-class, declarative packages outside the component tree. Users

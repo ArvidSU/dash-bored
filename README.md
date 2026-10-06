@@ -883,7 +883,8 @@ Define its metadata, props, children contract, and least-privilege permissions i
 `component.yaml`:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
+apiVersion: 1.0.0
 id: service-health
 name: Service health
 description: Checks the development service.
@@ -920,6 +921,53 @@ older local components that discover actions at runtime.
 `renderMode` defaults to `surface`. Declare `layout` when the component is an
 organizational boundary whose height follows its descendants rather than an
 independently resizable surface.
+
+The app ships its offline authoring SDK and checker in `.dash-bored-sdk/`; no
+separate React installation is needed. Inspect the API, scaffold an authoring
+directory, set up editor types, and check sources with:
+
+```sh
+dash-bored component api [--api-version 1.0.0] [--json]
+dash-bored component init <directory>
+dash-bored component setup <directory> [--tsconfig <file>]
+dash-bored component check <directory> [--source-project <tsconfig>] [--json]
+```
+
+`component api` reports supported API targets and includes an SDK digest for
+the exact shipped SDK declaration set. `setup` installs those
+SDK files beside the chosen tsconfig, includes ambient public-module and CSS
+declarations, and maps only private SDK type aliases. Runtime imports keep their
+ordinary resolution, including Bun tests and build scripts. Setup preserves
+unrelated settings and removes earlier SDK runtime aliases only when a receipt
+identifies the installation and the alias still points at its managed file.
+`component api` points agents to the installed dash-bored skill's standalone
+authoring workflow; scaffold READMEs and their `dash-bored.sh` launcher make the
+same workflow usable without a command on PATH. `check` semantically checks
+local TypeScript/TSX entries against the selected SDK and checks the production
+bundle. For a published JavaScript entry, it checks the declared `.d.ts` file
+against the component render interface and bundles the JavaScript artifact;
+pass `--source-project <tsconfig>` to semantically check the original TS/TSX
+publication sources too. Runtime imports may use contained relative `.ts`,
+`.tsx`, `.js`, and `.css` files. JavaScript entries must set
+`types: ./types.d.ts`. Published components include generated JavaScript
+runtime output and declarations, so source, declaration interface, and shipped
+artifact checks have distinct roles. These checks do not execute or preview the
+component. Add it to a dashboard and use the app's normal live reload and
+`app screenshot --focus <node-id>` to see it in context; there is no separate
+component preview host or command.
+
+A manifest must declare a supported exact stable-semver `apiVersion`. Missing
+and unsupported versions fail with migration guidance before any component
+executes.
+
+The component API version is independent of dashboard `schemaVersion`. API
+1.0.0 uses SemVer: additive optional methods and types may ship in a minor
+release, with deprecation notes before removal; breaking changes require a
+major release and migration guidance.
+Capabilities can be absent: authors handle optional host members and runtime
+denials. Every privileged call checks trust and the declaring node's permissions. Component
+schema-v2 manifests require explicit migration; the app never changes pins to
+make older external components appear compatible.
 
 Implement the browser component with the virtual runtime API:
 
@@ -1169,8 +1217,9 @@ Agents read applicable bundled guidance with the agent tool's
 `migrate inspect <dashboard>`.
 The bundled v2-to-v3 recipe removes redundant topology wrappers and vertical
 ratios while preserving component content, edge metadata, and binary grouping.
-Component manifests remain at schema version 2. Schema version 1 and unknown
-schemas are unsupported.
+Component manifests use schema version 3 and a supported `apiVersion`. Schema
+version 1, version 2 without explicit migration, and unknown schemas are
+unsupported.
 App-driven migration agents receive the target agent tool, diagnostics,
 cumulative recipes, and a read-only skill handoff. Existing customized skills are preserved. Migration requires the
 existing project trust decision; new permissions require review in the app.

@@ -1,4 +1,5 @@
-schemaVersion: 2
+schemaVersion: 3
+apiVersion: 1.0.0
 id: theme-reference
 name: Theme reference
 description: Inspect the active window theme and semantic colors while developing themes.

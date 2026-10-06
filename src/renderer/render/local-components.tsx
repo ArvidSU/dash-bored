@@ -1,22 +1,14 @@
+import { COMPONENT_REACT_EXPORTS } from "../../shared/component-api";
 import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
 import { trackActivity } from "../lib/activity";
 import { TerminalSurface } from "./TerminalSurface";
 import { useTheme } from "../lib/theme";
 import React, {
-  Fragment,
-  createElement,
-  useCallback,
   useContext,
   useEffect,
-  useId,
-  useImperativeHandle,
   useLayoutEffect,
-  useMemo,
-  useReducer,
   useRef,
   useState,
-  useSyncExternalStore,
-  useTransition,
 } from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { jsxDEV } from "react/jsx-dev-runtime";
@@ -36,33 +28,12 @@ export interface LoadedLocalComponent {
   error: string | null;
 }
 
-interface ComponentRuntimeBridge {
+type ComponentRuntimeBridge = typeof import("../../component-api") & {
   React: typeof React;
-  Fragment: typeof Fragment;
-  createElement: typeof createElement;
   jsx: typeof jsx;
   jsxs: typeof jsxs;
   jsxDEV: typeof jsxDEV;
-  defineComponent: <Props>(
-    component: React.ComponentType<LocalComponentRenderProps<Props>>,
-  ) => React.ComponentType<LocalComponentRenderProps<Props>>;
-  useCallback: typeof useCallback;
-  useContext: typeof useContext;
-  useEffect: typeof useEffect;
-  useId: typeof useId;
-  useImperativeHandle: typeof useImperativeHandle;
-  useLayoutEffect: typeof useLayoutEffect;
-  useMemo: typeof useMemo;
-  useReducer: typeof useReducer;
-  useRef: typeof useRef;
-  useTheme: typeof useTheme;
-  useComponentVisibility: () => boolean;
-  trackActivity: typeof trackActivity;
-  TerminalSurface: typeof TerminalSurface;
-  useState: typeof useState;
-  useSyncExternalStore: typeof useSyncExternalStore;
-  useTransition: typeof useTransition;
-}
+};
 
 declare global {
   var __DASH_BORED_COMPONENT_RUNTIME__: ComponentRuntimeBridge | undefined;
@@ -72,29 +43,16 @@ export function installComponentRuntime(): void {
   if (globalThis.__DASH_BORED_COMPONENT_RUNTIME__) return;
 
   const bridge: ComponentRuntimeBridge = {
+    ...Object.fromEntries(COMPONENT_REACT_EXPORTS.map((name) => [name, React[name]])) as Pick<typeof React, (typeof COMPONENT_REACT_EXPORTS)[number]>,
     React,
-    Fragment,
-    createElement,
     jsx,
     jsxs,
     jsxDEV,
     defineComponent: (component) => component,
-    useCallback,
-    useContext,
-    useEffect,
-    useId,
-    useImperativeHandle,
-    useLayoutEffect,
-    useMemo,
-    useReducer,
-    useRef,
     useTheme,
     useComponentVisibility: () => useContext(ComponentVisibilityContext),
     trackActivity,
     TerminalSurface,
-    useState,
-    useSyncExternalStore,
-    useTransition,
   };
 
   Object.defineProperty(globalThis, "__DASH_BORED_COMPONENT_RUNTIME__", {

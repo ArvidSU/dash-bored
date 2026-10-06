@@ -8,6 +8,7 @@ import type {
   ResolvedComponentNode,
 } from "../shared/contracts";
 import { CONFIG_FILE } from "../shared/contracts";
+import { COMPONENT_API_VERSION } from "../shared/component-api";
 import { childEdges } from "../shared/child-edges";
 import { remapActionReferenceNode } from "../shared/action-reference";
 import { actionInvocation } from "../shared/action-invocation";
@@ -160,7 +161,8 @@ export function namespaceLinkedTree(
 
 export function configLinkManifest(reference: string, configName: string | undefined): ComponentManifest {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    apiVersion: COMPONENT_API_VERSION,
     id: `config:${reference}`,
     name: configName ?? reference,
     description: "Renders another standalone dashboard configuration.",

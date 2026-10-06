@@ -7,6 +7,17 @@ packages may be restored on opening before trust. Component code, including core
 does not execute until project trust. It cannot start a command, read or write a
 project file, make an HTTP request, or instantiate a project webview.
 
+Manifest `apiVersion` validation happens during discovery before local
+compilation and component execution. Missing and unsupported versions produce
+`COMPONENT_API_REQUIRED` and `COMPONENT_API_UNSUPPORTED`; schema-v2 manifests
+produce `MANIFEST_SCHEMA_MIGRATION_REQUIRED`. The bundled authoring checker and
+its `.d.ts` files are offline development tools, not grants of authority.
+Capability-shaped host members depend on manifest declarations and trust.
+Their presence does not grant authority: for example, a write-only filesystem
+host still exposes `readText`, but read calls are denied without
+`filesystem:read`. Each host RPC independently rechecks trust, node permissions,
+and path bounds.
+
 The application presents one project-level trust decision with the complete
 requested permission set. Trust is keyed by canonical project root and stores
 the approved permission set in Electrobun's user-data directory. Reloading with

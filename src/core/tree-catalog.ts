@@ -255,18 +255,22 @@ export async function loadLocalDefinition(
 
     const entryPath = await resolveContainedPath(directory, parsed.value.entry, { kind: "file" });
     const extension = entryPath.slice(entryPath.lastIndexOf(".")).toLowerCase();
-    if (extension !== ".ts" && extension !== ".tsx") {
+    if (extension !== ".ts" && extension !== ".tsx" && extension !== ".js") {
       return {
         definition: null,
         diagnostics: [
           diagnostic({
             code: "COMPONENT_ENTRY_UNSUPPORTED",
-            message: "Local component entrypoints must be .ts or .tsx files.",
+            message: "Local component entrypoints must be .ts, .tsx, or generated .js files with declarations.",
             file: manifestPath,
             path: "/entry",
           }),
         ],
       };
+    }
+
+    if (parsed.value.types) {
+      await resolveContainedPath(directory, parsed.value.types, { kind: "file" });
     }
 
     return {

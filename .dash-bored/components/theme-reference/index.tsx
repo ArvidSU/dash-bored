@@ -5,7 +5,7 @@ export default defineComponent(() => {
     <h2>Theme inspection</h2>
     <p><code>{reference}</code> · {appearance}</p>
     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-      {['bg', 'surface', 'text', 'muted', 'accent', 'positive', 'warning', 'negative'].map((name) => <div key={name}>
+      {(['bg', 'surface', 'text', 'muted', 'accent', 'positive', 'warning', 'negative'] as const).map((name) => <div key={name}>
         <div style={{ width: '3rem', height: '2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: tokens[name] }} />
         <small>{name}</small>
       </div>)}

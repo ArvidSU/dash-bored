@@ -58,7 +58,7 @@ function commandTree(): ResolvedComponentNode {
             props: { label: "Development server", command: "bun run dev" },
             source: "external",
             manifest: {
-                schemaVersion: 2,
+                schemaVersion: 3, apiVersion: "1.0.0",
                 id: "./components/external/core/command",
                 name: "Command",
                 description: "Runs a supervised command.",

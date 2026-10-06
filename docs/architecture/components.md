@@ -126,7 +126,8 @@ components/service-health/
 Its manifest is self-describing:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
+apiVersion: 1.0.0
 id: service-health
 name: Service health
 description: Shows project service health.
@@ -144,6 +145,52 @@ children:
 permissions:
   - network:http
 ```
+
+Manifest schema versions describe the on-disk format; `apiVersion` describes
+the public authoring/runtime SDK and is required for built-in, external, and
+project-local manifests. It is an exact stable semantic version. The app
+rejects a missing or unsupported API version during manifest discovery, before
+compilation or execution, using `COMPONENT_API_REQUIRED` or
+`COMPONENT_API_UNSUPPORTED`. Schema-v2 manifests stop with
+`MANIFEST_SCHEMA_MIGRATION_REQUIRED` and must be migrated explicitly.
+
+The stable public component API begins at 1.0.0. Additive optional API
+additions may use minor releases; deprecations include replacements and
+migration notes before removal in a major version. Capability-shaped host
+methods are optional. Declarations do not add runtime authority;
+main-process RPC checks still enforce the manifest permission for each call.
+
+The app ships the offline `.dash-bored-sdk/` declarations and checker.
+`component api [--api-version <version>] [--json]` reports supported API
+targets, app and manifest/dashboard contract versions, React and TypeScript
+versions, virtual module exports, capabilities, and an SDK digest identifying
+the exact shipped SDK declaration asset set. `component setup` installs
+those assets beside the selected tsconfig and includes ambient public-module
+and CSS declarations in its `files`. Only private SDK type aliases use `paths`;
+public runtime imports keep normal resolution, including Bun tests/build scripts.
+Setup preserves unrelated settings and inherited aliases/baseUrl. On upgrading
+an earlier installation, it removes runtime aliases only when an SDK receipt
+exists and their targets still match the installed managed files.
+`component api` includes a reference to the installed skill's standalone
+authoring workflow. Scaffold READMEs use a repository-local `dash-bored.sh`
+that selects `DASH_BORED_TOOL` or an installed skill launcher without PATH.
+Standalone authoring does not require initializing a dashboard; ordinary
+dashboard composition is a later preview step.
+
+`component check` semantically checks a local TS/TSX entry against the selected
+SDK and runs the production bundler. For a published JavaScript entry, it
+semantically checks the required `types` declaration against the component's
+default render interface, then bundles the JavaScript artifact. Supply
+`--source-project <tsconfig>` to semantically check the original TypeScript or
+TSX publication sources as well. This separates source checking from checking
+the generated declaration contract and shipped runtime artifact. These checks
+never execute the component.
+
+There is no separate component preview command or host. Add the component to
+the owning dashboard, use its normal live reload, and verify it in the app with
+the usual `app screenshot --focus <node-id>` workflow. The SDK digest is also
+reported by `component check` and stored with the installed SDK receipt, so an
+author can confirm which declarations they checked against.
 
 `renderMode` defaults to `surface`; use `layout` when the component is an
 organizational boundary whose height must follow its descendants rather than an
@@ -202,9 +249,12 @@ declared by every resolved component, project-local or external.
 `bun run generate:components` emits deterministic props, permission, resource,
 action and children contracts; its drift test compares generated output.
 The component repository owns readable sources and committed self-contained
-`component.yaml`, `index.tsx` and CSS outputs for all 17 components, including
-legacy forms. Its deterministic build bundles dependencies, while React and
-`@dash-bored/component` remain external to use the application runtime.
+`component.yaml`, `index.js`, `index.d.ts`, and `component.css` outputs for all
+17 components, including legacy forms. Manifests point at the JavaScript
+artifact with `entry: ./index.js` and its generated type contract with
+`types: ./index.d.ts`. Its deterministic build bundles dependencies, while
+React and `@dash-bored/component` remain external to use the application
+runtime.
 Installation needs Git, with no dependency installation. App compiler containment
 rules apply to every component directory.
 
@@ -220,10 +270,13 @@ component: "./components/external/service-health"
 The name is the single directory segment below `components/external/`; deeper
 paths inside the submodule resolve as external components too (monorepo
 layouts). Reserved-namespace collisions are rejected by the same containment
-rules as local components. Inside its directory the external component has
-the same shape (`component.yaml`, `index.tsx`, contained relative imports),
-the same manifest contract, and the same compile, host, and children behavior
-as a project-local component. Only provenance and trust differ.
+rules as local components. A published external component contains
+`component.yaml`, a browser JavaScript `entry`, its matching relative `.d.ts`
+file in `types`, and any emitted CSS; authoring TS/TSX sources may live
+separately in its repository. Runtime component directories may also use
+contained relative TS, TSX, JS, and CSS imports. The external component has the
+same manifest contract, and the same compile, host, and children behavior as a
+project-local component. Only provenance and trust differ.
 
 The pin lives in `dash-bored-lock.yaml`:
 
@@ -374,7 +427,7 @@ Bun.build({
 A bundler plugin maps React and `@dash-bored/component` to renderer-owned
 runtime modules. No output directory is configured, so the runtime consumes
 the build's in-memory outputs without writing component bundles to disk. A
-component may use contained relative TS, TSX, and CSS imports. Bare package
+component may use contained relative TS, TSX, JS, and CSS imports. Bare package
 imports, Node or Electrobun APIs, files outside that component directory, and
 unsupported asset types are rejected. The main process builds at most two local
 components at a time, then returns compiled components and diagnostics in the

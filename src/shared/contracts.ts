@@ -120,11 +120,15 @@ export interface ComponentActionDefinition {
 }
 
 export interface ComponentManifest {
-  schemaVersion: 2;
+  schemaVersion: 3;
+  /** Exact supported component API target, independent of manifest and app versions. */
+  apiVersion: string;
   id: string;
   name: string;
   description: string;
   entry: string;
+  /** Public declaration entry for generated JavaScript artifacts. */
+  types?: string;
   /** Whether this node owns a resizable surface or follows descendant layout. */
   renderMode?: "surface" | "layout";
   propsSchema: Record<string, unknown>;

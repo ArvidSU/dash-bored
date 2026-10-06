@@ -62,7 +62,7 @@ async function makeSourceRepo(
   await writeFile(
     join(raw, "component.yaml"),
     stringify({
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       id: name,
       name,
       description: `${name} component`,
@@ -88,7 +88,7 @@ async function commitSourceVersion(
   await writeFile(
     join(source.directory, "component.yaml"),
     stringify({
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       id: name,
       name,
       description: `${name} component`,
@@ -370,7 +370,7 @@ describe("external component submodule operations", () => {
     await writeFile(
       join(raw, "packs", "mywidget", "component.yaml"),
       stringify({
-        schemaVersion: 2,
+        schemaVersion: 3, apiVersion: "1.0.0",
         id: "mywidget",
         name: "mywidget",
         description: "nested component",

@@ -1,0 +1,654 @@
+import type { ReactNode } from "react";
+export declare const CONFIG_DIRECTORY = ".dash-bored";
+export declare const CONFIG_FILE = "dash-bored.yaml";
+export declare const LOCK_FILE = "dash-bored-lock.yaml";
+export declare const COMPONENTS_DIRECTORY = "components";
+export type Permission = "filesystem:read" | "filesystem:write" | "network:http" | "process:execute" | "process:observe" | "webview:embed";
+export interface ComponentNode {
+    id?: string;
+    component: string;
+    props?: Record<string, unknown>;
+    children?: ComponentChildren;
+    /** Keep this node in the projected tree while one of its relatives is focused. */
+    persistOnFocus?: boolean;
+}
+export interface ComponentChildEdge<Node = ComponentNode> {
+    node: Node;
+    metadata?: Record<string, unknown>;
+}
+export type ComponentChildLayout<Node = ComponentNode> = ComponentChildEdge<Node> | {
+    axis: "horizontal";
+    /** Fraction assigned to the first branch; omitted means equal widths. */
+    ratio?: number;
+    first: ComponentChildLayout<Node>;
+    second: ComponentChildLayout<Node>;
+} | {
+    axis: "vertical";
+    /** Vertical branches use document flow and have no ratio. */
+    ratio?: never;
+    first: ComponentChildLayout<Node>;
+    second: ComponentChildLayout<Node>;
+};
+export type ComponentChildren<Node = ComponentNode> = ComponentChildLayout<Node> | ComponentChildEdge<Node>[];
+export interface DashboardConfig {
+    schemaVersion: 4;
+    name: string;
+    /** Optional image path or HTTP(S) URL shown for this dashboard in the sidebar. */
+    icon?: string;
+    theme?: string;
+    /** Optional appearance mode for this dashboard; omitted means inherit app settings. */
+    themeMode?: import("./themes").ThemeMode;
+    root: ComponentNode;
+}
+export interface ExternalComponentLockEntry {
+    /** Clone URL or local path the submodule was added from. */
+    url: string;
+    /** Exact pinned commit SHA checked out for this component. */
+    commit: string;
+    /** Bundle-relative component path: "components/external/<name>". */
+    path: string;
+}
+export interface DashboardLock {
+    lockfileVersion: 1;
+    components: Record<string, ExternalComponentLockEntry>;
+    themes?: Record<string, ExternalComponentLockEntry>;
+}
+export type ComponentChildPresentation = {
+    type: "tiled";
+    axes: "horizontal" | "vertical" | "both";
+} | {
+    type: "managed";
+};
+export interface ComponentChildrenDefinition {
+    min: number;
+    max?: number;
+    presentation: ComponentChildPresentation;
+    metadataSchema?: Record<string, unknown>;
+    /** Renderer-owned single selection for managed children; instances pick a default with `props.defaultChild`. */
+    select?: "single";
+}
+export interface ComponentProcessResourceDefinition {
+    /** Prop containing the supervised command string. */
+    commandProp: string;
+    /** Run the command inside a persistent PTY-backed shell. */
+    interactive?: boolean;
+    /** Optional prop containing a project-relative working directory. */
+    cwdProp?: string;
+    /** Optional prop containing string-valued environment variables. */
+    envProp?: string;
+}
+export interface ComponentResourceDefinitions {
+    process?: ComponentProcessResourceDefinition;
+}
+export interface ComponentReferenceDefinition {
+    resource: "process" | "action";
+}
+export interface ComponentActionDefinition {
+    id: string;
+    label: string;
+    description?: string;
+    /** JSON Schema for arguments accepted by this action. */
+    args?: Record<string, unknown>;
+}
+export interface ComponentManifest {
+    schemaVersion: 3;
+    /** Exact supported component API target, independent of manifest and app versions. */
+    apiVersion: string;
+    id: string;
+    name: string;
+    description: string;
+    entry: string;
+    /** Public declaration entry for generated JavaScript artifacts. */
+    types?: string;
+    /** Whether this node owns a resizable surface or follows descendant layout. */
+    renderMode?: "surface" | "layout";
+    propsSchema: Record<string, unknown>;
+    /** When present, opts this component into manifest-declared action IDs. */
+    actions?: ComponentActionDefinition[];
+    children?: ComponentChildrenDefinition;
+    /** App-owned resources configured declaratively from component props. */
+    resources?: ComponentResourceDefinitions;
+    /** Props that reference resources supplied by other component nodes. */
+    references?: Record<string, ComponentReferenceDefinition>;
+    permissions?: Permission[];
+    /** Additional capabilities required when the configured prop path is present. */
+    permissionsByProp?: Record<string, Permission[]>;
+}
+export interface ComponentCatalogItem {
+    reference: string;
+    source: "local" | "config" | "external";
+    available: boolean;
+    manifest: ComponentManifest | null;
+    diagnostics: Diagnostic[];
+}
+export type DiagnosticSeverity = "error" | "warning" | "info";
+export interface Diagnostic {
+    severity: DiagnosticSeverity;
+    code: string;
+    message: string;
+    file?: string;
+    path?: string;
+    line?: number;
+    column?: number;
+}
+export interface ResolvedComponentNode {
+    id: string;
+    component: string;
+    props: Record<string, unknown>;
+    children?: ComponentChildren<ResolvedComponentNode>;
+    persistOnFocus?: boolean;
+    source: "local" | "config" | "external";
+    manifest?: ComponentManifest;
+    /** Canonical source path for a standalone config-link component. */
+    configPath?: string;
+    configName?: string;
+    configError?: string;
+    /** YAML file that owns this node and must receive structural edits. */
+    sourceConfigPath?: string;
+    /** Stable YAML-style path to this node within its owning config. */
+    sourcePath?: string;
+    /** Typed structural locator to this node within its owning config. */
+    sourceNodePath?: NodePath;
+}
+export interface AppSettings {
+    theme?: string;
+    themeMode?: import("./themes").ThemeMode;
+    /** App-wide CLI command used for natural-language dashboard changes, or null to use the owning bundle. */
+    dashBoredAgent: string | null;
+    /** Whether the project sidebar should open expanded in a new app session. */
+    sidebarExpandedByDefault: boolean;
+    /** Action ids promoted ahead of other matching command-palette results. */
+    favoriteActionIds: string[];
+    /** App-local keyboard shortcut that opens the command palette. */
+    commandPaletteShortcut: string | null;
+    /** Clear search after invoking a palette action while holding Command. */
+    clearPaletteInputOnKeepOpen: boolean;
+    /** App-local keyboard shortcuts keyed by stable action id. */
+    actionShortcuts: Record<string, string>;
+}
+/** What a dispatched agent works on; decides the follow-up review, not the wording. */
+export type AgentPromptScope = "project" | "dashboard";
+export interface AgentPromptTemplateSummary {
+    name: string;
+    description: string;
+    scope: AgentPromptScope;
+    input: "required" | "optional";
+    builtin: boolean;
+}
+export interface ComponentAgentRequest {
+    nodeId: string;
+    /** The user's reviewed input; rendered into the template as `{{input}}`. */
+    prompt: string;
+    /** Prompt template name; Change with agent uses `dashboard`, `agent:prompt` defaults to `project`. */
+    template?: string;
+    vars?: Record<string, string | number | boolean>;
+}
+export interface ComponentAgentPreview {
+    template: AgentPromptTemplateSummary;
+    /** The complete prompt the configured agent would receive. */
+    prompt: string;
+}
+export interface DashboardSetupAgentRequest {
+    nodeId: string;
+}
+export type ComponentChildLocator = {
+    type: "managed";
+    index: number;
+} | {
+    type: "tiled";
+    path: Array<"first" | "second">;
+};
+/** Structural path from a dashboard config's root to one of its nodes. */
+export type NodePath = ComponentChildLocator[];
+export type ComponentChildPlacement = {
+    type: "managed";
+    index: number;
+    metadata?: Record<string, unknown>;
+} | {
+    type: "tiled";
+    path: Array<"first" | "second">;
+    axis: "horizontal" | "vertical";
+    position: "first" | "second";
+    ratio?: number;
+    metadata?: Record<string, unknown>;
+};
+export interface DashboardInsertionTarget {
+    parentPath: ComponentChildLocator[];
+    placement: ComponentChildPlacement;
+}
+export interface ComponentCreationAgentRequest {
+    configPath: string;
+    target: DashboardInsertionTarget;
+    prompt: string;
+}
+/** Every way the renderer can start agent work; one host command launches them all. */
+export type AgentLaunchRequest = ({
+    kind: "component";
+} & ComponentAgentRequest) | ({
+    kind: "creation";
+} & ComponentCreationAgentRequest) | {
+    kind: "diagnostics";
+} | ({
+    kind: "setup";
+} & DashboardSetupAgentRequest);
+/** One command to a supervised process; the host answers with that process afterwards. */
+export type ProcessCommand = {
+    type: "start";
+    itemEnvironment?: Record<string, string>;
+} | {
+    type: "open";
+} | {
+    type: "quick-action";
+} | {
+    type: "write";
+    input: string;
+} | {
+    type: "resize";
+    cols: number;
+    rows: number;
+} | {
+    type: "stop";
+};
+/** One command to a dashboard agent task's terminal. */
+export type AgentTaskCommand = {
+    type: "stop";
+} | {
+    type: "write";
+    input: string;
+} | {
+    type: "resize";
+    cols: number;
+    rows: number;
+};
+export interface ComponentAgentLaunch {
+    taskId: string;
+    command: string;
+    componentPath: string;
+    pid: number | null;
+}
+/** One invocation of the user's configured CLI agent, for dashboard or project work. */
+export interface DashboardAgentTask {
+    id: string;
+    purpose?: "setup" | "setup-repair" | "edit" | "migration" | "repair" | "project";
+    /** Prompt template the request was rendered from, when it came from one. */
+    template?: string;
+    command: string;
+    /** Fully contextualized prompt passed as the configured command's argument. */
+    prompt: string;
+    componentPath: string;
+    request: string;
+    configPath: string;
+    startedAt?: string;
+    /** The dashboard changed while this task was running; it is not a success claim. */
+    dashboardChanged: boolean;
+    /** Explicitly stopped by the user or application shutdown. */
+    cancelled?: boolean;
+    validation?: {
+        status: "checking" | "repairing" | "valid" | "failed" | "trust-required" | "cancelled";
+        diagnostics: Diagnostic[];
+        message?: string;
+    };
+    process: ProcessSnapshot;
+}
+export interface CompiledLocalComponent {
+    componentId: string;
+    revision: string;
+    javascript: string;
+    css: string;
+}
+export type ProcessPhase = "idle" | "running" | "stopping" | "exited" | "failed";
+export interface ProcessLogEntry {
+    sequence: number;
+    stream: "stdout" | "stderr" | "system";
+    text: string;
+}
+/** One execution of a process resource's configured command. */
+export interface ProcessRunSnapshot {
+    phase: Exclude<ProcessPhase, "idle">;
+    exitCode: number | null;
+    signal: string | null;
+    /** Wall-clock start of this run. */
+    startedAt: string;
+    /** Present once the run has finished. */
+    durationMs?: number;
+}
+/**
+ * A supervised process resource. For an interactive terminal the top-level
+ * phase, pid, exit, and timing describe the terminal (which outlives each run
+ * in a resting shell); `run` describes the latest execution of the command.
+ * For a non-interactive process the two coincide.
+ */
+export interface ProcessSnapshot {
+    id: string;
+    phase: ProcessPhase;
+    pid: number | null;
+    exitCode: number | null;
+    signal: string | null;
+    logs: ProcessLogEntry[];
+    /** True for a PTY-backed interactive terminal. */
+    interactive?: boolean;
+    /** Wall-clock start of the supervised process or terminal, when one has started. */
+    startedAt?: string;
+    /** Duration of the supervised process or terminal once it has ended, in milliseconds. */
+    durationMs?: number;
+    /** Latest run of the configured command; absent until one starts. */
+    run?: ProcessRunSnapshot;
+}
+export interface ProjectSnapshot {
+    themeCatalog?: import("./themes").ThemeCatalogItem[];
+    /** Public configuration only; never the inherited process environment or bundle secrets. */
+    environmentByNode?: Record<string, ComponentEnvironmentSnapshot>;
+    projectRoot: string | null;
+    /** Canonical YAML currently rendered, including standalone named bundles. */
+    configPath?: string | null;
+    dashboardName: string | null;
+    /** Resolved data URL for the configured dashboard icon, or null when unavailable. */
+    iconDataUrl: string | null;
+    config: DashboardConfig | null;
+    configRevision: string | null;
+    componentCatalog: ComponentCatalogItem[];
+    trusted: boolean;
+    requestedPermissions: Permission[];
+    tree: ResolvedComponentNode | null;
+    components: CompiledLocalComponent[];
+    processes: ProcessSnapshot[];
+    diagnostics: Diagnostic[];
+    revision: number;
+}
+export interface DashboardDraftValidation {
+    ok: boolean;
+    diagnostics: Diagnostic[];
+    requestedPermissions: Permission[];
+    /** Draft resolved against its owning bundle; linked drafts retain the selected runtime namespace. */
+    tree: ResolvedComponentNode | null;
+    /** Compiled project-local modules keyed by the resolved tree's manifest IDs. */
+    components: CompiledLocalComponent[];
+    /** Whether the host currently trusts the complete permission set for this draft. */
+    trusted: boolean;
+}
+export interface DashboardConfigSource {
+    configPath: string;
+    config: DashboardConfig;
+    configRevision: string;
+    componentCatalog: ComponentCatalogItem[];
+}
+export interface ComponentPropsValidation {
+    ok: boolean;
+    diagnostics: Diagnostic[];
+}
+export interface SaveDashboardConfigRequest {
+    config: DashboardConfig;
+    expectedConfigRevision: string;
+    configPath?: string;
+}
+export interface ProjectTarget {
+    projectRoot: string;
+    configPath: string;
+}
+export interface ProjectListItem extends ProjectTarget {
+    dashboardName: string | null;
+    /** Cached resolved data URL for the dashboard's configured sidebar icon. */
+    iconDataUrl?: string | null;
+}
+/** Persisted appearance choices shown by Application Settings for each registered dashboard. */
+export interface DashboardSettingsItem extends ProjectListItem {
+    theme?: string;
+    themeMode?: import("./themes").ThemeMode;
+    error?: string;
+}
+export interface ProjectOutline extends ProjectTarget {
+    dashboardName: string | null;
+    tree: ResolvedComponentNode | null;
+    diagnostics: Diagnostic[];
+}
+export interface ProjectDeletionDependency {
+    projectRoot: string;
+    dashboardName: string | null;
+    configPaths: string[];
+}
+export interface ProjectDeletionPreview extends ProjectTarget {
+    dashboardName: string | null;
+    filesDirectory: string;
+    filesExist: boolean;
+    dependencies: ProjectDeletionDependency[];
+    analysisComplete: boolean;
+    analysisIssues: string[];
+}
+export interface DeleteProjectRequest {
+    projectRoot: string;
+    configPath: string;
+    removeFiles: boolean;
+}
+export interface InspectResult {
+    themeCatalog?: import("./themes").ThemeCatalogItem[];
+    ok: boolean;
+    projectRoot: string;
+    config: DashboardConfig | null;
+    lock: DashboardLock | null;
+    tree: ResolvedComponentNode | null;
+    componentCatalog: ComponentCatalogItem[];
+    components: ComponentManifest[];
+    permissions: Permission[];
+    diagnostics: Diagnostic[];
+}
+export interface HostRequestContext {
+    /**
+     * Renderer-supplied node identity used for permission lookup. Local
+     * components share one trusted renderer, so this is API shaping and
+     * defense-in-depth rather than authentication between components.
+     */
+    nodeId: string;
+}
+export interface FileReadRequest extends HostRequestContext {
+    path: string;
+}
+export interface FileWriteRequest extends HostRequestContext {
+    path: string;
+    content: string;
+}
+export interface ImageReadRequest extends HostRequestContext {
+    source: string;
+    timeoutMs?: number;
+}
+export interface ImageReadPayload {
+    dataUrl: string;
+    mediaType: string;
+}
+export interface HttpRequest extends HostRequestContext {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    timeoutMs?: number;
+}
+export interface HttpResponsePayload {
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+}
+export interface ShellRunRequest extends HostRequestContext {
+    command: string;
+    cwd?: string;
+    env?: Record<string, string>;
+    timeoutMs?: number;
+}
+export interface ShellRunResult {
+    exitCode: number | null;
+    signal: string | null;
+    stdout: string;
+    stderr: string;
+    timedOut: boolean;
+}
+export interface ComponentChildHandle {
+    id: string;
+    reference: string;
+    displayName: string;
+    metadata: Record<string, unknown>;
+    render(options?: {
+        visible?: boolean;
+    }): ReactNode;
+}
+export type ComponentRenderedChildren = {
+    type: "tiled";
+    surface: ReactNode;
+} | {
+    type: "managed";
+    items: ComponentChildHandle[];
+};
+export interface LocalComponentRenderProps<Props = Record<string, unknown>> {
+    props: Props;
+    children?: ComponentRenderedChildren;
+    host: LocalComponentHost;
+}
+export interface ComponentActionConfirmation {
+    title: string;
+    message?: string;
+    confirmLabel?: string;
+}
+export type ComponentActionSelections = Readonly<Record<string, string>>;
+export interface ComponentActionOption {
+    value: string;
+    label: string;
+    description?: string;
+}
+export interface ComponentActionChoice {
+    id: string;
+    label: string;
+    description?: string;
+    options: readonly ComponentActionOption[] | ((selections: ComponentActionSelections) => readonly ComponentActionOption[]);
+}
+export interface ComponentAction {
+    id: string;
+    label: string;
+    description?: string;
+    keywords?: string[];
+    enabled?: boolean;
+    disabledReason?: string;
+    confirmation?: ComponentActionConfirmation;
+    choices?: readonly ComponentActionChoice[];
+    invocationOutcome?: "started" | "completed" | "prepared";
+    process?: ProcessSnapshot;
+    run(selections?: ComponentActionSelections, args?: Record<string, unknown>, callerNodeId?: string): void | Promise<void>;
+}
+export type ActionInvocation = string | {
+    run: string;
+    with?: Record<string, unknown>;
+};
+export interface ResolvedComponentAction {
+    /** Canonical runtime action id. */
+    id: string;
+    label: string;
+    enabled: boolean;
+    disabledReason?: string;
+    running: boolean;
+    active: boolean;
+    requiresInteraction: boolean;
+    /** Latest bounded invocation outcome for one control that invoked this action. */
+    invocation?: ActionInvocationState;
+    /** Authoritative supervised-process snapshot when this action controls a process. */
+    process?: ProcessSnapshot;
+}
+export interface ActionInvocationState {
+    status: "running" | "completed" | "failed";
+    outcome?: "started" | "completed" | "prepared";
+    startedAt: string;
+    finishedAt?: string;
+    message?: string;
+}
+export interface ComponentEnvironmentSnapshot {
+    values: Array<{
+        key: "DASH_BORED_AGENT";
+        value: string;
+        source: "app" | "process" | "bundle" | "component" | "unset";
+    }>;
+    error?: string;
+}
+export interface TerminalSurfaceProps {
+    process?: ProcessSnapshot;
+    onWrite?: (input: string) => Promise<ProcessSnapshot>;
+    onResize?: (cols: number, rows: number) => Promise<ProcessSnapshot>;
+    scrollToLatest?: number;
+    label?: string;
+}
+export interface LocalComponentHost {
+    /** Read-only, allowlisted configuration values and their winning source. */
+    environment?: ComponentEnvironmentSnapshot;
+    dashboard: {
+        reload(): Promise<void>;
+        /** Replaces this component's props in the owning dashboard draft. */
+        updateProps(props: Record<string, unknown>): Promise<void>;
+        /** Starts the app-owned starter setup agent for this component. */
+        setupWithAgent?(): Promise<ComponentAgentLaunch>;
+    };
+    actions: {
+        register(action: ComponentAction): () => void;
+        resolve(reference: string, invocationKey?: string): ResolvedComponentAction;
+        invoke(reference: string, args?: Record<string, unknown>, callerNodeId?: string, invocationKey?: string): void;
+    };
+    filesystem?: {
+        readText(path: string): Promise<string>;
+        writeText?(path: string, content: string): Promise<void>;
+    };
+    http?: {
+        request(request: Omit<HttpRequest, "nodeId">): Promise<HttpResponsePayload>;
+    };
+    shell?: {
+        run(request: Omit<ShellRunRequest, "nodeId">): Promise<ShellRunResult>;
+    };
+    processes?: {
+        /** Allows a host-owned process surface to attach to an existing process without rerunning it. */
+        attachOnly?: boolean;
+        get(nodeId?: string): ProcessSnapshot | undefined;
+        /**
+         * Runs the configured command once. In an open interactive terminal the
+         * run replaces the idle resting shell; item values reach only this run.
+         */
+        start?(itemEnvironment?: Record<string, string>): Promise<ProcessSnapshot>;
+        /** Starts the shell without running its configured quick action. */
+        open?(): Promise<ProcessSnapshot>;
+        /** Runs the configured quick action without item values. */
+        runQuickAction?(): Promise<ProcessSnapshot>;
+        write?(input: string): Promise<ProcessSnapshot>;
+        resize?(cols: number, rows: number): Promise<ProcessSnapshot>;
+        stop?(): Promise<ProcessSnapshot>;
+    };
+    webview?: {
+        render(request: {
+            url: string;
+            title?: string;
+        }): ReactNode;
+    };
+}
+/** An external-component pin change run by the app for the active dashboard. */
+export type ExternalComponentOperation = {
+    op: "add";
+    url: string;
+    name?: string;
+    ref?: string;
+} | {
+    op: "update";
+    name: string;
+    ref?: string;
+} | {
+    op: "remove";
+    name: string;
+} | {
+    op: "sync";
+} | {
+    op: "restore";
+} | {
+    op: "migrate-ownership";
+};
+/** A theme-package change run by the app, personally or for one dashboard. */
+export interface ThemePackageOperation {
+    op: "add" | "update" | "remove" | "sync" | "status";
+    scope: "global" | "project";
+    configPath?: string;
+    url?: string;
+    name?: string;
+    ref?: string;
+}
+export interface PackageOperationResult {
+    message: string;
+    details?: unknown;
+}

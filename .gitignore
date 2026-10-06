@@ -3,6 +3,7 @@
 .dash-bored/.env
 .cottontail-tmp/
 node_modules/
+.dash-bored-sdk/
 dist/
 build/
 artifacts/

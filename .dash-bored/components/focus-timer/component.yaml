@@ -1,4 +1,5 @@
-schemaVersion: 2
+schemaVersion: 3
+apiVersion: 1.0.0
 id: focus-timer
 name: Focus timer
 description: Example local focus and break timer with explicit session controls.

@@ -16,6 +16,7 @@ import type {
 } from "../shared/contracts";
 import { childEdges } from "../shared/child-edges";
 import { compileLocalComponents } from "./compiler";
+import { checkComponentTypes } from "./component-authoring";
 import { diagnostic, errorMessage, hasErrors } from "./diagnostics";
 import {
   assertProjectLocationContained,
@@ -51,6 +52,8 @@ export interface ProjectDefinition {
 
 export interface InspectProjectOptions {
   compile?: boolean;
+  /** Semantic checks are explicit; native watcher reloads keep the fast bundle path. */
+  typecheck?: boolean;
   /** Namespace a draft as the concrete config-link occurrence that will render it. */
   namespacePrefix?: string;
 }
@@ -140,6 +143,9 @@ async function buildProjectDefinition(
       visitConfigLinks(resolvedTree.tree);
     }
 
+    if (options.typecheck === true && tree !== null) {
+      for (const definition of localComponents) diagnostics.push(...checkComponentTypes(definition));
+    }
     if (options.compile === true && tree !== null) {
       const compiled = await compileLocalComponents(localComponents);
       diagnostics.push(...compiled.diagnostics);
@@ -287,5 +293,5 @@ export async function inspectProject(
 }
 
 export async function validateProject(input: string): Promise<InspectResult> {
-  return inspectProject(input, { compile: true });
+  return inspectProject(input, { compile: true, typecheck: true });
 }

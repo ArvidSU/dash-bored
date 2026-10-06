@@ -32,7 +32,7 @@ async function fixture() {
   await installCoreFixture((await resolveProjectLocation(root)).configDirectory);
   const location = await resolveProjectLocation(root);
   const config = parse(await readFile(location.configPath, "utf8"));
-  const node: ResolvedComponentNode = { id: "setup", component: "./components/external/core/setup-agent", props: {}, source: "external", sourceConfigPath: location.configPath, sourcePath: "root", manifest: { schemaVersion: 2, id: "./components/external/core/setup-agent", name: "Setup", description: "", entry: "builtin:setup-agent", propsSchema: {}, permissions: ["process:execute"] } };
+  const node: ResolvedComponentNode = { id: "setup", component: "./components/external/core/setup-agent", props: {}, source: "external", sourceConfigPath: location.configPath, sourcePath: "root", manifest: { schemaVersion: 3, apiVersion: "1.0.0", id: "./components/external/core/setup-agent", name: "Setup", description: "", entry: "builtin:setup-agent", propsSchema: {}, permissions: ["process:execute"] } };
   const definition = await loadProjectDefinition(location, { compile: true });
   return { location, node, config, permissions: definition.permissions };
 }
@@ -148,7 +148,7 @@ describe("DashboardSetupSupervisor", () => {
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
     const directory = `${location.configDirectory}/components/broken`;
     await mkdir(directory, { recursive: true });
-    await writeFile(`${directory}/component.yaml`, stringify({ schemaVersion: 2, id: "broken", name: "Broken", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } }));
+    await writeFile(`${directory}/component.yaml`, stringify({ schemaVersion: 3, apiVersion: "1.0.0", id: "broken", name: "Broken", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } }));
     await writeFile(`${directory}/index.tsx`, "export default (;");
     await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Compile check", root: { component: "./components/broken" } }));
     await h.launches[0].options.onFinished(h.launches[0].task);

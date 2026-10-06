@@ -4,7 +4,7 @@ import { coreFixtureRoot, coreManifests, coreReference } from "./core-package-fi
 import { compileLocalComponents } from "../src/core/compiler";
 const definitions = coreManifests.map((manifest) => {
   const name = manifest.id.slice(5); const directory = resolve(coreFixtureRoot, name);
-  return { manifest, directory, entryPath: resolve(directory, "index.tsx"), manifestPath: resolve(directory, "component.yaml"), reference: coreReference(name) };
+  return { manifest, directory, entryPath: resolve(directory, manifest.entry), manifestPath: resolve(directory, "component.yaml"), reference: coreReference(name) };
 });
 const result = await compileLocalComponents(definitions);
 if (result.diagnostics.length) throw new Error(JSON.stringify(result.diagnostics));

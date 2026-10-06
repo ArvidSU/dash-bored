@@ -1,0 +1,21 @@
+.sdk-example-timer {
+  --timer-color: var(--accent);
+  container-type: inline-size;
+  padding: clamp(18px, 4vw, 36px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--timer-color) 9%, transparent), transparent 70%);
+  text-align: center;
+}
+.sdk-example-timer[data-phase="break"] { --timer-color: var(--positive); }
+.sdk-example-timer h2 { margin: 18px 0 12px; font-size: clamp(20px, 3vw, 28px); overflow-wrap: anywhere; }
+.sdk-example-timer__eyebrow { color: var(--muted); font: 10px var(--font-mono); letter-spacing: .14em; }
+.sdk-example-timer__clock { color: var(--timer-color); font: clamp(32px, 22cqi, 72px) var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
+.sdk-example-timer__message { min-height: 1.5em; color: var(--muted); font-size: 12px; }
+.sdk-example-timer__controls { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.sdk-example-timer__controls button { padding: 10px 20px; border: 1px solid var(--timer-color); border-radius: var(--radius-sm); background: var(--timer-color); color: var(--bg); font: inherit; cursor: pointer; }
+.sdk-example-timer__controls .sdk-example-timer__reset { border-color: var(--border); background: transparent; color: var(--text); }
+.sdk-example-timer__controls button:disabled { opacity: .45; cursor: default; }
+.sdk-example-timer__controls button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.sdk-example-timer footer { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; }

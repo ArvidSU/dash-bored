@@ -5,41 +5,17 @@ import type { CompiledLocalComponent, Diagnostic } from "../shared/contracts";
 import { diagnostic, errorMessage } from "./diagnostics";
 import { isPathContained } from "./paths";
 import type { LocalComponentDefinition } from "./tree-catalog";
+import { COMPONENT_REACT_EXPORTS, REACT_RUNTIME_EXPORTS } from "../shared/component-api";
 
 const RUNTIME_GLOBAL = "__DASH_BORED_COMPONENT_RUNTIME__";
-const ALLOWED_SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".css"]);
+const ALLOWED_SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".css"]);
 
 const reactRuntimeSource = `
 const runtime = globalThis.${RUNTIME_GLOBAL};
 if (!runtime) throw new Error("dash-bored component runtime is not installed");
 const React = runtime.React;
 export default React;
-export const createElement = runtime.createElement ?? React.createElement;
-export const Fragment = runtime.Fragment ?? React.Fragment;
-export const Children = React.Children;
-export const cloneElement = React.cloneElement;
-export const createContext = React.createContext;
-export const createRef = React.createRef;
-export const forwardRef = React.forwardRef;
-export const isValidElement = React.isValidElement;
-export const lazy = React.lazy;
-export const memo = React.memo;
-export const startTransition = React.startTransition;
-export const useCallback = React.useCallback;
-export const useContext = React.useContext;
-export const useDebugValue = React.useDebugValue;
-export const useDeferredValue = React.useDeferredValue;
-export const useEffect = React.useEffect;
-export const useId = React.useId;
-export const useImperativeHandle = React.useImperativeHandle;
-export const useInsertionEffect = React.useInsertionEffect;
-export const useLayoutEffect = React.useLayoutEffect;
-export const useMemo = React.useMemo;
-export const useReducer = React.useReducer;
-export const useRef = React.useRef;
-export const useState = React.useState;
-export const useSyncExternalStore = React.useSyncExternalStore;
-export const useTransition = React.useTransition;
+${REACT_RUNTIME_EXPORTS.map((name) => `export const ${name} = React.${name};`).join("\n")}
 `;
 
 const jsxRuntimeSource = `
@@ -48,7 +24,13 @@ if (!runtime) throw new Error("dash-bored component runtime is not installed");
 export const Fragment = runtime.Fragment ?? runtime.React.Fragment;
 export const jsx = runtime.jsx;
 export const jsxs = runtime.jsxs;
-export const jsxDEV = runtime.jsxDEV ?? runtime.jsx;
+`;
+
+const jsxDevRuntimeSource = `
+const runtime = globalThis.${RUNTIME_GLOBAL};
+if (!runtime) throw new Error("dash-bored component runtime is not installed");
+export const Fragment = runtime.Fragment ?? runtime.React.Fragment;
+export const jsxDEV = runtime.jsxDEV;
 `;
 
 const componentSdkSource = `
@@ -59,24 +41,8 @@ export const useTheme = runtime.useTheme;
 export const useComponentVisibility = runtime.useComponentVisibility;
 export const trackActivity = runtime.trackActivity;
 export const TerminalSurface = runtime.TerminalSurface;
-export const defineComponent = runtime.defineComponent ?? ((component) => component);
-export const createElement = runtime.createElement ?? React.createElement;
-export const Fragment = runtime.Fragment ?? React.Fragment;
-export const useCallback = React.useCallback;
-export const useContext = React.useContext;
-export const useDebugValue = React.useDebugValue;
-export const useDeferredValue = React.useDeferredValue;
-export const useEffect = React.useEffect;
-export const useId = React.useId;
-export const useImperativeHandle = React.useImperativeHandle;
-export const useInsertionEffect = React.useInsertionEffect;
-export const useLayoutEffect = React.useLayoutEffect;
-export const useMemo = React.useMemo;
-export const useReducer = React.useReducer;
-export const useRef = React.useRef;
-export const useState = React.useState;
-export const useSyncExternalStore = React.useSyncExternalStore;
-export const useTransition = React.useTransition;
+export const defineComponent = runtime.defineComponent;
+${COMPONENT_REACT_EXPORTS.map((name) => `export const ${name} = React.${name};`).join("\n")}
 `;
 
 function runtimePlugin(definition: LocalComponentDefinition): Bun.BunPlugin {
@@ -98,7 +64,9 @@ function runtimePlugin(definition: LocalComponentDefinition): Bun.BunPlugin {
             ? reactRuntimeSource
             : args.path === "component-sdk"
               ? componentSdkSource
-              : jsxRuntimeSource,
+              : args.path === "react/jsx-dev-runtime"
+                ? jsxDevRuntimeSource
+                : jsxRuntimeSource,
         loader: "js",
       }));
 

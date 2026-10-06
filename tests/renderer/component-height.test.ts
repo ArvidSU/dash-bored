@@ -20,7 +20,7 @@ function node(
     props: {},
     source: "external",
     manifest: {
-      schemaVersion: 2,
+      schemaVersion: 3, apiVersion: "1.0.0",
       id,
       name: id,
       description: id,

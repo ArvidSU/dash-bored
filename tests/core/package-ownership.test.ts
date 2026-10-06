@@ -16,7 +16,7 @@ async function fixture(parentGit = false) {
  const root = await temporaryDirectory(); cleanup.push(root);
  const source = join(root,"source"); await mkdir(source);
  git(source,"init","-q"); git(source,"config","user.name","Test"); git(source,"config","user.email","test@example.com"); git(source,"config","commit.gpgsign","false");
- await writeFile(join(source,"component.yaml"),stringify({schemaVersion:2,id:"fixture",name:"Fixture",description:"Fixture",entry:"./index.tsx",propsSchema:{type:"object"}}));
+ await writeFile(join(source,"component.yaml"),stringify({schemaVersion:3, apiVersion: "1.0.0",id:"fixture",name:"Fixture",description:"Fixture",entry:"./index.tsx",propsSchema:{type:"object"}}));
  await writeFile(join(source,"index.tsx"),"export default () => null;\n"); git(source,"add","."); git(source,"commit","-qm","fixture");
  const project = join(root,"project"); await createProject(project,{schemaVersion:4,name:"Packages",root:{component:"./components/external/fixture"}});
  if(parentGit) {git(project,"init","-q");git(project,"config","user.name","Test");git(project,"config","user.email","test@example.com");git(project,"config","commit.gpgsign","false");git(project,"add",".");git(project,"commit","-qm","initial");}

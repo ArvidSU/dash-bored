@@ -16,7 +16,7 @@ function manifest(
   children?: ComponentManifest["children"],
 ): ComponentManifest {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3, apiVersion: "1.0.0",
     id: "container",
     name: "Container",
     description: "Generic test container",

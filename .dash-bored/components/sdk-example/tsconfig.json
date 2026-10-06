@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "types": [],
+    "paths": {
+      "@dash-bored/react-types": [
+        "./.dash-bored-sdk/vendor/@types/react/index.d.ts"
+      ],
+      "@dash-bored/component-types": [
+        "./.dash-bored-sdk/index.d.ts"
+      ],
+      "@dash-bored/react-facade": [
+        "./.dash-bored-sdk/react.d.ts"
+      ],
+      "@dash-bored/react-jsx-types": [
+        "./.dash-bored-sdk/vendor/@types/react/jsx-runtime.d.ts"
+      ],
+      "@dash-bored/react-jsx-dev-types": [
+        "./.dash-bored-sdk/vendor/@types/react/jsx-dev-runtime.d.ts"
+      ],
+      "@dash-bored/css-types": [
+        "./.dash-bored-sdk/vendor/csstype/index.d.ts"
+      ],
+      "@dash-bored/prop-types": [
+        "./.dash-bored-sdk/vendor/@types/prop-types/index.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ],
+  "files": [
+    "./.dash-bored-sdk/css.d.ts",
+    "./.dash-bored-sdk/modules.d.ts"
+  ]
+}

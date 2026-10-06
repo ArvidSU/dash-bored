@@ -747,15 +747,43 @@ root:
                 first:
                   axis: vertical
                   first:
-                    node:
-                      id: development-intro
-                      component: "./components/external/core/markdown"
-                      props:
-                        content: |
-                          **Development loop.** Each checkout owns an isolated, automatically trusted dev app.
-                          Agents may start, restart, and stop it freely. Prefer the `:fast` checks while its watcher runs. For UI
-                          changes, start **UI fixture** and inspect it below at normal and narrow widths before the
-                          native desktop check.
+                    axis: vertical
+                    first:
+                      node:
+                        id: development-intro
+                        component: ./components/external/core/markdown
+                        props:
+                          content: |
+                            **Development loop.** Each checkout owns an isolated, automatically trusted dev app.
+                            Agents may start, restart, and stop it freely. Prefer the `:fast` checks while its watcher runs. For UI
+                            changes, start **UI fixture** and inspect it below at normal and narrow widths before the
+                            native desktop check.
+                    second:
+                      node:
+                        id: component-authoring
+                        component: ./components/external/core/group
+                        props:
+                          title: Component authoring
+                          description: API 1.0.0 starter in the real dashboard host. No permissions needed for the timer.
+                        children:
+                          axis: horizontal
+                          ratio: 0.4
+                          first:
+                            node:
+                              id: sdk-example
+                              component: ./components/sdk-example
+                              props:
+                                title: One thing at a time
+                                focusMinutes: 25
+                                breakMinutes: 5
+                          second:
+                            node:
+                              id: sdk-check
+                              component: ./components/external/core/command
+                              props:
+                                label: Check SDK example
+                                command: '"$DASH_BORED_TOOL" component check .dash-bored/components/sdk-example --json'
+                                cwd: .
                   second:
                     axis: vertical
                     first:

@@ -21,7 +21,8 @@ props:
 for stateful or actionable nodes. `props` is validated against the component's
 JSON Schema. Tiled layouts use a direct `{ node, metadata? }` edge or a split
 branch; managed layouts use an array of those edges. Dashboard files use schema
-version 3; component manifests use schema version 2. Child entries may carry
+version 4; component manifests use schema version 3 and require a supported
+`apiVersion`. Child entries may carry
 `metadata` on the parent-child edge.
 
 ## Transparent child-surface grouping
@@ -90,6 +91,52 @@ Local component roots placed in a split should use fluid sizing: avoid fixed
 widths, set `min-width: 0`, and put overflow on an internal scrolling region
 when content cannot shrink.
 
+## Standalone component authoring
+
+Use this workflow in an external component repository, or when the user asks
+to build a component rather than a dashboard. Read repository instructions,
+the README, existing manifests and build scripts. Work on the component files;
+do not run dashboard `init` or add `.dash-bored/` just to obtain SDK types.
+Use the launcher from this skill's **Running the tool** section for every
+command below; `dash-bored` is shorthand, not a command installed on PATH.
+
+1. Run `dash-bored component api --json` offline. Select an exact supported API
+   target; its export list, capabilities, lifecycle guidance and SDK digest
+   describe the installed app. Use the SDK's types instead of copying
+   interfaces from the app's source or this reference.
+2. For a new component, run `component init <directory>` in an unused directory
+   and adapt its manifest, TSX and CSS to the requested behavior. For existing
+   components, run `component setup <directory> [--tsconfig <file>]`. In a
+   multi-component repository, target the repository's source tsconfig. Setup
+   preserves inherited settings and runtime resolution; it loads ambient SDK
+   modules through `files` and maps only private type aliases. Keep
+   `.dash-bored-sdk/` out of version control. Re-run setup after app updates.
+3. Import `defineComponent`, host/render types, hooks and theme support from
+   `@dash-bored/component`. Implement defaults in code, describe props and
+   permissions in the manifest, declare stable actions and clean up effects.
+   Pause future polling with `useComponentVisibility()` and wrap bounded
+   asynchronous work with `trackActivity()` so app screenshots wait for it.
+   Use CSS theme tokens or `useTheme()`, accessible controls, responsive layout,
+   and clear loading, empty, error and refresh states where applicable.
+4. Run `component check <directory> --json` until clean. A TypeScript entry is
+   checked semantically; a JavaScript entry needs a contained `.d.ts` file in
+   `types`. For publication, also use `--source-project <tsconfig>` to check
+   the original sources. Run the repository's tests and deterministic build;
+   its test host supplies virtual component APIs while installed React keeps
+   its ordinary runtime resolution. Bundle other dependencies before publishing,
+   leaving only the listed app-owned virtual modules external.
+5. Preview in an existing development dashboard when available. Place the
+   component below its owning bundle's `components/` directory and insert a
+   stable node ID, preserving other YAML. Validate that dashboard, check its
+   trust/diagnostics with `app status`, then use `app screenshot --focus <id>`
+   and read the image. Check light/dark themes, narrow panes, keyboard controls,
+   relevant states and declared actions. Restore changed focus and selections.
+   If no preview dashboard or app is available, report preview as unverified.
+6. At handoff, report the API target, SDK digest, passed/failed/skipped stages,
+   permissions, test/build results and preview evidence. A successful component
+   check does not prove dashboard references or visual behavior. Publish or
+   change external pins only within the user's requested scope.
+
 ## Local component layout
 
 Create local code inside the standalone bundle that owns the dashboard:
@@ -107,7 +154,8 @@ for an organizational container whose height must follow its descendants. A
 minimal manifest is:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
+apiVersion: 1.0.0
 id: service-health
 name: Service health
 description: Shows whether a project service responds.
@@ -130,6 +178,40 @@ children:
 permissions:
   - network:http
 ```
+
+Every manifest uses `schemaVersion: 3` and a required `apiVersion` supported
+by the running app. `dash-bored component api [--api-version <version>]`
+reports supported targets and an SDK digest for the exact shipped declarations.
+The app ships the offline SDK in `.dash-bored-sdk/`.
+`component init <directory>` scaffolds a component;
+`component setup <directory> [--tsconfig <file>]` installs the SDK beside the
+selected tsconfig and merges editor settings without replacing unrelated
+configuration. Public modules use ambient declarations; only private SDK type
+aliases use `paths`, so Bun tests and build scripts still resolve real React.
+
+`component check <directory> [--source-project <tsconfig>] [--json]` checks
+TS/TSX source entries semantically against the selected SDK and runs bundler
+validation. For JavaScript artifacts it checks the required `types` declaration
+against the component render interface, then bundles the shipped entry. Pass
+`--source-project` to check the original TS/TSX publication sources too. This
+keeps source, declaration-interface, and generated-runtime checks distinct.
+Published components include generated JavaScript and declarations. Runtime
+imports may use contained relative `.ts`, `.tsx`, `.js`, and `.css` files; a
+separate `node_modules` or React copy is not needed. Setup and checks do not
+install dependencies or execute the component.
+
+The public component API starts at 1.0.0 and follows SemVer: minor releases
+may add optional methods and types; deprecations include replacements and
+migration notes before removal in a major release. Optional host capabilities remain optional; a
+TypeScript fallback cannot grant a runtime capability, and the host checks
+each call at the boundary. Missing or unsupported `apiVersion` values fail
+before code execution with actionable diagnostics. Schema-v2 manifests require
+an explicit migration to schema v3. Never silently change an external
+component pin to work around a version mismatch.
+
+There is no separate component preview command. Add the node to its dashboard,
+use the ordinary live reload, then inspect it in context with
+`dash-bored app screenshot --focus <node-id>`.
 
 Any component can declare a supervised process resource. `commandProp` is
 required; `cwdProp` and `envProp` are optional. Set `interactive: true` to
@@ -269,41 +351,11 @@ The complete [worked example](#worked-example-poll-git-status) below includes
 manifest, TSX, CSS, and dashboard YAML, including cleanup and failure handling.
 
 The callback receives typed `props`, a generic child surface (handles,
-read-only descriptors, and render/visibility projection), and `host`:
+read-only descriptors, and render/visibility projection), and `host`. Import
+its exact signatures from the installed SDK:
 
 ```ts
-interface LocalComponentHost {
-  // Read-only public configuration; arbitrary environment values are not exposed.
-  environment?: {
-    values: Array<{ key: "DASH_BORED_AGENT"; value: string; source: "app" | "process" | "bundle" | "component" | "unset" }>;
-    error?: string;
-  };
-  dashboard: {
-    reload(): Promise<void>;
-    updateProps(props: Record<string, unknown>): Promise<void>;
-    // Requires trust and process:execute; starts a tracked setup request.
-    setupWithAgent?(): Promise<{ taskId: string; command: string; componentPath: string; pid: number | null }>;
-  };
-  actions: { register(action: ComponentAction): () => void };
-  filesystem?: {
-    readText(path: string): Promise<string>;
-    writeText?(path: string, content: string): Promise<void>;
-  };
-  http?: { request(request: Omit<HttpRequest, "nodeId">): Promise<HttpResponsePayload> };
-  shell?: { run(request: Omit<ShellRunRequest, "nodeId">): Promise<ShellRunResult> };
-  processes?: {
-    get(nodeId?: string): ProcessSnapshot | undefined;
-    start?(): Promise<ProcessSnapshot>;
-    open?(): Promise<ProcessSnapshot>;
-    runQuickAction?(): Promise<ProcessSnapshot>;
-    write?(input: string): Promise<ProcessSnapshot>;
-    resize?(cols: number, rows: number): Promise<ProcessSnapshot>;
-    stop?(): Promise<ProcessSnapshot>;
-  };
-  webview?: {
-    render(request: { url: string; title?: string }): ReactNode;
-  };
-}
+import type { LocalComponentHost, LocalComponentRenderProps } from "@dash-bored/component";
 ```
 
 The callback always receives exactly `LocalComponentRenderProps`: `props`,
@@ -317,22 +369,34 @@ with a letter and contain only letters, digits, underscores, or hyphens.
 An action may also declare ordered `choices`; each has an ID, label, and static
 options or an options resolver that receives earlier selections. Its `run`
 callback receives the completed selection map only after the user finishes the
-palette flow.
+palette flow, followed by invocation arguments and caller identity when supplied.
+`host.actions.resolve(reference, invocationKey?)` exposes availability, process
+and invocation state. `host.actions.invoke(reference, args?, callerNodeId?,
+invocationKey?)` returns void; use matching invocation keys and `resolve` to
+observe completion or failure. `host.processes.start(itemEnvironment?)` accepts
+per-run item values for a manifest-declared supervised process resource.
 
-Local components may import contained relative `.ts`, `.tsx`, and `.css`
+Local components may import contained relative `.ts`, `.tsx`, `.js`, and `.css`
 files, `@dash-bored/component`, `react`, `react/jsx-runtime`, and
 `react/jsx-dev-runtime`. These shared runtime modules do not require a local
 `node_modules` directory. Other bare package imports, Node or Electrobun APIs,
 absolute imports, paths outside the component directory (including escaping
 symlinks), and CSS asset URLs are unsupported. Do not import types from an
 application source path; the interfaces here describe the contract, not extra
-runtime exports.
+runtime exports. Read `.dash-bored-sdk/index.d.ts` and its referenced declarations
+for types; private type aliases are not supported runtime imports.
 
-`@dash-bored/component` exports `defineComponent`, `createElement`, `Fragment`,
-`useCallback`, `useContext`, `useDebugValue`, `useDeferredValue`, `useEffect`,
-`useId`, `useImperativeHandle`, `useInsertionEffect`, `useLayoutEffect`,
-`useMemo`, `useReducer`, `useRef`, `useState`, `useSyncExternalStore`, and
-`useTransition`. Use the shared React runtime instead of bundling another copy.
+<!-- component-sdk-runtime-exports:start -->
+`@dash-bored/component` runtime exports: `defineComponent`, `useTheme`, `useComponentVisibility`, `trackActivity`, `TerminalSurface`, `createElement`, `Fragment`, `useCallback`, `useContext`, `useDebugValue`, `useDeferredValue`, `useEffect`, `useId`, `useImperativeHandle`, `useInsertionEffect`, `useLayoutEffect`, `useMemo`, `useReducer`, `useRef`, `useState`, `useSyncExternalStore`, `useTransition`.
+<!-- component-sdk-runtime-exports:end -->
+
+`useTheme()` reflects the active theme, appearance and tokens.
+`useComponentVisibility()` is false for hidden mounted panels: pause future
+polling without losing local state. `trackActivity(promise)` returns the same
+promise and counts its bounded work in app idle detection; clean up any timers
+separately. `TerminalSurface` uses the app's xterm/theme lifecycle with a
+supervised process snapshot and bound write/resize callbacks. Use the shared
+React runtime instead of bundling another copy.
 
 ## Validation loop
 
@@ -340,7 +404,10 @@ runtime exports.
    source script where needed, if it already fits.
 2. When nothing fits the project need, add a small local manifest and implementation.
 3. Add the local component node to the owning `dash-bored.yaml`.
-4. Run `dash-bored validate . --json`; this validates and compiles local code.
+4. Run `dash-bored component check <directory>`, then
+   `dash-bored validate . --json`; the first semantically checks local source
+   and declarations; dashboard validation additionally checks tree references,
+   instance props and the runtime bundle.
 5. Run `dash-bored inspect . --summary` again. Confirm the catalog entry is
    available, its permissions are expected, and the resolved tree uses it.
 6. When the app is running and trusted, run
@@ -533,7 +600,8 @@ owning named bundle's `components/git-summary/`). No npm install is needed.
 `component.yaml`:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
+apiVersion: 1.0.0
 id: git-summary
 name: Git summary
 description: Polls a read-only Git status command and offers manual refresh.
@@ -560,7 +628,7 @@ permissions:
 `index.tsx`:
 
 ```tsx
-import { defineComponent, useEffect, useRef, useState } from "@dash-bored/component";
+import { defineComponent, trackActivity, useComponentVisibility, useEffect, useRef, useState } from "@dash-bored/component";
 import "./styles.css";
 
 interface Props { pollIntervalMs?: number }
@@ -570,6 +638,7 @@ export default defineComponent<Props>(({ props, host }) => {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [polling, setPolling] = useState(true);
+  const visible = useComponentVisibility();
   const refreshRef = useRef<() => Promise<void>>(async () => {});
   const interval = props.pollIntervalMs ?? 10000;
 
@@ -588,10 +657,10 @@ export default defineComponent<Props>(({ props, host }) => {
       inFlight = true;
       setBusy(true);
       try {
-        const result = await shell.run({
+        const result = await trackActivity(shell.run({
           command: "git status --short",
           timeoutMs: 5000,
-        });
+        }));
         if (!active) return;
         if (result.timedOut) throw new Error("Git status timed out.");
         if (result.signal) throw new Error(`Git status stopped: ${result.signal}`);
@@ -619,16 +688,16 @@ export default defineComponent<Props>(({ props, host }) => {
     });
     const poll = async () => {
       await refresh();
-      if (active && polling) timer = setTimeout(poll, interval);
+      if (active && polling && visible) timer = setTimeout(poll, interval);
     };
-    if (polling) void poll();
+    if (polling && visible) void poll();
     return () => {
       active = false;
       clearTimeout(timer);
       refreshRef.current = async () => {};
       unregister();
     };
-  }, [host.shell, host.actions, interval, polling]);
+  }, [host.shell, host.actions, interval, polling, visible]);
 
   return (
     <section className="git-summary" aria-label="Git summary">
@@ -701,9 +770,10 @@ root:
     pollIntervalMs: 10000
 ```
 
-Run `dash-bored validate .` and `dash-bored inspect .` from the project root.
-Validation checks manifests, props, tree references, and TSX/CSS compilation;
-it does not execute the component or fully type-check TSX. Confirm the
+Run `dash-bored component check <directory>`, then `dash-bored validate .` and
+`dash-bored inspect .` from the project root. The semantic check covers
+TypeScript/TSX and declarations; dashboard validation checks manifests, props,
+tree references, and runtime bundling but does not execute the component. Confirm the
 `git-summary` catalog entry is available with only `process:execute` and its
 node has the stable ID above. Reload the dashboard, then verify clean and
 dirty repository output, manual/palette Refresh, Pause/Resume, failure text,

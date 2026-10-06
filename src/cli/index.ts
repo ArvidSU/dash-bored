@@ -37,6 +37,10 @@ Usage:
   dash-bored inspect [project] [--summary | --component <reference>]
   dash-bored app <status|actions|run|open|screenshot> [--instance <identifier>]
   dash-bored theme <init|validate|list|status|add|update|remove|sync> [--global]
+  dash-bored component api [--api-version <version>] [--json]
+  dash-bored component init <directory>
+  dash-bored component setup <directory> [--tsconfig <file>]
+  dash-bored component check <directory> [--source-project <file>] [--json]
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
   dash-bored component status [<name>] [project]
@@ -155,7 +159,7 @@ function parseCommandArguments(
 }
 
 async function inspect(path: string, compile: boolean): Promise<InspectResult> {
-  return inspectProject(path, { compile });
+  return inspectProject(path, { compile, typecheck: compile });
 }
 
 /**

@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+await import("./generate-component-sdk");
 
 const outputDirectory = resolve(import.meta.dirname, "../dist/tools");
 const outputPath = resolve(
