@@ -1,4 +1,5 @@
 import { BUNDLED_MIGRATIONS, parseReleaseMetadata } from "../src/updates/releases";
+import { verifyCorePackagePublished } from "./verify-core-package";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
@@ -186,6 +187,7 @@ async function prepare(): Promise<void> {
 
   const tag = requestedTag(process.argv.slice(2));
   assertReleaseTag(tag);
+  await verifyCorePackagePublished();
 
   const sourceDmg = join(artifactDirectory, sourceDmgName);
   const updateArchive = join(artifactDirectory, updateArchiveName);

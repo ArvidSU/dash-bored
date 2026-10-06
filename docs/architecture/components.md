@@ -358,6 +358,13 @@ including linked bundles. Existing checkouts stay untouched; revision mismatches
 produce a diagnostic directing explicit Sync. Inspect, validate and watcher
 reloads never download. Failed stages are removed while YAML and pins survive;
 app-owned recovery offers Retry and Sync before any component execution.
+The release-owned default core pin must be fetchable from its public repository
+before distribution. `scripts/verify-core-package.ts` fetches the exact commit
+into a fresh checkout, ignoring developer Git URL rewrites and object stores,
+then checks every published component against the bundled API and compiler.
+Release tool builds and release preparation enforce this gate; development
+builds may author unpublished pins. Local fixture QA alone is not publication
+evidence.
 `component migrate-ownership` explicitly converts parent-owned packages after
 preflighting their gitlinks, `.gitmodules` and checkout edits. It prepares the
 replacement before changing parent registrations and preserves pins and paths.

@@ -57,6 +57,12 @@ bun run packages:restore
 bun run setup
 ```
 
+When changing the default core-component pin, publish the component commit
+before other checkouts or new projects use it. Run
+`bun run packages:verify-published` to check a fresh download and the component
+API contracts. Release builds and release preparation require this check;
+development builds may use local commits while authoring components.
+
 For a new Git worktree, use the one-step setup instead:
 
 ```sh

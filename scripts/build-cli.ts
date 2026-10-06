@@ -1,6 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 await import("./generate-component-sdk");
+if (process.env.DASH_BORED_RELEASE === "1") {
+  await (await import("./verify-core-package")).verifyCorePackagePublished();
+}
 
 const outputDirectory = resolve(import.meta.dirname, "../dist/tools");
 const outputPath = resolve(
