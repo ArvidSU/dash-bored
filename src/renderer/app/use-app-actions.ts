@@ -57,7 +57,7 @@ export function useAppActions({
     activeView,
     sidebarExpanded: settings.sidebarExpanded,
     pendingAction: notices.pending,
-    editing: draft.editingActiveProject,
+    editing: draft.blocksNavigation,
     draftDirty: draft.dirty,
     draftValid: draft.valid,
     savingDraft: draft.saving,
@@ -65,6 +65,7 @@ export function useAppActions({
     themeCatalog,
     callbacks: {
       reloadApp: () => window.location.reload(),
+      focusWindow: () => host.focusWindow(),
       showDashboard,
       showSettings: () => setActiveView("settings"),
       toggleSidebar: () => settings.setSidebarExpanded((expanded) => !expanded),
@@ -95,8 +96,9 @@ export function useAppActions({
   const nodeFocusActions = buildNodeFocusActions(
     snapshot,
     viewState.virtualRoot?.target.id ?? null,
-    draft.editingActiveProject,
+    draft.blocksNavigation,
     (nodeId) => {
+      if (draft.session) draft.end();
       showDashboard();
       viewState.focusComponent(nodeId);
     },

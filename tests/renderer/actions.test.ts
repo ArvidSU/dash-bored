@@ -570,6 +570,7 @@ describe("application action providers", () => {
 
   const callbacks = {
     reloadApp: () => undefined,
+    focusWindow: () => undefined,
     showDashboard: () => undefined,
     showSettings: () => undefined,
     toggleSidebar: () => undefined,
@@ -629,6 +630,21 @@ describe("application action providers", () => {
     });
     reload?.run();
     expect(reloaded).toBeTrue();
+  });
+
+  test("window attention remains available without a dashboard and during unsaved or pending work", async () => {
+    let focused = 0;
+    const actions = buildApplicationActions({
+      snapshot: null, projects: [], activeView: "settings", sidebarExpanded: false,
+      pendingAction: "save", editing: true, draftDirty: true, draftValid: false,
+      savingDraft: true,
+      callbacks: { ...callbacks, focusWindow: async () => { focused += 1; } },
+    });
+    const focus = actions.find((item) => item.id === "app:focus-window");
+    expect(focus).toMatchObject({ label: "Bring app to front", enabled: true, group: "Application" });
+    expect(focus?.confirmation).toBeUndefined();
+    await focus?.run();
+    expect(focused).toBe(1);
   });
 
   test("offers app and dashboard theme actions as two-choice flows", async () => {

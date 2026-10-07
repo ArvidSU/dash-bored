@@ -70,7 +70,9 @@ socket at `~/.config/dash-bored/run/<identifier>.sock`, advertised by
 `/v1/screenshot` routes back the tool's `app` command. Actions are relayed to
 the renderer and run through the shared `ActionStore`; trust, edit-mode,
 add-dashboard, and confirmation-requiring actions are refused, and `/v1/open`
-is refused while a draft is open. Screenshots capture the app window with
+is refused while there are unsaved dashboard changes or a save in progress.
+Clean edit sessions are released on host reloads and dashboard switches.
+Screenshots capture the app window with
 `screencapture` (optionally cropped to a node's bounds in process) and require Screen Recording permission. See
 [Security](./security.md).
 
@@ -159,6 +161,13 @@ out so they remain interactive. The sidebar reserves the small top area so its
 brand mark does not collide with the controls. The main process clamps resizes
 below 350px, and the renderer keeps the header single-row at that minimum by
 shrinking and ellipsizing content instead of wrapping actions.
+
+The application action `app:focus-window` calls the typed `focusWindow` host RPC.
+Main restores the window if minimized and uses Electrobun's activating `show()`
+to reveal it, make it key, and bring the app to the foreground. It changes native
+window ordering only; dashboard focus, selected panels, trust, and drafts remain
+intact. The action is available without a loaded dashboard and during pending
+work or a draft save, so an agent can surface a completion or blocker.
 
 The main process publishes a complete `ProjectSnapshot` at startup and after
 each accepted change. It also publishes individual process snapshots while a

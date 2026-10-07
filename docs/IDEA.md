@@ -156,7 +156,10 @@ Direct manipulation complements that primary workflow. The desktop app offers
 a right-hand component-library flyout for arranging existing components,
 filling their declared props, and adding or removing branches. Opening the
 flyout is read-only; the first insertion, move, removal, replacement, metadata
-edit, or horizontal ratio resize implicitly starts a draft. Save/Cancel remains the
+edit, or horizontal ratio resize implicitly starts a draft. Only actual unsaved
+changes show Save/Cancel or block agent edits and navigation; inspecting settings,
+cancelling an insertion, or reverting every change requires no exit from editing.
+Save/Cancel remains the
 boundary for publishing or discarding the same project-owned YAML tree, rather
 than a second layout model or a hidden application database.
 
@@ -176,7 +179,10 @@ and verify its work visually. Visual verification goes through a local,
 per-instance control channel of the running app: the agent reads app state,
 lists and invokes the same command-palette actions a user can (for example to
 open a dashboard or focus a component), and captures a screenshot of the app
-window. The channel never widens what a palette action may do: trust
+window. An explicit Bring app to front action lets an agent show and focus the
+window when it finishes work or needs the user's attention. Agents use it
+sparingly for meaningful completion or blockers, after making the relevant
+result visible. The channel never widens what a palette action may do: trust
 decisions and actions that require user confirmation stay with the user.
 
 Development builds are agent-owned proof environments. Each checkout can run

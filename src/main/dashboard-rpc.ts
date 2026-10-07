@@ -26,6 +26,7 @@ export interface DashboardRPCOptions {
   publishThemes(): Promise<void>;
   readAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
+  focusWindow(): void;
 }
 
 /**
@@ -46,6 +47,7 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
     handlers: {
       requests: {
         getSnapshot: () => installedTools.addTo(runtime.getSnapshot()),
+        focusWindow: () => options.focusWindow(),
         getThemes: () => options.loadThemes(),
         getUpdateState: () => updates.state(),
         updateAction: (action) => updates.action(action),

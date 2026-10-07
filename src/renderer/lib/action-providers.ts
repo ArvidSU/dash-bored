@@ -27,6 +27,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 
 export interface ApplicationActionCallbacks {
   reloadApp(): void;
+  focusWindow(): void | Promise<void>;
   showDashboard(): void;
   showSettings(): void;
   toggleSidebar(): void;
@@ -228,6 +229,14 @@ export function buildApplicationActions(
   const projectOpen = snapshot?.projectRoot !== null && snapshot?.projectRoot !== undefined;
   const pendingReason = blockedReason(pendingAction);
   const actions: PaletteAction[] = [
+    appAction({
+      id: "app:focus-window",
+      label: "Bring app to front",
+      description: "Show and focus the dash-bored window when work finishes or needs your attention.",
+      keywords: ["window", "focus", "foreground", "attention", "done", "blocked"],
+      group: "Application",
+      run: callbacks.focusWindow,
+    }),
     appAction({
       id: "agent:prompt",
       label: "Send prompt to agent",

@@ -232,7 +232,7 @@ export async function startAgentControlServer(
             throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "configPath must be a dashboard path.");
           }
           if ((await bridge.viewState()).editing) {
-            throw new CoreError("AGENT_CONTROL_DRAFT_OPEN", "The user is editing a dashboard draft. Ask them to save or cancel it first.");
+            throw new CoreError("AGENT_CONTROL_DRAFT_OPEN", "The user has unsaved dashboard changes or a save in progress. Ask them to save or cancel the changes, or wait for the save to finish.");
           }
           await bridge.openDashboard(body.configPath);
           const warning = await settled() ? {} : { warning: NOT_RENDERING };

@@ -9,6 +9,7 @@ import {
   patchDashboardAppearance,
   resolvedConfigLinkNodeId,
   resolvedNodeById,
+  sameDashboardConfig,
   sameDashboardTopology,
   type DashboardEditSession,
 } from "./app-utils";
@@ -30,7 +31,7 @@ export interface DashboardDraftOptions {
 }
 
 function isDirty(session: DashboardEditSession | null): boolean {
-  return Boolean(session && JSON.stringify(session.original) !== JSON.stringify(session.draft));
+  return Boolean(session && !sameDashboardConfig(session.original, session.draft));
 }
 
 /**
@@ -50,12 +51,27 @@ export function useDashboardDraft({
 }: DashboardDraftOptions) {
   const [editSession, setEditSession] = useState<DashboardEditSession | null>(null);
   const [saving, setSaving] = useState(false);
+  const dirty = isDirty(editSession);
   const sessionGeneration = useRef(0);
+  const sessionSnapshotRef = useRef<ProjectSnapshot | null>(null);
   // Stable prop updates (builtins hold the callback) read the newest session,
   // including one written by the previous call before it rendered.
   const sessionRef = useLatestRef(editSession);
   const savingRef = useLatestRef(saving);
   const focusedSourceRef = useLatestRef({ path: focusedSourcePath, nodeId: focusedSourceNodeId });
+
+  // A read-only edit session must not pin an old preview after an agent reloads
+  // the YAML or opens another dashboard. Dirty drafts retain their revision
+  // so the normal conflict check still protects unsaved work.
+  useEffect(() => {
+    const current = sessionRef.current;
+    const originalSnapshot = sessionSnapshotRef.current;
+    if (current && !isDirty(current) && !savingRef.current && (
+      originalSnapshot?.projectRoot !== snapshot?.projectRoot
+      || originalSnapshot?.configPath !== snapshot?.configPath
+      || originalSnapshot?.revision !== snapshot?.revision
+    )) end();
+  }, [snapshot?.projectRoot, snapshot?.configPath, snapshot?.revision, dirty]);
 
   useEffect(() => {
     if (!editSession) return;
@@ -87,6 +103,8 @@ export function useDashboardDraft({
 
   function end(): void {
     sessionGeneration.current += 1;
+    sessionSnapshotRef.current = null;
+    sessionRef.current = null;
     setEditSession(null);
     onEnd();
   }
@@ -107,7 +125,7 @@ export function useDashboardDraft({
       notices.setError("Wait for the dashboard save to finish before leaving edit mode.");
       return false;
     }
-    if (!isDirty(editSession)) {
+    if (!isDirty(sessionRef.current)) {
       end();
       return true;
     }
@@ -118,18 +136,22 @@ export function useDashboardDraft({
   /** Opens a draft of the active (or requested) config, reusing a matching one. */
   async function ensureCurrent(requestedConfigPath?: string, preserveView = false): Promise<DashboardEditSession | null> {
     if (!snapshot?.projectRoot || !snapshot.configPath) return null;
-    if (editSession?.projectRoot === snapshot.projectRoot && (!requestedConfigPath || requestedConfigPath === editSession.configPath)) {
-      return editSession;
+    const configPath = requestedConfigPath ?? focusedSourcePath ?? snapshot.configPath;
+    const current = sessionRef.current;
+    if (current?.projectRoot === snapshot.projectRoot && configPath === current.configPath) {
+      return current;
     }
-    if (editSession) {
-      notices.setError("Finish the current dashboard draft before composing another dashboard.");
-      return null;
+    if (current) {
+      if (isDirty(current) || savingRef.current) {
+        notices.setError("Finish the current dashboard draft before composing another dashboard.");
+        return null;
+      }
+      end();
     }
     let loaded: DashboardEditSession | null = null;
     const generation = ++sessionGeneration.current;
     const expected = snapshot;
     await notices.perform(`edit:${snapshot.configPath}`, async () => {
-      const configPath = requestedConfigPath ?? focusedSourcePath;
       const sourceNodeId = configPath && configPath !== snapshot.configPath ? focusedSourceNodeId : undefined;
       const source = await host.getDashboardConfigSource(configPath);
       const validation = await host.validateDashboardDraft(source.config, source.configPath, sourceNodeId);
@@ -144,6 +166,7 @@ export function useDashboardDraft({
         ))
       ) return;
       loaded = createDashboardEditSession(snapshot.projectRoot!, source, validation, sourceNodeId);
+      sessionSnapshotRef.current = expected;
       sessionRef.current = loaded;
       if (!preserveView) showDashboard();
       setEditSession(loaded);
@@ -174,8 +197,12 @@ export function useDashboardDraft({
       path: focusedSourceRef.current.path,
       nodeId: focusedSourceRef.current.nodeId,
     };
-    const currentSession = sessionRef.current;
     const configPath = node.sourceConfigPath;
+    let currentSession = sessionRef.current;
+    if (currentSession && currentSession.configPath !== configPath && !isDirty(currentSession) && !savingRef.current) {
+      end();
+      currentSession = null;
+    }
     const currentTree = currentSession ? currentSession.validation.tree : currentSnapshot?.tree;
     const currentNode = currentTree ? resolvedNodeById(currentTree, node.id) : null;
     const path = currentNode && currentNode.sourceConfigPath === configPath
@@ -221,6 +248,7 @@ export function useDashboardDraft({
         || focusedSourceRef.current.nodeId !== expectedFocus.nodeId
       ) return;
       session = createDashboardEditSession(currentSnapshot.projectRoot, source, validation, sourceNodeId);
+      sessionSnapshotRef.current = expected;
       sessionRef.current = session;
       showDashboard();
       setEditSession(session);
@@ -232,7 +260,7 @@ export function useDashboardDraft({
 
   async function save(): Promise<boolean> {
     const current = sessionRef.current;
-    if (!current || JSON.stringify(current.draft) !== current.validatedDraft || savingRef.current) return false;
+    if (!current || !isDirty(current) || JSON.stringify(current.draft) !== current.validatedDraft || savingRef.current) return false;
     savingRef.current = true;
     setSaving(true);
     notices.setError(null);
@@ -278,7 +306,8 @@ export function useDashboardDraft({
   return {
     session: editSession,
     saving,
-    dirty: isDirty(editSession),
+    dirty,
+    blocksNavigation: dirty || saving,
     valid: Boolean(editSession && !resolving && editSession.validation.diagnostics.every((item) => item.severity !== "error")),
     resolving,
     editingActiveProject,

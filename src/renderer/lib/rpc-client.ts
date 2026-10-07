@@ -75,6 +75,7 @@ export interface DashboardHost {
   deleteProject(project: ProjectListItem, removeFiles: boolean): Promise<void>;
   setTrust(trusted: boolean): Promise<void>;
   reloadProject(): Promise<void>;
+  focusWindow(): Promise<void>;
   getDashboardConfigSource(configPath?: string): Promise<DashboardConfigSource>;
   validateDashboardDraft(config: DashboardConfig, configPath?: string, sourceNodeId?: string): Promise<DashboardDraftValidation>;
   validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
@@ -215,6 +216,7 @@ const liveHost: DashboardHost = {
   },
   async setTrust(trusted) { ensureTransport(); await rpc.request.setTrust({ trusted }); },
   async reloadProject() { ensureTransport(); await rpc.request.reloadProject({}); },
+  async focusWindow() { ensureTransport(); await rpc.request.focusWindow({}); },
   async getDashboardConfigSource(configPath) { ensureTransport(); return rpc.request.getDashboardConfigSource({ configPath }); },
   async validateDashboardDraft(config, configPath, sourceNodeId) {
     ensureTransport();

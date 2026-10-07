@@ -125,6 +125,16 @@ export interface DashboardEditSession {
   validation: DashboardDraftValidation;
 }
 
+/** YAML mappings have no key order; child arrays and prop values do. */
+export function sameDashboardConfig(left: DashboardConfig, right: DashboardConfig): boolean {
+  const serialize = (config: DashboardConfig) => JSON.stringify(config, (_key, value: unknown) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
+  return serialize(left) === serialize(right);
+}
+
 export function createDashboardEditSession(
   projectRoot: string,
   source: DashboardConfigSource,

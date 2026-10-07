@@ -1162,15 +1162,24 @@ root:
               children:
                 axis: vertical
                 first:
-                  node:
-                    id: agent-setup-guide
-                    component: "./components/external/core/markdown"
-                    props:
-                      content: |
-                        Choose the CLI coding agent in Settings, install the version-matched dash-bored skill
-                        globally or for this repository, then ask the agent to improve this cockpit. The skill ships
-                        the agent tools; the app passes its bundled tool as `DASH_BORED_TOOL`. App settings override
-                        the bundle environment below. The skill statuses report each install scope's check result.
+                  axis: vertical
+                  first:
+                    node:
+                      id: agent-setup-guide
+                      component: "./components/external/core/markdown"
+                      props:
+                        content: |
+                          Choose the CLI coding agent in Settings, install the version-matched dash-bored skill
+                          globally or for this repository, then ask the agent to improve this cockpit. The skill ships
+                          the agent tools; the app passes its bundled tool as `DASH_BORED_TOOL`. App settings override
+                          the bundle environment below. The skill statuses report each install scope's check result.
+                  second:
+                    node:
+                      id: agent-window-attention
+                      component: "./components/external/core/button"
+                      props:
+                        name: Bring app to front
+                        action: app:focus-window
                 second:
                   axis: horizontal
                   ratio: 0.5

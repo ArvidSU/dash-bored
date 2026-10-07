@@ -1,6 +1,6 @@
 import Electrobun, { BrowserWindow, Updater, Utils } from "electrobun/main";
 import { basename, dirname, join } from "node:path";
-import { ProjectRuntime, TrustStore } from "../core/index";
+import { CoreError, ProjectRuntime, TrustStore } from "../core/index";
 import { instanceSocketPath, publishToolLocator } from "../core/app-instances";
 import { retireManagedCliLink } from "../migrations/cli-link";
 import { isLegacyAppThemeReference, upgradeLegacyAppThemeReference } from "../migrations/app-theme-reference";
@@ -129,6 +129,12 @@ const dashboardRPC = createDashboardRPC({
   updates,
   loadThemes,
   publishThemes,
+  focusWindow() {
+    if (!mainWindow) throw new CoreError("APP_WINDOW_UNAVAILABLE", "The dash-bored window is not available.");
+    if (mainWindow.isMinimized()) mainWindow.unminimize();
+    // Electrobun show() unhides and activates the window, raising it to the front.
+    mainWindow.show();
+  },
   /** App settings as the renderer reads them, with a legacy theme pinned once its dashboard is active. */
   async readAppSettings() {
     const settings = await appSettingsStore.get();

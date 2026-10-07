@@ -344,6 +344,13 @@ insertion, move, removal, replacement, edge-metadata edit, or horizontal ratio r
 creates the renderer's draft from the authoritative owning YAML. Save validates
 the complete owning tree and atomically publishes it, while Cancel discards the
 draft; opening or closing a clean flyout never creates a draft.
+Settings and confirmation dialogs may hold a clean edit session internally.
+Only differences from its original config, or an in-progress save, activate the
+header's Save/Cancel controls and navigation guards. Reverting all changes makes
+the session clean again without writing YAML. A host snapshot reload or dashboard
+switch clears a clean session and its transient composition UI so external edits
+are visible and the next mutation loads the current source revision. Dirty
+sessions retain their preview and revision conflict protection across reloads.
 The draft uses the same recursive topology and children contracts as YAML: there
 is no separate grid model. The host resolves each debounced draft through the
 same resolver as saved configuration and returns its tree, diagnostics, and

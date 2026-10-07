@@ -222,8 +222,14 @@ automation surface for the user's own agents, not a new capability.
   cannot start, stop, or write to a process. Output can contain whatever a
   command printed, so it is as sensitive as the terminal panel the user sees;
   the same user-private socket guards it.
-- Opening a dashboard is refused while a draft is open. It loads and registers
+- Opening a dashboard is refused while there are unsaved dashboard changes or
+  a save in progress (`editing: true`). Clean sessions do not block agents.
+  It loads and registers
   the dashboard but never trusts it.
+- `app:focus-window` is agent-callable without project trust or confirmation.
+  It only restores, shows, and activates this instance's window, and remains
+  available during unsaved or pending work. It cannot change drafts or select
+  another application window.
 - Screenshots capture only the app's own window: the NSWindow number (read
   through the Objective-C runtime after an `isKindOfClass:` check) is passed
   to `/usr/sbin/screencapture -l`. When the number is unavailable, capture

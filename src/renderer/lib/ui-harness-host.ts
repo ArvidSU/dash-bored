@@ -555,6 +555,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     async deleteProject(_project: ProjectListItem, _removeFiles: boolean) { emitSnapshot(); },
     async setTrust(_trusted: boolean) { emitSnapshot(); },
     async reloadProject() { emitSnapshot(); },
+    async focusWindow() { /* Native window activation is verified in the dev app. */ },
     async getDashboardConfigSource(_configPath?: string): Promise<DashboardConfigSource> {
       return {
         configPath: CONFIG_PATH,

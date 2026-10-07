@@ -74,6 +74,10 @@ export function App(): ReactNode {
     onEnd: interaction.reset,
   });
   const editSession = draft.session;
+  function focusComponent(nodeId: string): void {
+    if (draft.session && !draft.blocksNavigation) draft.end();
+    viewState.focusComponent(nodeId);
+  }
   const draftLocalIds = resolvedLocalComponentIds(editSession?.validation.tree);
   const runtimeComponents = editSession
     ? [
@@ -118,7 +122,7 @@ export function App(): ReactNode {
     toggleSidebar: () => settings.setSidebarExpanded((expanded) => !expanded),
     dialog,
     setDialog,
-    focusComponent: viewState.focusComponent,
+    focusComponent,
     expandComponent: viewState.expandComponent,
     storeVirtualRoot: viewState.storeVirtualRoot,
     forgetDashboard: viewState.forgetDashboard,
@@ -173,7 +177,7 @@ export function App(): ReactNode {
     configPath: snapshot?.configPath ?? null,
     dashboardName: snapshot?.dashboardName ?? null,
     focusedNodeId: virtualRoot?.target.id ?? null,
-    editing: editSession !== null,
+    editing: draft.blocksNavigation,
     diagnostics: summarizeAgentDiagnostics(visibleDiagnostics),
     trust: {
       trusted: snapshot?.trusted ?? false,
@@ -244,7 +248,7 @@ export function App(): ReactNode {
             splitRatioOverrides: composition.editing ? EMPTY_SPLIT_RATIO_OVERRIDES : viewState.activeSplitRatioOverrides,
             componentHeightOverrides: viewState.activeComponentHeightOverrides,
             childSelections: viewState.activeChildSelections,
-            onFocus: viewState.focusComponent,
+            onFocus: focusComponent,
             onToggleCollapse: viewState.toggleComponentCollapse,
             onSplitRatioChange: composition.changeSplitRatio,
             onComponentHeightChange: viewState.updateComponentHeight,
@@ -253,7 +257,7 @@ export function App(): ReactNode {
             onOpenAgent: agent.openChangeWithAgent,
             onUpdateProps: draft.updateComponentProps,
           }}
-          onFocus={viewState.focusComponent}
+          onFocus={focusComponent}
           onTrust={() => void notices.perform("trust", () => host.setTrust(true))}
           onReload={() => void notices.perform("reload", host.reloadProject)}
           onRestorePackages={() => void notices.perform("package-restore", () => host.manageExternalComponent({ op: "restore" }))}
@@ -277,12 +281,12 @@ export function App(): ReactNode {
         currentVirtualRootId={virtualRoot?.target.id ?? null}
         collapsedNodeIds={viewState.activeCollapsedComponentIds}
         shortcutLabel={shortcutLabel}
-        editing={draft.editingActiveProject}
+        editing={draft.blocksNavigation}
         componentLibraryOpen={interaction.libraryOpen}
         agentActivityOpen={agentActivityOpen}
         activeAgentTaskCount={activeDashboardAgentTaskCount(session.agentTasks)}
         editorToolbar={
-          editSession && draft.editingActiveProject ? (
+          editSession && draft.editingActiveProject && draft.blocksNavigation ? (
             <div className="app-header__editor-toolbar">
               <DashboardEditorToolbar
                 diagnostics={editSession.validation.diagnostics}

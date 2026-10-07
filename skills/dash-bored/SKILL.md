@@ -279,7 +279,8 @@ When the app is running, check what the user will see:
 1. `dash-bored app status`: note the open dashboard, `focusedNodeId`,
    `trust`, and `diagnostics.items` (runtime errors validation cannot see).
 2. If a different bundle is open, `dash-bored app open .` (refused while the
-   user has a draft open; then ask them to save or cancel it).
+   user has unsaved dashboard changes or a save in progress; then ask them to
+   save or cancel the changes, or wait for the save).
 3. `dash-bored app screenshot --node <node-id>` for each panel you changed
    (`--output <file.png>` picks the path), then view the PNG path it prints. It crops to that node, even on another
    tab, and puts the user's view back. Check that labels make sense, nothing
@@ -298,6 +299,15 @@ command fails right then with a closed connection, retry it once. Never fall
 back to a full-screen `screencapture`: it captures whatever else is on screen.
 If the app is not running, the project is untrusted, or a screenshot fails,
 say so in the report rather than implying you checked the result visually.
+
+When work finishes or an actionable blocker needs the user's attention, make
+the relevant result visible first, then use
+`dash-bored app run app:focus-window --no-wait` to restore the window and bring
+dash-bored to the foreground with keyboard focus. This action is available even
+with an unsaved draft; it preserves that draft and the selected view. Use it
+sparingly for meaningful handoffs, not for routine progress, polling, or every
+tool call. Ordinary focus/reveal actions and screenshots do not request native
+window attention.
 
 ### 7. Report
 
@@ -364,9 +374,11 @@ missing and fall back to screenshots and the YAML.
 
 ## Gotchas
 
-- **Never write the YAML while the user edits a draft.** When `app status`
-  shows `editing: true`, their Save would be rejected as stale and their
-  changes lost. Ask them to save or cancel first, and only then edit.
+- **Protect unsaved dashboard changes.** `app status` reports `editing: true`
+  only for actual unsaved dashboard changes or a save in progress. Ask the user
+  to save or cancel changes, or wait for their save, before writing YAML.
+  Clean settings sessions report `editing: false` and do not block your edits;
+  the app releases their preview when your YAML changes reload.
 
 - **The app's shell is not your shell.** Sources run `/bin/sh -lc` without
   your rc files, so nvm, pyenv, or asdf interpreters are missing there and

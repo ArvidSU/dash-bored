@@ -243,10 +243,18 @@ With those tools an agent can:
   progress), and a panel's full text (`app read <node-id>`). These are read-only; starting or
   stopping a process stays an `app run process:*` action.
 
+An agent can bring dash-bored to the foreground with
+`app run app:focus-window --no-wait` (**Bring app to front** in the palette).
+It restores a minimized window and gives it keyboard focus without changing
+your dashboard, selected panels, or draft. Agents use it sparingly when work is
+done or blocked and your attention is needed.
+
 The control channel never widens what an action can do. Trust, starting,
 saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
 action that asks for confirmation are refused and left to you. Opening a
-dashboard is refused while you have a draft open. Screenshots use macOS Screen
+dashboard is refused while you have unsaved dashboard changes or a save in
+progress. A clean settings session does not block agents or require Cancel.
+Screenshots use macOS Screen
 Recording permission; the first capture asks for it. The app keeps rendering
 while other windows cover it, so agents can drive and capture it without you
 switching to it; a minimized or hidden window cannot be captured.
@@ -802,6 +810,9 @@ chosen insertion position.
 Opening or closing a clean flyout does not create a draft. The first insertion,
 move, removal, replacement, metadata edit, or horizontal separator resize creates a
 renderer-owned draft, previewed through the same host resolver as saved YAML.
+Save/Cancel appears only for actual unsaved changes. Inspecting component settings,
+cancelling an insertion, or reverting every change needs no extra Cancel and
+does not block agents. A clean preview follows external YAML reloads.
 The toolbar shows **Checking draft…** while the preview updates. **Save dashboard** validates the whole owning tree,
 checks the source revision, and atomically writes it; **Cancel** discards the
 whole draft. If `dash-bored.yaml` changes outside the app, save is rejected

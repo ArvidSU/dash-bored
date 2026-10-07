@@ -26,6 +26,7 @@ export interface AgentViewState {
   configPath: string | null;
   dashboardName: string | null;
   focusedNodeId: string | null;
+  /** Unsaved dashboard changes or an in-progress save; clean sessions do not block agents. */
   editing: boolean;
   diagnostics: AgentDiagnostics;
   trust: AgentTrustState;

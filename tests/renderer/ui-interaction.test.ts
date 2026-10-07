@@ -123,6 +123,32 @@ afterAll(async () => {
 }, 30_000);
 
 describe("renderer fixture interactions", () => {
+  test("Bring app to front reaches the native host without discarding a dashboard draft", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      await proof.evaluate(() => {
+        window.__DASH_BORED_UI_HARNESS_HOST__!.focusWindow = async () => {
+          document.body.dataset.windowFocusRequests = "1";
+        };
+      });
+      const saved = await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig());
+      await addGroupDraft(proof);
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("bring app to front");
+      await palette.getByRole("option", { name: /Bring app to front/ }).click();
+      await proof.waitForFunction(() => document.body.dataset.windowFocusRequests === "1");
+      expect(await proof.getByRole("region", { name: "Dashboard editor" }).count()).toBe(1);
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig())).toEqual(saved);
+      expect(await persistedGroupCount(proof)).toBe(0);
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("package recovery keeps configuration visible to the host and wires Retry and Sync", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     try {
@@ -327,7 +353,8 @@ describe("renderer fixture interactions", () => {
       const palette = proof.getByRole("dialog", { name: "Command palette" });
       await palette.getByRole("combobox").fill("focus");
       await palette.getByRole("option", { name: /Focus component/ }).waitFor();
-      expect(await palette.getByRole("option").count()).toBe(1);
+      expect(await palette.getByRole("option", { name: /Focus component/ }).count()).toBe(1);
+      expect(await palette.getByRole("option", { name: /Bring app to front/ }).count()).toBe(1);
       await palette.getByRole("option", { name: /Focus component/ }).click();
       await palette.getByRole("listbox", { name: "Focus component", exact: true }).waitFor();
       // The chooser reuses the one search input, labelled for its step.
@@ -1072,7 +1099,7 @@ describe("renderer fixture interactions", () => {
     await configure.getByRole("button", { name: "Cancel", exact: true }).click();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
-    await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
     expect(await persistedGroupCount()).toBe(0);
   }, 20_000);
 
@@ -1130,8 +1157,98 @@ describe("renderer fixture interactions", () => {
 
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Open component library" }).waitFor();
-    await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
   }, 20_000);
+
+  test("clean component settings allow focus and follow external YAML changes", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const openSettings = async () => {
+        await proof.locator('[data-node-id="renderer-proof-card"]').locator("header").first().click({ button: "right" });
+        await proof.getByRole("menuitem", { name: "Edit component", exact: true }).click();
+        await proof.getByRole("dialog", { name: "Configure component" }).waitFor();
+      };
+      await openSettings();
+      expect(await proof.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
+      await proof.getByRole("dialog", { name: "Configure component" }).getByRole("button", { name: "Cancel", exact: true }).click();
+      await proof.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("focus");
+      const focus = palette.getByRole("option", { name: /Focus component/ });
+      await focus.waitFor();
+      expect(await focus.getAttribute("aria-disabled")).not.toBe("true");
+      await focus.click();
+      await palette.getByRole("combobox", { name: "Search focus component options" }).fill("Renderer proof");
+      await palette.getByRole("option", { name: /^Renderer proof / }).waitFor();
+      await proof.keyboard.press("Escape");
+      await proof.keyboard.press("Escape");
+
+      // Leave a clean session open while another writer publishes to YAML.
+      await openSettings();
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const source = await host.getDashboardConfigSource();
+        source.config.name = "Agent updated dashboard";
+        await host.saveDashboardConfig(source.config, source.configRevision);
+      });
+      await proof.locator(".app-header__title").getByText("Agent updated dashboard", { exact: true }).waitFor();
+      await proof.getByRole("dialog", { name: "Configure component" }).waitFor({ state: "detached" });
+      expect(await proof.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
+
+      // A subsequent real edit loads the new revision and saves without conflict.
+      await addGroupDraft(proof);
+      await proof.getByRole("button", { name: "Save dashboard", exact: true }).click();
+      await proof.getByRole("region", { name: "Dashboard editor" }).waitFor({ state: "detached" });
+      expect(await persistedGroupCount(proof)).toBe(1);
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig().name)).toBe("Agent updated dashboard");
+    } finally {
+      await proof.close();
+    }
+  }, 30_000);
+
+  test("reverting a dashboard edit removes Save and Cancel without a disk write", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      const original = await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot());
+      if (!original.config) throw new Error("Fixture dashboard configuration is unavailable.");
+      await proof.getByRole("button", { name: "Open component library", exact: true }).click();
+      await proof.getByText("Dashboard appearance", { exact: true }).click();
+      await proof.getByRole("combobox", { name: "Dashboard appearance", exact: true }).selectOption("light");
+      await proof.getByRole("region", { name: "Dashboard editor" }).waitFor();
+      await proof.getByRole("combobox", { name: "Dashboard appearance", exact: true }).selectOption("");
+      await proof.getByRole("region", { name: "Dashboard editor" }).waitFor({ state: "detached" });
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig())).toEqual(original.config);
+      expect((await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getSnapshot())).configRevision).toBe(original.configRevision);
+
+      // A reload while dirty stays protected, then reverting releases the old
+      // preview even though that host reload already happened.
+      await proof.getByRole("combobox", { name: "Dashboard appearance", exact: true }).selectOption("light");
+      await proof.getByRole("region", { name: "Dashboard editor" }).waitFor();
+      await proof.evaluate(async () => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const source = await host.getDashboardConfigSource();
+        source.config.name = "Updated while editing";
+        await host.saveDashboardConfig(source.config, source.configRevision);
+      });
+      expect(await proof.getByRole("region", { name: "Dashboard editor" }).count()).toBe(1);
+      await proof.getByRole("combobox", { name: "Dashboard appearance", exact: true }).selectOption("");
+      await proof.getByRole("region", { name: "Dashboard editor" }).waitFor({ state: "detached" });
+      await proof.getByRole("dialog", { name: "Component library" }).waitFor({ state: "detached" });
+      await addGroupDraft(proof);
+      await proof.getByRole("button", { name: "Save dashboard", exact: true }).click();
+      await proof.getByRole("region", { name: "Dashboard editor" }).waitFor({ state: "detached" });
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPersistedConfig().name)).toBe("Updated while editing");
+    } finally {
+      await proof.close();
+    }
+  }, 30_000);
 
   test("structural mutation starts a draft, save persists, and cancel restores", async () => {
     expect(await persistedGroupCount()).toBe(0);
@@ -1461,7 +1578,7 @@ describe("renderer fixture interactions", () => {
     await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
-    await active.getByRole("region", { name: "Dashboard editor" }).getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
     await active.getByRole("button", { name: "Open component library" }).waitFor();
   }, 20_000);
 

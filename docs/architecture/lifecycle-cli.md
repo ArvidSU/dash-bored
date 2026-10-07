@@ -220,12 +220,12 @@ instances therefore never answer for the release app by accident.
 
 | Route | Behavior |
 | --- | --- |
-| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, draft editing, visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), read-only trust state (`trusted`, and the permissions awaiting approval while untrusted), and `selections`: the selected child of each selection container, derived from the palette's active `select:` actions so it includes defaults. |
+| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, `editing` (unsaved dashboard changes or a save in progress; false for clean sessions), visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), read-only trust state (`trusted`, and the permissions awaiting approval while untrusted), and `selections`: the selected child of each selection container, derived from the palette's active `select:` actions so it includes defaults. |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` summarizes each choice as `{id, label, optionCount}` (`--choices` includes the options) and hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
 | `GET /v1/processes/<id>/logs?tail=<n>` | Recent output lines of one command process from the log ring the process manager already retains (2,000 entries, 512 KiB). `tail` defaults to 200 and is capped at 1,000; lines are capped at 2,000 characters; an unknown id is `AGENT_CONTROL_NOT_FOUND`. `app logs` strips ANSI escapes and carriage-return overwrites. |
 | `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
-| `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while a draft is open. |
+| `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while there are unsaved dashboard changes or a save in progress. Clean settings sessions do not block it. |
 | `POST /v1/read` | `{nodeId, timeoutMs?}`: reveals the node when it is not mounted, waits for idle, and returns its rendered `innerText` (whitespace-collapsed, at most 100,000 characters) with `idle` and `changes`, then restores the view the same way a node screenshot does. Shares the node-capture lock. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. With `{nodeId}` it returns that node's bounds cropped from the capture and describes the node in an `x-dash-bored-node` header (see below). |
 
@@ -254,6 +254,13 @@ next window-state change). A minimized or hidden window still stops painting;
 paint waits are therefore bounded at five seconds. Runs and opens then return
 their result with a `warning`, and screenshots fail with
 `APP_WINDOW_NOT_RENDERING` instead of capturing stale pixels.
+
+For explicit user attention, `app run app:focus-window --no-wait` invokes the
+same Bring app to front palette action through the shared executor. It restores
+a minimized window and activates the app through the `focusWindow` host RPC.
+It does not change the dashboard's focused node, panel selections, or draft.
+Use it sparingly after making a completed result or an actionable blocker visible;
+ordinary reads, checks, and screenshots do not bring the app forward.
 
 The tool writes JSON with `process.stdout.write`: under Bun 1.3, `console.log`
 loses output past the 64 KiB pipe buffer once `process.stdout` has been

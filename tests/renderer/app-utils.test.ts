@@ -4,6 +4,7 @@ import {
   isCompositionSourceCurrent,
   mergeThemeCatalog,
   patchDashboardAppearance,
+  sameDashboardConfig,
 } from "../../src/renderer/app/app-utils";
 import type {
   DashboardCompositionSource,
@@ -28,6 +29,20 @@ function dashboard(): DashboardConfig {
 }
 
 describe("renderer app helpers", () => {
+  test("draft changes ignore mapping order but retain values and child order", () => {
+    const original = dashboard();
+    original.root.props = { title: "Example", nested: { a: 1, b: 2 } };
+    const reordered = structuredClone(original);
+    reordered.root.props = { nested: { b: 2, a: 1 }, title: "Example" };
+    expect(sameDashboardConfig(original, reordered)).toBe(true);
+    reordered.root.props.nested = { b: 2, a: 3 };
+    expect(sameDashboardConfig(original, reordered)).toBe(false);
+    original.root.children = [{ node: { id: "a", component: "a" } }, { node: { id: "b", component: "b" } }];
+    const moved = structuredClone(original);
+    (moved.root.children as typeof original.root.children).reverse();
+    expect(sameDashboardConfig(original, moved)).toBe(false);
+  });
+
   test("creates independent original and draft dashboard copies", () => {
     const config = dashboard();
     const catalog: DashboardConfigSource["componentCatalog"] = [];

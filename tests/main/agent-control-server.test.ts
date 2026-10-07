@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { instanceSocketPath, listAppInstances, selectAppInstance } from "../../src/core/app-instances";
 import type { ProcessSnapshot } from "../../src/shared/contracts";
@@ -475,20 +475,25 @@ test("large action lists reach a slow pipe reader intact", async () => {
   expect(JSON.parse(stdout)).toHaveLength(2_000);
 });
 
-test("open is refused while the user edits a draft", async () => {
+test("open is refused while the user has unsaved changes or a save in progress", async () => {
   const homeDirectory = await home();
   const { state, opened } = await serve(homeDirectory);
   state.editing = true;
   const project = join(homeDirectory, "project");
-  await Bun.$`mkdir -p ${project}`;
-  const init = Bun.spawn([process.execPath, resolve(import.meta.dirname, "../../src/cli/index.ts"), "init", "--project", project], { stdout: "ignore", stderr: "ignore" });
-  expect(await init.exited).toBe(0);
+  const configPath = join(project, ".dash-bored", "dash-bored.yaml");
+  // This tests the renderer's unsaved-work guard, without downloading packages.
+  await mkdir(join(project, ".dash-bored"), { recursive: true });
+  await writeFile(configPath, "schemaVersion: 4\nroot:\n  id: root\n  component: ./components/example\n");
 
   const result = await cli(homeDirectory, "open", project);
 
   expect(result.exitCode).toBe(1);
-  expect(result.stderr).toContain("editing a dashboard draft");
+  expect(result.stderr).toContain("unsaved dashboard changes or a save in progress");
   expect(opened).toEqual([]);
+
+  state.editing = false;
+  expect((await cli(homeDirectory, "open", project)).exitCode).toBe(0);
+  expect(opened).toEqual([await realpath(configPath)]);
 });
 
 test("instance selection prefers explicit, then launching, then the only instance", () => {
@@ -511,6 +516,7 @@ test("selections come from the active select actions, decoded", () => {
 });
 
 test("trust, draft lifecycle, and confirmations are reserved for the user", () => {
+  expect(agentActionRefusal({ id: "app:focus-window" })).toBeUndefined();
   expect(agentActionRefusal({ id: "project:trust" })).toBeDefined();
   expect(agentActionRefusal({ id: "project:save-draft" })).toBeDefined();
   expect(agentActionRefusal({ id: "component:x:y", confirmation: { title: "Deploy?" } })).toBeDefined();

@@ -5,11 +5,19 @@ state, agent-task lifecycle, or trust/reload behavior.
 
 These are renderer/app state, never YAML — do not try to configure them:
 
+- **Window attention.** `app:focus-window` restores a minimized window and
+  brings dash-bored to the foreground with keyboard focus. Agents may invoke it
+  for a meaningful completion or blocker. It preserves dashboard focus, panel
+  selections, trust, and unsaved drafts, and remains available during pending work.
+
 - **Draft Save/Cancel.** The component-library flyout opens read-only; the
   first insertion, move, removal, replacement, metadata edit, or ratio resize
   starts a draft. Save validates and atomically publishes the owning bundle's
   YAML; Cancel discards it. The per-node Edit dialog edits declared props and
-  child metadata through the same boundary. When switching dashboards with a
+  child metadata through the same boundary. Clean settings sessions need no
+  Save/Cancel and agents remain free to edit.
+  Reverting every change makes the session clean; external YAML reloads release
+  its preview. When switching dashboards with a
   dirty draft, the confirmation offers Keep editing, Save dashboard, and
   Discard changes. Save validates and writes the draft before continuing the
   requested navigation; a failed save leaves the draft and confirmation open.
