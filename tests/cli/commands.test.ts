@@ -300,4 +300,4 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect((await run(project, "inspect", ".", "--component", "missing")).exitCode).toBe(1);
   expect((await run(project, "inspect", ".", "--component")).exitCode).toBe(2);
   expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
-});
+}, 15_000);

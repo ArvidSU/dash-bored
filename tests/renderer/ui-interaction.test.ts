@@ -2538,6 +2538,7 @@ test('stable-ID tab and todo actions select locally and change only the draft', 
     await proof.getByRole('button', { name: 'Remove selected todo', exact: true }).click();
     const palette = proof.getByRole('dialog', { name: 'Command palette' });
     await palette.getByRole('heading', { name: 'Remove selected todo from the dashboard draft?' }).waitFor();
+    await proof.getByRole('checkbox', { name: 'Mark incomplete: Selected task', exact: true }).waitFor();
     expect(await proof.getByRole('checkbox', { name: 'Mark incomplete: Selected task', exact: true }).count()).toBe(1);
     await proof.keyboard.press('Escape');
     expect(await proof.getByText('COMPONENT_ACTION_UNDECLARED', { exact: true }).count()).toBe(0);
