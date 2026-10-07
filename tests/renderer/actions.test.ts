@@ -688,6 +688,21 @@ describe("application action providers", () => {
     });
   });
 
+  test("trust actions use capability inspection rather than render-tree availability", () => {
+    const options = {
+      snapshot: snapshot({ tree: null, trustReview: { available: true, hasLocalCode: true } }),
+      projects: [], activeView: "dashboard" as const, sidebarExpanded: false,
+      pendingAction: null, editing: false, draftDirty: false, draftValid: false,
+      savingDraft: false, callbacks,
+    };
+    const trust = buildApplicationActions(options).find((item) => item.id === "project:trust");
+    expect(trust?.enabled).toBeTrue();
+    expect(trust?.confirmation?.message).toContain("load local component code");
+    expect(trust?.confirmation?.message).toContain("run project commands");
+    options.snapshot.trustReview!.available = false;
+    expect(buildApplicationActions(options).find((item) => item.id === "project:trust")?.enabled).toBeFalse();
+  });
+
   test("switches process actions between quick actions, terminal close, and stopping states", () => {
     const runningSnapshot = snapshot({
       trusted: true,

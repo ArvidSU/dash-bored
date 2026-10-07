@@ -20,11 +20,36 @@ and path bounds.
 
 The application presents one project-level trust decision with the complete
 requested permission set. Trust is keyed by canonical project root and stores
-the approved permission set in Electrobun's user-data directory. Reloading with
-the same or a smaller permission set preserves trust; adding any permission
+the approved permission set in Electrobun's user-data directory. Restarting the
+app or reloading with the same or a smaller permission set preserves trust;
+adding any permission
 invalidates it and requires a new decision. Trust can also be revoked manually.
 The main process checks both project trust and the requested node's declared
 permission on every privileged RPC.
+
+Trust review is independent of render validation. The bounded YAML parser can
+inspect a structurally understood tree even when its version marker or other
+presentation metadata is invalid; it does not modify or render that config.
+Resolution inspects all referenced manifests and configured props to compute
+the complete effective permission union and local-code disclosure. Known
+nonfatal validation errors (props, action references, topology contracts,
+prompt templates, and compilation) leave this review available. Unreadable or
+structurally unknown config, invalid locks, unsafe paths, unavailable manifests,
+and traversal limits block a new trust decision. Broken config links remain
+quarantined placeholders; resolving them later rechecks the permission union.
+Unknown error codes fail closed for trust review.
+
+`ProjectSnapshot.trustReview` exposes availability and local-code disclosure
+separately from `tree`. Nonfatal errors can withhold the tree while retaining
+the permission union and persisted trust. Trust re-reads the current definition
+before approval and rejects a changed permission set or fatal inspection error.
+A successful decision persists the grant even when rendering is still invalid,
+so diagnostics repair uses the ordinary trusted agent launcher and bundle
+environment. Component code and configured processes remain withheld until
+validation and compilation succeed. Added permissions still require review.
+Failed reloads can keep the last valid dashboard running; a newly inspected
+permission expansion restricts it until approval. Fatal reloads do not grant
+any capabilities from the broken config.
 
 The native host enables process-local automatic trust only when Electrobun's
 reported channel is `dev`, never from an environment flag. Development loads

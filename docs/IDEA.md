@@ -115,6 +115,13 @@ action owns its agent
 task independently of the starter component. After completion the app validates
 the saved dashboard and may request one bounded repair of configuration errors;
 validation does not replace the user's review of usefulness or permission changes.
+Project trust is remembered across app restarts for the approved capability set.
+Validation errors do not prevent approval when the app can inspect the complete
+requested capability set. A readable tree with a wrong schema marker, invalid
+props or action references, or a component compile failure can be trusted and
+then repaired with the configured agent. Fatal errors that prevent safe,
+complete capability inspection block a new trust decision. Invalid dashboards
+still do not execute; after repair, added permissions require another review.
 When an installed-tool conflict is shown, the user may explicitly move the
 conflicting managed install to the OS Trash and reinstall the current payload.
 
@@ -532,3 +539,5 @@ installation success from migration success. Interrupted agent work requires
 explicit recovery. Refresh owned guidance, preserve customizations, and supply
 a read-only version-matched handoff. All dashboard agent edits validate with at
 most one repair after a successful execution, without bypassing project trust.
+Nonfatal configuration errors permit normal trust approval before diagnostics
+repair; fatal capability-inspection failures must be fixed before approval.

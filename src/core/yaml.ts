@@ -220,6 +220,15 @@ const manifestSchema = {
 } as const;
 
 const validateConfig = ajv.compile(configSchema);
+// Trust inspection only needs an understood composition and its configured
+// props. Invalid presentation metadata or a version marker still prevents
+// rendering; this never coerces or saves a broken config.
+const validateTrustConfig = ajv.compile({
+  type: "object",
+  required: ["root"],
+  properties: { root: { $ref: "#/$defs/componentNode" } },
+  $defs: configSchema.$defs,
+});
 const validateLock = ajv.compile(lockSchema);
 const validateManifest = ajv.compile(manifestSchema);
 
@@ -340,11 +349,15 @@ async function parseTyped<T>(
   return { value: parsed.value as T, diagnostics: [] };
 }
 
-export async function parseDashboardConfig(file: string): Promise<ParsedYaml<DashboardConfig>> {
+export async function parseDashboardConfig(file: string): Promise<ParsedYaml<DashboardConfig> & { trustConfig: DashboardConfig | null }> {
   const parsed = await readYaml(file);
-  if (parsed.value === null || parsed.diagnostics.length > 0) return { value: null, diagnostics: parsed.diagnostics };
+  if (parsed.value === null || parsed.diagnostics.length > 0) return { value: null, trustConfig: null, diagnostics: parsed.diagnostics };
   const diagnostics = validateDashboardConfigValue(parsed.value, file);
-  return { value: diagnostics.length === 0 ? parsed.value as DashboardConfig : null, diagnostics };
+  const value = diagnostics.length === 0 ? parsed.value as DashboardConfig : null;
+  const trustConfig = value ?? (validateTrustConfig(parsed.value)
+    ? { schemaVersion: 4 as const, name: "Dashboard", root: (parsed.value as DashboardConfig).root }
+    : null);
+  return { value, trustConfig, diagnostics };
 }
 
 export function validateDashboardConfigValue(

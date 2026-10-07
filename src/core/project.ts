@@ -48,7 +48,12 @@ export interface ProjectDefinition {
   permissionsByNode: Map<string, ReadonlySet<Permission>>;
   projectRootsByNode: Map<string, string>;
   diagnostics: Diagnostic[];
+  trustReview: { available: boolean; hasLocalCode: boolean };
 }
+
+// These checks affect rendering or behavior, but do not hide capability
+// declarations. All other errors fail closed for a new trust decision.
+const NONFATAL_TRUST_ERRORS = /^(?:CONFIG_SCHEMA_(?:INVALID|MIGRATION_REQUIRED)|NODE_ID_(?:REQUIRED|DUPLICATE)|COMPONENT_(?:PROPS_INVALID|PROCESS_(?:COMMAND|ENV)_INVALID|SELECTION_PRESENTATION_INVALID|DEFAULT_CHILD_MISSING|CHILDREN_UNSUPPORTED|CHILD_(?:PRESENTATION_INVALID|CARDINALITY|RATIO_INVALID|AXIS_INVALID|METADATA_UNSUPPORTED|METADATA_INVALID)|RESOURCE_REFERENCE_UNKNOWN|ACTION_(?:REFERENCE_INVALID|REFERENCE_UNKNOWN|ARGUMENTS_INVALID)|ID_DUPLICATE|COMPILE_FAILED|COMPILE_EMPTY)|PROMPT_TEMPLATE_INVALID|CONFIG_LINK_CHILDREN_UNSUPPORTED)$/;
 
 export interface InspectProjectOptions {
   compile?: boolean;
@@ -70,6 +75,7 @@ async function buildProjectDefinition(
   configRevision: string | null,
   componentCatalog: ComponentCatalogItem[],
   options: InspectProjectOptions,
+  trustConfig: DashboardConfig | null = config,
 ): Promise<ProjectDefinition> {
   if (lock) {
     for (const entry of [...Object.values(lock.components), ...Object.values(lock.themes ?? {})]) {
@@ -88,15 +94,21 @@ async function buildProjectDefinition(
   let permissions: Permission[] = [];
   let permissionsByNode = new Map<string, ReadonlySet<Permission>>();
   let projectRootsByNode = new Map<string, string>();
+  let trustReview = { available: false, hasLocalCode: false };
 
-  if (config !== null && lock !== null) {
-    const resolvedTree = await resolveComponentTree(location, config);
+  if (trustConfig !== null && lock !== null) {
+    const resolvedTree = await resolveComponentTree(location, trustConfig);
     diagnostics.push(...resolvedTree.diagnostics);
     manifests = resolvedTree.components;
     localComponents = resolvedTree.localComponents;
     permissions = resolvedTree.permissions;
     permissionsByNode = resolvedTree.permissionsByNode;
     projectRootsByNode = resolvedTree.projectRootsByNode;
+    trustReview = {
+      available: resolvedTree.tree !== null
+        && diagnostics.every((item) => item.severity !== "error" || NONFATAL_TRUST_ERRORS.test(item.code)),
+      hasLocalCode: localComponents.length > 0,
+    };
     if (!hasErrors(diagnostics)) {
       tree = resolvedTree.tree;
       if (tree && options.namespacePrefix) {
@@ -175,6 +187,7 @@ async function buildProjectDefinition(
     permissionsByNode,
     projectRootsByNode,
     diagnostics,
+    trustReview,
   };
 }
 
@@ -207,6 +220,7 @@ export async function loadProjectDefinition(
           message: errorMessage(error),
         }),
       ],
+      trustReview: { available: false, hasLocalCode: false },
     };
   }
   const [configResult, lockResult, configRevision, componentCatalog] = await Promise.all([
@@ -224,6 +238,7 @@ export async function loadProjectDefinition(
     configRevision,
     componentCatalog,
     options,
+    configResult.trustConfig,
   );
 }
 

@@ -36,7 +36,7 @@ describe("TrustStore", () => {
     expect(await store.isTrusted(root, [])).toBeFalse();
     await store.trust(root, ["filesystem:read"]);
     expect(await store.isTrusted(root, [])).toBeTrue();
-    expect(await store.isTrusted(root, ["filesystem:read"])).toBeTrue();
+    expect(await new TrustStore(store.filePath).isTrusted(root, ["filesystem:read"])).toBeTrue();
     expect(await store.isTrusted(root, ["filesystem:read", "network:http"])).toBeFalse();
     expect(await store.revoke(root)).toBeTrue();
     expect(await store.isTrusted(root, [])).toBeFalse();

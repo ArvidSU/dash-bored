@@ -171,12 +171,16 @@ export class AgentLauncher {
       throw new CoreError("DIAGNOSTICS_NOT_FOUND", "This dashboard has no current diagnostics to fix.");
     }
     const sourceLocation = await resolveProjectLocation(snapshot.configPath);
-    const command = await this.command(snapshot.configPath);
     const prompt = buildDiagnosticsAgentPrompt({
       projectRoot: sourceLocation.projectRoot,
       configPath: snapshot.configPath,
       diagnostics: snapshot.diagnostics,
     });
+    if (!snapshot.trusted) {
+      throw new CoreError("PROJECT_UNTRUSTED", "Trust this project before asking an agent to fix its diagnostics.");
+    }
+
+    const command = await this.command(snapshot.configPath);
     return this.supervisor(command, sourceLocation).launchRequest({
       prompt,
       purpose: "edit",

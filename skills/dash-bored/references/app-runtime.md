@@ -50,7 +50,11 @@ empty app setting field lets the owning bundle's `.env` command select the CLI. 
   component permissions, keyed by canonical project root. Untrusted projects
   still parse and render safe layout/inline content but cannot compile local
   code, run commands, touch files, fetch HTTP, or embed webviews. Adding a
-  permission invalidates trust and asks again.
+  permission invalidates trust and asks again. Approved permissions persist
+  across installed-app restarts. Nonfatal validation errors permit normal trust
+  review when capability inspection is complete, then diagnostics repair with
+  the configured agent. Fatal inspection errors block approval; invalid code
+  stays unloaded until fixed.
 - **Reload vs recovery.** `Reload dashboard` rereads config and keeps the
   last-known-good tree on validation failure. `Reload app` only reloads the
   renderer window.

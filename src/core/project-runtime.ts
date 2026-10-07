@@ -75,6 +75,7 @@ function emptySnapshot(): ProjectSnapshot {
     configRevision: null,
     componentCatalog: [],
     trusted: false,
+    trustReview: { available: false, hasLocalCode: false },
     requestedPermissions: [],
     tree: null,
     components: [],
@@ -185,19 +186,9 @@ export class ProjectRuntime {
     definition: ProjectDefinition,
     precompiled?: CompiledLocalComponent[],
   ): Promise<ProjectSnapshot> {
-    if (!definition.ok || definition.tree === null || definition.config === null) {
-      // An invalid definition keeps the last rendered tree on screen.
-      this.snapshot = this.buildSnapshot(definition, {
-        dashboardName: this.snapshot.tree === null ? definition.config?.name ?? null : this.snapshot.dashboardName,
-        iconDataUrl: null,
-        config: definition.config ?? this.snapshot.config,
-      });
-      return this.emitSnapshot();
-    }
-
     let trusted = false;
     try {
-      trusted = await this.trustStore.isTrusted(
+      trusted = definition.trustReview.available && await this.trustStore.isTrusted(
         definition.location.projectRoot,
         definition.permissions,
       );
@@ -206,6 +197,28 @@ export class ProjectRuntime {
       definition.diagnostics.push(
         diagnostic({ code: "TRUST_STORE_READ_FAILED", message: errorMessage(error) }),
       );
+    }
+
+    if (!definition.ok || definition.tree === null || definition.config === null) {
+      // Keep last-known-good rendering for failed reloads, but a readable new
+      // capability set must still fit the persisted grant before agent work.
+      const reviewable = definition.trustReview.available;
+      if (reviewable && !trusted) {
+        this.capabilities.configure(null);
+        await this.processManager?.reconcile([]);
+      }
+      this.snapshot = this.buildSnapshot(definition, {
+        dashboardName: this.snapshot.tree === null ? definition.config?.name ?? null : this.snapshot.dashboardName,
+        iconDataUrl: null,
+        config: definition.config ?? this.snapshot.config,
+        ...(reviewable ? {
+          trusted,
+          requestedPermissions: definition.permissions,
+          components: trusted ? this.snapshot.components : [],
+          processes: this.processManager?.list() ?? [],
+        } : {}),
+      });
+      return this.emitSnapshot();
     }
 
     let compiledComponents = precompiled ?? definition.compiledComponents;
@@ -218,6 +231,9 @@ export class ProjectRuntime {
             dashboardName: definition.config.name,
             iconDataUrl: await this.resolveProjectIcon(definition, trusted),
             config: definition.config,
+            trusted,
+            requestedPermissions: definition.permissions,
+            components: [],
           });
           return this.emitSnapshot();
         }
@@ -277,6 +293,7 @@ export class ProjectRuntime {
       componentCatalog: definition.componentCatalog,
       themeCatalog: definition.themeCatalog,
       diagnostics: definition.diagnostics,
+      trustReview: definition.trustReview,
       revision: this.snapshot.revision + 1,
       ...fields,
     };
@@ -375,7 +392,10 @@ export class ProjectRuntime {
       const restored = await restoreMissingPackages(nextLocation.configPath);
       const definition = await loadProjectDefinition(nextLocation);
       definition.diagnostics.push(...restored);
-      if (restored.length) definition.ok = false;
+      if (restored.length) {
+        definition.ok = false;
+        if (hasErrors(restored)) definition.trustReview.available = false;
+      }
       return this.applyDefinition(definition);
     });
   }
@@ -621,12 +641,23 @@ export class ProjectRuntime {
   async trust(): Promise<ProjectSnapshot> {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
-      if (this.location === null || this.snapshot.tree === null) {
-        throw new CoreError("PROJECT_NOT_LOADED", "Load a valid project before trusting it.");
+      if (this.location === null) {
+        throw new CoreError("PROJECT_NOT_LOADED", "Open a project before trusting it.");
       }
-      await this.trustStore.trust(this.location.projectRoot, this.snapshot.requestedPermissions);
+      // Re-read before persisting approval, so a stale screen cannot approve
+      // capabilities from a previously valid tree after a fatal file change.
+      const definition = await loadProjectDefinition(this.location);
+      if (!definition.trustReview.available) {
+        await this.applyDefinition(definition);
+        throw new CoreError("PROJECT_TRUST_UNAVAILABLE", "Requested capabilities could not be inspected. Fix the fatal configuration diagnostics before trusting this project.");
+      }
+      if (JSON.stringify(definition.permissions) !== JSON.stringify(this.snapshot.requestedPermissions)) {
+        await this.applyDefinition(definition);
+        throw new CoreError("PROJECT_TRUST_CHANGED", "Requested capabilities changed. Review them before trusting this project.");
+      }
+      await this.trustStore.trust(this.location.projectRoot, definition.permissions);
       this.sessionRevokedRoots.delete(this.location.projectRoot);
-      return this.applyDefinition(await loadProjectDefinition(this.location));
+      return this.applyDefinition(definition);
     });
   }
 

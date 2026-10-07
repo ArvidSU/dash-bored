@@ -11,7 +11,8 @@ export function TrustPanel({
   pending: boolean;
   onTrust: () => void;
 }): ReactNode {
-  const localCode = hasLocalNode(snapshot.tree);
+  const localCode = snapshot.trustReview?.hasLocalCode ?? hasLocalNode(snapshot.tree);
+  const canReviewCapabilities = snapshot.trustReview?.available ?? snapshot.tree !== null;
   return (
     <section className="trust-panel" aria-labelledby="trust-title">
       <div className="trust-panel__icon" aria-hidden="true">◇</div>
@@ -27,12 +28,25 @@ export function TrustPanel({
           {snapshot.requestedPermissions.map((permission) => (
             <li key={permission}>{PERMISSION_LABELS[permission]}</li>
           ))}
-          {!localCode && snapshot.requestedPermissions.length === 0 ? (
+          {!canReviewCapabilities ? (
+            <li>Requested capabilities could not be inspected</li>
+          ) : !localCode && snapshot.requestedPermissions.length === 0 ? (
             <li>No privileged capabilities requested</li>
           ) : null}
         </ul>
+        {!canReviewCapabilities ? (
+          <p>Fix the fatal configuration diagnostics before trusting this project.</p>
+        ) : snapshot.tree === null ? (
+          <p>You can trust this project to fix its diagnostics with your agent. The dashboard will load once those issues are fixed.</p>
+        ) : null}
       </div>
-      <button className="button button--primary" type="button" disabled={pending} onClick={onTrust}>
+      <button
+        className="button button--primary"
+        type="button"
+        disabled={pending || !canReviewCapabilities}
+        title={!canReviewCapabilities ? "Requested capabilities could not be inspected." : undefined}
+        onClick={onTrust}
+      >
         {pending ? "Enabling…" : "Trust project"}
       </button>
     </section>

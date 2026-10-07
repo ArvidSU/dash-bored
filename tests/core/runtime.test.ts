@@ -360,6 +360,128 @@ describe("ProjectRuntime", () => {
     expect(revoked.processes).toEqual([]);
   });
 
+  test("trusts a nonfatal schema error and remembers approval across runtime restarts", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, processConfig);
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({ ...processConfig, schemaVersion: 3 }));
+    const trustPath = join(root, ".state", "trust.json");
+    const runtime = new ProjectRuntime({ trustStore: new TrustStore(trustPath) });
+    runtimes.push(runtime);
+    const loaded = await runtime.load(root);
+    expect(loaded.tree).toBeNull();
+    expect(loaded.trustReview).toEqual({ available: true, hasLocalCode: true });
+    expect(loaded.requestedPermissions).toEqual(["process:execute"]);
+    expect(loaded.trusted).toBeFalse();
+    const trusted = await runtime.trust();
+    expect(trusted.trusted).toBeTrue();
+    expect(trusted.tree).toBeNull();
+    expect(trusted.components).toEqual([]);
+    expect(trusted.processes).toEqual([]);
+    expect(trusted.diagnostics.some((item) => item.code === "CONFIG_SCHEMA_INVALID")).toBeTrue();
+    await runtime.close();
+
+    const restarted = new ProjectRuntime({ trustStore: new TrustStore(trustPath) });
+    runtimes.push(restarted);
+    expect((await restarted.load(root)).trusted).toBeTrue();
+    await expect(restarted.getLaunchEnvironment()).resolves.toBeObject();
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(processConfig));
+    const repaired = await restarted.reload();
+    expect(repaired.trusted).toBeTrue();
+    expect(repaired.tree).not.toBeNull();
+    expect(repaired.processes[0]?.phase).toBe("idle");
+  });
+
+  test("nonfatal props errors disclose permissions and expansions still require approval", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, processConfig);
+    const trustStore = new TrustStore(join(root, ".state", "trust.json"));
+    const runtime = new ProjectRuntime({ trustStore });
+    runtimes.push(runtime);
+    await runtime.load(root);
+    await runtime.trust();
+    await writeLocalComponent(root, "broken", "export default function Broken() { return null; }", {
+      permissions: ["network:http", "process:execute"],
+    });
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
+      schemaVersion: 4, name: "Broken props",
+      root: { component: "./components/broken", props: { unknown: true } },
+    }));
+    const changed = await runtime.reload();
+    expect(changed.trustReview?.available).toBeTrue();
+    expect(changed.trusted).toBeFalse();
+    expect(changed.requestedPermissions).toEqual(["network:http", "process:execute"]);
+    expect(changed.components).toEqual([]);
+    await expect(runtime.getLaunchEnvironment()).rejects.toMatchObject({ code: "PROJECT_UNTRUSTED" });
+    expect((await runtime.trust()).trusted).toBeTrue();
+    expect((await trustStore.getGrant(root))?.permissions).toEqual(changed.requestedPermissions);
+  });
+
+  test("fatal and stale capability inspections cannot publish trust grants", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, processConfig);
+    const trustStore = new TrustStore(join(root, ".state", "trust.json"));
+    const runtime = new ProjectRuntime({ trustStore });
+    runtimes.push(runtime);
+    await runtime.load(root);
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), "not: valid: yaml");
+    await expect(runtime.trust()).rejects.toMatchObject({ code: "PROJECT_TRUST_UNAVAILABLE" });
+    expect(await trustStore.getGrant(root)).toBeNull();
+    expect(runtime.getSnapshot().trustReview?.available).toBeFalse();
+
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
+      schemaVersion: 4, name: "Missing declaration", root: { component: "./components/missing" },
+    }));
+    expect((await runtime.reload()).trustReview?.available).toBeFalse();
+    await expect(runtime.trust()).rejects.toMatchObject({ code: "PROJECT_TRUST_UNAVAILABLE" });
+    expect(await trustStore.getGrant(root)).toBeNull();
+
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
+      schemaVersion: 4, name: "Unsafe path", root: {
+        id: "unsafe", component: "./components/external/core/command",
+        props: { label: "Unsafe", command: "echo test", cwd: ".." },
+      },
+    }));
+    const unsafe = await runtime.reload();
+    expect(unsafe.diagnostics.some((item) => item.code === "COMPONENT_PROCESS_CWD_INVALID")).toBeTrue();
+    expect(unsafe.trustReview?.available).toBeFalse();
+    await expect(runtime.trust()).rejects.toMatchObject({ code: "PROJECT_TRUST_UNAVAILABLE" });
+    expect(await trustStore.getGrant(root)).toBeNull();
+
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(processConfig));
+    await runtime.reload();
+    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify({
+      schemaVersion: 4, name: "Changed capabilities", root: {
+        component: "./components/external/core/markdown", props: { content: "Changed" },
+      },
+    }));
+    await expect(runtime.trust()).rejects.toMatchObject({ code: "PROJECT_TRUST_CHANGED" });
+    expect(await trustStore.getGrant(root)).toBeNull();
+  });
+
+  test("a compile failure preserves approval across a fresh runtime without loading code", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    await createProject(root, { schemaVersion: 4, name: "Compile error", root: { component: "./components/broken" } });
+    await writeLocalComponent(root, "broken", "export default function Broken( {", { permissions: ["network:http"] });
+    const trustPath = join(root, ".state", "trust.json");
+    const runtime = new ProjectRuntime({ trustStore: new TrustStore(trustPath) });
+    runtimes.push(runtime);
+    await runtime.load(root);
+    const failed = await runtime.trust();
+    expect(failed.trusted).toBeTrue();
+    expect(failed.trustReview?.available).toBeTrue();
+    expect(failed.components).toEqual([]);
+    expect(failed.diagnostics.some((item) => item.code === "COMPONENT_COMPILE_FAILED")).toBeTrue();
+    await runtime.close();
+    const restarted = new ProjectRuntime({ trustStore: new TrustStore(trustPath) });
+    runtimes.push(restarted);
+    expect((await restarted.load(root)).trusted).toBeTrue();
+    await expect(restarted.getLaunchEnvironment()).resolves.toBeObject();
+  });
+
   test("resolves a configured dashboard icon only after trust", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
@@ -478,6 +600,7 @@ describe("ProjectRuntime", () => {
     cleanup.push(parent);
     const root = join(parent, ".dash-bored");
     await mkdir(root);
+    await installCoreFixture(join(root, ".dash-bored"));
     const runtime = new ProjectRuntime({
       trustStore: new TrustStore(join(root, ".state", "trust.json")),
     });

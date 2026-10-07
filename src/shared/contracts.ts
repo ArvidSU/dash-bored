@@ -381,6 +381,8 @@ export interface ProjectSnapshot {
   configRevision: string | null;
   componentCatalog: ComponentCatalogItem[];
   trusted: boolean;
+  /** Capability review can succeed even when validation withholds the render tree. */
+  trustReview?: { available: boolean; hasLocalCode: boolean };
   requestedPermissions: Permission[];
   tree: ResolvedComponentNode | null;
   components: CompiledLocalComponent[];

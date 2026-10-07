@@ -78,7 +78,7 @@ function trustMessage(snapshot: ProjectSnapshot): string {
   const capabilities = snapshot.requestedPermissions.map(
     (permission) => PERMISSION_LABELS[permission].toLocaleLowerCase(),
   );
-  if (hasLocalNode(snapshot.tree)) capabilities.unshift("load local component code");
+  if (snapshot.trustReview?.hasLocalCode ?? hasLocalNode(snapshot.tree)) capabilities.unshift("load local component code");
   if (capabilities.length === 0) {
     return "This project requests no privileged capabilities.";
   }
@@ -472,10 +472,10 @@ export function buildApplicationActions(
           description: "Review and enable this project's requested capabilities.",
           keywords: ["security", "permissions", "capabilities"],
           group: "Dashboard",
-          enabled: pendingAction === null && snapshot.tree !== null,
+          enabled: pendingAction === null && (snapshot.trustReview?.available ?? snapshot.tree !== null),
           disabledReason:
-            snapshot.tree === null
-              ? "Fix the configuration before trusting this project."
+            !(snapshot.trustReview?.available ?? snapshot.tree !== null)
+              ? "Requested capabilities could not be inspected. Fix the fatal configuration diagnostics first."
               : pendingReason,
           confirmation: {
             title: "Trust this project?",

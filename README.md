@@ -80,6 +80,14 @@ new permissions, and do not update your global skill installation. This applies
 only to the actual `dev` channel; installed releases retain normal trust.
 Revoking trust still disables a project until the dev app is restarted.
 
+Installed apps remember approved project capabilities across restarts. Nonfatal
+validation errors still allow **Trust project** when all requested capabilities
+can be inspected; you can then use **Fix with agent**. A wrong schema marker,
+invalid props or action references, or a compile failure does not erase trust.
+The dashboard loads after the errors are fixed. Unreadable YAML, unsafe paths,
+or missing capability declarations block approval; new permissions require a
+fresh review.
+
 For an agent-managed background instance, use `bun run dev:start`. Use
 `dev:status` to get its identity, PID and log path, `dev:restart` to rebuild and
 restart it, and `dev:stop` to stop this checkout's dev processes. Restart returns
