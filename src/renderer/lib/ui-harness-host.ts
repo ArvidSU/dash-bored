@@ -349,6 +349,7 @@ function project(config: DashboardConfig): ProjectListItem {
 }
 
 export interface UiHarnessHost extends DashboardHost {
+  setProcessSnapshot(process: ProcessSnapshot): void;
   /** Test-only inspection is exposed only on the ui-harness page. */
   getPersistedConfig(): DashboardConfig;
   /** Test-only diagnostics control is exposed only on the ui-harness page. */
@@ -462,6 +463,10 @@ export function createUiHarnessHost(): UiHarnessHost {
       return () => listeners.delete(listener);
     },
     getPersistedConfig() { return structuredClone(persistedConfig); },
+    setProcessSnapshot(process) {
+      processSnapshots.set(process.id, structuredClone(process));
+      emit({ type: "process", process: structuredClone(process) });
+    },
     async getSnapshot() { return snapshot(); },
     async getThemes() { return structuredClone(FIXTURE_APPLICATION_THEMES); },
     async getUpdateState(): Promise<UpdateState> { return { currentVersion: "0.2.6", settings: { channel: "canary" as const, automaticChecks: true }, release: null, receipt: null, dashboards: [], phase: "idle" as const, message: "UI fixture: no network check performed.", ...structuredClone(updateOverride ?? {}) }; },

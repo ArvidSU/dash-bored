@@ -207,7 +207,7 @@ root:
                 component: "./components/external/core/group"
                 props:
                   title: Per-item actions
-                  description: Item fields reach the command only as DASH_ITEM_* variables. Delta lacks a count to exercise the missing-field path.
+                  description: Healthy, warning, error, and unknown fixtures show the list's state grammar. Echo feedback follows the process run. Item fields reach commands only as DASH_ITEM_* variables; Delta lacks a count to exercise the missing-field path.
                 children:
                   axis: horizontal
                   ratio: 0.55

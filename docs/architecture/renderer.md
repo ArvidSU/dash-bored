@@ -167,6 +167,11 @@ examples, not privileged component types:
   the shared executor. Missing fields and unsupported values are visible
   errors, and command actions receive those values as `DASH_ITEM_*` environment
   variables at process start. Each rendered item carries `data-item-id`.
+  Item state comes only from `state` or `done`, never from text or tags.
+  Per-item process feedback uses an amber triangle for Running/Stopping,
+  a green check for a successful Finished run, and a red cross for failures.
+  A completed invocation that merely started a process is not a successful run;
+  feedback still belongs only to the item invocation that started that run.
   Unless `highlightChanges: false`, items that are new or changed (by stable
   ID and content) in the latest observation that differed from the previous
   one carry a `New`/`Changed` badge and a short tint; identical polls keep the

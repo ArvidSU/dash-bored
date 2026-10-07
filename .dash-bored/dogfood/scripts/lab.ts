@@ -66,6 +66,7 @@ const modes: Record<string, () => Promise<void> | void> = {
       { id: "lab:beta", title: "Beta — warning item", detail: "Numbers pass through as strings in the environment.", tags: ["lab", "warn"], state: "warning", name: "beta", count: 2 },
       { id: "lab:gamma", title: "Gamma — closed item", detail: "Closed states sort after open ones.", tags: ["lab"], state: "done", name: "gamma", count: 3 },
       { id: "lab:delta", title: "Delta — no count field", detail: "Run should report a missing ${item.count} value.", tags: ["lab", "error-path"], state: "error", name: "delta" },
+      { id: "lab:epsilon", title: "Epsilon — unknown item", detail: "An unavailable observation stays neutral.", tags: ["lab"], state: "unknown", name: "epsilon", count: 5 },
     ]);
   },
   "duplicate-ids"() {

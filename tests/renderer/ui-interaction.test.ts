@@ -2467,6 +2467,75 @@ test('source lists leave todo mutations unavailable while preserving filter acti
 });
 
 
+test('list states and item process feedback use semantic colors and keep runs with their invoking item', async () => {
+  const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+  proof.setDefaultTimeout(5_000);
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: 'Open component library' }).waitFor();
+    await proof.evaluate(async () => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      host.processCommand = async (id, command) => {
+        if (command.type !== 'start' && command.type !== 'quick-action') {
+          return (await host.getSnapshot()).processes.find(p => p.id === id)!;
+        }
+        const process = { id, phase: 'running' as const, interactive: true, pid: 42,
+          exitCode: null, signal: null, logs: [], run: {
+            phase: 'running' as const, exitCode: null, signal: null, startedAt: new Date().toISOString(),
+          } };
+        host.setProcessSnapshot(process);
+        return process;
+      };
+      const snapshot = await host.getSnapshot();
+      await host.saveDashboardConfig({ schemaVersion: 4, name: 'List feedback', root: {
+        id: 'root', component: './components/external/core/group', children: { axis: 'vertical',
+          first: { node: { id: 'feedback-list', component: './components/external/core/list', props: {
+            source: { inline: [
+              { id: 'healthy', title: 'Healthy item', state: 'healthy' },
+              { id: 'warning', title: 'Warning item', state: 'warning' },
+              { id: 'error', title: 'Error item', state: 'error' },
+              { id: 'unknown', title: 'Unknown item', state: 'unknown' },
+            ] }, itemActions: [{ name: 'Run', action: 'component:feedback-command:run' }],
+          } } },
+          second: { node: { id: 'feedback-command', component: './components/external/core/command', props: { label: 'Fixture command', command: 'fixture-only' } } },
+        },
+      } }, snapshot.configRevision!);
+    });
+    const list = proof.locator('.source-list');
+    await list.getByText('Healthy item', { exact: true }).waitFor();
+    for (const [id, tone] of [['healthy', 'positive'], ['warning', 'warning'], ['error', 'negative'], ['unknown', 'neutral']] as const) {
+      const row = list.locator(`[data-item-id="${id}"]`);
+      expect(await row.getAttribute('data-tone')).toBe(tone);
+      expect(await row.locator('.source-list__glyph svg').count()).toBe(1);
+    }
+    const row = list.locator('[data-item-id="healthy"]');
+    const feedback = row.locator('.source-list__feedback');
+    await row.getByRole('button', { name: 'Run', exact: true }).click();
+    await feedback.getByText('Running', { exact: true }).waitFor();
+    expect(await row.getByText('Finished', { exact: true }).count()).toBe(0);
+    const colors: string[] = [];
+    for (const [phase, exitCode, label, tone] of [
+      ['running', null, 'Running', 'warning'], ['stopping', null, 'Stopping', 'warning'],
+      ['exited', 0, 'Finished', 'positive'], ['exited', 2, 'Failed: exit 2', 'negative'],
+    ] as const) {
+      await proof.evaluate(async ({ phase, exitCode }) => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        const process = (await host.getSnapshot()).processes.find(p => p.id === 'feedback-command')!;
+        host.setProcessSnapshot({ ...process, run: { ...process.run!, phase, exitCode } });
+      }, { phase, exitCode });
+      await feedback.getByText(label, { exact: true }).waitFor();
+      expect(await feedback.getAttribute('data-tone')).toBe(tone);
+      expect(await feedback.locator('svg').count()).toBe(1);
+      colors.push(await feedback.evaluate(e => getComputedStyle(e).color));
+    }
+    expect(colors[0]).toBe(colors[1]);
+    expect(new Set(colors).size).toBe(3);
+    await list.locator('[data-item-id="warning"]').getByRole('button', { name: 'Run', exact: true }).click();
+    await list.locator('[data-item-id="warning"] .source-list__feedback').getByText('Running', { exact: true }).waitFor();
+    expect(await feedback.count()).toBe(0);
+  } finally { await proof.close(); }
+}, 20_000);
+
 test('visual overview preserves refresh geometry, state shapes, and reduced motion', async () => {
   const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
   proof.setDefaultTimeout(5_000);

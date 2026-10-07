@@ -182,6 +182,16 @@ children:
 
 How item actions resolve:
 
+List state colors and glyphs come from each item's `state` (or `done`), not
+from its `detail` or `tags`. Emit explicit states for successful and pending
+observations as well as failures: `healthy`/`success` use a green check,
+`warning`/`pending`/`running` an amber triangle, `error`/`failed` a red cross,
+and `unknown` a neutral minus. Arbitrary states remain neutral. A running
+service without a healthcheck may use `online` for observed liveness; it does
+not establish application health. Keep an unavailable read explicit rather
+than inferring health. Process-action feedback separately follows the actual
+run: Running/Stopping, Finished, or Failed.
+
 - `${item.<field>}` must be an argument's entire value; `"commit ${item.sha}"`
   is rejected. An item that lacks the field shows an error on that action.
   Put composed text, such as a per-item agent prompt, in its own field from
