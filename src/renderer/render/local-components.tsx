@@ -39,6 +39,12 @@ declare global {
   var __DASH_BORED_COMPONENT_RUNTIME__: ComponentRuntimeBridge | undefined;
 }
 
+// Published components may already contain the development JSX transform.
+// React's production jsx-dev-runtime exports undefined, so adapt those calls
+// to the renderer's production factories while preserving keys and children.
+const productionJsxDEV: typeof jsxDEV = (type, props, key, isStaticChildren) =>
+  (isStaticChildren ? jsxs : jsx)(type, props, key);
+
 export function installComponentRuntime(): void {
   if (globalThis.__DASH_BORED_COMPONENT_RUNTIME__) return;
 
@@ -47,7 +53,7 @@ export function installComponentRuntime(): void {
     React,
     jsx,
     jsxs,
-    jsxDEV,
+    jsxDEV: jsxDEV ?? productionJsxDEV,
     defineComponent: (component) => component,
     useTheme,
     useComponentVisibility: () => useContext(ComponentVisibilityContext),

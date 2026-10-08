@@ -428,11 +428,20 @@ Bun.build({
   target: "browser",
   format: "esm",
   splitting: false,
+  jsx: { runtime: "automatic", importSource: "react", development: false },
 });
 ```
 
 A bundler plugin maps React and `@dash-bored/component` to renderer-owned
-runtime modules. No output directory is configured, so the runtime consumes
+runtime modules. Source JSX always uses the production `jsx`/`jsxs` transform,
+independent of the application's channel and the component's tsconfig. Already
+published JavaScript may import `jsxDEV`; the renderer bridge preserves the
+development factory when available and adapts it to production `jsx`/`jsxs`
+otherwise, including element keys and static children. Existing package pins
+therefore work in both development and packaged renderers without rebuilding.
+The production browser regression builds the actual renderer with production
+React, mounts pinned core output, and exercises button/selection navigation.
+No output directory is configured, so the runtime consumes
 the build's in-memory outputs without writing component bundles to disk. A
 component may use contained relative TS, TSX, JS, and CSS imports. Bare package
 imports, Node or Electrobun APIs, files outside that component directory, and

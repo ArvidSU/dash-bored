@@ -137,6 +137,7 @@ async function compileDefinition(
       target: "browser",
       format: "esm",
       splitting: false,
+      jsx: { runtime: "automatic", importSource: "react", development: false },
       minify: options.minify ?? false,
       sourcemap: "none",
       plugins: [runtimePlugin(definition)],

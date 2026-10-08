@@ -145,6 +145,7 @@ watcher is stopped before relying on fast checks.
 | Focused logic regression | `bun test tests/<area>/<file>.test.ts` |
 | TypeScript across the repo | `bun run typecheck:fast` |
 | Renderer bundling or CSS | `bun run build:renderer:fast` |
+| Component rendering in packaged apps | `bun test tests/renderer/production-components.test.ts` (production React and JSX, pinned core navigation, local TSX) |
 | Completed code change | `bun run qa:fast` (includes the browser interaction suite and agent-tool build) |
 | Dashboard YAML | `bun run dash-bored -- validate .` |
 | Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
@@ -160,6 +161,10 @@ Use `bun run test` for the complete repository suite: it scopes discovery to
 `./tests`. Bare `bun test` also discovers copied tests in saved release-QA
 artifacts and the standalone release fixture, making its totals depend on
 local evidence directories.
+The production component regression is included in `bun run test`; it builds
+the renderer with production React and exercises existing compiled components
+as well as local TSX. The normal Vite fixture uses development React and cannot
+by itself prove this packaged-runtime compatibility.
 Check `git diff --check` before handing off changes.
 
 On macOS, use `caffeinate -is bun run qa:fast` when an unattended run could
