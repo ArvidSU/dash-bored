@@ -1598,7 +1598,8 @@ describe("renderer fixture interactions", () => {
     await active.mouse.down();
     await active.waitForTimeout(100);
     await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 });
-    await active.waitForTimeout(150);
+    await active.locator('[data-library-drag-handle][aria-grabbed="true"]').waitFor();
+    await target.locator(":scope > [data-composition-placement-preview]").waitFor();
     await active.mouse.up();
 
     await active.getByRole("heading", { name: "Add component" }).waitFor();
