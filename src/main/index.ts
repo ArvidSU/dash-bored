@@ -173,7 +173,7 @@ mainWindow = new BrowserWindow({
   url: await mainViewUrl(),
   rpc: dashboardRPC,
   titleBarStyle: "hiddenInset",
-  trafficLightOffset: { x: 18, y: 0 },
+  trafficLightOffset: { x: 0, y: 0 },
   frame: {
     width: 1280,
     height: 800,

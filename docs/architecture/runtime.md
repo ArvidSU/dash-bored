@@ -152,9 +152,10 @@ dependencies, so the probe remains an honest manual smoke boundary.
 These give agents stable renderer and native-proof boundaries without attaching
 to an ambiguous or user-owned Electrobun process.
 
-The main window uses Electrobun's `hiddenInset` title-bar style. The renderer
-uses one shared app-background surface for the sidebar and header, without a
-separator between them, so the native traffic lights sit inside the shell
+The main window uses Electrobun's `hiddenInset` title-bar style with the default
+traffic-light inset, keeping all three controls within the 76px collapsed sidebar.
+The renderer uses one shared app-background surface for the sidebar and header,
+without a separator between them, so the native traffic lights sit inside the shell
 instead of a second title treatment. The transparent traffic-light hit area,
 sidebar, and header are draggable; buttons and other controls explicitly opt
 out so they remain interactive. The sidebar reserves the small top area so its
