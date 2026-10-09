@@ -1588,6 +1588,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Open component library" }).click();
     const source = active.getByRole("button", { name: "Insert Group", exact: true });
     const target = active.locator('[data-node-id="renderer-proof-card"]');
+    await target.scrollIntoViewIfNeeded();
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     const targetBox = await target.boundingBox();
@@ -1597,9 +1598,9 @@ describe("renderer fixture interactions", () => {
     await active.waitForTimeout(100);
     await active.mouse.down();
     await active.waitForTimeout(100);
-    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 });
+    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 8, { steps: 12 });
     await active.locator('[data-library-drag-handle][aria-grabbed="true"]').waitFor();
-    await target.locator(":scope > [data-composition-placement-preview]").waitFor();
+    await target.locator(":scope > .composition-drop-indicator--bottom").waitFor();
     await active.mouse.up();
 
     await active.getByRole("heading", { name: "Add component" }).waitFor();

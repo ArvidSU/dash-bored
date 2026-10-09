@@ -358,6 +358,13 @@ root:
                             done: true
                             tags:
                               - chore
+                          - id: todo-window-drag-inactive
+                            description: Resolve the first-drag loss when the app window is inactive. Electrobun starts its native move from webview mousedown, so track and adopt an upstream acceptsFirstMouse fix before claiming this is resolved.
+                            done: false
+                            tags:
+                              - bug
+                              - native
+                              - dependency
                           - id: todo-029
                             description: "Completed S16: a keyed filter boundary resets on source-provider changes, retains a still-valid selected tag across observations and tag additions, and permanently resets to All when the tag disappears or filtering is disabled. Todo edit buffers and keyboard focus survive tag updates."
                             done: true
