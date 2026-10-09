@@ -774,7 +774,16 @@ removes non-matches, then favorites sort ahead of the remaining results and use
 a star marker. The palette and Settings both update the same preference.
 Shortcuts use one portable `Mod` representation, dispatch through the normal
 action executor, and do not run while the user is typing into an editable
-control. Assigning an already-used combination moves it to the new target. The
+control. Assigning an already-used combination moves it to the new target.
+Default bindings follow macOS conventions where one exists: `Mod+,` settings,
+`Mod+O` add dashboard, `Mod+S` save dashboard changes; and mnemonics otherwise:
+`Mod+B` sidebar, `Mod+P` switch dashboard, `Mod+R` reload dashboard,
+`Mod+Shift+R` reload app, `Mod+E` component library, and `Mod+Shift+A` agent
+prompt. They avoid the native Edit-menu roles and Alt-letter combinations,
+which macOS rewrites into other characters. Settings files are versioned; when a
+file older than the current version loads, defaults introduced since then are
+added only where neither the action nor the combination is already bound, so
+cleared or reassigned bindings survive later loads. The
 native View menu mirrors configured accelerators for its command-palette and
 reload entries; all other action bindings are application-window shortcuts.
 

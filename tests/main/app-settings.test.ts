@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppSettingsStore, resolveDashBoredAgent } from "../../src/main/app-settings";
-import { cloneDefaultAppSettings } from "../../src/shared/app-settings";
+import { cloneDefaultAppSettings, DEFAULT_ACTION_SHORTCUTS } from "../../src/shared/app-settings";
 import { projectThemeReference } from "../../src/shared/themes";
 import {
   removeTemporaryDirectory,
@@ -23,7 +23,7 @@ test("shared app settings clones mutable collections", () => {
   first.favoriteActionIds.push("app:reload");
   first.actionShortcuts["app:test"] = "Mod+T";
   expect(second.favoriteActionIds).toEqual([]);
-  expect(second.actionShortcuts).toEqual({ "app:reload": "Mod+Shift+R" });
+  expect(second.actionShortcuts).toEqual(DEFAULT_ACTION_SHORTCUTS);
 });
 
 describe("AppSettingsStore", () => {
@@ -41,7 +41,7 @@ describe("AppSettingsStore", () => {
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
       clearPaletteInputOnKeepOpen: true,
-      actionShortcuts: { "app:reload": "Mod+Shift+R" },
+      actionShortcuts: DEFAULT_ACTION_SHORTCUTS,
     });
     const updated = await store.update({
       dashBoredAgent: "  claude -p  ",
@@ -86,7 +86,7 @@ describe("AppSettingsStore", () => {
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
       theme: "builtin:default",
       themeMode: "dark",
-      version: 2,
+      version: 3,
       dashBoredAgent: "claude -p",
       sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
@@ -121,7 +121,7 @@ describe("AppSettingsStore", () => {
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
       clearPaletteInputOnKeepOpen: true,
-      actionShortcuts: { "app:reload": "Mod+Shift+R" },
+      actionShortcuts: DEFAULT_ACTION_SHORTCUTS,
     });
     await expect(store.update({
       dashBoredAgent: "",
@@ -134,6 +134,34 @@ describe("AppSettingsStore", () => {
       code: "APP_SETTINGS_INVALID",
     });
     expect((await store.get()).dashBoredAgent).toBe("gemini -p");
+  });
+
+  test("version 2 settings gain newer default shortcuts once, without overriding user bindings", async () => {
+    const directory = await temporaryDirectory(); cleanup.push(directory);
+    const path = join(directory, "settings.json");
+    await writeFile(path, JSON.stringify({
+      version: 2,
+      dashBoredAgent: null,
+      commandPaletteShortcut: "Mod+P",
+      // app:reload was cleared; Mod+B now runs a component action.
+      actionShortcuts: { "app:show-settings": "Alt+S", "component:refresh": "Mod+B" },
+    }));
+    const store = new AppSettingsStore(path);
+    const migrated = (await store.get()).actionShortcuts;
+    expect(migrated).toEqual({
+      "app:show-settings": "Alt+S",
+      "component:refresh": "Mod+B",
+      "app:add-dashboard": "Mod+O",
+      "project:reload": "Mod+R",
+      "project:edit": "Mod+E",
+      "project:save-draft": "Mod+S",
+      "agent:prompt": "Mod+Shift+A",
+    });
+
+    const { ["project:edit"]: _cleared, ...remaining } = migrated;
+    await store.update({ ...await store.get(), actionShortcuts: remaining });
+    expect(JSON.parse(await readFile(path, "utf8")).version).toBe(3);
+    expect((await new AppSettingsStore(path).get()).actionShortcuts).toEqual(remaining);
   });
 
   test("uses the bundle environment after the app override is cleared", () => {

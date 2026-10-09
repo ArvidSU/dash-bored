@@ -564,6 +564,11 @@ root:
                             done: false
                             tags:
                               - agent-tools
+                          - id: todo-shortcuts-in-text-fields
+                            description: "Default shortcuts skip editable controls, so Command-S cannot save a dashboard draft while an inspector field has focus. Mirror save (and settings) in the native menu or allow chosen Mod shortcuts inside inputs. Agents also need an app-control key press to prove shortcuts in the dev app."
+                            done: false
+                            tags:
+                              - feature
                   second:
                     node:
                       id: checks

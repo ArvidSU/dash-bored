@@ -903,6 +903,25 @@ action as a favorite. You can also toggle its star directly in the palette.
 Favorites appear before other matching results but remain subject to the active
 search and the action's normal availability and confirmation rules. Assigning a
 shortcut already in use moves that combination to the newly selected target.
+Defaults (<kbd>Command</kbd> on macOS, <kbd>Ctrl</kbd> elsewhere):
+
+| Shortcut | Action |
+| --- | --- |
+| <kbd>Command-K</kbd> | Command palette |
+| <kbd>Command-1</kbd>…<kbd>9</kbd> | Open the dashboard at that sidebar position |
+| <kbd>Command-,</kbd> | Open settings |
+| <kbd>Command-B</kbd> | Expand or collapse the sidebar |
+| <kbd>Command-O</kbd> | Add dashboard |
+| <kbd>Command-P</kbd> | Switch dashboard |
+| <kbd>Command-R</kbd> | Reload dashboard |
+| <kbd>Command-Shift-R</kbd> | Reload app |
+| <kbd>Command-E</kbd> | Open component library |
+| <kbd>Command-S</kbd> | Save dashboard changes |
+| <kbd>Command-Shift-A</kbd> | Send prompt to agent |
+
+Action shortcuts do not fire while you type in a text field. Rebind or clear
+any of them under **Settings → Actions**; existing settings gain new defaults
+only where you have not bound that action or combination yourself.
 Choose <strong>Reload app</strong> there, or press <kbd>Command-Shift-R</kbd> on
 macOS (<kbd>Ctrl-Shift-R</kbd> elsewhere), to reload the app window when the
 renderer needs a fresh start. This is separate from <strong>Reload dashboard</strong>,

@@ -563,6 +563,29 @@ describe("renderer fixture interactions", () => {
     }
   }, 20_000);
 
+  test("default action shortcuts run actions and appear in the palette", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+      await proof.keyboard.press("Meta+B");
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).waitFor();
+      await proof.keyboard.press("Meta+B");
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("open settings");
+      expect(await palette.getByRole("option", { name: /Open settings/ }).locator("kbd").innerText()).toBe("⌘,");
+      await proof.keyboard.press("Escape");
+
+      await proof.keyboard.press("Meta+,");
+      await proof.getByRole("main", { name: "Settings" }).waitFor();
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("Command numbers follow draggable sidebar order and yield to the palette", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     try {

@@ -5,7 +5,9 @@ import { CoreError } from "../core/diagnostics";
 import type { AppSettings } from "../shared/contracts";
 import {
   cloneDefaultAppSettings,
+  DEFAULT_ACTION_SHORTCUTS,
   DEFAULT_DASH_BORED_AGENT,
+  VERSION_2_DEFAULT_ACTION_IDS,
 } from "../shared/app-settings";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
 import { isAppThemeReference } from "../shared/themes";
@@ -14,8 +16,10 @@ import { isLegacyAppThemeReference } from "../migrations/app-theme-reference";
 export { DEFAULT_DASH_BORED_AGENT };
 const MAX_AGENT_COMMAND_LENGTH = 1_024;
 
+const SETTINGS_VERSION = 3;
+
 interface StoredAppSettings extends Partial<AppSettings> {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
 }
 
 export { DEFAULT_COMMAND_PALETTE_SHORTCUT, DEFAULT_ACTION_SHORTCUTS } from "../shared/app-settings";
@@ -76,6 +80,21 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
   };
 }
 
+/**
+ * Older files predate the newer default shortcuts. Add each one whose action
+ * and combination are both still free, so a user's own bindings always win.
+ */
+function withNewDefaultShortcuts(settings: AppSettings): AppSettings {
+  const actionShortcuts = { ...settings.actionShortcuts };
+  const used = new Set([...Object.values(actionShortcuts), settings.commandPaletteShortcut]);
+  for (const [id, shortcut] of Object.entries(DEFAULT_ACTION_SHORTCUTS)) {
+    if (VERSION_2_DEFAULT_ACTION_IDS.includes(id) || id in actionShortcuts || used.has(shortcut)) continue;
+    actionShortcuts[id] = shortcut;
+    used.add(shortcut);
+  }
+  return { ...settings, actionShortcuts };
+}
+
 /** Resolve the command used for an agent launch after app settings and bundle environment are merged. */
 export function resolveDashBoredAgent(
   appSetting: string | null,
@@ -117,8 +136,9 @@ export class AppSettingsStore {
       this.settings = defaults(this.defaultAgent);
       try {
         const candidate = JSON.parse(await readFile(this.path, "utf8")) as Partial<StoredAppSettings>;
-        if (candidate.version !== 1 && candidate.version !== 2) return;
-        this.settings = normalizeSettings(candidate, this.defaultAgent);
+        if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== SETTINGS_VERSION) return;
+        const settings = normalizeSettings(candidate, this.defaultAgent);
+        this.settings = candidate.version === SETTINGS_VERSION ? settings : withNewDefaultShortcuts(settings);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           // Invalid settings fall back to a usable default without blocking app startup.
@@ -154,7 +174,7 @@ export class AppSettingsStore {
         await mkdir(dirname(this.path), { recursive: true });
         await writeFileAtomically(
           this.path,
-          `${JSON.stringify({ version: 2, ...next }, null, 2)}\n`,
+          `${JSON.stringify({ version: SETTINGS_VERSION, ...next }, null, 2)}\n`,
           { mode: 0o600 },
         );
         return structuredClone(next);
