@@ -86,7 +86,11 @@ can be inspected; you can then use **Fix with agent**. A wrong schema marker,
 invalid props or action references, or a compile failure does not erase trust.
 The dashboard loads after the errors are fixed. Unreadable YAML, unsafe paths,
 or missing capability declarations block approval; new permissions require a
-fresh review.
+fresh review. Blocking approval does not block repair: **Fix with agent** also
+works on an untrusted project as a capability-free repair run. It uses your
+configured agent without the project's `.env`, treats the project's files as
+data, and leaves the project untrusted so the normal review follows after the
+fix.
 
 For an agent-managed background instance, use `bun run dev:start`. Use
 `dev:status` to get its identity, PID and log path, `dev:restart` to rebuild and

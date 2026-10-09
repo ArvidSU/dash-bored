@@ -35,7 +35,7 @@ export function TrustPanel({
           ) : null}
         </ul>
         {!canReviewCapabilities ? (
-          <p>Fix the fatal configuration diagnostics before trusting this project.</p>
+          <p>Fix the fatal configuration diagnostics before trusting this project. Fix with agent repairs them without a trust grant; nothing this project declares runs until you approve it.</p>
         ) : snapshot.tree === null ? (
           <p>You can trust this project to fix its diagnostics with your agent. The dashboard will load once those issues are fixed.</p>
         ) : null}

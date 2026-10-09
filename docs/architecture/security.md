@@ -51,6 +51,19 @@ Failed reloads can keep the last valid dashboard running; a newly inspected
 permission expansion restricts it until approval. Fatal reloads do not grant
 any capabilities from the broken config.
 
+When no grant exists and capability inspection fails, diagnostics repair still
+runs as an untrusted repair. It launches only the app-configured agent command,
+resolved and executed without the bundle `.env`, so no project-controlled
+environment or agent selection reaches the process. Its prompt frames project
+files as untrusted data, confines edits to the dashboard bundle, and forbids
+project commands and dependency installation. Post-run validation reports the
+trust review the fix now needs and never launches the automatic repair while
+the project is untrusted. The repair grants nothing: component code, commands,
+and configured processes stay withheld, and the ordinary trust review follows
+once inspection succeeds. Like every configured agent launch it is driven only
+by the user's explicit in-app request; the agent-control channel still cannot
+start it.
+
 The native host enables process-local automatic trust only when Electrobun's
 reported channel is `dev`, never from an environment flag. Development loads
 and new permission sets are trusted without writing a grant. Node capability

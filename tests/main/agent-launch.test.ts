@@ -15,7 +15,7 @@ afterEach(async () => {
   await Promise.all(cleanup.splice(0).map(removeTemporaryDirectory));
 });
 
-test("diagnostics repair requires normal trust, then uses the trusted bundle environment", async () => {
+test("diagnostics repair runs untrusted with a clean environment, then uses the trusted bundle environment", async () => {
   const root = await temporaryDirectory();
   cleanup.push(root);
   const config = { schemaVersion: 4 as const, name: "Repairable", root: {
@@ -28,7 +28,7 @@ test("diagnostics repair requires normal trust, then uses the trusted bundle env
   const runtime = new ProjectRuntime({ trustStore: new TrustStore(join(root, "state", "trust.json")) });
   runtimes.push(runtime);
   await runtime.load(root);
-  const settings = { get: async () => ({ dashBoredAgent: null }) } as unknown as AppSettingsStore;
+  const settings = { get: async () => ({ dashBoredAgent: "/bin/echo" }) } as unknown as AppSettingsStore;
   let launchOptions: Parameters<DashboardAgentHarness["launch"]>[0] | undefined;
   const harness = {
     launch: async (options: Parameters<DashboardAgentHarness["launch"]>[0]) => {
@@ -39,8 +39,16 @@ test("diagnostics repair requires normal trust, then uses the trusted bundle env
   const launcher = new AgentLauncher({ runtime, harness, settings,
     publishedEnvironment: () => ({ APP_PUBLISHED_VALUE: "available" }),
   });
-  await expect(launcher.launch({ kind: "diagnostics" })).rejects.toMatchObject({ code: "PROJECT_UNTRUSTED" });
-  expect(launchOptions).toBeUndefined();
+  // Untrusted repair: launches without a trust grant and never receives
+  // project-controlled bundle values.
+  const untrusted = await launcher.launch({ kind: "diagnostics" });
+  expect(untrusted.command).toBe("/bin/echo");
+  expect(launchOptions?.purpose).toBe("edit");
+  expect(launchOptions?.onFinished).toBeFunction();
+  expect(launchOptions?.env?.PROJECT_VALUE).toBeUndefined();
+  expect(launchOptions?.env?.APP_PUBLISHED_VALUE).toBe("available");
+  expect(launchOptions?.prompt).toContain("untrusted data");
+  expect(launchOptions?.prompt).toContain("CONFIG_SCHEMA_INVALID");
   await runtime.trust();
   const launched = await launcher.launch({ kind: "diagnostics" });
   expect(launched.command).toBe("/bin/echo");
@@ -48,4 +56,27 @@ test("diagnostics repair requires normal trust, then uses the trusted bundle env
   expect(launchOptions?.onFinished).toBeFunction();
   expect(launchOptions?.env?.PROJECT_VALUE).toBe("available");
   expect(launchOptions?.prompt).toContain("CONFIG_SCHEMA_INVALID");
+  expect(launchOptions?.prompt).not.toContain("untrusted data");
+});
+
+test("an untrusted repair cannot select its agent command from the bundle", async () => {
+  const root = await temporaryDirectory();
+  cleanup.push(root);
+  const config = { schemaVersion: 4 as const, name: "Selectable", root: {
+    id: "test", component: "./components/external/core/markdown", props: { content: "Ready" },
+  } };
+  await createProject(root, config);
+  const configPath = join(root, ".dash-bored", "dash-bored.yaml");
+  await writeFile(join(root, ".dash-bored", ".env"), "DASH_BORED_AGENT=/bin/echo\n");
+  const runtime = new ProjectRuntime({ trustStore: new TrustStore(join(root, "state", "trust.json")) });
+  runtimes.push(runtime);
+  await runtime.load(root);
+  const settings = { get: async () => ({ dashBoredAgent: null }) } as unknown as AppSettingsStore;
+  const harness = {
+    launch: async (options: Parameters<DashboardAgentHarness["launch"]>[0]) =>
+      ({ taskId: "t", command: options.command, componentPath: options.componentPath, pid: 123 }),
+  } as unknown as DashboardAgentHarness;
+  const launcher = new AgentLauncher({ runtime, harness, settings, publishedEnvironment: () => ({}) });
+  expect(await launcher.command(configPath, { bundleless: true })).not.toBe("/bin/echo");
+  expect(await launcher.command(configPath)).toBe("/bin/echo");
 });

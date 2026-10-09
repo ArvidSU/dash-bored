@@ -97,6 +97,26 @@ describe("DashboardSetupSupervisor", () => {
     const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); rt.revoke(); await h.launches[0].options.onFinished(h.launches[0].task); expect(h.launches).toHaveLength(1); expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
   });
 
+  test("an untrusted repair launches without trust and never auto-repairs", async () => {
+    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
+    const rt = runtime(location, node); rt.revoke(); const h = harness();
+    const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location });
+    await s.launchRequest({ prompt: "fix", configPath: location.configPath, componentPath: `${location.configPath}#diagnostics`, request: "Fix dashboard configuration diagnostics.", purpose: "edit", untrustedRepair: true, env: { CLEAN: "yes" } });
+    expect(h.launches[0].options.env).toEqual({ CLEAN: "yes" });
+    await h.launches[0].options.onFinished(h.launches[0].task);
+    expect(h.launches).toHaveLength(1);
+    expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
+    expect(h.launches[0].validations.at(-1).message).toContain("review project trust");
+  });
+
+  test("a trusted-required request still refuses to launch without a grant", async () => {
+    const { location, node } = await fixture();
+    const rt = runtime(location, node); rt.revoke(); const h = harness();
+    const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location });
+    expect(s.launchRequest({ prompt: "fix", configPath: location.configPath, componentPath: `${location.configPath}#diagnostics`, request: "Fix dashboard configuration diagnostics.", purpose: "edit" })).rejects.toThrow("trust changed");
+    expect(h.launches).toHaveLength(0);
+  });
+
   test("does not retry twice when repair remains invalid", async () => {
     const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
     const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); await h.launches[0].options.onFinished(h.launches[0].task); await h.launches[1].options.onFinished(h.launches[1].task); expect(h.launches).toHaveLength(2);

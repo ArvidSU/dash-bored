@@ -68,13 +68,19 @@ export class DashboardSetupSupervisor {
   /**
    * Launch one request. `followUp: false` skips post-run dashboard validation
    * and repair, for project work whose result is reviewed as a project diff.
+   * `untrustedRepair` starts the request without a trust grant and without the
+   * project-controlled bundle environment: it requires the caller to supply a
+   * clean `env`, never calls the trust-gated launch environment, and the
+   * post-run flow reports review-required instead of launching a repair.
    */
-  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: DashboardAgentTask["purpose"]; template?: string; followUp?: boolean }): Promise<ComponentAgentLaunch> {
+  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: DashboardAgentTask["purpose"]; template?: string; followUp?: boolean; untrustedRepair?: boolean; env?: Record<string, string> }): Promise<ComponentAgentLaunch> {
     const { runtime, harness, command, location, preflight } = this.options;
-    const { followUp = true, ...launch } = request;
-    const env = await runtime.getLaunchEnvironment(request.configPath);
+    const { followUp = true, untrustedRepair = false, env: explicitEnv, ...launch } = request;
+    const env = explicitEnv ?? await runtime.getLaunchEnvironment(request.configPath);
     preflight?.(command, env, location.projectRoot);
-    if (!this.stillHere() || !runtime.getSnapshot().trusted) throw new Error("The active dashboard or its trust changed before agent work started.");
+    if (!this.stillHere() || (!untrustedRepair && !runtime.getSnapshot().trusted)) {
+      throw new Error("The active dashboard or its trust changed before agent work started.");
+    }
     return harness.launch({ ...launch, command, projectRoot: location.projectRoot, env,
       ...(followUp ? { onFinished: (task: DashboardAgentTask) => this.finish(task, request.prompt, request.configPath, false) } : {}),
     });
@@ -104,11 +110,13 @@ export class DashboardSetupSupervisor {
       if (additionalPermissions.length > 0) {
         // Publish the trust delta, but never grant it or launch another process.
         if (!hasErrors(diagnostics)) await runtime.reload();
-        report("trust-required", diagnostics, `Review project trust for: ${additionalPermissions.join(", ")}.`);
+        report("trust-required", diagnostics, hasErrors(diagnostics)
+          ? `Configuration errors remain; once fixed, review project trust for: ${additionalPermissions.join(", ")}.`
+          : `Review project trust for: ${additionalPermissions.join(", ")}.`);
         return;
       }
       if (!runtime.getSnapshot().trusted) {
-        report("trust-required", diagnostics, "Project trust changed; no automatic repair will run.");
+        report("trust-required", diagnostics, "Project trust is not enabled; review it to load this dashboard. No automatic repair will run.");
         return;
       }
       const run = processRun(task.process);

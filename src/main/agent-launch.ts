@@ -35,11 +35,19 @@ export interface AgentLauncherOptions {
 export class AgentLauncher {
   constructor(private readonly options: AgentLauncherOptions) {}
 
-  /** The configured agent command for work on `configPath`. */
-  async command(configPath: string): Promise<string> {
+  /**
+   * The configured agent command for work on `configPath`. `bundleless`
+   * excludes project-controlled bundle `.env` values so an untrusted repair
+   * cannot select or configure its own agent command.
+   */
+  async command(configPath: string, options: { bundleless?: boolean } = {}): Promise<string> {
     const settings = await this.options.settings.get();
     if (settings.dashBoredAgent !== null) return settings.dashBoredAgent;
-    return resolveDashBoredAgent(settings.dashBoredAgent, await resolveEnvironment(configPath, this.options.publishedEnvironment()));
+    const environment = await resolveEnvironment(
+      options.bundleless === true ? undefined : configPath,
+      this.options.publishedEnvironment(),
+    );
+    return resolveDashBoredAgent(settings.dashBoredAgent, environment);
   }
 
   launch(request: AgentLaunchRequest): Promise<ComponentAgentLaunch> {
@@ -170,23 +178,30 @@ export class AgentLauncher {
     if (snapshot.diagnostics.length === 0) {
       throw new CoreError("DIAGNOSTICS_NOT_FOUND", "This dashboard has no current diagnostics to fix.");
     }
+    // A project that cannot be trusted yet must still be repairable. The
+    // untrusted repair runs the app-configured agent with no project-controlled
+    // input: no bundle `.env`, no project instructions in the prompt, and no
+    // capability grant. The project stays untrusted until the ordinary review.
+    const untrustedRepair = !snapshot.trusted;
     const sourceLocation = await resolveProjectLocation(snapshot.configPath);
     const prompt = buildDiagnosticsAgentPrompt({
       projectRoot: sourceLocation.projectRoot,
       configPath: snapshot.configPath,
       diagnostics: snapshot.diagnostics,
+      untrustedRepair,
     });
-    if (!snapshot.trusted) {
-      throw new CoreError("PROJECT_UNTRUSTED", "Trust this project before asking an agent to fix its diagnostics.");
-    }
 
-    const command = await this.command(snapshot.configPath);
+    const command = await this.command(snapshot.configPath, { bundleless: untrustedRepair });
     return this.supervisor(command, sourceLocation).launchRequest({
       prompt,
       purpose: "edit",
       componentPath: `${snapshot.configPath}#diagnostics`,
       configPath: snapshot.configPath,
       request: "Fix dashboard configuration diagnostics.",
+      untrustedRepair,
+      env: untrustedRepair
+        ? await resolveEnvironment(undefined, this.options.publishedEnvironment())
+        : undefined,
     });
   }
 

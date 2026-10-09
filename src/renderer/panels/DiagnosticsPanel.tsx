@@ -29,12 +29,15 @@ export function Diagnostics({
   diagnostics,
   pending,
   repairPending,
+  trusted,
   onFixWithAgent,
   onRepairInstalledTools,
 }: {
   diagnostics: Diagnostic[];
   pending: boolean;
   repairPending: boolean;
+  /** False when the project has no trust grant; the repair then runs capability-free. */
+  trusted: boolean;
   onFixWithAgent: () => void;
   onRepairInstalledTools: () => void;
 }): ReactNode {
@@ -75,6 +78,9 @@ export function Diagnostics({
             className="button button--quiet button--small diagnostics__fix"
             type="button"
             disabled={pending || repairPending}
+            title={trusted
+              ? "Fix the reported diagnostics with your configured agent"
+              : "Fix the reported diagnostics with your configured agent without trusting this project. Nothing the project declares runs until you approve trust."}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();

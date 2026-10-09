@@ -66,6 +66,7 @@ export function DashboardWorkspace({
             diagnostics={diagnostics}
             pending={pendingAction === "diagnostics-agent"}
             repairPending={pendingAction === "installed-tools-repair"}
+            trusted={snapshot.trusted}
             onFixWithAgent={onFixWithAgent}
             onRepairInstalledTools={onRepairInstalledTools}
           />
