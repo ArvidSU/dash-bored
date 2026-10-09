@@ -1,5 +1,5 @@
-import { CoreError, type ProjectRuntime, loadPromptTemplates, prepareAgentPrompt, promptTemplateSummary, resolveProjectLocation, resolvePromptTemplate } from "../core/index";
-import { resolveEnvironment } from "../core/environment";
+import { CoreError, type ProjectRuntime, loadPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, resolveProjectLocation, resolvePromptTemplate } from "../core/index";
+import { readBundleEnvironment, resolveEnvironment } from "../core/environment";
 import type { ProjectLocation } from "../core/paths";
 import {
   buildComponentCreationAgentPrompt,
@@ -8,7 +8,10 @@ import {
   findResolvedNode,
   resolveDashboardInsertion,
 } from "../shared/component-agent";
+import { DEFAULT_DASH_BORED_AGENT } from "../shared/app-settings";
 import type {
+  AgentCommandChoice,
+  AgentCommandOptions,
   AgentLaunchRequest,
   AgentTaskCommand,
   ComponentAgentLaunch,
@@ -19,7 +22,7 @@ import type {
 } from "../shared/contracts";
 import { isProcessRunActive } from "../shared/process-state";
 import { assertAgentAvailable } from "./agent-preflight";
-import { AppSettingsStore, resolveDashBoredAgent } from "./app-settings";
+import { AppSettingsStore, normalizeDashBoredAgent, resolveDashBoredAgent } from "./app-settings";
 import type { DashboardAgentHarness } from "./component-agent";
 import { readDashboardAgentDiff } from "./dashboard-agent-diff";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
@@ -50,6 +53,29 @@ export class AgentLauncher {
     return resolveDashBoredAgent(settings.dashBoredAgent, environment);
   }
 
+  /** The commands the composer offers for work on `configPath`, and which one applies by default. */
+  async commandOptions(configPath: string): Promise<AgentCommandOptions> {
+    const settings = await this.options.settings.get();
+    const project = (await readBundleEnvironment(configPath)).DASH_BORED_AGENT?.trim() || null;
+    return {
+      app: settings.dashBoredAgent ?? DEFAULT_DASH_BORED_AGENT,
+      project,
+      effective: settings.dashBoredAgent === null && project !== null ? "project" : "app",
+    };
+  }
+
+  /** The command one composer launch runs; an explicit choice is the user's reviewed pick. */
+  private async chosenCommand(configPath: string, choice: AgentCommandChoice | undefined): Promise<string> {
+    if (choice === undefined) return this.command(configPath);
+    if (choice.source === "custom") return normalizeDashBoredAgent(choice.command);
+    const options = await this.commandOptions(configPath);
+    if (choice.source === "app") return options.app;
+    if (options.project === null) {
+      throw new CoreError("AGENT_COMMAND_UNAVAILABLE", "This dashboard's .env does not set DASH_BORED_AGENT.");
+    }
+    return options.project;
+  }
+
   launch(request: AgentLaunchRequest): Promise<ComponentAgentLaunch> {
     switch (request.kind) {
       case "component": return this.launchComponent(request);
@@ -60,8 +86,13 @@ export class AgentLauncher {
   }
 
   async preview(request: ComponentAgentRequest): Promise<ComponentAgentPreview> {
-    const { template, prompt } = await this.prepareComponent(request, true);
-    return { template: promptTemplateSummary(template), prompt };
+    const { template, prompt, templates, source } = await this.prepareComponent(request, true);
+    return {
+      template: promptTemplateSummary(template),
+      prompt,
+      templates: promptTemplateSummaries(templates.templates),
+      agents: await this.commandOptions(source.configPath),
+    };
   }
 
   taskCommand(taskId: string, command: AgentTaskCommand): Promise<DashboardAgentTask> {
@@ -122,7 +153,7 @@ export class AgentLauncher {
           name: node.configName?.trim() || node.manifest?.name || node.component,
         },
       });
-      return { ...prepared, source, sourceLocation, locator };
+      return { ...prepared, templates, source, sourceLocation, locator };
     } catch (error) {
       throw new CoreError("COMPONENT_AGENT_PROMPT_INVALID", error instanceof Error ? error.message : String(error));
     }
@@ -130,7 +161,7 @@ export class AgentLauncher {
 
   private async launchComponent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
     const { template, prompt, source, sourceLocation, locator } = await this.prepareComponent(request);
-    const command = await this.command(source.configPath);
+    const command = await this.chosenCommand(source.configPath, request.agent);
     const dashboardWork = template.scope === "dashboard";
     return this.supervisor(command, sourceLocation).launchRequest({
       prompt,

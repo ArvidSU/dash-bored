@@ -6,6 +6,7 @@ import {
   type DashboardOutlineNodeAction,
 } from "../composition/DashboardOutlineTree";
 import { dashboardTitle, type ActionNotice } from "./app-utils";
+import { COMPONENT_PICKER_TOGGLE } from "./component-picker";
 
 export interface ProjectOutlineState {
   tree: ProjectSnapshot["tree"];
@@ -94,6 +95,9 @@ export interface AppShellProps {
   componentLibraryOpen: boolean;
   agentActivityOpen: boolean;
   activeAgentTaskCount: number;
+  /** Whether the header dropper can pick a dashboard component for the agent. */
+  agentPickerAvailable: boolean;
+  agentPickerActive: boolean;
   editorToolbar: ReactNode;
   actionError: string | null;
   actionNotice: ActionNotice | null;
@@ -115,6 +119,7 @@ export interface AppShellProps {
   onOpenPalette(): void;
   onToggleLibrary(): void;
   onToggleAgentActivity(): void;
+  onToggleAgentPicker(): void;
   onDismissError(): void;
   onDismissNotice(): void;
 }
@@ -135,6 +140,8 @@ export function AppShell({
   componentLibraryOpen,
   agentActivityOpen,
   activeAgentTaskCount,
+  agentPickerAvailable,
+  agentPickerActive,
   editorToolbar,
   actionError,
   actionNotice,
@@ -152,6 +159,7 @@ export function AppShell({
   onOpenPalette,
   onToggleLibrary,
   onToggleAgentActivity,
+  onToggleAgentPicker,
   onDismissError,
   onDismissNotice,
 }: AppShellProps): ReactNode {
@@ -313,16 +321,37 @@ export function AppShell({
                 <span>Commands</span>
                 <kbd>{shortcutLabel}</kbd>
               </button>
-              <button
-                className={`button button--quiet agent-activity-trigger${agentActivityOpen ? " agent-activity-trigger--active" : ""}`}
-                type="button"
-                aria-label={agentActivityOpen ? "Close agent work" : "Open agent work"}
-                aria-expanded={agentActivityOpen}
-                onClick={onToggleAgentActivity}
-              >
-                <span>Agent work</span>
-                {activeAgentTaskCount > 0 ? <strong>{activeAgentTaskCount}</strong> : null}
-              </button>
+              <div className="agent-activity-control">
+                <button
+                  className={`button button--quiet agent-activity-trigger${agentActivityOpen ? " agent-activity-trigger--active" : ""}`}
+                  type="button"
+                  aria-label={agentActivityOpen ? "Close agent work" : "Open agent work"}
+                  aria-expanded={agentActivityOpen}
+                  onClick={onToggleAgentActivity}
+                >
+                  <span>Agent work</span>
+                  {activeAgentTaskCount > 0 ? <strong>{activeAgentTaskCount}</strong> : null}
+                </button>
+                {/* A sibling, not a child: buttons cannot nest. CSS seats it inside the trigger. */}
+                <button
+                  className={`agent-picker-trigger${agentPickerActive ? " agent-picker-trigger--active" : ""}`}
+                  type="button"
+                  {...{ [COMPONENT_PICKER_TOGGLE]: "" }}
+                  aria-label="Pick a component to change with agent"
+                  aria-pressed={agentPickerActive}
+                  title={agentPickerActive
+                    ? "Click a component to change it with the agent, Esc to cancel"
+                    : "Pick a component to change with agent"}
+                  disabled={!agentPickerAvailable}
+                  onClick={onToggleAgentPicker}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m2 22 1-1h3l9-9" />
+                    <path d="M3 21v-3l9-9" />
+                    <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" />
+                  </svg>
+                </button>
+              </div>
               {activeView === "dashboard" && snapshot?.projectRoot ? (
                 <>
                   {editorToolbar}

@@ -879,18 +879,80 @@ describe("renderer fixture interactions", () => {
       await frame.waitFor();
       await frame.locator("header").first().click({ button: "right" });
       await proof.getByRole("menuitem", { name: "Change with agent…", exact: true }).click();
-      const composer = proof.getByRole("dialog", { name: /^Change / });
+      const composer = proof.getByRole("dialog", { name: "Ask the agent" });
       await composer.waitFor();
-      await composer.getByText("Dashboard change", { exact: true }).waitFor();
+      expect(await composer.getByRole("radio", { name: "Dashboard change" }).isChecked()).toBe(true);
+      expect(await composer.getByRole("textbox", { name: "Agent prompt" }).evaluate((element) => element === document.activeElement)).toBe(true);
       expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
       await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Add a status beside this tile.");
-      await composer.getByText("Full prompt", { exact: true }).click();
+      await composer.getByRole("tab", { name: "Full prompt" }).click();
       const preview = composer.getByLabel("Full agent prompt");
       await preview.getByText("Add a status beside this tile.", { exact: false }).waitFor();
       const rendered = await preview.textContent();
       expect(rendered).toContain("Target component id: responsive-card");
       expect(rendered).toContain("User request:\nAdd a status beside this tile.");
       expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(true);
+
+      // A bundle template switches scope, asks for its declared vars, and keeps the request.
+      await composer.getByText("triage-item", { exact: true }).click();
+      expect(await composer.getByRole("tab", { name: "Request" }).getAttribute("aria-selected")).toBe("true");
+      await composer.getByRole("textbox", { name: "id" }).fill("item-7");
+      await composer.getByRole("tab", { name: "Full prompt" }).click();
+      await preview.getByText("Triage backlog item `item-7`.", { exact: false }).waitFor();
+      const projectPrompt = await preview.textContent();
+      expect(projectPrompt).toContain("You were asked to do work in this project");
+      expect(projectPrompt).toContain("Add a status beside this tile.");
+      expect(projectPrompt).not.toContain("Target component id:");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("agent work dropper picks a component for the change composer", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      const frame = proof.locator('[data-node-id="responsive-card"]');
+      await frame.waitFor();
+      const dropper = proof.getByRole("button", { name: "Pick a component to change with agent", exact: true });
+      await dropper.click();
+      expect(await dropper.getAttribute("aria-pressed")).toBe("true");
+      await proof.keyboard.press("Escape");
+      expect(await dropper.getAttribute("aria-pressed")).toBe("false");
+
+      await dropper.click();
+      await frame.locator("header").first().hover();
+      const highlight = proof.locator(".component-picker__highlight");
+      await highlight.waitFor();
+      const box = await frame.boundingBox();
+      await proof.waitForFunction((expected) => {
+        const rect = document.querySelector(".component-picker__highlight")?.getBoundingClientRect();
+        return rect !== undefined && Math.abs(rect.width - expected) < 1;
+      }, box!.width);
+      await frame.locator("header").first().click();
+      const composer = proof.getByRole("dialog", { name: "Ask the agent" });
+      await composer.waitFor();
+      expect(await composer.getByRole("radio", { name: "Dashboard change" }).isChecked()).toBe(true);
+      expect(await composer.locator(".agent-prompt__target code").textContent()).toContain("#");
+      expect(await highlight.count()).toBe(0);
+      await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Tighten this tile.");
+      await composer.getByRole("tab", { name: "Full prompt" }).click();
+      await composer.getByLabel("Full agent prompt").getByText("Target component id: responsive-card", { exact: false }).waitFor();
+      // The pick swallowed the click, so the frame's own collapse gesture never ran.
+      expect(await frame.getAttribute("data-collapsed")).toBe("false");
+
+      // The command picker offers the app default, the bundle `.env`, and a custom command.
+      const agentSelect = composer.getByRole("combobox", { name: "Agent command" });
+      expect(await agentSelect.inputValue()).toBe("app");
+      await agentSelect.selectOption("project");
+      await composer.locator(".agent-prompt__runner code").getByText("bundle-agent", { exact: true }).waitFor();
+      await agentSelect.selectOption("custom");
+      const custom = composer.getByRole("textbox", { name: "Custom agent command" });
+      await custom.fill("");
+      expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
+      await custom.fill("claude -p");
+      await composer.getByRole("button", { name: "Send", exact: true }).click();
+      await proof.getByRole("status").getByText("Started claude -p for", { exact: false }).waitFor();
     } finally {
       await proof.close();
     }

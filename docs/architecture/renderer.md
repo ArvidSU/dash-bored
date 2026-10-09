@@ -31,6 +31,8 @@ Everything else lives in focused modules under feature directories:
   - `use-project-navigation.ts` — open, add, reorder, and remove dashboards,
     plus the sidebar outline's node menu and copy-path;
   - `use-agent-work.ts` — agent launches and the Agent work surface;
+    `component-picker.tsx` — the header dropper that picks a component for
+    Change with agent;
   - `use-action-registry.ts` — the `ActionStore`, palette interaction state,
     and the one request path; `use-app-actions.ts` — every action source
     (application, node focus, selection, reveal, declared component) it
@@ -304,16 +306,38 @@ overflow; organizational ancestors never add another scrollbar. Electrobun's
 overlay resize observer follows the resulting surface geometry while the
 existing explicit visibility synchronization remains in force.
 
-Change with agent opens a composer that visibly presents the resolved app-wide
-command, user text in quotes, and Send as one invocation, briefed with the
-`dashboard` prompt template. The renderer sends only the selected node ID, the
-template name, typed vars, and user text. The main process re-resolves that node
+The Agent work header control carries a dropper button seated inside its right
+edge (a sibling button, since buttons cannot nest). While the dropper is active,
+the cursor is a crosshair, the innermost `.workspace [data-node-id]` under the
+pointer gets a fixed outline labelled with its name, and window capture
+listeners swallow pointer input so components never react. Clicking a component
+opens the same composer as the context menu's Change with agent for the node
+resolved from the saved tree; a click elsewhere, the context menu, Escape, or
+leaving the dashboard view cancels. Picking counts as composition UI, so native
+webviews hide and their frames stay pickable.
+
+Change with agent opens the "Ask the agent" composer on the `dashboard` prompt
+template; `agent:prompt` opens it on its configured template, vars, and text.
+The composer names the target component, offers every template the owning
+bundle resolves (built-ins first, each with its scope) as a radio group, shows
+a field per declared var, and pairs a large request editor with a Full prompt
+tab above a bar with the agent command picker and Send. The picker offers App
+default (the app setting, or the built-in default when cleared), Project .env
+(the owning bundle's `DASH_BORED_AGENT`, disabled when unset), and Custom (a
+command typed for this launch, remembered per viewer in local storage). It
+starts on the effective source; until the user picks, the launch omits the
+choice and the main process resolves the command as before. An explicit choice
+is the user's reviewed pick: the main process re-resolves App default and
+Project .env itself and validates a custom command like the app setting. Vars the selected
+template does not declare are dropped, so switching templates cannot send a
+foreign var. The renderer sends only the selected node ID, the template name,
+typed vars, and user text. The main process re-resolves that node
 from the authoritative tree, verifies its owning config is reachable, re-reads
 the owning bundle's prompt templates, and renders the chosen template with the
 project root, config path, component path, ID, reference, and name, then starts
 the configured CLI from the owning project root. A preview request renders the
-same way without launching, so the composer's Full prompt is exactly what Send
-passes. The enriched prompt is passed in
+same way without launching and also lists the bundle's template summaries and
+the command options for the pickers, so the composer's Full prompt is exactly what Send passes. The enriched prompt is passed in
 `DASH_BORED_AGENT_PROMPT` and referenced as one quoted shell argument, so user
 text is not interpolated into shell syntax. This app-owned, explicit user
 action does not grant project component code a capability or embed an AI

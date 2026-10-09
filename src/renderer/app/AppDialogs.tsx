@@ -41,8 +41,8 @@ export interface AppDialogsProps {
   onDismissRemoval: () => void;
   onConfirmRemoval: () => void;
   onBuildWithAgent: (target: InsertionTarget, description: string) => void;
-  onRunComponentAgent: (node: ResolvedComponentNode, prompt: string) => Promise<void>;
-  onPreviewComponentAgent: (node: ResolvedComponentNode, prompt: string) => Promise<ComponentAgentPreview>;
+  onRunComponentAgent: (node: ResolvedComponentNode, request: AgentPromptDraft) => Promise<void>;
+  onPreviewComponentAgent: (node: ResolvedComponentNode, request: AgentPromptDraft) => Promise<ComponentAgentPreview>;
   onDismissDialog: () => void;
   onConfirmDiscard: (continueAction: () => void) => void;
   onSaveDiscard: (continueAction: () => void) => void;
@@ -79,8 +79,8 @@ export function AppDialogs({
   const discardConfirmation = dialog?.kind === "discard" ? dialog : null;
   const deletionDialog = dialog?.kind === "deletion" ? dialog : null;
   const previewAgent = useCallback(
-    (prompt: string) => agentDialog
-      ? onPreviewComponentAgent(agentDialog, prompt)
+    (request: AgentPromptDraft) => agentDialog
+      ? onPreviewComponentAgent(agentDialog, request)
       : Promise.reject(new Error("The agent prompt target is no longer available.")),
     [agentDialog, onPreviewComponentAgent],
   );
@@ -156,7 +156,8 @@ export function AppDialogs({
   ) : null}
   {agentDialog ? (
     <EditorModal
-      title={`${agentRequest?.draft.template === "dashboard" ? "Change" : "Agent work from"} ${agentDialog.configName?.trim() || agentDialog.manifest?.name || agentDialog.component}`}
+      title="Ask the agent"
+      className="agent-prompt-modal"
       onDismiss={() => {
         if (pendingAction !== `component-agent:${agentDialog.id}`) onDismissDialog();
       }}
@@ -169,7 +170,7 @@ export function AppDialogs({
         pending={pendingAction === `component-agent:${agentDialog.id}`}
         onDismiss={() => onDismissDialog()}
         onPreview={previewAgent}
-        onSend={(prompt) => onRunComponentAgent(agentDialog, prompt)}
+        onSend={(request) => onRunComponentAgent(agentDialog, request)}
       />
     </EditorModal>
   ) : null}

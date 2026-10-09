@@ -7,6 +7,8 @@ import fixturePayload from "../../../.cottontail-tmp/core-fixture.json";
 // manifests and compiled components, so the JSON shape matches this cast.
 const coreFixture = fixturePayload as unknown as { manifests: ComponentManifest[]; components: CompiledLocalComponent[] };
 import type {
+  AgentCommandChoice,
+  AgentCommandOptions,
   AppSettings,
   CompiledLocalComponent,
   ComponentAgentLaunch,
@@ -43,12 +45,27 @@ import type { DashboardHost, HostEvent } from "./rpc-client";
 import type { UpdateState } from "../../shared/updates";
 import { envEntries, parseEnv } from "../../shared/env";
 import { componentPath, findResolvedNode } from "../../shared/component-agent";
-import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummary } from "../../shared/prompt-templates";
+import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, type PromptTemplate } from "../../shared/prompt-templates";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
 
 const PROJECT_ROOT = "/ui-harness/.dash-bored";
 const CONFIG_PATH = "/ui-harness/.dash-bored/dash-bored.yaml";
+
+function fixturePromptTemplates(): Map<string, PromptTemplate> {
+  const templates = new Map(builtinPromptTemplates());
+  templates.set("triage-item", {
+    name: "triage-item",
+    description: "Triage one backlog item from the fixture dashboard.",
+    scope: "project",
+    input: "optional",
+    vars: { id: "Backlog item ID" },
+    env: [],
+    builtin: false,
+    body: "{{> dash-bored/project}}\n\nTriage backlog item `{{vars.id}}`.",
+  });
+  return templates;
+}
 
 function builtin(
   id: string,
@@ -424,10 +441,33 @@ export function createUiHarnessHost(): UiHarnessHost {
   const agentTasks: DashboardAgentTask[] = [];
   const agentTerminalResizes: { taskId: string; cols: number; rows: number }[] = [];
   const agentTerminalInputs: { taskId: string; input: string }[] = [];
-  const launch = (request?: { prompt: string; componentPath?: string }): ComponentAgentLaunch => {
+  // Mirrors the main process: app setting (or default), else the bundle `.env`.
+  const commandOptions = (): AgentCommandOptions => {
+    const project = envEntries(parseEnv(files.get(".dash-bored/.env") ?? ""))
+      .find(({ entry }) => entry.key === "DASH_BORED_AGENT")?.entry.value.trim() || null;
+    return {
+      app: settings.dashBoredAgent ?? DEFAULT_DASH_BORED_AGENT,
+      project,
+      effective: settings.dashBoredAgent === null && project !== null ? "project" : "app",
+    };
+  };
+  const chosenCommand = (choice: AgentCommandChoice | undefined): string => {
+    const options = commandOptions();
+    const source = choice?.source ?? options.effective;
+    if (choice?.source === "custom") {
+      if (!choice.command.trim()) throw new Error("DASH_BORED_AGENT must be a command string.");
+      return choice.command.trim();
+    }
+    if (source === "project") {
+      if (options.project === null) throw new Error("This dashboard's .env does not set DASH_BORED_AGENT.");
+      return options.project;
+    }
+    return options.app;
+  };
+  const launch = (request?: { prompt: string; componentPath?: string; agent?: AgentCommandChoice }): ComponentAgentLaunch => {
     const task: DashboardAgentTask = {
       id: `agent-task-${agentTasks.length + 1}`,
-      command: DEFAULT_DASH_BORED_AGENT,
+      command: chosenCommand(request?.agent),
       prompt: request?.prompt ?? "Fixture agent request",
       componentPath: request?.componentPath ?? "harness.root",
       request: request?.prompt ?? "Fixture agent request",
@@ -481,10 +521,11 @@ export function createUiHarnessHost(): UiHarnessHost {
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async previewComponentAgent(request: ComponentAgentRequest) {
-      // The fixture has no bundle templates; it renders the shipped defaults.
+      // The shipped defaults plus one bundle template with a declared var.
       const node = findResolvedNode(snapshot().tree!, request.nodeId);
       if (!node) throw new Error("That component is no longer present.");
-      const { template, prompt } = prepareAgentPrompt({ templates: builtinPromptTemplates(), diagnostics: [] }, {
+      const templates = fixturePromptTemplates();
+      const { template, prompt } = prepareAgentPrompt({ templates, diagnostics: [] }, {
         ...(request.template ? { template: request.template } : {}),
         input: request.prompt,
         ...(request.vars ? { vars: request.vars } : {}),
@@ -494,7 +535,7 @@ export function createUiHarnessHost(): UiHarnessHost {
         component: { id: node.id, reference: node.component, path: componentPath(node), name: node.configName?.trim() || node.manifest?.name || node.component },
         allowEmptyInput: true,
       });
-      return { template: promptTemplateSummary(template), prompt };
+      return { template: promptTemplateSummary(template), prompt, templates: promptTemplateSummaries(templates), agents: commandOptions() };
     },
     async launchAgent(request) {
       if (request.kind === "diagnostics") {

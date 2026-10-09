@@ -111,7 +111,15 @@ export function promptTemplateSummary(template: PromptTemplate): AgentPromptTemp
     scope: template.scope,
     input: template.input,
     builtin: template.builtin,
+    vars: template.vars === null ? null : { ...template.vars },
   };
+}
+
+/** The effective templates a composer can pick from: built-ins first, then bundle names. */
+export function promptTemplateSummaries(templates: ReadonlyMap<string, PromptTemplate>): AgentPromptTemplateSummary[] {
+  return [...templates.values()]
+    .sort((left, right) => Number(right.builtin) - Number(left.builtin) || left.name.localeCompare(right.name))
+    .map(promptTemplateSummary);
 }
 
 // ---------------------------------------------------------------------------

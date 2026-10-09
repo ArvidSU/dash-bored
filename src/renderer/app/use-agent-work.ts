@@ -4,10 +4,22 @@ import { DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
 import { findResolvedNode } from "../../shared/component-agent";
 import type { InsertionTarget } from "../composition/dashboard-editor";
 import { host } from "../lib/rpc-client";
+import type { AgentPromptDraft } from "../panels/AgentPromptPanel";
 import type { AppDialog } from "./AppDialogs";
 import type { Notices } from "./use-notices";
 
 const STARTER_TASK_ID = "setup-dashboard-with-agent";
+
+/** The composer's reviewed draft as a host request; the main process re-checks it. */
+function componentAgentRequest(node: ResolvedComponentNode, draft: AgentPromptDraft) {
+  return {
+    nodeId: node.id,
+    prompt: draft.input,
+    ...(draft.template ? { template: draft.template } : {}),
+    ...(draft.vars ? { vars: draft.vars } : {}),
+    ...(draft.agent ? { agent: draft.agent } : {}),
+  };
+}
 
 export interface AgentWorkOptions {
   notices: Notices;
@@ -18,7 +30,6 @@ export interface AgentWorkOptions {
   /** The configured app-wide agent command, below a node's DASH_BORED_AGENT. */
   appAgentCommand: string | null;
   focusedNodeId: string | undefined;
-  dialog: AppDialog | null;
   setDialog(dialog: AppDialog | null): void;
   /** Building a component with the agent replaces the open draft. */
   endDraft(): void;
@@ -36,13 +47,11 @@ export function useAgentWork({
   snapshot,
   appAgentCommand,
   focusedNodeId,
-  dialog,
   setDialog,
   endDraft,
   closeLibrary,
 }: AgentWorkOptions) {
   const { perform, showNotice, setError } = notices;
-  const promptDraft = dialog?.kind === "agent" ? dialog.draft : null;
 
   function toggleActivity(): void {
     // Render-state based (like the library toggle): the shared drawer also
@@ -99,24 +108,13 @@ export function useAgentWork({
   }
 
   const previewComponentAgent = useCallback(
-    (node: ResolvedComponentNode, prompt: string) => host.previewComponentAgent({
-      nodeId: node.id,
-      prompt,
-      ...(promptDraft?.template ? { template: promptDraft.template } : {}),
-      ...(promptDraft?.vars ? { vars: promptDraft.vars } : {}),
-    }),
-    [promptDraft],
+    (node: ResolvedComponentNode, request: AgentPromptDraft) => host.previewComponentAgent(componentAgentRequest(node, request)),
+    [],
   );
 
-  async function runComponentAgent(node: ResolvedComponentNode, prompt: string): Promise<void> {
+  async function runComponentAgent(node: ResolvedComponentNode, request: AgentPromptDraft): Promise<void> {
     await perform(`component-agent:${node.id}`, async () => {
-      const launched = await host.launchAgent({
-        kind: "component",
-        nodeId: node.id,
-        prompt,
-        ...(promptDraft?.template ? { template: promptDraft.template } : {}),
-        ...(promptDraft?.vars ? { vars: promptDraft.vars } : {}),
-      });
+      const launched = await host.launchAgent({ kind: "component", ...componentAgentRequest(node, request) });
       setDialog(null);
       setActivityOpen(true);
       showNotice(`Started ${launched.command} for ${launched.componentPath}.`);

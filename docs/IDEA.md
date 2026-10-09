@@ -482,7 +482,9 @@ confirmation, trust, or action lifecycle rules.
 
 The app-wide `DASH_BORED_AGENT` choice is an override, not a replacement for a
 bundle's declared environment. Users can leave the Settings field empty and
-save to return agent selection to the owning dashboard bundle.
+save to return agent selection to the owning dashboard bundle. A single request
+in the agent composer may instead pick the app default, the bundle's command, or
+a custom command, always showing the command that will run.
 
 Components declare actions in their manifests and register handlers while
 mounted. The palette makes those actions easier to find; it does not bypass

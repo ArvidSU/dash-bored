@@ -29,6 +29,8 @@ import { useAppTheme } from "./use-app-theme";
 import { useDashboardDraft } from "./use-dashboard-draft";
 import { useCompositionSession } from "./use-composition-session";
 import { useAgentWork } from "./use-agent-work";
+import { ComponentPickerHighlight, useComponentPicker } from "./component-picker";
+import { findResolvedNode } from "../../shared/component-agent";
 import { useProjectNavigation } from "./use-project-navigation";
 import { useActionRegistry } from "./use-action-registry";
 import { useAppActions } from "./use-app-actions";
@@ -96,7 +98,6 @@ export function App(): ReactNode {
     snapshot,
     appAgentCommand: settings.settings.dashBoredAgent,
     focusedNodeId: virtualRoot?.target.id,
-    dialog,
     setDialog,
     endDraft: draft.end,
     closeLibrary: interaction.closeLibrary,
@@ -113,6 +114,11 @@ export function App(): ReactNode {
     setDialog,
     runCreationAgent: agent.runCreationAgent,
   });
+  const agentPicker = useComponentPicker(
+    activeView === "dashboard" && Boolean(snapshot?.tree),
+    (nodeId) => (snapshot?.tree ? findResolvedNode(snapshot.tree, nodeId) : null),
+    agent.openChangeWithAgent,
+  );
   const navigation = useProjectNavigation({
     session,
     draft,
@@ -194,6 +200,8 @@ export function App(): ReactNode {
     || interaction.removePath !== null
     || dialog !== null
     || actions.palette.open
+    // Native webviews sit above the DOM; hiding them lets the dropper reach their frames.
+    || agentPicker.active
     || (composition.editing && (draft.dirty || interaction.dragging !== null));
   const actionScope = `${snapshot?.projectRoot ?? "no-project"}\u0000${
     snapshot?.revision ?? 0
@@ -285,6 +293,8 @@ export function App(): ReactNode {
         componentLibraryOpen={interaction.libraryOpen}
         agentActivityOpen={agentActivityOpen}
         activeAgentTaskCount={activeDashboardAgentTaskCount(session.agentTasks)}
+        agentPickerAvailable={agentPicker.enabled}
+        agentPickerActive={agentPicker.active}
         editorToolbar={
           editSession && draft.editingActiveProject && draft.blocksNavigation ? (
             <div className="app-header__editor-toolbar">
@@ -314,12 +324,14 @@ export function App(): ReactNode {
         onOpenPalette={actions.palette.show}
         onToggleLibrary={toggleCompositionLibrary}
         onToggleAgentActivity={agent.toggleActivity}
+        onToggleAgentPicker={agentPicker.toggle}
         onDismissError={() => notices.setError(null)}
         onDismissNotice={notices.dismissNotice}
       >
         <ThemeNotice />
         {workspace}
       </AppShell>
+      <ComponentPickerHighlight hover={agentPicker.hover} />
       <AgentActivity
         open={agentActivityOpen}
         tasks={session.agentTasks}

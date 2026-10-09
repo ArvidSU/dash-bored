@@ -7,6 +7,7 @@ import {
   loadPromptTemplates,
   parsePromptTemplate,
   prepareAgentPrompt,
+  promptTemplateSummaries,
   type AgentPromptRequest,
   type PromptTemplateSet,
 } from "../../src/core/prompt-templates";
@@ -111,6 +112,15 @@ describe("prompt templates", () => {
     const override = prepareAgentPrompt(set, request());
     expect(override.prompt.startsWith("Repository rules first.\n\nYou were asked")).toBeTrue();
     expect(() => prepareAgentPrompt(set, request({ template: "implement-todo", vars: { other: "x" } }))).toThrow("does not declare vars: other");
+    // The picker lists the effective set: built-ins first; an override counts as the bundle's.
+    const summaries = promptTemplateSummaries(set.templates);
+    expect(summaries.map((item) => [item.name, item.builtin])).toEqual([
+      ["dashboard", true],
+      ["implement-todo", false],
+      ["project", false],
+    ]);
+    expect(summaries.find((item) => item.name === "implement-todo")?.vars).toEqual({ id: expect.any(String) });
+    expect(summaries.find((item) => item.name === "dashboard")?.vars).toBeNull();
   });
 
   test("reports invalid template files and undeclared references", async () => {

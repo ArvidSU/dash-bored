@@ -363,7 +363,10 @@ A button can invoke an action with typed YAML arguments, for example
 `action: { run: "agent:prompt", with: { prompt: "Review the failing checks." } }`.
 The app validates those arguments when it loads the dashboard. Agent prompts show
 the resolved command, the prompt template, and the full prompt for review, then
-wait for the user's Send.
+wait for the user's Send. Before sending, you can switch to any template the
+dashboard bundle offers, fill in the values it declares, and choose which
+command runs it: the app default, the dashboard's `.env` command, or a custom
+command for this request.
 
 Agents are briefed with prompt templates. `agent:prompt` uses the built-in
 `project` template, which asks for work in the project and names the button or
@@ -388,6 +391,9 @@ with Focus, Edit component, Copy component path, and Change with agent. The
 Edit component action opens the declared props and child metadata editor. The
 menu also offers **Move up** and **Move down** when a compatible sibling exists;
 these changes use the same dashboard draft as dragging.
+The dropper inside the header's **Agent work** button reaches the same action
+without the menu: turn it on, hover to highlight a component, and click it.
+Escape or a click outside the dashboard cancels.
 Change with agent shows the resolved command before sending and enriches your request with the owning
 dashboard and exact component path. **Agent work** in the header keeps each
 launch visible while it runs, including its output, exit state,

@@ -6,6 +6,7 @@ import { ProjectRuntime, TrustStore } from "../../src/core";
 import { AgentLauncher } from "../../src/main/agent-launch";
 import type { DashboardAgentHarness } from "../../src/main/component-agent";
 import type { AppSettingsStore } from "../../src/main/app-settings";
+import type { AgentCommandChoice } from "../../src/shared/contracts";
 import { createProject, removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
 
 const cleanup: string[] = [];
@@ -79,4 +80,43 @@ test("an untrusted repair cannot select its agent command from the bundle", asyn
   const launcher = new AgentLauncher({ runtime, harness, settings, publishedEnvironment: () => ({}) });
   expect(await launcher.command(configPath, { bundleless: true })).not.toBe("/bin/echo");
   expect(await launcher.command(configPath)).toBe("/bin/echo");
+});
+
+test("the composer's command choice selects the app, bundle, or a custom command", async () => {
+  const root = await temporaryDirectory();
+  cleanup.push(root);
+  const config = { schemaVersion: 4 as const, name: "Choosable", root: {
+    id: "test", component: "./components/external/core/markdown", props: { content: "Ready" },
+  } };
+  await createProject(root, config);
+  const configPath = join(root, ".dash-bored", "dash-bored.yaml");
+  await writeFile(join(root, ".dash-bored", ".env"), "DASH_BORED_AGENT=/bin/echo\n");
+  const runtime = new ProjectRuntime({ trustStore: new TrustStore(join(root, "state", "trust.json")) });
+  runtimes.push(runtime);
+  await runtime.load(root);
+  await runtime.trust();
+  let appSetting: string | null = "/usr/bin/true";
+  const settings = { get: async () => ({ dashBoredAgent: appSetting }) } as unknown as AppSettingsStore;
+  const harness = {
+    launch: async (options: Parameters<DashboardAgentHarness["launch"]>[0]) =>
+      ({ taskId: "t", command: options.command, componentPath: options.componentPath, pid: 123 }),
+  } as unknown as DashboardAgentHarness;
+  const launcher = new AgentLauncher({ runtime, harness, settings, publishedEnvironment: () => ({}) });
+
+  expect(await launcher.commandOptions(configPath)).toEqual({ app: "/usr/bin/true", project: "/bin/echo", effective: "app" });
+  const preview = await launcher.preview({ nodeId: "test", prompt: "" });
+  expect(preview.agents.project).toBe("/bin/echo");
+  const launch = (agent?: AgentCommandChoice) =>
+    launcher.launch({ kind: "component", nodeId: "test", prompt: "Do it.", ...(agent ? { agent } : {}) });
+  expect((await launch()).command).toBe("/usr/bin/true");
+  expect((await launch({ source: "project" })).command).toBe("/bin/echo");
+  expect((await launch({ source: "custom", command: "  /bin/cat  " })).command).toBe("/bin/cat");
+  await expect(launch({ source: "custom", command: " " })).rejects.toThrow("DASH_BORED_AGENT");
+
+  // A cleared app setting means the bundle wins by default, and "app" is the built-in default.
+  appSetting = null;
+  expect(await launcher.commandOptions(configPath)).toEqual({ app: "codex exec", project: "/bin/echo", effective: "project" });
+  await writeFile(join(root, ".dash-bored", ".env"), "OTHER=1\n");
+  expect((await launcher.commandOptions(configPath)).project).toBeNull();
+  await expect(launch({ source: "project" })).rejects.toThrow("does not set DASH_BORED_AGENT");
 });

@@ -49,8 +49,9 @@ These are renderer/app state, never YAML — do not try to configure them:
   drawer (Working/Not working items with terminal / bundle-diff / full-command
   tabs), and the flyout's natural-language "build a component" fallback.
   Change with agent and `agent:prompt` render a prompt template (`dashboard`,
-  `project`, or the bundle's `prompts/<name>.md`); the composer shows the full
-  rendered prompt before Send. Agent
+  `project`, or the bundle's `prompts/<name>.md`); the user may switch template
+  and fill its declared vars, and the composer shows the full rendered prompt
+  before Send. Agent
 context travels in `DASH_BORED_AGENT_PROMPT` as one quoted argument. Saving an
 empty app setting field lets the owning bundle's `.env` command select the CLI. This
   is a narrow harness around the user's CLI, not a provider integration.

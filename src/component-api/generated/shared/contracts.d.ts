@@ -174,6 +174,29 @@ export interface AgentPromptTemplateSummary {
     scope: AgentPromptScope;
     input: "required" | "optional";
     builtin: boolean;
+    /** Declared variables and their descriptions; `null` accepts any variable. */
+    vars: Record<string, string> | null;
+}
+/**
+ * Which command runs one composer launch. Omitted means the effective setting:
+ * the app-wide command when set, else the owning bundle's `.env`.
+ */
+export type AgentCommandChoice = {
+    source: "app";
+} | {
+    source: "project";
+} | {
+    source: "custom";
+    command: string;
+};
+/** The commands a composer can pick from, resolved by the main process. */
+export interface AgentCommandOptions {
+    /** The app-wide setting, or the built-in default when it is cleared. */
+    app: string;
+    /** The owning bundle's `.env` DASH_BORED_AGENT, when it sets one. */
+    project: string | null;
+    /** The source an omitted choice resolves to. */
+    effective: "app" | "project";
 }
 export interface ComponentAgentRequest {
     nodeId: string;
@@ -182,11 +205,15 @@ export interface ComponentAgentRequest {
     /** Prompt template name; Change with agent uses `dashboard`, `agent:prompt` defaults to `project`. */
     template?: string;
     vars?: Record<string, string | number | boolean>;
+    agent?: AgentCommandChoice;
 }
 export interface ComponentAgentPreview {
     template: AgentPromptTemplateSummary;
     /** The complete prompt the configured agent would receive. */
     prompt: string;
+    /** Every template the owning bundle offers, built-ins first, for the composer's picker. */
+    templates: AgentPromptTemplateSummary[];
+    agents: AgentCommandOptions;
 }
 export interface DashboardSetupAgentRequest {
     nodeId: string;
