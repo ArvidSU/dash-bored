@@ -17,7 +17,8 @@ export interface KnownAgent {
   cli?: string;
   /**
    * Native command that resumes an ACP session in the agent's own app, run
-   * from the project root. `{sessionId}` is the only placeholder.
+   * from the project root. Placeholders: `{sessionId}` and `{cwd}` (the
+   * project root); each is substituted as one shell-quoted word.
    */
   resume?: string;
   /** Where to get the agent; shown when it is not detected. */
@@ -220,7 +221,8 @@ export interface AgentSessionTask {
   auth?: AgentAuthMethod[];
   /**
    * The native resume command for hand-off, resolved for this session, or null
-   * when the agent defines none or the session has no id yet.
+   * when the agent defines none, the session has no id, or no turn has
+   * completed yet (some agents persist a session only after its first turn).
    */
   handoff: { command: string; app: string } | null;
   /** The session was handed off to the agent's own app. */

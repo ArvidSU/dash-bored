@@ -89,7 +89,13 @@ RPC (`src/shared/rpc.ts`):
   waiting, checking, or repairing. App quit and trust revocation close the
   owning tasks.
 - **Hand-off.** Available when the task has a `sessionId`, the known agent has
-  `resume`, and the session is idle. Validate the session id
+  `resume`, at least one turn completed (Codex and Cline persist a session only
+  after its first turn), and the session is idle. The agent runs with the
+  project root as both process and session cwd, because some agents key their
+  session store by process cwd (Cursor) or require it on resume (Kimi,
+  OpenCode). `{sessionId}` and `{cwd}` are substituted as shell-quoted words.
+  Known limitation: Claude's plan-mode "clear context" keeps the ACP id but
+  starts a new native session, so hand-off resumes the earlier conversation. Validate the session id
   (`^[A-Za-z0-9._:-]{1,200}$`), write a 0700 `.command` script under the app's
   user-data directory (`cd '<projectRoot>' && exec <resume>`) and `open` it,
   so the user's default terminal app runs it without Automation permissions.
