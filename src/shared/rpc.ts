@@ -1,13 +1,8 @@
 import type { RPCSchema } from "electrobun/main";
 import type {
-  AgentLaunchRequest,
-  AgentTaskCommand,
   AppSettings,
   ComponentAgentLaunch,
-  ComponentAgentPreview,
-  ComponentAgentRequest,
   DashboardConfig,
-  DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
   ComponentPropsValidation,
@@ -30,6 +25,14 @@ import type {
   ShellRunResult,
   ThemePackageOperation,
 } from "./contracts";
+import type {
+  AgentCommandOptions,
+  AgentLaunchRequest,
+  AgentSessionTask,
+  AgentTaskCommand,
+  ComponentAgentPreview,
+  ComponentAgentRequest,
+} from "./agent-session";
 
 /**
  * Host state (the project snapshot, processes, agent tasks, themes) reaches
@@ -51,9 +54,10 @@ export type DashboardRPC = {
       repairInstalledTools: { params: {}; response: { conflictsRemain: boolean } };
       manageExternalComponent: { params: ExternalComponentOperation; response: PackageOperationResult };
       manageThemePackage: { params: ThemePackageOperation; response: PackageOperationResult };
-      getDashboardAgentTasks: { params: {}; response: DashboardAgentTask[] };
-      getDashboardAgentDiff: { params: { taskId: string }; response: string };
-      agentTaskCommand: { params: { taskId: string; command: AgentTaskCommand }; response: DashboardAgentTask };
+      getAgentTasks: { params: {}; response: AgentSessionTask[] };
+      agentTaskCommand: { params: { taskId: string; command: AgentTaskCommand }; response: AgentSessionTask };
+      /** Agent choices for Settings, or for one bundle's composer when `configPath` is given. */
+      getAgentOptions: { params: { configPath?: string }; response: AgentCommandOptions };
       listProjects: { params: {}; response: ProjectListItem[] };
       moveProject: { params: { configPath: string; targetConfigPath: string; before: boolean }; response: ProjectListItem[] };
       getProjectOutline: { params: ProjectTarget; response: ProjectOutline };
@@ -91,7 +95,7 @@ export type DashboardRPC = {
       themes: import("./themes").ThemeCatalogItem[];
       snapshot: ProjectSnapshot;
       process: ProcessSnapshot;
-      agentTask: DashboardAgentTask;
+      agentTask: AgentSessionTask;
       openCommandPalette: {};
     };
   }>;

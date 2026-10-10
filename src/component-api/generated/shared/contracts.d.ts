@@ -153,7 +153,7 @@ export interface ResolvedComponentNode {
 export interface AppSettings {
     theme?: string;
     themeMode?: import("./themes").ThemeMode;
-    /** App-wide CLI command used for natural-language dashboard changes, or null to use the owning bundle. */
+    /** App-wide ACP agent launch command, or null to return agent selection to the owning bundle. */
     dashBoredAgent: string | null;
     /** Whether the project sidebar should open expanded in a new app session. */
     sidebarExpandedByDefault: boolean;
@@ -176,47 +176,6 @@ export interface AgentPromptTemplateSummary {
     builtin: boolean;
     /** Declared variables and their descriptions; `null` accepts any variable. */
     vars: Record<string, string> | null;
-}
-/**
- * Which command runs one composer launch. Omitted means the effective setting:
- * the app-wide command when set, else the owning bundle's `.env`.
- */
-export type AgentCommandChoice = {
-    source: "app";
-} | {
-    source: "project";
-} | {
-    source: "custom";
-    command: string;
-};
-/** The commands a composer can pick from, resolved by the main process. */
-export interface AgentCommandOptions {
-    /** The app-wide setting, or the built-in default when it is cleared. */
-    app: string;
-    /** The owning bundle's `.env` DASH_BORED_AGENT, when it sets one. */
-    project: string | null;
-    /** The source an omitted choice resolves to. */
-    effective: "app" | "project";
-}
-export interface ComponentAgentRequest {
-    nodeId: string;
-    /** The user's reviewed input; rendered into the template as `{{input}}`. */
-    prompt: string;
-    /** Prompt template name; Change with agent uses `dashboard`, `agent:prompt` defaults to `project`. */
-    template?: string;
-    vars?: Record<string, string | number | boolean>;
-    agent?: AgentCommandChoice;
-}
-export interface ComponentAgentPreview {
-    template: AgentPromptTemplateSummary;
-    /** The complete prompt the configured agent would receive. */
-    prompt: string;
-    /** Every template the owning bundle offers, built-ins first, for the composer's picker. */
-    templates: AgentPromptTemplateSummary[];
-    agents: AgentCommandOptions;
-}
-export interface DashboardSetupAgentRequest {
-    nodeId: string;
 }
 export type ComponentChildLocator = {
     type: "managed";
@@ -243,21 +202,6 @@ export interface DashboardInsertionTarget {
     parentPath: ComponentChildLocator[];
     placement: ComponentChildPlacement;
 }
-export interface ComponentCreationAgentRequest {
-    configPath: string;
-    target: DashboardInsertionTarget;
-    prompt: string;
-}
-/** Every way the renderer can start agent work; one host command launches them all. */
-export type AgentLaunchRequest = ({
-    kind: "component";
-} & ComponentAgentRequest) | ({
-    kind: "creation";
-} & ComponentCreationAgentRequest) | {
-    kind: "diagnostics";
-} | ({
-    kind: "setup";
-} & DashboardSetupAgentRequest);
 /** One command to a supervised process; the host answers with that process afterwards. */
 export type ProcessCommand = {
     type: "start";
@@ -276,46 +220,11 @@ export type ProcessCommand = {
 } | {
     type: "stop";
 };
-/** One command to a dashboard agent task's terminal. */
-export type AgentTaskCommand = {
-    type: "stop";
-} | {
-    type: "write";
-    input: string;
-} | {
-    type: "resize";
-    cols: number;
-    rows: number;
-};
 export interface ComponentAgentLaunch {
     taskId: string;
     command: string;
     componentPath: string;
     pid: number | null;
-}
-/** One invocation of the user's configured CLI agent, for dashboard or project work. */
-export interface DashboardAgentTask {
-    id: string;
-    purpose?: "setup" | "setup-repair" | "edit" | "migration" | "repair" | "project";
-    /** Prompt template the request was rendered from, when it came from one. */
-    template?: string;
-    command: string;
-    /** Fully contextualized prompt passed as the configured command's argument. */
-    prompt: string;
-    componentPath: string;
-    request: string;
-    configPath: string;
-    startedAt?: string;
-    /** The dashboard changed while this task was running; it is not a success claim. */
-    dashboardChanged: boolean;
-    /** Explicitly stopped by the user or application shutdown. */
-    cancelled?: boolean;
-    validation?: {
-        status: "checking" | "repairing" | "valid" | "failed" | "trust-required" | "cancelled";
-        diagnostics: Diagnostic[];
-        message?: string;
-    };
-    process: ProcessSnapshot;
 }
 export interface CompiledLocalComponent {
     componentId: string;
