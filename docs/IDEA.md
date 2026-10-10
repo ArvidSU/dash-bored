@@ -100,7 +100,7 @@ Creating a dashboard should feel closer to asking an agent to modify code than c
 
 The starter dashboard should make that workflow self-contained: it can install
 global or project-local guidance that teaches compatible agents the dash-bored
-component model, then launch the user's chosen CLI agent with a project-specific prompt.
+component model, then start the user's chosen agent with a project-specific prompt.
 
 Every initialized bundle also carries a succinct README for teammates who have
 never used dash-bored: explain the app and bundle files, link to downloads, and
@@ -131,9 +131,9 @@ conflicting managed install to the OS Trash and reinstall the current payload.
 Every rendered component should make that workflow immediate through a small
 context menu. Alongside Focus, users can edit a component's declared props,
 collapse or expand it to keep large dashboards compact, copy an exact
-config-and-tree locator, or describe a wanted change and send it to the app-wide configured
-`DASH_BORED_AGENT`. The app enriches that request with dash-bored, project, and
-component context; it does not hide which external CLI command will run.
+config-and-tree locator, or describe a wanted change and send it to the user's
+chosen agent. The app enriches that request with dash-bored, project, and
+component context; it does not hide which agent command will run.
 
 The cockpit dispatches agents to two kinds of work: changing the dashboard, and
 doing work in the project itself (implementing a backlog item, reviewing a
@@ -144,16 +144,8 @@ its agents are briefed. A template is filled from the user's reviewed input,
 typed values from the invoking button or list item, declared environment
 values, and the app's context. The user sees the complete prompt before
 sending it. A template's scope, not its wording, decides what the app reviews
-afterwards: dashboard work is validated, project work is shown as a project
-diff.
-
-Agent requests are first-class in the application through a small
-agent-work surface that reports the configured CLI's launch, output, exit, and
-observed changes. This is deliberately a narrow harness around the
-user's agent, not a general-purpose agent runtime or provider integration.
-The agent terminal accepts direct input and keeps a project shell available
-after the agent finishes, until the user closes it. The agent result and setup
-validation remain separate from that shell's lifetime.
+afterwards: dashboard work is validated; project work is reported through the
+agent's own account of it and handed off when the user wants to review it.
 
 Direct manipulation complements that primary workflow. The desktop app offers
 a right-hand component-library flyout for arranging existing components,
@@ -165,6 +157,39 @@ cancelling an insertion, or reverting every change requires no exit from editing
 Save/Cancel remains the
 boundary for publishing or discarding the same project-owned YAML tree, rather
 than a second layout model or a hidden application database.
+
+## Agents as first-class clients
+
+The agent has become the primary way to build, change, and fix a dashboard,
+and dispatching work from a dashboard that is not primarily about agents has
+its own uses. Agents are therefore first-class in the app through one open
+standard: dash-bored is an [Agent Client Protocol](https://agentclientprotocol.com)
+(ACP) client. It starts the user's chosen ACP agent as a local subprocess in
+the owning project, briefs it with the reviewed prompt, and renders the session
+the protocol describes: the agent's messages and plan, its tool calls and their
+progress, its permission requests, and the model and mode choices it offers.
+The user answers permission requests, sends follow-up messages, and stops work
+in the app.
+
+The scope stays an agent-driven dashboard app, not an agent harness, IDE, or
+editor. The agent owns its model, credentials, tools, and loop; the app holds
+no provider keys and contains no agent-specific code paths. ACP is the only
+integrated agent path; any other CLI can still run in a command component's
+terminal. The app reviews what an agent did to its own territory, the dashboard
+bundle, by validating it. It shows no file diffs of the bundle or the project:
+diffs belong to custom components or external apps. When work leaves the app's
+scope, the user hands the session off and the app resumes that same session in
+the agent's own app; the app then lets go of the session.
+
+Agent selection is detect-first. The app recognizes known ACP agents on the
+user's `PATH` from a small data table and accepts a custom ACP launch command;
+it does not download or install agents. Signing in belongs to the agent.
+
+Each request is one ACP session. Dashboard work is validated when the agent
+finishes a turn; when bundle-fixable errors remain, the single automatic repair
+is a follow-up message in the same session, so the agent keeps its context.
+Sessions are app-session state: the app keeps them in memory and stops its
+agent processes on quit.
 
 ## User and agent separation
 
@@ -480,11 +505,11 @@ actions, and can favorite actions from either Settings or the palette. Favorites
 sort ahead of other matching results without bypassing search, availability,
 confirmation, trust, or action lifecycle rules.
 
-The app-wide `DASH_BORED_AGENT` choice is an override, not a replacement for a
-bundle's declared environment. Users can leave the Settings field empty and
-save to return agent selection to the owning dashboard bundle. A single request
-in the agent composer may instead pick the app default, the bundle's command, or
-a custom command, always showing the command that will run.
+The app-wide agent choice is an override, not a replacement for a bundle's
+declared `DASH_BORED_AGENT`. Users can clear the Settings choice to return
+agent selection to the owning dashboard bundle. A single request in the agent
+composer may instead pick the app default, the bundle's agent, a detected
+agent, or a custom ACP command, always showing the command that will run.
 
 Components declare actions in their manifests and register handlers while
 mounted. The palette makes those actions easier to find; it does not bypass
@@ -506,7 +531,7 @@ the owning component mounts. Arguments are data: a value templated from a list
 item or YAML may reach an agent prompt or a process only as a typed field or
 environment variable, never spliced into shell text. Actions that start an
 agent are refused from the agent control channel, so agents cannot recursively
-trigger agents.
+trigger agents; the channel likewise cannot answer an agent's permission requests.
 
 Acting and observing close the loop on the same control: a button reflects the
 running state and last result of the action it runs, and a process result is
