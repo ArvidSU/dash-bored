@@ -14,8 +14,9 @@ Everything else lives in focused modules under feature directories:
   `app-utils.ts` (pure snapshot/task/project helpers, edit-session types),
   `main.tsx` (entry), and one hook per concern:
   - `use-host-session.ts` — everything the host pushes: the snapshot, the
-    project list and sidebar outlines, the theme catalog, agent tasks, and the
-    process map that local components read through a stable ref;
+    project list and sidebar outlines, the theme catalog, agent tasks
+    (bounded like main's list), and the process map that local components
+    read through a stable ref;
   - `use-notices.ts` — the one pending operation (`perform`), its error, and
     the timed notice;
   - `use-app-settings.ts` — app settings with ordered optimistic writes, the
@@ -30,7 +31,8 @@ Everything else lives in focused modules under feature directories:
     controller in `composition/` holds its transient UI state);
   - `use-project-navigation.ts` — open, add, reorder, and remove dashboards,
     plus the sidebar outline's node menu and copy-path;
-  - `use-agent-work.ts` — agent launches and the Agent work surface;
+  - `use-agent-work.ts` — agent launches, session commands, the effective
+    agent from `getAgentOptions`, and the Agent work surface;
     `component-picker.tsx` — the header dropper that picks a component for
     Change with agent;
   - `use-action-registry.ts` — the `ActionStore`, palette interaction state,
@@ -42,7 +44,13 @@ Everything else lives in focused modules under feature directories:
     resolved virtual root, and scrolling it into view;
     `use-latest-ref.ts` — refs written after commit, never during render.
 - `panels/` — app-level views: `DiagnosticsPanel.tsx`, `TrustPanel.tsx`,
-  `EmptyProject.tsx`, `AgentPromptPanel.tsx`, `AgentActivity.tsx`,
+  `EmptyProject.tsx`, `AgentPromptPanel.tsx` (composer and agent picker),
+  `AgentActivity.tsx` (Agent work drawer and session modal),
+  `AgentSession.tsx` (plan, transcript, permission, sign-in, follow-up),
+  `AgentStatus.tsx` (state and validation chips and glyphs),
+  `AgentInstallHints.tsx` (known agents not on PATH), `agent-work.css`
+  (Agent work and its header badge, the composer and Settings agent
+  pickers, and agent Markdown),
   `SettingsPanel.tsx`, `CommandPalette.tsx`.
 - `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
   `composition-*.ts(x)` (targets, labels, placement, movement,
@@ -61,7 +69,9 @@ Everything else lives in focused modules under feature directories:
 - `lib/` — shared model and services: `component-children.ts`,
   `component-height.ts`, `component-view-state.ts`, `component-updates.ts`,
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
-  `rpc-client.ts`, `ui-harness-host.ts`, `virtual-root.ts`,
+  `rpc-client.ts`, `ui-harness-host.ts`, `ui-harness-agents.ts` (fixture ACP
+  sessions), `agent-tasks.ts`, `agent-options.ts`, `markdown-lite.tsx`,
+  `virtual-root.ts`,
   `clipboard.ts`, `pointer-session.ts`,
   `selection-actions.ts` (core select/reveal actions), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
@@ -81,6 +91,15 @@ Pure helpers and their contracts:
 
 - `app/app-utils.ts` — pure snapshot/task/project helpers, edit-session types,
   per-dashboard empty states.
+- `lib/agent-tasks.ts` — agent session presentation: state labels and tones,
+  needs-user and activation rules, badge counts, summaries, validation labels,
+  display paths, and the bounded newest-first merge (`replaceAgentTask`).
+- `lib/agent-options.ts` — agent picker values to and from
+  `AgentCommandChoice`, the effective value, the command a value runs,
+  undetected known agents, the Settings mapping, and the per-viewer custom
+  command.
+- `lib/markdown-lite.tsx` — the safe Markdown subset parser and renderer for
+  agent messages.
 - `composition/composition-labels.ts` — human labels for drop targets and dragged payloads.
 - `composition/composition-targets.ts` — pure drop-zone/validity/default-target resolution
   over a draft config (`createCompositionTargets`, memoized per render).
@@ -98,7 +117,8 @@ Pure helpers and their contracts:
   `app/use-dashboard-view-state.ts` subscribes to it with
   `useSyncExternalStore`. Never part of a draft.
 - `panels/DiagnosticsPanel.tsx`, `panels/TrustPanel.tsx`, `panels/EmptyProject.tsx`,
-  `panels/AgentPromptPanel.tsx`, `panels/SettingsPanel.tsx` — app-level panels.
+  `panels/AgentPromptPanel.tsx`, `panels/AgentActivity.tsx`,
+  `panels/AgentSession.tsx`, `panels/SettingsPanel.tsx` — app-level panels.
 - `app/AppDialogs.tsx` — all dashboard modals (composition, removal, agent,
   discard, deletion).
 
@@ -121,7 +141,7 @@ examples, not privileged component types:
 - Action references may be argument-free strings or `{ run, with }`
   invocations. Typed arguments and any remaining palette choices share the same
   action executor. `agent:prompt` is how the app knows what the agent is doing:
-  every launch goes through the existing agent composer and the Agent activity
+  every launch goes through the existing agent composer and the Agent work
   surface. From YAML the composer is prefilled with the configured `prompt`,
   `template`, and `vars` and names the invoking node as the request's origin;
   from the palette or a shortcut it opens empty on the current focus target.
@@ -321,99 +341,110 @@ template; `agent:prompt` opens it on its configured template, vars, and text.
 The composer names the target component, offers every template the owning
 bundle resolves (built-ins first, each with its scope) as a radio group, shows
 a field per declared var, and pairs a large request editor with a Full prompt
-tab above a bar with the agent command picker and Send. The picker offers App
-default (the app setting, or the built-in default when cleared), Project .env
-(the owning bundle's `DASH_BORED_AGENT`, disabled when unset), and Custom (a
-command typed for this launch, remembered per viewer in local storage). It
-starts on the effective source; until the user picks, the launch omits the
-choice and the main process resolves the command as before. An explicit choice
-is the user's reviewed pick: the main process re-resolves App default and
-Project .env itself and validates a custom command like the app setting. Vars the selected
-template does not declare are dropped, so switching templates cannot send a
-foreign var. The renderer sends only the selected node ID, the template name,
-typed vars, and user text. The main process re-resolves that node
-from the authoritative tree, verifies its owning config is reachable, re-reads
-the owning bundle's prompt templates, and renders the chosen template with the
-project root, config path, component path, ID, reference, and name, then starts
-the configured CLI from the owning project root. A preview request renders the
-same way without launching and also lists the bundle's template summaries and
-the command options for the pickers, so the composer's Full prompt is exactly what Send passes. The enriched prompt is passed in
-`DASH_BORED_AGENT_PROMPT` and referenced as one quoted shell argument, so user
-text is not interpolated into shell syntax. This app-owned, explicit user
+tab above a bar with the Agent picker, the launch command it runs, and Send.
+The picker (`lib/agent-options.ts`) presents the main process's command
+options: App default (the app setting) and Project .env (the owning bundle's
+`DASH_BORED_AGENT`), each disabled and marked "not set" when empty; a
+"Detected on PATH" group of known ACP agents main found; and Custom command
+(typed for this launch, remembered per viewer in local storage). It starts on
+the effective source; until the user picks, the launch omits the choice and
+main resolves the command. When nothing is configured or detected, the picker
+reads "No agent found" and the composer lists the known agents with their
+homepages (`panels/AgentInstallHints.tsx`); otherwise undetected known agents
+fold under "Install another agent". The app never installs agents. Vars the
+selected template does not declare are dropped, so switching templates cannot
+send a foreign var. The renderer sends only the selected node ID, the template
+name, typed vars, user text, and the optional choice. A preview request renders
+the same way without launching and also lists the bundle's template summaries
+and the command options, so the composer's Full prompt is exactly what Send
+passes. How main re-resolves the node and choice, renders the prompt, and runs
+the ACP session is in [Agents](./agents.md). This app-owned, explicit user
 action does not grant project component code a capability or embed an AI
 provider; dashboard file watching remains responsible for showing accepted
 agent edits.
 
-The app owns one agent harness around that same configured CLI.
-It records a bounded in-memory task for each component-change, component-build,
-or project-work request and shows a compact item with a bounded first-sentence summary, start time, and a
-Working/Not working state in an app-level Agent work drawer across dashboard
-navigation. Clicking an item opens a three-tab modal: the regular command
-component against that task's PTY-backed process, a bounded git diff (the
-owning `.dash-bored/` bundle for dashboard work, the whole project for
-`project`-scope templates), and the complete contextualized command with a copy
-action. Only dashboard-scope requests receive the post-run validation and the
-single automatic repair; project work is reviewed through its diff, and the
-dashboard file watcher still reports any dashboard edits it made. The full prompt remains in the Command tab; neither the drawer row nor
-the terminal title repeats it. The modal reserves its remaining height for the
-active panel, with bounded, scrollable validation feedback. The shared modal overlay
-and panel contain scroll chaining; the document also disables page scrolling while
-any shared modal is mounted, including modal-chrome gestures in native WebKit.
-Removing the final modal restores page scrolling. Agent output appears only in
-the Terminal tab, alongside separate validation feedback. The terminal includes retained
-output after the process exits, opens at the latest output, follows new
-output while at the bottom, and preserves scrollback when the user scrolls up.
-After the agent run ends, the terminal keeps a shell open in the owning project
-for typed commands until Close terminal or application exit. Working status and
-validation follow the agent run outcome, independently of the shell lifetime.
-Typing keeps focus through output and task updates; Escape inside the terminal
-reaches the PTY instead of dismissing the modal. Latest output returns to the tail.
-Terminal sizing uses measured cell dimensions
-and the container content box (`lib/terminal-fit.ts`); hidden tabs retain their last fitted size,
-and sends PTY size changes through the regular host API. Switching tasks remounts
-the terminal so buffers cannot mix between tasks. Tasks
-retain their component/YAML locator, request, contextualized prompt, command, and
-whether the owning dashboard changed while the CLI was running. A process exit
-or observed file change is never represented as agent success: the UI asks the
-user to review the dashboard. This harness does not accept arbitrary commands,
-manage agent sessions, persist work across app quit, or add a provider SDK;
-quitting dash-bored stops its child agent processes. The Agent work panel and
-the component library flyout are mutually exclusive right-side drawers sharing
-one shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
-optional initial focus and focus restore, and unified header/body geometry below
-the modal layer). Drawers are non-modal: Tab follows normal document order and
-may move focus outside while a drawer stays open; the dashboard remains
-interactive. The library focuses its search field on open. Outside pointer
-presses and Escape dismiss a drawer; closing restores focus to its trigger;
-agent-process updates do not reopen a drawer the user dismissed, while a newly
-activated task still opens it automatically. Closing the panel only changes
-renderer visibility and never stops the attached agent process.
-The library's drag fold-away and node-removal trash mode stay library-only.
-The generated starter uses a button with a reviewed `agent:prompt` action.
-The action passes the node ID to the main process, which revalidates the active
-trusted owning config and launches the app-owned agent harness. The harness
-publishes one generated `DASH_BORED_AGENT_PROMPT`, keeps
-the finite agent process and its output in Agent work, and leaves validation and
-repair status visible after the starter node is removed by the agent.
+Agent work shows main's ACP sessions (`AgentSessionTask`), newest first.
+`app/use-host-session.ts` merges pushed task snapshots over the initial
+`getAgentTasks` read and mirrors main's bound of 20 sessions
+(`boundAgentTasks` in `lib/agent-tasks.ts`): the oldest closed or failed
+sessions go first, then the oldest idle ones; a session that is starting,
+working, waiting for permission, or needs sign-in, or whose validation is
+checking or repairing, is never dropped. Each drawer row shows a bounded
+first-sentence summary, the agent name, start time, a state chip, a validation
+chip, and "Continued in <app>" after a hand-off. Chips (`panels/AgentStatus.tsx`)
+pair a color family with a distinct glyph and text; only starting and working
+glyphs spin, and only without reduced motion. The header control's badge counts
+working, waiting, and sign-in sessions and switches to an attention style while
+any session needs the user. The drawer opens when a session becomes active
+(starting, working, waiting, or sign-in required after any other state) and
+whenever one starts waiting for permission or sign-in, even after the user
+dismissed it. Sessions present at startup and other updates never open it, and
+closing the drawer never stops a session.
 
-Setup completion rereads and compiles the owning bundle through the shared core
-loader, independently of the renderer's last-known-good snapshot. A clean CLI
-exit with bundle-fixable errors permits one diagnostics repair, carrying the
-original request and exact config locator; the repair result is validated again.
-Read failures, abnormal exits, explicit cancellation, navigation/session changes,
-shutdown, and trust changes prevent another launch. Added permissions require
-review even when the configuration validates. The main process checks generic
-`process:execute` permission for the calling node; it never dispatches by a
-component ID. Setup's prompt is generated at launch and wins over any stale
-prompt value in inherited or bundle environment.
+Clicking a row opens the Agent session modal with Session and Prompt tabs; only
+the active tab renders. Its header shows the summary, state, agent, start time,
+and component path. Unless the session is closed or failed, a toolbar carries
+the agent's config options as selects (grouped as the agent groups them) or
+checkboxes, enabled while the session is idle, working, or waiting; Stop, which
+cancels the current turn while working or waiting and keeps the session open;
+Resume in <agent>, when main resolved a resume command; and Close session.
+Resume is enabled only while idle. Its split toggle opens a popover with the
+exact command and a copy action; Escape closes only the popover. After a
+hand-off the toolbar gives way to "Continued in <app>". Validation feedback
+(checking, repairing, validated, failed, trust-required, or cancelled, with
+diagnostics) sits above the tabs; while checking, Cancel automatic follow-up
+sends `cancel`. Command errors appear inline.
 
-Agent work shows checking, repairing, validated, failed, trust-required, and
-cancelled states independently of CLI exit. Completed output remains in the
-Terminal tab. Both command and agent terminals keep a shell after their run;
-agent validation and its single repair allowance use the recorded run result.
-Closing the shell does not validate or repair a second time. Shared modal focus
-setup and restoration run only on mount and unmount, using the current dismiss
-callback without stealing focus during task updates.
+The Session tab (`panels/AgentSession.tsx`) shows the agent's latest plan with
+progress, then the transcript: the user's follow-ups, agent messages in the
+Markdown subset, collapsed thoughts, notices, and tool rows. A tool row shows
+status, title, kind, touched files relative to the project as `path +N −M` (or
+`path:line`), and collapsed output; the app renders no diffs. The transcript
+follows new entries while the reader is within 32 px of the end, otherwise
+keeps their place and offers Latest, and notes how many earlier entries main
+dropped. A permission request is a card with the requested files, the agent's
+options (allow or reject, once or always), Dismiss (answers without a choice,
+which the agent treats as cancelled), and a note when an untrusted repair
+refuses requests outside the bundle. Sign-in required lists the agent's
+sign-in methods; signing in belongs to the agent. A failed session shows its
+error and the bounded agent log. The follow-up composer is enabled only while
+idle and says why otherwise; Enter sends, Shift+Enter adds a line, and focus
+returns when the turn ends. The Prompt tab shows the launch command and the
+full first prompt, each with a copy action.
+
+`lib/markdown-lite.tsx` renders agent messages as a safe subset: paragraphs and
+line breaks, bold, italic, inline code, fenced code, lists, quotes, rules,
+headings as bold text, pipe tables as monospace text, and links as their text
+plus the URL. It emits only React text and fixed elements: raw HTML shows
+literally, nothing navigates, and parsing stays linear on pathological input.
+The UI fixture seeds one session per interesting state and answers task
+commands like main (`lib/ui-harness-agents.ts`).
+
+The modal reserves its remaining height for the active panel, with bounded,
+scrollable validation feedback. The shared modal overlay and panel contain
+scroll chaining; the document also disables page scrolling while any shared
+modal is mounted, including modal-chrome gestures in native WebKit. Removing
+the final modal restores page scrolling. Shared modal focus setup and
+restoration run only on mount and unmount, using the current dismiss callback
+without stealing focus during task updates. The Agent work panel and the
+component library flyout are mutually exclusive right-side drawers sharing one
+shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
+optional initial focus and focus restore, and unified header/body geometry
+below the modal layer). Drawers are non-modal: Tab follows normal document
+order and may move focus outside while a drawer stays open; the dashboard
+remains interactive. The library focuses its search field on open. Outside
+pointer presses and Escape dismiss a drawer; closing restores focus to its
+trigger. The library's drag fold-away and node-removal trash mode stay
+library-only.
+
+The generated starter uses a button with a reviewed `agent:prompt` action. The
+action passes the node ID to the main process, which revalidates the active
+trusted owning config and starts an agent session; Agent work keeps validation
+and repair status visible after the agent removes the starter node. Setup
+completion, post-turn validation, and the single automatic repair are main
+contracts ([Agents](./agents.md)). Added permissions require review even when
+the configuration validates. The main process checks generic `process:execute`
+permission for the calling node; it never dispatches by a component ID.
 
 Tabs are keyboard accessible. Splits support horizontal and vertical layouts;
 horizontal splits may be recursively nested for tiled layouts and stack based
@@ -455,18 +486,21 @@ release, blur, hidden document, or an open palette removes the hints.
 
 Application Settings has General, Themes, and Actions tabs. General owns app
 behavior, including the command-palette shortcut, the sidebar startup
-expanded preference, and `DASH_BORED_AGENT`.
+expanded preference, and the Dashboard agent picker.
 Themes owns app appearance defaults plus a per-dashboard list of theme and
 appearance selections; changing a row reads and writes that registered bundle
 directly without opening it or depending on active editor state. Actions presents
 the same currently known action catalog as the palette, with search, favorite
 toggles, and per-action shortcut recording. The separate versioned, owner-only
-user-data file persists those preferences. The inherited agent environment
-value supplies the first default, with `codex exec` as the fallback. The app-wide
-agent setting can be cleared by saving an empty field; after clearing, the owning
-bundle's effective environment supplies the command. Updating it affects later
-component agent launches and later dashboard commands without rewriting project
-files.
+user-data file persists those preferences. The Dashboard agent picker offers
+Each dashboard's choice (no app setting: each bundle's `DASH_BORED_AGENT`, else
+the first detected agent), the agents detected on PATH, and Custom command
+(shared with the composer's remembered custom command); Save stores the command
+string or clears the setting, and is disabled while unchanged or empty. With no
+setting and nothing detected it lists the known agents openly; otherwise
+undetected ones fold under "Install another agent". Updating it affects later
+agent launches without rewriting project files; resolution order is in
+[Agents](./agents.md).
 
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks
@@ -852,7 +886,7 @@ refreshes receive the same props, action, and permission contract as the app.
 The renderer has no built-in component registry or rendering branch. Core is
 compiled and loaded by `render/local-components.tsx` through the same blob-module
 and CSS lifecycle as other external code. `render/TerminalSurface.tsx` is an
-app-owned SDK primitive shared by external command and Agent work; it lazily
+app-owned SDK primitive for the external command component; it lazily
 loads `render/TerminalSurfaceView.tsx` and xterm when a terminal is mounted. Fixture
 coverage builds the pinned core with the actual compiler; fixture payloads are
 excluded from production through the development-only host branch.
