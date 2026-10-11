@@ -101,8 +101,9 @@ describe("AgentSessions", () => {
     });
     expect(waiting.agent.name).toBe(process.execPath.split("/").at(-1)!);
     expect(waiting.permission?.options.map((option) => option.kind)).toEqual(["allow_once", "reject_once"]);
-    expect(waiting.entries.map((entry) => entry.kind)).toEqual(["user", "agent", "tool"]);
-    expect(waiting.entries[2]).toMatchObject({ kind: "tool", status: "pending", edits: [{ path: `${root}/README.md`, added: 1, removed: 1 }] });
+    // The first prompt is the launch briefing (Prompt tab), not a transcript entry.
+    expect(waiting.entries.map((entry) => entry.kind)).toEqual(["agent", "tool"]);
+    expect(waiting.entries[1]).toMatchObject({ kind: "tool", status: "pending", edits: [{ path: `${root}/README.md`, added: 1, removed: 1 }] });
     // Diff text never reaches the task.
     expect(JSON.stringify(waiting)).not.toContain("hello, world");
 
@@ -110,7 +111,7 @@ describe("AgentSessions", () => {
     const idle = await until(manager, launch.taskId, (task) => task.state === "idle");
     expect(idle).toMatchObject({ turns: 1, stopReason: "end_turn", permission: null });
     expect(idle.entries.map((entry) => entry.kind === "agent" || entry.kind === "user" ? entry.text : `${entry.kind}:${"status" in entry ? entry.status : ""}`))
-      .toEqual(["Update the README.", "Working on it.", "tool:completed", "Done."]);
+      .toEqual(["Working on it.", "tool:completed", "Done."]);
     expect(idle.plan?.every((entry) => entry.status === "completed")).toBeTrue();
     expect(idle.log).toContain("fake-acp-agent: ready");
 
@@ -173,7 +174,7 @@ describe("AgentSessions", () => {
     manager.prompt(taskId, "quick follow-up");
     const task = await until(manager, taskId, (candidate) => candidate.state === "idle" && candidate.turns === 2);
     expect(task.stopReason).toBe("end_turn");
-    expect(task.entries.filter((entry) => entry.kind === "user").map((entry) => entry.kind === "user" && entry.text)).toEqual(["hang", "quick follow-up"]);
+    expect(task.entries.filter((entry) => entry.kind === "user").map((entry) => entry.kind === "user" && entry.text)).toEqual(["quick follow-up"]);
     expect(task.sessionId).toBe("fake-session-1");
   });
 

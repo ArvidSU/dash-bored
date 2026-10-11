@@ -672,7 +672,11 @@ export class AgentSessions {
     task.state = "working";
     delete task.stopReason;
     record.transcript.run = null;
-    if (!options.resend) addEntry(task, { kind: "user", id: `prompt-${++record.prompts}`, text: boundText(text) });
+    if (!options.resend) {
+      record.prompts += 1;
+      // The first prompt is the launch briefing, shown whole in the Prompt tab.
+      if (record.prompts > 1) addEntry(task, { kind: "user", id: `prompt-${record.prompts}`, text: boundText(text) });
+    }
     this.schedule(record);
     try {
       const response = await record.process.request("session/prompt", { sessionId: task.sessionId!, prompt: [{ type: "text", text }] });

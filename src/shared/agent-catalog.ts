@@ -16,6 +16,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     command: "claude-agent-acp",
     cli: "claude",
     resume: "claude --resume {sessionId}",
+    package: "@agentclientprotocol/claude-agent-acp",
     homepage: "https://github.com/agentclientprotocol/claude-agent-acp",
   },
   {
@@ -24,6 +25,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     command: "codex-acp",
     cli: "codex",
     resume: "codex resume -C {cwd} {sessionId}",
+    package: "@agentclientprotocol/codex-acp",
     homepage: "https://github.com/agentclientprotocol/codex-acp",
   },
   {
@@ -32,6 +34,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     command: "gemini --acp",
     cli: "gemini",
     resume: "gemini --resume {sessionId}",
+    package: "@google/gemini-cli",
     homepage: "https://github.com/google-gemini/gemini-cli",
   },
   {
@@ -40,6 +43,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     command: "copilot --acp",
     cli: "copilot",
     resume: "copilot --resume {sessionId}",
+    package: "@github/copilot",
     homepage: "https://github.com/github/copilot-cli",
   },
   {
@@ -64,6 +68,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     command: "qwen --acp",
     cli: "qwen",
     resume: "qwen --resume {sessionId}",
+    package: "@qwen-code/qwen-code",
     homepage: "https://github.com/QwenLM/qwen-code",
   },
   {
@@ -88,6 +93,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     command: "cline --acp",
     cli: "cline",
     resume: "cline --id {sessionId}",
+    package: "cline",
     homepage: "https://cline.bot",
   },
   {

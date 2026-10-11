@@ -308,6 +308,7 @@ describe("DashboardSetupSupervisor with a real ACP session", () => {
     const task = await until(sessions, taskId, (candidate) => candidate.validation?.status === "failed");
     expect(task).toMatchObject({ state: "idle", turns: 1, stopReason: "refusal" });
     expect(task.validation?.message).toContain("refusal");
-    expect(task.entries.filter((entry) => entry.kind === "user")).toHaveLength(1);
+    // No repair follow-up was sent (the first prompt is not a transcript entry).
+    expect(task.entries.filter((entry) => entry.kind === "user")).toHaveLength(0);
   });
 });

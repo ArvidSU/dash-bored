@@ -49,6 +49,13 @@ test("matches launch commands to known agents and names others by their executab
   expect(knownAgentForCommand("/opt/homebrew/bin/gemini --acp --debug")?.id).toBe("gemini");
   expect(knownAgentForCommand("opencode acp")?.id).toBe("opencode");
   expect(knownAgentForCommand("gemini -p")).toBeUndefined();
+  // npx/bunx launches of a known agent's published package are that agent.
+  expect(knownAgentForCommand("npx -y @agentclientprotocol/codex-acp@2.2.2")?.id).toBe("codex");
+  expect(knownAgentForCommand("bunx @agentclientprotocol/claude-agent-acp")?.id).toBe("claude");
+  expect(knownAgentForCommand("npx @google/gemini-cli@latest --acp")?.id).toBe("gemini");
+  expect(knownAgentForCommand("npx @google/gemini-cli")).toBeUndefined();
+  expect(knownAgentForCommand("npx some-other-agent")).toBeUndefined();
+  expect(agentDisplay("npx -y @agentclientprotocol/codex-acp@2.2.2")).toEqual({ name: "Codex", knownId: "codex" });
   expect(knownAgentForCommand("npx @zed-industries/codex-acp")).toBeUndefined();
   expect(agentDisplay("goose acp")).toEqual({ name: "Goose", knownId: "goose" });
   expect(agentDisplay("/usr/local/bin/my-agent --stdio")).toEqual({ name: "my-agent" });

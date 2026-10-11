@@ -16,6 +16,11 @@ export interface KnownAgent {
   /** The agent's own CLI executable, used for hand-off and legacy-command hints. */
   cli?: string;
   /**
+   * npm package that runs `command` through `npx`/`bunx`, so a custom
+   * `npx <package>` command is recognized as this agent. Never installed.
+   */
+  package?: string;
+  /**
    * Native command that resumes an ACP session in the agent's own app, run
    * from the project root. Placeholders: `{sessionId}` and `{cwd}` (the
    * project root); each is substituted as one shell-quoted word.

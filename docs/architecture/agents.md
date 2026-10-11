@@ -62,8 +62,10 @@ branches on an id.
   read. Detected agents keep catalog order.
 - **Matching** treats a command as a known agent when its executable's base
   name equals the launch executable and it carries the launch command's other
-  words, so `/opt/homebrew/bin/gemini --acp --debug` is Gemini CLI. Unknown
-  commands display their executable name.
+  words, so `/opt/homebrew/bin/gemini --acp --debug` is Gemini CLI. An
+  `npx`/`bunx` launch of an entry's `package` (any version) is that agent too,
+  so `npx -y @agentclientprotocol/codex-acp@2.2.2` is Codex and can hand off.
+  Unknown commands display their executable name.
 - **Hints.** A command that runs a known agent's own CLI instead of its ACP
   command (for example `codex exec` or `claude -p`) fails the handshake; the
   error names the agent's ACP command and, for adapters, where to install it.
@@ -146,7 +148,9 @@ task fails and tells the user to sign in with the agent's own CLI.
 
 - **Prompts.** Each prompt is one text content block of 1 to 16,384 characters
   after trimming. The first prompt is the reviewed, rendered template; it is
-  sent once the session exists. A user follow-up is accepted only while the
+  sent once the session exists and shown in the Prompt tab rather than as a
+  transcript entry. Follow-ups, including the automatic repair, are `user`
+  entries. A user follow-up is accepted only while the
   task is `idle`, the turn-end hook is not running, and validation is not
   `checking`; otherwise `AGENT_SESSION_BUSY`.
 - **Turn end.** A stop reason sets `stopReason`, increments `turns` (every stop

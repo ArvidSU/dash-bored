@@ -39,13 +39,24 @@ export function detectAgents(
  * launch executable and it carries the launch command's remaining words
  * (such as `--acp`), so `/opt/homebrew/bin/gemini --acp --debug` is Gemini CLI.
  */
+const PACKAGE_RUNNERS = new Set(["npx", "bunx"]);
+
+/** `@scope/name@1.2.3` → `@scope/name`; `name@latest` → `name`. */
+function packageName(spec: string): string {
+  const at = spec.lastIndexOf("@");
+  return at > 0 ? spec.slice(0, at) : spec;
+}
+
 export function knownAgentForCommand(command: string, catalog: readonly KnownAgent[] = KNOWN_AGENTS): KnownAgent | undefined {
   const program = executable(command);
   if (!program) return undefined;
   const given = new Set(words(command).slice(1));
+  // `npx [-y] <package>[@version] [args]` runs a known agent's published package.
+  const spec = PACKAGE_RUNNERS.has(program) ? words(command).slice(1).find((word) => !word.startsWith("-")) : undefined;
   return catalog.find((agent) => {
     const [launch, ...rest] = words(agent.command);
-    return launch === program && rest.every((word) => given.has(word));
+    const launches = launch === program || (spec !== undefined && agent.package === packageName(spec));
+    return launches && rest.every((word) => given.has(word));
   });
 }
 
