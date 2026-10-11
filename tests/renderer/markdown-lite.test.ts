@@ -47,6 +47,27 @@ describe("markdown-lite inline parser", () => {
       { type: "text", text: " c" },
     ]);
     expect(parseMarkdownInline("`` a ` b ``")).toEqual([{ type: "code", text: "a ` b" }]);
+    // An escaped backtick does not count toward the opening run.
+    expect(parseMarkdownInline("\\``a` x")).toEqual([
+      { type: "text", text: "`" },
+      { type: "code", text: "a" },
+      { type: "text", text: " x" },
+    ]);
+  });
+
+  test("keeps bracketed prose whole: only a URL, optionally with a quoted title, makes a link", () => {
+    expect(parseMarkdownInline("Use arr[0](see below) here")).toEqual([
+      { type: "text", text: "Use arr[0](see below) here" },
+    ]);
+    expect(parseMarkdownInline("[a](https://x.dev\nnext)")).toEqual([
+      { type: "text", text: "[a](https://x.dev" },
+      { type: "break" },
+      { type: "text", text: "next)" },
+    ]);
+    expect(parseMarkdownInline("[empty]() and [a]( https://y.dev 'title' )")).toEqual([
+      { type: "text", text: "[empty]() and " },
+      { type: "link", children: [{ type: "text", text: "a" }], url: "https://y.dev" },
+    ]);
   });
 });
 
@@ -87,6 +108,22 @@ describe("markdown-lite block parser", () => {
     expect(parseMarkdownBlocks("text\n```\npartial")).toEqual([
       { type: "paragraph", inline: [{ type: "text", text: "text" }] },
       { type: "code", language: "", text: "partial" },
+    ]);
+  });
+
+  test("strips a fence's indent only up to its own columns, so tabbed code stays whole", () => {
+    expect(parseMarkdownBlocks("   ```go\n\tgo build ./...\n     indented\n  less\n   ```")).toEqual([
+      { type: "code", language: "go", text: "\tgo build ./...\n  indented\nless" },
+    ]);
+    expect(parseMarkdownBlocks("\t```\n\tcode\n\t```")).toEqual([{ type: "code", language: "", text: "code" }]);
+  });
+
+  test("keeps list and quote text past a U+2028 line separator", () => {
+    expect(parseMarkdownBlocks("- one\u2028two\n- three")).toMatchObject([
+      { type: "list", items: [{ inline: [{ type: "text", text: "one\u2028two" }] }, { inline: [{ type: "text", text: "three" }] }] },
+    ]);
+    expect(parseMarkdownBlocks("> quote\u2028more")).toEqual([
+      { type: "quote", blocks: [{ type: "paragraph", inline: [{ type: "text", text: "quote\u2028more" }] }] },
     ]);
   });
 
@@ -144,6 +181,20 @@ describe("markdown-lite rendering", () => {
       const started = performance.now();
       html(input);
       expect(performance.now() - started).toBeLessThan(1_000);
+    }
+  });
+
+  test("matches code spans in linear time however backtick runs are ordered", () => {
+    // Each run searches for a closer of its own length; descending runs never
+    // find one. A quadratic scan took about a second on ~200 KB of this.
+    const runs = Array.from({ length: 630 }, (_, index) => index + 1);
+    const descending = [...runs].reverse().map((length) => "`".repeat(length) + " x ").join("");
+    const ascending = runs.map((length) => "`".repeat(length) + " x ").join("");
+    expect(descending.length).toBeGreaterThan(200_000);
+    for (const input of [descending, ascending, "[](a b".repeat(40_000) + ")"]) {
+      const started = performance.now();
+      parseMarkdownBlocks(input);
+      expect(performance.now() - started).toBeLessThan(250);
     }
   });
 });

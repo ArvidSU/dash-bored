@@ -415,7 +415,8 @@ full first prompt, each with a copy action.
 `lib/markdown-lite.tsx` renders agent messages as a safe subset: paragraphs and
 line breaks, bold, italic, inline code, fenced code, lists, quotes, rules,
 headings as bold text, pipe tables as monospace text, and links as their text
-plus the URL. It emits only React text and fixed elements: raw HTML shows
+plus the URL (only a URL, optionally with a quoted title, makes a link, so
+bracketed prose such as `arr[0](see below)` stays text). It emits only React text and fixed elements: raw HTML shows
 literally, nothing navigates, and parsing stays linear on pathological input.
 The UI fixture seeds one session per interesting state and answers task
 commands like main (`lib/ui-harness-agents.ts`).

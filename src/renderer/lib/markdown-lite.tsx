@@ -38,8 +38,9 @@ export type MarkdownBlock =
 const FENCE_OPEN = /^(\s*)(`{3,}|~{3,})/;
 const HEADING_OPEN = /^\s{0,3}(#{1,6})(?=\s|$)/;
 const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
-const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+(.*)|\s*$)/;
-const QUOTE = /^\s{0,3}>\s?(.*)$/;
+// `[\s\S]` rather than `.`: a U+2028 inside a line must not cut the item short.
+const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+([\s\S]*)|\s*$)/;
+const QUOTE = /^\s{0,3}>\s?([\s\S]*)$/;
 const TABLE = /^\s*\|/;
 const ESCAPABLE = /[\\`*_{}[\]()#+\-.!|>~<]/;
 /** Quotes and lists nested deeper than this keep their markers as text. */
@@ -57,7 +58,7 @@ function fenceOpen(line: string): FenceOpen | null {
   const info = line.slice(match[0].length).trim();
   // A backtick fence's info string cannot contain backticks (it is inline code).
   if (match[2]![0] === "`" && info.includes("`")) return null;
-  return { indent: match[1]!.length, fence: match[2]!, language: /^\S*/.exec(info)![0] };
+  return { indent: indentOf(match[1]!), fence: match[2]!, language: /^\S*/.exec(info)![0] };
 }
 
 function heading(line: string): { level: number; text: string } | null {
@@ -98,6 +99,19 @@ function indentOf(line: string): number {
   return (/^\s*/.exec(line)?.[0] ?? "").replace(/\t/g, "    ").length;
 }
 
+/** Removes at most `columns` columns of leading spaces and tabs; a tab that reaches past them stays. */
+function stripIndent(line: string, columns: number): string {
+  let column = 0;
+  let index = 0;
+  while (index < line.length && column < columns) {
+    const width = line[index] === " " ? 1 : line[index] === "\t" ? 4 : 0;
+    if (width === 0 || column + width > columns) break;
+    column += width;
+    index += 1;
+  }
+  return line.slice(index);
+}
+
 function isBlank(line: string): boolean {
   return line.trim() === "";
 }
@@ -118,7 +132,7 @@ function readFence(lines: readonly string[], start: number): { block: MarkdownBl
       index += 1;
       break;
     }
-    body.push(line.slice(Math.min(indent, indentOf(line))));
+    body.push(stripIndent(line, indent));
     index += 1;
   }
   return { block: { type: "code", language, text: body.join("\n") }, next: index };
@@ -274,11 +288,45 @@ function findEmphasisCloser(text: string, delimiter: string, from: number): numb
   return -1;
 }
 
+/** Start positions of every maximal backtick run, in order, by run length. */
+function backtickRuns(text: string): Map<number, number[]> {
+  const runs = new Map<number, number[]>();
+  let index = text.indexOf("`");
+  while (index !== -1) {
+    let end = index + 1;
+    while (text[end] === "`") end += 1;
+    const positions = runs.get(end - index);
+    if (positions) positions.push(index);
+    else runs.set(end - index, [index]);
+    index = text.indexOf("`", end);
+  }
+  return runs;
+}
+
+/** A link destination plus an optional quoted title; anything else is not a link. */
+const LINK_TARGET = /^\s*(\S+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*$/;
+/** Targets with whitespace (a title) are checked only up to this length. */
+const MAX_TITLED_TARGET = 2_048;
+
 export function parseMarkdownInline(text: string): MarkdownInline[] {
   const output: MarkdownInline[] = [];
   // Once a delimiter has no closer from some position, none exists further on:
   // remembering that keeps pathological input linear.
   const unmatched = new Set<string>();
+  // A code span closes on the next maximal backtick run of the same length.
+  // Runs are indexed once, and since the scan only moves forward each length
+  // keeps a cursor, so matching stays linear however the runs are ordered.
+  let runs: Map<number, number[]> | null = null;
+  const runCursors = new Map<number, number>();
+  const codeSpanCloser = (length: number, from: number): number => {
+    runs ??= backtickRuns(text);
+    const positions = runs.get(length);
+    if (!positions) return -1;
+    let cursor = runCursors.get(length) ?? 0;
+    while (cursor < positions.length && positions[cursor]! < from) cursor += 1;
+    runCursors.set(length, cursor);
+    return positions[cursor] ?? -1;
+  };
   // The scan only moves forward, so the first match after an earlier position
   // is still the first match after a later one until the scan passes it.
   const found = new Map<string, number>();
@@ -288,6 +336,22 @@ export function parseMarkdownInline(text: string): MarkdownInline[] {
     const next = text.indexOf(needle, from);
     found.set(needle, next);
     return next;
+  };
+  const whitespace = /\s/g;
+  let whitespaceAt: number | undefined;
+  const firstWhitespaceAfter = (from: number): number => {
+    if (whitespaceAt !== undefined && (whitespaceAt === -1 || whitespaceAt >= from)) return whitespaceAt;
+    whitespace.lastIndex = from;
+    whitespaceAt = whitespace.exec(text)?.index ?? -1;
+    return whitespaceAt;
+  };
+  /** The URL of a link target, or null when the parentheses hold prose such as `arr[0](see below)`. */
+  const linkUrl = (start: number, end: number): string | null => {
+    const space = firstWhitespaceAfter(start);
+    // Without whitespace the whole target is the URL; a link consumes it, so this stays linear.
+    if (space === -1 || space >= end) return text.slice(start, end) || null;
+    if (end - start > MAX_TITLED_TARGET) return null;
+    return LINK_TARGET.exec(text.slice(start, end))?.[1] ?? null;
   };
   let buffer = "";
   const flush = () => {
@@ -311,17 +375,9 @@ export function parseMarkdownInline(text: string): MarkdownInline[] {
     if (character === "`") {
       let run = 1;
       while (text[index + run] === "`") run += 1;
-      const fence = "`".repeat(run);
-      // A code span closes on a backtick run of exactly the same length.
-      let close = unmatched.has(fence) ? -1 : text.indexOf(fence, index + run);
-      while (close !== -1 && text[close + run] === "`") {
-        let end = close + run;
-        while (text[end] === "`") end += 1;
-        close = text.indexOf(fence, end);
-      }
+      const close = codeSpanCloser(run, index + run);
       if (close === -1) {
-        unmatched.add(fence);
-        buffer += fence;
+        buffer += "`".repeat(run);
         index += run;
         continue;
       }
@@ -358,10 +414,10 @@ export function parseMarkdownInline(text: string): MarkdownInline[] {
       const labelEnd = firstAfter("]", index + 1);
       if (labelEnd !== -1 && text[labelEnd + 1] === "(") {
         const urlEnd = firstAfter(")", labelEnd + 2);
-        if (urlEnd !== -1) {
-          const target = text.slice(labelEnd + 2, urlEnd).trim().split(/\s+/)[0] ?? "";
+        const url = urlEnd === -1 ? null : linkUrl(labelEnd + 2, urlEnd);
+        if (url) {
           flush();
-          output.push({ type: "link", children: parseMarkdownInline(text.slice(index + 1, labelEnd)), url: target.replace(/^<|>$/g, "") });
+          output.push({ type: "link", children: parseMarkdownInline(text.slice(index + 1, labelEnd)), url: url.replace(/^<|>$/g, "") });
           index = urlEnd + 1;
           continue;
         }
