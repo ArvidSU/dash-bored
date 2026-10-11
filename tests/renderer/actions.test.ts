@@ -3,6 +3,7 @@ import {
   ActionStore,
   matchActionChoiceSelections,
   PALETTE_OPTION_RESULT_LIMIT,
+  PALETTE_RECENT_RESULT_LIMIT,
   rankActionChoiceOptions,
   rankActions,
   rankPaletteEntries,
@@ -412,7 +413,9 @@ describe("action search and execution", () => {
       action("theme", { label: "Set theme", choices: [{ id: "theme", label: "Theme", options: [{ value: "ocean", label: "Ocean" }] }] }),
     ];
     const describe = (entries: ReturnType<typeof rankPaletteEntries>) => entries.map((entry) =>
-      entry.kind === "option" ? `${entry.action.id} › ${entry.option.value}` : `${entry.action.id}${entry.optionMatches ? ` (${entry.optionMatches})` : ""}`);
+      entry.kind === "option"
+        ? `${entry.action.id} › ${entry.option.value}`
+        : `${entry.action.id}${entry.kind === "action" && entry.optionMatches ? ` (${entry.optionMatches})` : ""}`);
     expect(describe(rankPaletteEntries(actions, ""))).toEqual(["project:focus", "theme"]);
     expect(describe(rankPaletteEntries(actions, "ocean"))).toEqual(["theme › ocean"]);
     expect(describe(rankPaletteEntries(actions, "markdown 4"))).toEqual(["project:focus › markdown-4"]);
@@ -435,6 +438,77 @@ describe("action search and execution", () => {
     expect(entries.map(({ action }) => action.id)).toEqual(["process:qa", "filter"]);
     expect(rankPaletteEntries(actions, "refresh").map(({ action }) => action.id)).toEqual(["component:docs:refresh"]);
     expect(entries[1]!.action).toMatchObject({ enabled: false, disabledReason: "No options are available right now." });
+  });
+
+  test("recent runs lead the palette, follow the search, and replace the rows they repeat", () => {
+    const options = [
+      { value: "overview", label: "Overview", description: "overview" },
+      { value: "tests", label: "Tests", description: "tests · Overview" },
+    ];
+    const actions = [
+      action("reload", { label: "Reload app" }),
+      action("settings", { label: "Open settings" }),
+      action("server", { label: "Reload development server", group: "Project commands" }),
+      action("project:focus", { label: "Focus component", group: "Dashboard nodes", choices: [{ id: "node", label: "Focus component", options }] }),
+      action("focus:tests", { label: "Focus Tests", parentActionId: "project:focus" }),
+      action("docs:refresh", { label: "Refresh docs", enabled: false, declaredOnly: true }),
+    ];
+    const recents = [
+      { actionId: "settings" },
+      { actionId: "project:focus", selections: { node: "tests" } },
+      { actionId: "server" },
+      // Gone actions, removed options, sub-actions, and unmounted placeholders do not replay.
+      { actionId: "missing" },
+      { actionId: "project:focus", selections: { node: "deleted" } },
+      { actionId: "focus:tests" },
+      { actionId: "docs:refresh" },
+    ];
+    const describe = (query: string, favorites: ReadonlySet<string> = new Set()) =>
+      rankPaletteEntries(actions, query, favorites, recents).map((entry) =>
+        entry.kind === "recent"
+          ? `recent ${[entry.action.id, ...entry.options.map((option) => option.value)].join(" › ")}`
+          : entry.kind === "option" ? `${entry.action.id} › ${entry.option.value}` : entry.action.id);
+
+    expect(describe("")).toEqual([
+      "recent settings",
+      "recent project:focus › tests",
+      "recent server",
+      "reload",
+      "project:focus",
+    ]);
+    // Recent rows outrank favorites; favorites still lead the remaining rows.
+    expect(describe("", new Set(["reload", "settings"])).slice(0, 4)).toEqual([
+      "recent settings",
+      "recent project:focus › tests",
+      "recent server",
+      "reload",
+    ]);
+    expect(describe("reload")).toEqual(["recent server", "reload"]);
+    // The recorded option is searchable and replaces the matching option row.
+    expect(describe("tests")).toEqual(["recent project:focus › tests"]);
+    expect(describe("focus tests")).toEqual(["recent project:focus › tests"]);
+    expect(describe("focus")).toEqual(["recent project:focus › tests", "project:focus"]);
+    expect(describe("refresh")).toEqual(["recent docs:refresh"]);
+
+    const replay = rankPaletteEntries(actions, "tests", new Set(), recents)[0];
+    expect(replay).toMatchObject({ kind: "recent", selections: { node: "tests" } });
+  });
+
+  test("searching ranks matching recent runs by relevance and keeps the recent limit", () => {
+    const actions = Array.from({ length: 8 }, (_, index) => action(`run-${index}`, { label: `Run task ${index}` }));
+    actions.push(action("deploy", { label: "Deploy preview", keywords: ["task"] }));
+    const recents = [...actions].reverse().map(({ id }) => ({ actionId: id }));
+    const recentIds = (query: string) => rankPaletteEntries(actions, query, new Set(), recents)
+      .filter((entry) => entry.kind === "recent")
+      .map((entry) => entry.action.id);
+
+    expect(recentIds("")).toEqual(["deploy", "run-7", "run-6", "run-5", "run-4"]);
+    expect(recentIds("")).toHaveLength(PALETTE_RECENT_RESULT_LIMIT);
+    // Labels beat keywords; equal matches keep recency.
+    expect(recentIds("task")).toEqual(["run-7", "run-6", "run-5", "run-4", "run-3"]);
+    expect(recentIds("deploy")).toEqual(["deploy"]);
+    expect(rankPaletteEntries(actions, "run task 0", new Set(), recents).map((entry) => `${entry.kind} ${entry.action.id}`))
+      .toEqual(["recent run-0"]);
   });
 
   test("promotes favorites only after search has selected matching actions", () => {

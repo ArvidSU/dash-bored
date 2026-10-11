@@ -425,6 +425,76 @@ describe("renderer fixture interactions", () => {
     }
   }, 20_000);
 
+  test("recent palette runs lead the results, follow the search, and replay their options", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    proof.setDefaultTimeout(5_000);
+    try {
+      await proof.goto(fixtureUrl);
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      const options = palette.getByRole("option");
+      const headings = palette.locator(".command-palette__group");
+      const focusedPath = proof.getByRole("navigation", { name: "Focused component path" });
+      const open = async () => {
+        await proof.getByRole("button", { name: /Open command palette/ }).click();
+        await palette.waitFor();
+      };
+      const runSearch = async (query: string) => {
+        await input.fill(query);
+        await input.press("Enter");
+        await palette.waitFor({ state: "hidden" });
+      };
+
+      await open();
+      expect(await headings.first().textContent()).not.toBe("Recent");
+      await runSearch("renderer-proof-todos");
+      await focusedPath.getByText("YAML todo list", { exact: true }).waitFor();
+      await open();
+      await runSearch("show whole dashboard");
+      await focusedPath.waitFor({ state: "hidden" });
+
+      await open();
+      expect(await headings.first().textContent()).toBe("Recent");
+      expect(await options.nth(0).innerText()).toContain("Show whole dashboard");
+      expect(await options.nth(1).innerText()).toMatch(/^Focus component\W+YAML todo list/);
+      // A recent run is listed once, in Recent, rather than again in its group.
+      expect(await palette.getByRole("option", { name: /^Show whole dashboard/ }).count()).toBe(1);
+
+      await input.fill("yaml todo");
+      expect(await headings.first().textContent()).toBe("Recent");
+      expect(await options.first().innerText()).toMatch(/^Focus component\W+YAML todo list/);
+      expect(await palette.getByRole("option", { name: /^Focus component\W+YAML todo list/ }).count()).toBe(1);
+      expect(await options.first().getAttribute("aria-selected")).toBe("true");
+      await input.press("Meta+Enter");
+      await focusedPath.getByText("YAML todo list", { exact: true }).waitFor();
+      // Kept open with a cleared search; the replayed target is focused now, so like its option row it waits.
+      expect(await input.inputValue()).toBe("");
+      expect(await options.first().innerText()).toContain("Show whole dashboard");
+      expect(await palette.getByRole("option", { name: /^Focus component\W+YAML todo list/ }).count()).toBe(0);
+      await input.press("Meta+Enter");
+      await focusedPath.waitFor({ state: "hidden" });
+      expect(await options.nth(1).innerText()).toMatch(/^Focus component\W+YAML todo list/);
+
+      await input.fill("sidebar");
+      // Without matching recent runs, search results keep their plain relevance list.
+      expect(await headings.count()).toBe(0);
+      await input.press("Meta+Enter");
+      expect(await options.first().innerText()).toMatch(/sidebar/i);
+      expect(await options.first().getAttribute("aria-selected")).toBe("true");
+      await input.press("Escape");
+      await palette.waitFor({ state: "hidden" });
+
+      await proof.reload();
+      await open();
+      // The history survives a reload, most recent first.
+      expect(await options.nth(0).innerText()).toMatch(/sidebar/i);
+      expect(await options.nth(1).innerText()).toContain("Show whole dashboard");
+      expect(await options.nth(2).innerText()).toMatch(/^Focus component\W+YAML todo list/);
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("reveal targets are choices under one main palette action", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     try {
@@ -481,6 +551,9 @@ describe("renderer fixture interactions", () => {
       expect(await input.inputValue()).toBe("");
       // Holding Command at the final choice works even when the parent opened normally.
       await input.fill("reveal");
+      // The reveal that just ran leads as a recent run; its chooser follows.
+      expect(await palette.getByRole("option").first().innerText()).toMatch(/^Reveal component\W+Responsive tile/);
+      await input.press("ArrowDown");
       await input.press("Enter");
       await palette.getByRole("listbox", { name: "Reveal component", exact: true }).waitFor();
       await input.fill("Responsive tile");
@@ -523,6 +596,21 @@ describe("renderer fixture interactions", () => {
       expect(await palette.getByRole("option", { name: /Show dashboard/ }).getAttribute("aria-disabled")).toBe("true");
       await input.press("Meta+Enter");
       expect(await input.inputValue()).toBe("show dashboard");
+      // A kept-open run that moves its row into Recent keeps that row selected.
+      await input.fill("dashboard");
+      const rows = await palette.getByRole("option").allInnerTexts();
+      const sidebarRow = rows.findIndex((text) => text.startsWith("Expand sidebar"));
+      expect(sidebarRow).toBeGreaterThan(1);
+      for (let step = 0; step < sidebarRow; step += 1) await input.press("ArrowDown");
+      await input.press("Meta+Enter");
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).waitFor();
+      expect(await input.inputValue()).toBe("dashboard");
+      // Recent orders by relevance while searching: the label match leads the description match.
+      const recentRows = (await palette.getByRole("option").allInnerTexts()).slice(0, 2);
+      expect(recentRows.map((text) => text.split("\n")[0])).toEqual(["Show dashboard", "Collapse sidebar"]);
+      expect(await palette.getByRole("option").nth(1).getAttribute("aria-selected")).toBe("true");
+      await input.press("Meta+Enter");
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
       await proof.keyboard.press("Escape");
       await proof.getByRole("button", { name: "Settings", exact: true }).click();
       expect(await preference.isChecked()).toBeFalse();

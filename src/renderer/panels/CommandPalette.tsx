@@ -1,15 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { PaletteAction, PaletteEntry } from "../lib/actions";
 import { matchActionChoiceSelections, rankActionChoiceOptions, rankPaletteEntries, resolveActionChoiceOptions } from "../lib/actions";
 import type { ComponentActionOption, ComponentActionSelections } from "../../shared/contracts";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
+import type { PaletteRecent } from "../lib/palette-recents";
 
 interface CommandPaletteProps {
   open: boolean;
   actions: readonly PaletteAction[];
   runningActionIds: ReadonlySet<string>;
   favoriteActionIds: ReadonlySet<string>;
+  /** Recent palette runs, most recent first. */
+  recentRuns?: readonly PaletteRecent[];
   actionShortcuts: Readonly<Record<string, string>>;
   favoritesDisabled: boolean;
   clearInputOnKeepOpen: boolean;
@@ -22,6 +25,8 @@ interface CommandPaletteProps {
   onExecute(id: string, selections?: ComponentActionSelections): void;
   onToggleFavorite(id: string): void;
 }
+
+const NO_RECENT_RUNS: readonly PaletteRecent[] = [];
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(
@@ -51,6 +56,7 @@ export function CommandPalette({
   actions,
   runningActionIds,
   favoriteActionIds,
+  recentRuns = NO_RECENT_RUNS,
   actionShortcuts,
   favoritesDisabled,
   clearInputOnKeepOpen,
@@ -78,6 +84,9 @@ export function CommandPalette({
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const keepOpenRef = useRef(false);
   const rootSelectedIndexRef = useRef(0);
+  // The row a run started from, reselected by key after a kept-open run reorders recents.
+  const runEntryKeyRef = useRef<string | null>(null);
+  const reselectKeyRef = useRef<string | null>(null);
 
   const effectiveActions = useMemo(
     () =>
@@ -110,8 +119,8 @@ export function CommandPalette({
     }
   }, [currentChoice, choices]);
   const entries = useMemo(
-    () => (choosing ? [] : rankPaletteEntries(effectiveActions, query, favoriteActionIds)),
-    [choosing, effectiveActions, favoriteActionIds, query],
+    () => (choosing ? [] : rankPaletteEntries(effectiveActions, query, favoriteActionIds, recentRuns)),
+    [choosing, effectiveActions, favoriteActionIds, query, recentRuns],
   );
   const rankedChoiceOptions = useMemo(
     () => (choosing ? rankActionChoiceOptions(choiceOptions, query) : []),
@@ -145,6 +154,8 @@ export function CommandPalette({
     setChoices({});
     setStatus("");
     keepOpenRef.current = false;
+    runEntryKeyRef.current = null;
+    reselectKeyRef.current = null;
   }, [open, initialQuery, resetSequence]);
 
   useEffect(() => {
@@ -174,7 +185,11 @@ export function CommandPalette({
   }, [effectiveActions, initialActionId, open]);
 
   useEffect(() => {
-    setSelectedIndex((current) => (rowCount === 0 ? 0 : Math.min(current, rowCount - 1)));
+    const reselectKey = choosing ? null : reselectKeyRef.current;
+    const reselected = reselectKey === null ? -1 : entries.findIndex((entry) => entry.key === reselectKey);
+    reselectKeyRef.current = null;
+    if (reselected >= 0) setSelectedIndex(reselected);
+    else setSelectedIndex((current) => (rowCount === 0 ? 0 : Math.min(current, rowCount - 1)));
   }, [rowCount, rowKeys]);
 
   useEffect(() => {
@@ -221,9 +236,13 @@ export function CommandPalette({
       if (clearInputOnKeepOpen) {
         setQuery("");
         setSelectedIndex(0);
-      } else if (choiceActionId) {
-        setQuery(rootQuery);
-        setSelectedIndex(rootSelectedIndexRef.current);
+      } else {
+        // The run may move its row into Recent; stay on it rather than its old position.
+        reselectKeyRef.current = runEntryKeyRef.current;
+        if (choiceActionId) {
+          setQuery(rootQuery);
+          setSelectedIndex(rootSelectedIndexRef.current);
+        }
       }
       setStatus("Action invoked. Choose another action.");
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -268,8 +287,11 @@ export function CommandPalette({
       return;
     }
     keepOpenRef.current = keepOpen;
+    runEntryKeyRef.current = entry.key;
     if (entry.kind === "option") {
       proceed(action, { [entry.choice.id]: entry.option.value }, 0);
+    } else if (entry.kind === "recent") {
+      proceed(action, entry.selections, 0);
     } else {
       // A chooser reached through its matching options opens already filtered by that search.
       proceed(action, {}, 0, entry.optionMatches ? query : "");
@@ -419,32 +441,44 @@ export function CommandPalette({
 
   function actionRows(): ReactNode {
     let previousGroup = "";
+    const hasRecent = entries[0]?.kind === "recent";
     return entries.map((entry, index) => {
       const { action } = entry;
-      const favorite = entry.kind === "action" && favoriteActionIds.has(action.id);
-      // Relevance order interleaves groups while searching, so headings only describe the full list.
-      const displayGroup = searching ? "" : favorite ? "Favorites" : action.group;
+      const chosen = entry.kind === "option" ? [entry.option] : entry.kind === "recent" ? entry.options : [];
+      // Rows that name chosen options run more than the bare action, so they carry no star.
+      const starred = chosen.length === 0;
+      const favorite = starred && favoriteActionIds.has(action.id);
+      // Relevance order interleaves groups while searching, so only Recent keeps its own heading then.
+      const displayGroup = entry.kind === "recent"
+        ? "Recent"
+        : searching
+          ? hasRecent ? "Other results" : ""
+          : favorite ? "Favorites" : action.group;
       const showGroup = displayGroup !== "" && displayGroup !== previousGroup;
       previousGroup = displayGroup;
-      const shortcut = entry.kind === "action" ? actionShortcuts[action.id] : undefined;
-      const row = entry.kind === "option"
+      const shortcut = starred ? actionShortcuts[action.id] : undefined;
+      const row = chosen.length > 0
         ? optionButton(index, {
             label: (
               <>
                 <span className="command-palette__option-parent">{action.label}</span>
-                <span className="command-palette__option-separator" aria-hidden="true">›</span>
-                <span className="visually-hidden">: </span>
-                {entry.option.label}
+                {chosen.map((option, position) => (
+                  <Fragment key={position}>
+                    <span className="command-palette__option-separator" aria-hidden="true">›</span>
+                    <span className="visually-hidden">: </span>
+                    {option.label}
+                  </Fragment>
+                ))}
               </>
             ),
-            detail: action.enabled ? entry.option.description : action.disabledReason,
+            detail: action.enabled ? chosen.at(-1)?.description : action.disabledReason,
             disabled: !action.enabled,
           })
         : optionButton(index, {
             label: action.label,
             detail: !action.enabled
               ? [action.disabledReason, action.declaredOnly ? action.source : undefined].filter(Boolean).join(" · ")
-              : entry.optionMatches
+              : entry.kind === "action" && entry.optionMatches
                 ? `${entry.optionMatches} matching options`
                 : action.description,
             disabled: !action.enabled,
@@ -464,7 +498,7 @@ export function CommandPalette({
           ) : null}
           <div className={`command-palette__option-row${index === selectedIndex ? " command-palette__option-row--selected" : ""}`}>
             {row}
-            {entry.kind === "action" ? (
+            {starred ? (
               <button
                 className={`command-palette__favorite${favorite ? " command-palette__favorite--active" : ""}`}
                 type="button"
@@ -586,6 +620,7 @@ export function CommandPalette({
                 placeholder={choosing ? `${currentChoice!.label}…` : "Search actions and commands…"}
                 value={query}
                 onChange={(event) => {
+                  reselectKeyRef.current = null;
                   setQuery(event.target.value);
                   setSelectedIndex(0);
                   setStatus("");

@@ -113,10 +113,12 @@ export function useActionRegistry(setError: (message: string | null) => void) {
       initialQuery: palette.initialQuery,
       resetSequence: palette.resetSequence,
       dismiss: () => setPalette(CLOSED_PALETTE),
-      execute: (id: string, selections: Readonly<Record<string, string>>) => {
+      /** Runs a palette choice; true when it carried no caller arguments, so history can replay it. */
+      execute: (id: string, selections?: Readonly<Record<string, string>>): boolean => {
         const forThis = invocation?.actionId === id ? invocation : null;
         void runFromPalette(id, selections, forThis?.args ?? {}, forThis?.callerNodeId, forThis ? forThis.key : id);
         setPalette((current) => ({ ...current, initialActionId: null, invocation: null }));
+        return !forThis || (Object.keys(forThis.args).length === 0 && forThis.callerNodeId === undefined);
       },
     },
   };

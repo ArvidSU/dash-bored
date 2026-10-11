@@ -40,6 +40,8 @@ Everything else lives in focused modules under feature directories:
     (application, node focus, selection, reveal, declared component) it
     registers; `use-app-keyboard.ts` — global shortcuts;
     `use-agent-control.ts` — the agent control channel;
+    `use-palette-recents.ts` — the active dashboard's recent palette runs
+    from `lib/palette-recents.ts`;
   - `use-dashboard-view-state.ts` — renderer-owned presentation state, the
     resolved virtual root, and scrolling it into view;
     `use-latest-ref.ts` — refs written after commit, never during render.
@@ -817,7 +819,8 @@ result. Multiword queries also match partial words in any order and across
 fields, requiring every word. Unavailable actions rank below available ones of
 similar relevance while searching. Empty queries retain provider group order
 under group headings; search results are ordered by relevance without headings,
-and groups plus registration order break ties. Rows show one secondary line
+and groups plus registration order break ties. Recent runs lead both lists, as
+described below. Rows show one secondary line
 (description, unavailable reason, or option context); stars appear on the
 selected or hovered row and on favorites. Opening the palette and
 editing the search select the top result. Hover selection changes only on mouse
@@ -845,6 +848,30 @@ Favorites are stored by stable action ID, so a temporarily unmounted component
 action can regain its favorite state when it registers again. Search first
 removes non-matches, then favorites sort ahead of the remaining results and use
 a star marker. The palette and Settings both update the same preference.
+
+Recent runs lead the palette. When the palette runs an action without caller
+arguments — a search result, or a shortcut that opened a chooser — the App
+records its action ID and chosen options in `lib/palette-recents.ts`: one
+localStorage history per dashboard config path, newest first and capped at 25
+runs, because action IDs and option values name that dashboard's nodes. Nothing
+is recorded without a dashboard, and removing a dashboard forgets its history.
+Runs carried from a button or component invocation with arguments or a caller
+node are not recorded, since history could not replay them faithfully. A Recent
+section of up to five rows precedes favorites and every group. It lists runs
+whose action is still a top-level palette action and whose recorded options
+still resolve, so a deleted node or an option a chooser currently omits (such as
+the focused component) waits rather than replaying against another target.
+Without a search the rows keep recency order; a search filters them with the
+action's search fields plus the chosen option labels and values, then orders
+them by relevance and recency. A recent row reuses the key of the action or
+option row it repeats, which is not listed again below. Rows that name options
+read `Action › Option` and carry no star. Choosing one proceeds from the
+recorded selections through the normal steps, so choices the action gained
+since, confirmation, availability, and trust still apply. While searching, the
+Recent rows keep their heading and the remaining results sit under **Other
+results**; without a matching run, search results keep no headings. When a
+kept-open run preserves the search, selection follows that run's row by key as
+it moves into Recent.
 Shortcuts use one portable `Mod` representation, dispatch through the normal
 action executor, and do not run while the user is typing into an editable
 control. Assigning an already-used combination moves it to the new target.

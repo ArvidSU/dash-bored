@@ -947,6 +947,13 @@ palette open. This also works through component choices and confirmations.
 Search clears by default; turn off **Clear search when keeping the palette
 open** in **Settings → General** to keep it. Plain Enter or a click closes the
 palette after running the action.
+Actions you run from the palette appear under **Recent** at the top, newest
+first, together with the option you picked (for example **Focus component ›
+Backlog**), so pressing <kbd>Enter</kbd> right after opening the palette repeats
+the last action. Searching filters the Recent section with the same matching as
+the other results and keeps matches above them. Each dashboard keeps its own
+history on this machine; an action or option that is not available right now
+waits until it is.
 Settings is split into **General**, **Themes**, and **Actions**. Themes contains app appearance defaults, a per-dashboard list of theme and appearance selections, and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
 palette actions: search them, assign an app-local keyboard shortcut, or mark an

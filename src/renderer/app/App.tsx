@@ -37,6 +37,7 @@ import { useActionRegistry } from "./use-action-registry";
 import { useAppActions } from "./use-app-actions";
 import { useAppShortcuts, useCommandHeld } from "./use-app-keyboard";
 import { useAgentControl } from "./use-agent-control";
+import { usePaletteRecents } from "./use-palette-recents";
 
 export function App(): ReactNode {
   const notices = useNotices();
@@ -58,6 +59,7 @@ export function App(): ReactNode {
 
   const dashboardPath = snapshot?.configPath ?? null;
   const viewState = useDashboardViewState(dashboardPath, snapshot?.tree);
+  const paletteRecents = usePaletteRecents(dashboardPath);
   const { virtualRoot } = viewState;
   const focusedSourcePath = virtualRoot?.target.sourceConfigPath;
   const focusedSourceNodeId = resolvedConfigLinkNodeId(
@@ -134,7 +136,10 @@ export function App(): ReactNode {
     focusComponent,
     expandComponent: viewState.expandComponent,
     storeVirtualRoot: viewState.storeVirtualRoot,
-    forgetDashboard: viewState.forgetDashboard,
+    forgetDashboard: (configPath) => {
+      viewState.forgetDashboard(configPath);
+      paletteRecents.forget(configPath);
+    },
     editNode: (node) => void composition.editNode(node),
     toggleCollapse: viewState.toggleComponentCollapse,
     openChangeWithAgent: (node) => agent.openChangeWithAgent([node]),
@@ -350,6 +355,7 @@ export function App(): ReactNode {
         actions={allActions}
         runningActionIds={actions.runningActionIds}
         favoriteActionIds={settings.favoriteActionIds}
+        recentRuns={paletteRecents.recents}
         actionShortcuts={settings.settings.actionShortcuts}
         clearInputOnKeepOpen={settings.settings.clearPaletteInputOnKeepOpen}
         executionError={notices.error}
@@ -357,7 +363,9 @@ export function App(): ReactNode {
         initialActionId={actions.palette.initialActionId}
         onDismiss={actions.palette.dismiss}
         initialSelections={actions.palette.initialSelections}
-        onExecute={actions.palette.execute}
+        onExecute={(id, selections) => {
+          if (actions.palette.execute(id, selections)) paletteRecents.record(id, selections);
+        }}
         onToggleFavorite={settings.toggleFavoriteAction}
       />
       <CompositionFlyout

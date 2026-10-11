@@ -10,6 +10,7 @@ import type {
   ResolvedComponentAction,
 } from "../../shared/contracts";
 import { componentActionReference } from "../../shared/action-reference";
+import type { PaletteRecent } from "./palette-recents";
 import { agentActionRefusal, type AgentActionDescriptor } from "../../shared/agent-control";
 
 const ACTION_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -620,15 +621,19 @@ function searchableFieldsScore(fields: readonly SearchField[], query: string): n
   return best;
 }
 
-function actionScore(action: PaletteAction, query: string): number | null {
+function actionSearchFields(action: PaletteAction): SearchField[] {
   // Visible names should beat incidental description, group, or path matches.
-  return searchableFieldsScore([
+  return [
     { value: action.label, penalty: 0, mode: "label" },
     ...action.keywords.map((value) => ({ value, penalty: 15, mode: "keyword" as const })),
     { value: action.description ?? "", penalty: 30, mode: "metadata" },
     { value: action.group, penalty: 40, mode: "metadata" },
     { value: action.source ?? "", penalty: 40, mode: "metadata" },
-  ], query);
+  ];
+}
+
+function actionScore(action: PaletteAction, query: string): number | null {
+  return searchableFieldsScore(actionSearchFields(action), query);
 }
 
 function optionScore(option: ComponentActionOption, query: string): number | null {
@@ -717,10 +722,23 @@ export type PaletteEntry =
       action: PaletteAction;
       choice: ComponentActionChoice;
       option: ComponentActionOption;
+    }
+  | {
+      /** A recent palette run, listed ahead of the other results. */
+      kind: "recent";
+      key: string;
+      action: PaletteAction;
+      /** The run's options, replayed up to any choice or confirmation still needed. */
+      selections: ComponentActionSelections;
+      /** The chosen options in choice order. */
+      options: readonly ComponentActionOption[];
     };
 
 /** Option rows shown per chooser before the chooser itself stands in for the rest. */
 export const PALETTE_OPTION_RESULT_LIMIT = 3;
+
+/** Recent runs listed ahead of the other results, with or without a search. */
+export const PALETTE_RECENT_RESULT_LIMIT = 5;
 
 /** Present an action once when several providers describe the same control. */
 function dedupePaletteActions(actions: readonly PaletteAction[]): PaletteAction[] {
@@ -745,14 +763,68 @@ function firstChoiceOptions(action: PaletteAction): { options: readonly Componen
 }
 
 /**
- * Rank palette rows. Sub-actions stay out of the list; instead a search also
- * matches the options of each chooser, so a component, dashboard, or panel can
- * be reached by name without opening its chooser first.
+ * Resolve a recorded run against the current action. A run whose options no
+ * longer resolve is dropped rather than replayed against different targets;
+ * choices the action gained since are asked again.
+ */
+function recentPaletteEntry(action: PaletteAction, recent: PaletteRecent): Extract<PaletteEntry, { kind: "recent" }> | null {
+  const selections: Record<string, string> = {};
+  const options: ComponentActionOption[] = [];
+  for (const choice of action.choices ?? []) {
+    const value = recent.selections?.[choice.id];
+    if (value === undefined) break;
+    let option: ComponentActionOption | undefined;
+    try {
+      option = resolveActionChoiceOptions(choice, selections).find((candidate) => candidate.value === value);
+    } catch {
+      return null;
+    }
+    if (!option) return null;
+    selections[choice.id] = value;
+    options.push(option);
+  }
+  // The same key as the action or option row it repeats, so that row is not listed twice.
+  return { kind: "recent", key: [action.id, ...options.map((option) => option.value)].join("\u0000"), action, selections, options };
+}
+
+/** Recent runs that survive the search: recency order, or relevance then recency while searching. */
+function rankRecentEntries(
+  actions: readonly PaletteAction[],
+  recents: readonly PaletteRecent[],
+  query: string,
+): Extract<PaletteEntry, { kind: "recent" }>[] {
+  const byId = new Map(actions.map((action) => [action.id, action]));
+  const seen = new Set<string>();
+  return recents
+    .flatMap((recent, recency) => {
+      const action = byId.get(recent.actionId);
+      const entry = action && !action.parentActionId ? recentPaletteEntry(action, recent) : null;
+      if (!entry || seen.has(entry.key)) return [];
+      seen.add(entry.key);
+      const score = searchableFieldsScore([
+        ...actionSearchFields(entry.action),
+        ...entry.options.flatMap((option): SearchField[] => [
+          { value: option.label, penalty: 5, mode: "keyword" },
+          { value: option.value, penalty: 15, mode: "metadata" },
+        ]),
+      ], query);
+      return score === null ? [] : [{ entry, recency, score: score + (query && !entry.action.enabled ? 20 : 0) }];
+    })
+    .sort((left, right) => (query ? left.score - right.score : 0) || left.recency - right.recency)
+    .slice(0, PALETTE_RECENT_RESULT_LIMIT)
+    .map(({ entry }) => entry);
+}
+
+/**
+ * Rank palette rows. Recent runs come first; sub-actions stay out of the list;
+ * instead a search also matches the options of each chooser, so a component,
+ * dashboard, or panel can be reached by name without opening its chooser first.
  */
 export function rankPaletteEntries(
   actions: readonly PaletteAction[],
   rawQuery: string,
   favoriteActionIds: ReadonlySet<string> = new Set(),
+  recents: readonly PaletteRecent[] = [],
 ): PaletteEntry[] {
   const query = normalize(rawQuery);
   // Placeholders for unmounted components stay searchable without crowding the full list.
@@ -810,16 +882,22 @@ export function rankPaletteEntries(
       });
     });
   }
-  return scored
-    .sort(
-      (left, right) =>
-        Number(right.favorite) - Number(left.favorite) ||
-        left.score - right.score ||
-        (groupOrder.get(left.entry.action.group) ?? 0) - (groupOrder.get(right.entry.action.group) ?? 0) ||
-        left.index - right.index ||
-        left.order - right.order,
-    )
-    .map(({ entry }) => entry);
+  const recentEntries = rankRecentEntries(unique, recents, query);
+  const recentKeys = new Set(recentEntries.map((entry) => entry.key));
+  return [
+    ...recentEntries,
+    ...scored
+      .filter(({ entry }) => !recentKeys.has(entry.key))
+      .sort(
+        (left, right) =>
+          Number(right.favorite) - Number(left.favorite) ||
+          left.score - right.score ||
+          (groupOrder.get(left.entry.action.group) ?? 0) - (groupOrder.get(right.entry.action.group) ?? 0) ||
+          left.index - right.index ||
+          left.order - right.order,
+      )
+      .map(({ entry }) => entry),
+  ];
 }
 
 export type ActionRunResult =

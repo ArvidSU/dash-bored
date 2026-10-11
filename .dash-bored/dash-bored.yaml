@@ -638,6 +638,11 @@ root:
                             done: false
                             tags:
                               - test
+                          - id: todo-palette-recents-clear
+                            description: "Let users clear the command palette's Recent history or remove one recent run (from the palette row or Settings → Actions). Recent runs are stored per dashboard in renderer localStorage today and only drop out at the 25-run cap or when the dashboard is removed."
+                            done: false
+                            tags:
+                              - renderer
                   second:
                     node:
                       id: checks
@@ -892,6 +897,10 @@ root:
                             Open Commands with **⌘K**, search for a command, and use **⌘Enter** (or **⌘click**)
                             to run it while keeping the palette open. Try **Validate dashboard** followed by
                             **Typecheck (fast)**. Regular Enter closes the palette.
+
+                            Commands you run appear under **Recent** at the top, with the option you picked
+                            (such as **Focus component › Backlog**); press Enter right after **⌘K** to repeat
+                            the last one. Searching filters Recent like the other results and keeps it on top.
 
                             Search clears after each keep-open invocation by default. In **Settings → General**,
                             turn off **Clear search when keeping the palette open** to retain it. App controls

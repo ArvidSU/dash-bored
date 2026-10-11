@@ -502,7 +502,12 @@ Selecting the already active dashboard by sidebar click or Command number toggle
 sidebar expansion; from Settings it returns to the dashboard.
 Holding Command while invoking an action
 keeps the palette open for successive actions; a user setting decides whether
-to clear its search, with clearing as the default.
+to clear its search, with clearing as the default. The palette remembers each
+dashboard's recent runs, including the options chosen for them, and lists them
+in a Recent section above every other result. Searching filters that section
+like the rest, so a repeated workflow stays one keystroke or a short search
+away; replaying a run keeps the action's normal choices, confirmation,
+availability, and trust rules.
 
 Application settings separate general behavior, appearance defaults and
 per-dashboard appearance selections from the action catalog. Users
