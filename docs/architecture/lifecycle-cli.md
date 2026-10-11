@@ -96,11 +96,12 @@ source equals the link target and that target is a bundled
   `--project <path>` selects another project root. Initialization creates the
   required files and empty component directory, uses the bundle name in a valid
   guided dashboard with an editable bundle-local `.env` file, a
-  `agent:prompt` button that opens a reviewed starter prompt in the configured
-  app-owned agent harness with the app-wide `DASH_BORED_AGENT` override when
-  set, and always-visible commands that install the packaged skill globally or
-  into the project through `"$DASH_BORED_TOOL"`. Each onboarding step pairs a
-  guide with a source-backed status (project trust, agent CLI on `PATH`, and
+  `agent:prompt` button that opens a reviewed starter prompt for the app's ACP
+  agent (the app setting, the bundle's optional `DASH_BORED_AGENT`, or a
+  detected agent; see [Agents](./agents.md)), and always-visible commands that
+  install the packaged skill globally or into the project through
+  `"$DASH_BORED_TOOL"`. Each onboarding step pairs a guide with a source-backed
+  status (project trust, the agent command that runs, and
   `install-skill --check` for each scope), so the outcome of every action stays
   observable instead of hiding completed steps. A component tour below uses a
   tab-styled action bar over a selection container; its status, list, chart,

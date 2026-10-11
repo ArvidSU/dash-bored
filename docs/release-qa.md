@@ -61,7 +61,7 @@ It exercises app-startup tool refresh, not the app replacement itself.
 The agent receives the candidate's actual `starterAgentPrompt` in
 `DASH_BORED_AGENT_PROMPT` and runs directly as
 `/bin/sh -lc '<agent> "$DASH_BORED_AGENT_PROMPT"'`. This is a headless
-benchmark of the initial attempt: desktop PTY handling, trust prompts, reload,
+benchmark of the initial attempt: the desktop ACP session, trust prompts, reload,
 and the setup supervisor's bounded repair remain native checklist items.
 
 ## Agents and evidence

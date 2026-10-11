@@ -19,7 +19,9 @@ read the pages in this order only when a full system view is needed:
    composition UI, dashboard navigation, and the action store.
 6. [Lifecycle and agent tools](./docs/architecture/lifecycle-cli.md) — reload,
    failure handling, the skill-shipped agent tool, and the app control channel.
-7. [Distribution and exclusions](./docs/architecture/distribution.md) — macOS
+7. [Agents (ACP client)](./docs/architecture/agents.md) — agent selection and
+   detection, ACP sessions, permissions, validation and repair, and hand-off.
+8. [Distribution and exclusions](./docs/architecture/distribution.md) — macOS
    packaging, release verification, and deferred scope.
 
 [Themes](./docs/architecture/themes.md) defines token packages, selection, rendering, and git distribution.

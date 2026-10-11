@@ -61,12 +61,15 @@ The following are not part of this architecture yet:
 
 - npm, registry, or marketplace component resolution
 - marketplace component search, publishing, or shared templates; direct
-  in-process component generation without the configured external agent
+  in-process component generation without the user's external agent
 - Linux, Windows, and Intel Mac distribution; Windows shell-link installation
 - Developer ID signing, notarization, and independent update signing
 - general project-file editing and a general process viewer
 - simultaneously active multi-project views or windows
-- embedded model-provider infrastructure or agent-specific SDK integration
+- agent installation, ACP registry downloads, model-provider keys or
+  infrastructure, MCP-server injection into agent sessions, and agent-specific
+  code paths. The app is an ACP client (see [Agents](./agents.md)); the agent
+  itself is the user's install.
 - claims of hostile-code or per-component isolation for trusted local components
 
 These can be added only after their contracts are reflected here and remain
@@ -147,9 +150,11 @@ are passed to the agent; the target handoff remains usable without an install.
 
 Setup, component edits, component creation, diagnostics repair and migrations
 use `DashboardSetupSupervisor.launchRequest`. The shared supervisor validates
-with local compilation after agent work, permits at most one corrective attempt
-following clean execution and repairable errors, and stops for cancellation,
-failed execution, missing tools, session changes or new permissions. Migrations
+with local compilation when an agent turn ends, permits at most one corrective
+follow-up in the same ACP session after a turn that ended cleanly with
+repairable errors, and stops for cancellation, other stop reasons, failed
+sessions, missing tools, session changes or new permissions (see
+[Agents](./agents.md#validation-and-repair)). Migrations
 preserve snapshot paths even if execution fails. Restoration is an explicit
 review-and-copy workflow; the application never overwrites a user's current
 bundle automatically.

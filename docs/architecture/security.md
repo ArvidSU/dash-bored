@@ -52,14 +52,25 @@ permission expansion restricts it until approval. Fatal reloads do not grant
 any capabilities from the broken config.
 
 When no grant exists and capability inspection fails, diagnostics repair still
-runs as an untrusted repair. It launches only the app-configured agent command,
-resolved and executed without the bundle `.env`, so no project-controlled
-environment or agent selection reaches the process. Its prompt frames project
-files as untrusted data, confines edits to the dashboard bundle, and forbids
-project commands and dependency installation. Post-run validation reports the
-trust review the fix now needs and never launches the automatic repair while
-the project is untrusted. The repair grants nothing: component code, commands,
-and configured processes stay withheld, and the ordinary trust review follows
+runs as an untrusted repair. It launches only the app-selected agent (the app
+setting or a detected agent), resolved and executed without the bundle `.env`,
+so no project-controlled environment or agent selection reaches the process.
+Its prompt frames project files as untrusted data, confines edits to the
+dashboard bundle, and forbids project commands and dependency installation.
+The app automatically refuses the agent's permission requests to execute,
+fetch, switch modes, use unclassified tools, or touch paths that resolve
+outside the bundle (symlinks are followed component by component). It never
+offers "always allow", and it refuses mode changes, so every approval covers
+one call. That narrows the agent but does not sandbox it: an ACP agent need not
+ask before acting, and because it runs with the untrusted project as its
+working directory, the agent's own configuration there (for example
+`.claude/settings.json` hooks or `.gemini/settings.json` MCP servers) may run
+code before any permission request (see
+[Agents](./agents.md#untrusted-repair-policy)). Validation when the turn ends
+reports the trust review the fix now needs and never launches the automatic
+repair while the project is untrusted. The repair grants nothing: component
+code, commands, and configured processes stay withheld, and the ordinary trust
+review follows
 once inspection succeeds. Like every configured agent launch it is driven only
 by the user's explicit in-app request; the agent-control channel still cannot
 start it.
@@ -188,14 +199,9 @@ Capability behavior is bounded:
   receives only the allowlisted effective
   `DASH_BORED_AGENT` value and its winning source, never arbitrary bundle or
   process secrets.
-- The app-owned Agent work Diff tab uses `main/dashboard-agent-diff.ts` to read
-  tracked changes against `HEAD` plus non-ignored untracked files in the task's
-  canonical `.dash-bored/` bundle. Fixed argument-vector Git commands use literal
-  pathspecs; new files are diffed against `/dev/null` without staging them.
-  Symlinks show their targets rather than the target files' contents, and binary
-  files show Git's binary summary. The combined diff and the separate untracked
-  path listing are each bounded to 512 KiB. This is not exposed as an arbitrary
-  component shell capability.
+- Agent work reads no Git state and shows no file diffs. ACP diff content is
+  reduced to touched paths with added/removed line counts, and its text is
+  discarded (see [Agents](./agents.md#no-diffs)).
 - Capability requests from untrusted projects, undeclared components, unknown
   nodes, or escaped paths fail with a permission or validation diagnostic.
 
@@ -227,6 +233,9 @@ automation surface for the user's own agents, not a new capability.
   marks these with the refusal reason so agents can ask the user instead. It
   also refuses every `agent:*` action because configured prompts require a
   visible user review and explicit Send.
+- The channel has no route to agent sessions. It cannot list, answer, or
+  approve an agent's permission requests, and it cannot prompt, cancel, close,
+  or hand off a session; only the user does that in the app.
 - The read surfaces add no capability. Status reports the visible diagnostics
   (first 50, messages capped) and whether the project is trusted with the
   permissions awaiting approval; there is no route to change trust. `processes`
@@ -325,11 +334,13 @@ status parsing, palette actions, and item feedback observe `run`. A node cannot
 have duplicate concurrent runs, while a finished run can start again without
 closing the terminal. Closing an interactive terminal hangs up the session in
 front and its foreground job, then force-kills after a grace period;
-non-interactive processes receive SIGTERM first. Host-owned agent work keeps a
-resting shell after the agent run. Its finisher observes `run` and runs once,
-independently of the shell; closing the shell preserves the agent's exit result.
-Open agent shells are not pruned as completed history and are stopped on owning
-project trust revocation and app exit. Unchanged
+non-interactive processes receive SIGTERM first. Agent work does not use these
+terminals. Each ACP agent runs in its own process group through `/bin/sh -c`
+(`exec` only for a plain invocation, so shell expressions run as written), and
+the whole group is stopped on close, trust revocation, project removal, and app
+exit. Everything the agent supplies is bounded before it reaches the renderer:
+1 MiB of transcript text, capped lists, and cut paths and labels (see
+[Agents](./agents.md#transcript-reduction)). Unchanged
 command nodes keep their terminal across a hot reload, while removed or
 materially changed command nodes are stopped. Trust revocation and application
 exit terminate the terminal and its process tree.

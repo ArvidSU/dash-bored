@@ -56,8 +56,9 @@ launching dashboard commands, the main process appends conventional user CLI
 locations for the current platform (including user-local, Bun, Cargo, Homebrew,
 pnpm, and npm locations). It does not read or evaluate login-shell files. A
 nonstandard agent installation remains an explicit absolute command in
-application settings. Agent PTYs use a fixed system shell so login-shell hooks
-cannot replace the preflighted environment between validation and execution.
+application settings. Agent processes start through `/bin/sh` with `ENV` and
+`BASH_ENV` cleared so shell startup hooks cannot replace the preflighted
+environment between validation and execution (see [Agents](./agents.md)).
 The tool is not added to PATH. Main sets `DASH_BORED_TOOL` to the absolute
 bundled tool path and `DASH_BORED_APP_INSTANCE` to the app identifier, so
 dashboard commands and launched agents inherit both. The canary release instance also
@@ -100,7 +101,7 @@ Electrobun Bun main process
   - compile trusted local TSX with Bun.build()
   - enforce trust and component permissions
   - own subprocesses, file access, and HTTP requests
-  - persist app settings and launch the explicitly configured CLI agent
+  - persist app settings and run ACP agent sessions (see agents.md)
   - serve the per-instance agent-control channel
           |
           | typed request/response and snapshot RPC
@@ -183,21 +184,24 @@ command-specific result. Examples are `{ opened }` from `chooseProject`,
 `{ conflictsRemain }` from `repairInstalledTools`, and the package operation's
 message. A mutation never answers with a copy of host state. The one exception
 is `processCommand`, which answers with the touched process because
-components' `processes` API returns it to its caller. The renderer still takes
-the store's copy only from the push. This ordering relies on Electrobun's
+components' `processes` API returns it to its caller; `agentTaskCommand`
+likewise answers with the agent task. The renderer still takes the store's
+copy only from the push. This ordering relies on Electrobun's
 host-to-webview queue being FIFO on macOS. Electrobun lets responses overtake
 messages only on Linux, which dash-bored does not target.
 
 Command variants share one request: `processCommand` (start, open,
-quick-action, write, resize, stop), `agentTaskCommand` (stop, write, resize),
-`launchAgent` (component, creation, diagnostics, setup), and `setTrust`.
+quick-action, write, resize, stop), `agentTaskCommand` (prompt, cancel,
+permission, config, authenticate, handoff, close), `launchAgent` (component,
+creation, diagnostics, setup), and `setTrust`.
 
 `src/main/index.ts` only wires the main process. It creates the stores, the
 `ProjectRuntime`, and the window, and it routes pushes through one typed
 `send`. Each job lives in its own module:
 
 - `dashboard-rpc.ts`: the renderer's request handlers.
-- `agent-launch.ts`: every agent start, plus agent task commands and diffs.
+- `agent-launch.ts` and `agent-sessions.ts`: every agent start and the ACP
+  sessions behind Agent work (see [Agents](./agents.md)).
 - `update-wiring.ts`: the update coordinator, the busy-work guard, and the
   release-only continuation.
 - `app-themes.ts`: the app-level theme catalog and the personal theme watcher.

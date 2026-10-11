@@ -79,9 +79,11 @@ before opening the installer with normal macOS approval; no matching release
 or an invalid download fails without opening an installer. It uses macOS's
 built-in JXA, curl, and shasum; app installation remains drag-and-drop in the UI.
 The starter `.env` is created with owner-only permissions for project-local
-component and command variables, and is prepopulated with an editable starter
-value for `DASH_BORED_AGENT`. `DASH_BORED_AGENT_PROMPT` is generated once when
-the setup action launches. `DASH_BORED_AGENT`
+component and command variables. It documents the optional `DASH_BORED_AGENT`
+(an ACP agent launch command) as a commented example; when neither it nor the
+app setting is set, agent work uses the first detected known agent (see
+[Agents](./agents.md#choosing-the-agent)). Prompts reach the agent over ACP,
+never through the environment. `DASH_BORED_AGENT`
 is also app-wide: the main process persists its application setting in the
 Electrobun user-data directory, publishes it to dashboard command environments,
 and exposes it in Settings. Clearing that setting removes the app-published

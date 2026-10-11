@@ -147,3 +147,48 @@ RPC (`src/shared/rpc.ts`):
 ## Deferred
 
 Tracked in the project dashboard's `yaml-todo` once integration lands.
+
+## Status
+
+Work package 1 (core) landed on `feat/acp-core`; the contract as built is
+[agents.md](../architecture/agents.md). Deviations from this plan:
+
+- The hand-off script runs `cd '<root>' || exit 1`, then `exec <resume>`; the
+  copyable `handoff.command` is `cd '<root>' && <resume>`.
+- A JSON-RPC error on `session/prompt` keeps the session idle with an error
+  notice and does not count a turn; `-32000` there moves to `auth-required`
+  and resends the prompt after sign-in.
+- The untrusted policy also refuses `read`/`edit`/`delete`/`move` requests that
+  name no path, and falls back to `reject_always`, then `cancelled`, when no
+  `reject_once` option exists.
+- `turns` counts every stop reason, including `cancelled`.
+- The client also advertises `session.configOptions.boolean`.
+- User follow-ups are refused while turn-end validation is checking.
+- Cancel during `starting` or `auth-required` closes the task; during sign-in
+  it only stops waiting.
+- Spawning uses `exec <command>` only for a plain invocation; assignments,
+  builtins, and compound commands (`source ~/.nvm/nvm.sh && agent`) run as
+  written in the same process group.
+- The client also advertises `session.notices`; the unstable `plan`
+  capability is not advertised, because agents could then send markdown or
+  file plans the app does not show.
+- Review hardening of the untrusted policy: containment follows symlinks one
+  path component at a time; `switch_mode` requests, mode config changes, and
+  `allow_always` (hidden and refused) are refused; requests whose bounded
+  locations or paths may have been cut are refused.
+- Agent-supplied data is capped (lists, paths, labels, notices), and the
+  transcript is bounded to 1 MiB of text as well as 400 entries.
+- One busy predicate, `isAgentTaskBusy`, counts `auth-required` as busy, so
+  a session waiting for sign-in now blocks installs and is never pruned; idle
+  sessions do not block app updates.
+- Pruning drops ended tasks first, then closes the oldest quiet sessions; each
+  pruned task publishes its final snapshot first. The renderer keeps the same
+  20-task bound in its own list.
+- A permission request that arrives after the user cancelled the turn is
+  answered `cancelled` without being shown.
+- A launch and every task command flush the task's coalesced push before they
+  resolve, keeping the rpc.ts push-before-resolve contract.
+- Removing a project from the app stops its agent sessions (only the removed
+  dashboard's when its files stay).
+- The migration closes its sessions when it ends, ignores validations after its
+  outcome, and fails when its turn-end hook fails.

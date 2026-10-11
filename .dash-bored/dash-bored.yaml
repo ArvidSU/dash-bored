@@ -569,6 +569,11 @@ root:
                             done: false
                             tags:
                               - feature
+                          - id: todo-acp-plan-capability
+                            description: "Show ACP markdown and file plans (plan_update), then advertise the unstable ACP `plan` client capability; today only item plans are shown, so the capability stays off (docs/architecture/agents.md#handshake-and-sign-in)."
+                            done: false
+                            tags:
+                              - acp
                   second:
                     node:
                       id: checks
@@ -600,11 +605,11 @@ root:
                             axis: vertical
                             first:
                               node:
-                                id: verify-agent-diffs
+                                id: verify-agent-sessions
                                 component: "./components/external/core/command"
                                 props:
-                                  label: Verify Agent work diffs
-                                  command: bun test tests/main/dashboard-agent-diff.test.ts
+                                  label: Verify ACP agent sessions
+                                  command: bun test --timeout 30000 tests/main/agent-sessions.test.ts tests/main/agent-session-updates.test.ts tests/main/dashboard-setup.test.ts tests/updates/migration-agent.test.ts
                                   cwd: .
                             second:
                               node:

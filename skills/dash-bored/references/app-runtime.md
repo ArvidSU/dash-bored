@@ -43,18 +43,24 @@ These are renderer/app state, never YAML — do not try to configure them:
 - **Node menu.** Every rendered node offers Focus, Edit component, Collapse /
   Expand, Copy component path (a YAML locator for agent prompts), and Change
   with agent.
-- **Agent integration.** The app-wide `DASH_BORED_AGENT` setting (Settings →
-  General; starter `.env` holds an editable default) selects the CLI used by
-  Change-with-agent, Fix-with-agent (in diagnostics details), the Agent work
-  drawer (Working/Not working items with terminal / bundle-diff / full-command
-  tabs), and the flyout's natural-language "build a component" fallback.
-  Change with agent and `agent:prompt` render a prompt template (`dashboard`,
-  `project`, or the bundle's `prompts/<name>.md`); the user may switch template
-  and fill its declared vars, and the composer shows the full rendered prompt
-  before Send. Agent
-context travels in `DASH_BORED_AGENT_PROMPT` as one quoted argument. Saving an
-empty app setting field lets the owning bundle's `.env` command select the CLI. This
-  is a narrow harness around the user's CLI, not a provider integration.
+- **Agent integration.** The app is an Agent Client Protocol (ACP) client.
+  Change-with-agent, Fix-with-agent (in diagnostics details), setup, the
+  flyout's "build a component" fallback, and `agent:prompt` each start one ACP
+  session with the user's agent in the project root. The agent is the app
+  setting (Settings → General → Dashboard agent), else the bundle `.env`'s
+  optional `DASH_BORED_AGENT` (an ACP launch command such as `codex-acp`,
+  `claude-agent-acp`, or `gemini --acp`), else the first known agent detected on
+  PATH; the app never installs agents or holds provider keys. Change with agent
+  and `agent:prompt` render a prompt template (`dashboard`, `project`, or the
+  bundle's `prompts/<name>.md`); the user may switch template and fill its
+  declared vars, and the composer shows the full rendered prompt before Send.
+  The prompt is sent over ACP, not through the environment. The Agent work
+  drawer shows each session's messages, plan, tool calls (touched paths with
+  line counts, no diffs), and permission requests, which only the user answers
+  in the app; the agent-control channel cannot. Dashboard work is validated
+  when a turn ends, with at most one automatic repair as a follow-up in the
+  same session. Sessions stay open for follow-ups until closed or handed off to
+  the agent's own app.
 - **Trust.** One project-level decision over the union of all resolved
   component permissions, keyed by canonical project root. Untrusted projects
   still parse and render safe layout/inline content but cannot compile local

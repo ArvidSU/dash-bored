@@ -88,9 +88,13 @@ The dashboard loads after the errors are fixed. Unreadable YAML, unsafe paths,
 or missing capability declarations block approval; new permissions require a
 fresh review. Blocking approval does not block repair: **Fix with agent** also
 works on an untrusted project as a capability-free repair run. It uses your
-configured agent without the project's `.env`, treats the project's files as
-data, and leaves the project untrusted so the normal review follows after the
-fix.
+app-selected agent without the project's `.env`, treats the project's files as
+data, refuses the agent's requests to run commands, fetch, switch modes, or
+touch files outside the dashboard bundle, offers only one-time approvals, and
+leaves the project untrusted so the normal review follows after the fix. Those
+refusals narrow the agent but do not sandbox it: an agent that acts without
+asking is not stopped, and the agent's own settings in that project (such as
+hooks or MCP servers) still apply.
 
 For an agent-managed background instance, use `bun run dev:start`. Use
 `dev:status` to get its identity, PID and log path, `dev:restart` to rebuild and
@@ -328,33 +332,46 @@ The generated dashboard is immediately valid. Its first screen is a
 **Get started** checklist: trust the project, choose your coding agent, install
 the dash-bored skill, and run the setup agent. Each step explains what its
 button does and what to expect, and shows a live status for the result, so
-installed skills and a missing agent CLI stay visible rather than disappearing.
+installed skills and a missing agent stay visible rather than disappearing.
 Below it, a tabbed component tour explains each component and shows it working
-on the project's own files. The setup action asks your chosen CLI coding agent
-to replace the starter with a project-specific cockpit. It uses
-`codex exec` by default; set the app-wide `DASH_BORED_AGENT` command in
-**Settings → General → Dashboard agent**. Leave that field empty and save when
-the active dashboard's `.env` should provide the command. The bundle environment
-editor shows the effective agent command and its source; a set app setting
-overrides the bundle's `.env` default. Other command variables load from each
-component's owning bundle, with explicit command overrides taking precedence.
-Saving `.env` affects new launches and leaves existing terminals running.
-Desktop launches also recognize conventional user CLI locations, including
-`~/.local/bin`, `~/.bun/bin`, Homebrew, pnpm, and npm locations, so a normal
-Codex CLI installation works without copying a shell PATH. For a custom
-installation directory, configure an absolute dashboard-agent command.
+on the project's own files. The setup action asks your coding agent to replace
+the starter with a project-specific cockpit. Command variables load from each
+component's owning bundle `.env`, with explicit command overrides taking
+precedence. Saving `.env` affects new launches and leaves existing terminals
+running.
 
 In **Settings → General → Dashboard sidebar**, enable **Start expanded** when
 you want configured dashboard names visible as soon as dash-bored opens. The
 sidebar can still be expanded or collapsed independently from its toggle.
 
-**Set up this dashboard** starts a tracked agent task with a prompt generated
-for that bundle. No prompt needs to be copied into YAML or `.env`. Agent work
-keeps its terminal output available even when the agent replaces the starter.
-After the agent finishes, the app validates the saved dashboard and local
-components. A successful run that leaves fixable configuration errors gets one
-automatic repair attempt; the result is validated again. Stopping the task,
-leaving the dashboard, or revoking trust prevents an automatic repair. A valid
+### Work with your coding agent
+
+dash-bored runs coding agents through the
+[Agent Client Protocol](https://agentclientprotocol.com) (ACP). It recognizes
+known ACP agents on your `PATH`, such as Gemini CLI (`gemini --acp`), GitHub
+Copilot CLI (`copilot --acp`), OpenCode (`opencode acp`), and Goose
+(`goose acp`). Claude Code and Codex speak ACP through adapters you install
+yourself: `claude-agent-acp` and `codex-acp`. dash-bored never installs or
+downloads agents and holds no API keys. When an agent asks for sign-in, Agent
+work offers the agent's own sign-in methods; otherwise sign in with the
+agent's CLI first.
+
+The agent that runs is, in order: **Settings → General → Dashboard agent**
+when set; otherwise `DASH_BORED_AGENT` in the dashboard's `.env`; otherwise the
+first detected agent. Both take an ACP launch command, so any other ACP agent
+works as a custom command. The bundle environment editor shows the effective
+agent command and its source. Desktop launches also recognize conventional
+user CLI locations, including `~/.local/bin`, `~/.bun/bin`, Homebrew, pnpm, and
+npm locations, without copying a shell PATH; for a custom installation
+directory, use an absolute command.
+
+**Set up this dashboard** starts a tracked agent session with a prompt
+generated for that bundle. No prompt needs to be copied into YAML or `.env`.
+When the agent finishes its turn, the app validates the saved dashboard and
+local components. A turn that leaves fixable configuration errors gets one
+automatic repair, asked as a follow-up in the same session so the agent keeps
+its context; the result is validated again. Stopping the turn, closing the
+session, leaving the dashboard, or revoking trust prevents an automatic repair. A valid
 dashboard that adds permissions still requires trust before becoming live.
 Validation establishes configuration correctness; review the workflows the
 agent created to decide whether they meet your needs.
@@ -362,11 +379,11 @@ agent created to decide whether they meet your needs.
 A button can invoke an action with typed YAML arguments, for example
 `action: { run: "agent:prompt", with: { prompt: "Review the failing checks." } }`.
 The app validates those arguments when it loads the dashboard. Agent prompts show
-the resolved command, the prompt template, and the full prompt for review, then
-wait for the user's Send. Before sending, you can switch to any template the
-dashboard bundle offers, fill in the values it declares, and choose which
-command runs it: the app default, the dashboard's `.env` command, or a custom
-command for this request.
+the resolved agent command, the prompt template, and the full prompt for
+review, then wait for the user's Send. Before sending, you can switch to any
+template the dashboard bundle offers, fill in the values it declares, and
+choose which agent runs it: the app default, the dashboard's `.env` command, a
+detected agent, or a custom ACP command for this request.
 
 Agents are briefed with prompt templates. `agent:prompt` uses the built-in
 `project` template, which asks for work in the project and names the button or
@@ -395,16 +412,30 @@ The dropper inside the header's **Agent work** button reaches the same action
 without the menu: turn it on, hover to highlight a component, and click it.
 Escape or a click outside the dashboard cancels.
 Change with agent shows the resolved command before sending and enriches your request with the owning
-dashboard and exact component path. **Agent work** in the header keeps each
-launch visible while it runs, including its output, exit state,
-and an observed dashboard change; review the result rather than treating those
-signals as proof that an external agent completed the request. Each Agent work
-item shows the user's prompt, start time, and Working/Not working state; clicking
-it opens Terminal, Diff, and Command tabs. Diff is scoped to the owning
-`.dash-bored/` folder for dashboard changes and covers the project for project
-work, while Command shows the full contextualized invocation
-with a copy action. When configuration diagnostics are present, **Fix with
-agent** asks the configured CLI to repair the
+dashboard and exact component path. **Agent work** in the header lists each
+session with its agent, state (Starting, Working, Needs permission, Idle,
+Sign-in required, Closed, Failed), and validation result. Clicking one opens
+its **Session**: the agent's messages and plan, its tool calls with the files
+they touched and added/removed line counts, the permission requests you
+answer, and a box for follow-up messages. Its header holds the agent's model
+and mode choices, **Stop** (ends the current turn), and **Close session**.
+**Prompt** shows the first prompt and the launch command with a copy action.
+dash-bored shows no file diffs; review changes with your own tools, and treat
+an observed dashboard change as a signal, not proof that the agent completed
+the request.
+
+Sessions stay open for follow-ups until you close them, revoke trust, or quit
+the app; they are not kept across restarts. To continue in the agent's own
+app, use **Resume in Codex** (named for your agent) once it is idle after its
+first turn: dash-bored closes its side of the session and opens your default
+terminal app in the project with the agent's resume command, which you can
+also copy.
+Hand-off needs a known agent that can resume sessions. With Claude Code, a
+plan-mode "clear context" starts a new native session, so hand-off resumes the
+conversation from before the clear.
+
+When configuration diagnostics are present, **Fix with
+agent** asks your agent to repair the
 owning dashboard and includes the current reported issues, even when the tree
 cannot render. The starter's skill step installs the skill globally or for
 this project and reports each scope's `install-skill --check` result. The global form writes the portable guidance and
