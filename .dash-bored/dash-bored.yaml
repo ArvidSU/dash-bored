@@ -574,6 +574,71 @@ root:
                             done: false
                             tags:
                               - acp
+                          - id: todo-acp-permission-notify
+                            description: "Notify (native notification or dock badge) when an ACP agent waits for permission or sign-in while the dash-bored window is in the background."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-terminal-auth
+                            description: "Support ACP terminal sign-in (clientCapabilities.auth.terminal): run the agent's login command in an app terminal instead of asking the user to sign in through the agent's own CLI."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-custom-resume
+                            description: "Let a custom ACP agent command declare a resume command template ({sessionId}, {cwd}) in Settings so hand-off works beyond the known-agent catalog."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-desktop-handoff
+                            description: "Offer desktop-app hand-off where agents support it (codex://threads/<id>, goose://resume/<id>, claude --desktop --resume <id>) alongside the terminal resume."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-session-restore
+                            description: "Restore ACP sessions after an app restart with session/load or session/resume when the agent advertises it, instead of keeping sessions app-session only."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-setup-detected-agent
+                            description: "The core setup-agent component (dash-bored-components repo) reports 'configure an agent' when DASH_BORED_AGENT is unset even if the app detected an ACP agent; expose the effective detected agent to components (environment snapshot source) and update the component."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-slash-commands
+                            description: "Surface agent-advertised commands (ACP available_commands_update) in the follow-up composer."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-registry-install
+                            description: "Optionally list agents from the ACP registry with explicit, pinned, user-initiated installs (deferred: v1 is detect plus custom command only)."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-session-aliases
+                            description: "Track the ACP session-aliases RFD (agent-client-protocol PR #2313): Claude's plan-mode clear-context changes the native session id, so hand-off resumes the earlier conversation."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-acp-task-deltas
+                            description: "Push per-task deltas instead of full AgentSessionTask snapshots for streaming updates; renderer use-host-session also keeps a never-pruned last-state map."
+                            done: false
+                            tags:
+                              - acp
+                              - agent
+                          - id: todo-flaky-dropper-test
+                            description: "Investigate the intermittent ui-interaction 'agent work dropper' test failure (about 2 in 13 runs, pre-existing)."
+                            done: false
+                            tags:
+                              - test
                   second:
                     node:
                       id: checks

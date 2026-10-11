@@ -3,6 +3,7 @@ import type {
   AgentSessionState,
   AgentSessionTask,
 } from "../../shared/agent-session";
+import { isAgentTaskBusy } from "../../shared/agent-session";
 
 /*
  * Presentation rules for agent sessions, shared by the Agent work drawer, its
@@ -113,8 +114,8 @@ export const AGENT_TASK_LIMIT = 20;
 
 /** A live launch or turn, a pending user decision, or a running dashboard follow-up: never pruned. */
 export function isAgentTaskPinned(task: Pick<AgentSessionTask, "state" | "validation">): boolean {
-  const validation = task.validation?.status;
-  return isAgentStateActive(task.state) || validation === "checking" || validation === "repairing";
+  // The main process prunes by the same predicate, so both lists agree.
+  return isAgentTaskBusy(task);
 }
 
 /**
