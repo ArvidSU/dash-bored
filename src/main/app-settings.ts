@@ -6,25 +6,29 @@ import type { AppSettings } from "../shared/contracts";
 import {
   cloneDefaultAppSettings,
   DEFAULT_ACTION_SHORTCUTS,
-  DEFAULT_DASH_BORED_AGENT,
   VERSION_2_DEFAULT_ACTION_IDS,
 } from "../shared/app-settings";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
 import { isAppThemeReference } from "../shared/themes";
 import { isLegacyAppThemeReference } from "../migrations/app-theme-reference";
 
-export { DEFAULT_DASH_BORED_AGENT };
 const MAX_AGENT_COMMAND_LENGTH = 1_024;
 
-const SETTINGS_VERSION = 3;
+const SETTINGS_VERSION = 4;
+/**
+ * The default app-wide command before agents spoke ACP. It cannot start an
+ * ACP session, so files older than version 4 that still hold it return agent
+ * selection to the bundle and detected agents.
+ */
+const LEGACY_DEFAULT_AGENT = "codex exec";
 
 interface StoredAppSettings extends Partial<AppSettings> {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
 }
 
 export { DEFAULT_COMMAND_PALETTE_SHORTCUT, DEFAULT_ACTION_SHORTCUTS } from "../shared/app-settings";
 
-function defaults(dashBoredAgent: string): AppSettings {
+function defaults(dashBoredAgent: string | null): AppSettings {
   return {
     ...cloneDefaultAppSettings(),
     dashBoredAgent,
@@ -46,7 +50,7 @@ function normalizeActionShortcuts(value: unknown): Record<string, string> {
   return result;
 }
 
-function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): AppSettings {
+function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string | null): AppSettings {
   const fallback = defaults(defaultAgent);
   const paletteShortcut = value.commandPaletteShortcut === null
     ? null
@@ -69,9 +73,9 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string): A
       ? value.theme
       : fallback.theme,
     themeMode: value.themeMode === "light" || value.themeMode === "system" ? value.themeMode : fallback.themeMode,
-    dashBoredAgent: value.dashBoredAgent === null
-      ? null
-      : normalizeDashBoredAgent(value.dashBoredAgent ?? defaultAgent),
+    dashBoredAgent: value.dashBoredAgent === undefined
+      ? defaultAgent
+      : value.dashBoredAgent === null ? null : normalizeDashBoredAgent(value.dashBoredAgent),
     sidebarExpandedByDefault: value.sidebarExpandedByDefault === true,
     favoriteActionIds: normalizeActionIds(value.favoriteActionIds),
     commandPaletteShortcut: paletteShortcut,
@@ -95,15 +99,6 @@ function withNewDefaultShortcuts(settings: AppSettings): AppSettings {
   return { ...settings, actionShortcuts };
 }
 
-/** Resolve the command used for an agent launch after app settings and bundle environment are merged. */
-export function resolveDashBoredAgent(
-  appSetting: string | null,
-  environment: Readonly<Record<string, string>>,
-): string {
-  if (appSetting !== null) return appSetting;
-  return environment.DASH_BORED_AGENT?.trim() || DEFAULT_DASH_BORED_AGENT;
-}
-
 export function normalizeDashBoredAgent(value: unknown): string {
   if (typeof value !== "string") {
     throw new CoreError("APP_SETTINGS_INVALID", "DASH_BORED_AGENT must be a command string.");
@@ -122,13 +117,14 @@ export class AppSettingsStore {
   private settings: AppSettings | null = null;
   private loadPromise: Promise<void> | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
-  private readonly defaultAgent: string;
+  private readonly defaultAgent: string | null;
 
+  /** `defaultAgent` applies until the user saves a choice; a launch environment may preset one. */
   constructor(
     private readonly path: string,
-    defaultAgent = process.env.DASH_BORED_AGENT?.trim() || DEFAULT_DASH_BORED_AGENT,
+    defaultAgent: string | null = process.env.DASH_BORED_AGENT?.trim() || null,
   ) {
-    this.defaultAgent = normalizeDashBoredAgent(defaultAgent);
+    this.defaultAgent = defaultAgent === null ? null : normalizeDashBoredAgent(defaultAgent);
   }
 
   private load(): Promise<void> {
@@ -136,9 +132,10 @@ export class AppSettingsStore {
       this.settings = defaults(this.defaultAgent);
       try {
         const candidate = JSON.parse(await readFile(this.path, "utf8")) as Partial<StoredAppSettings>;
-        if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== SETTINGS_VERSION) return;
+        if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== 3 && candidate.version !== SETTINGS_VERSION) return;
         const settings = normalizeSettings(candidate, this.defaultAgent);
-        this.settings = candidate.version === SETTINGS_VERSION ? settings : withNewDefaultShortcuts(settings);
+        if (candidate.version !== SETTINGS_VERSION && settings.dashBoredAgent === LEGACY_DEFAULT_AGENT) settings.dashBoredAgent = null;
+        this.settings = candidate.version === 1 || candidate.version === 2 ? withNewDefaultShortcuts(settings) : settings;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           // Invalid settings fall back to a usable default without blocking app startup.

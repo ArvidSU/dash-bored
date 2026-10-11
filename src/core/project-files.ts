@@ -128,14 +128,6 @@ export function starterAgentPrompt(projectName: string, configPath?: string): st
   ].join(" ");
 }
 
-function formatDotenvValue(value: string): string {
-  return `"${value
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("\n", "\\n")
-    .replaceAll("\r", "\\r")}"`;
-}
-
 // Starter sources run through `/bin/sh -lc` in the project root. They list the
 // project's own files (honoring its ignore rules inside a Git work tree) and
 // shape the output for the built-in views, so the tour shows real data.
@@ -190,8 +182,8 @@ function starterAgentStatusSource(): string {
   return [
     STARTER_SH_JSON_STRING,
     String.raw`agent=$DASH_BORED_AGENT; set -- $agent; program=$1`,
-    String.raw`if [ -z "$program" ]; then echo '{"state":"warning","detail":"No agent command is set. Choose one in Settings, or set DASH_BORED_AGENT below."}'`,
-    String.raw`elif found=$(command -v "$program" 2>/dev/null); then printf '{"state":"healthy","detail":"Runs %s (found at %s)."}\n' "$(esc "$agent")" "$(esc "$found")"`,
+    String.raw`if [ -z "$program" ]; then echo '{"state":"healthy","detail":"No agent set — the app uses a detected ACP agent. Choose one in Settings to pin it."}'`,
+    String.raw`elif found=$(command -v "$program" 2>/dev/null); then printf '{"state":"healthy","detail":"Runs the ACP agent %s (found at %s)."}\n' "$(esc "$agent")" "$(esc "$found")"`,
     String.raw`else printf '{"state":"error","detail":"%s was not found on PATH. Install it, or choose another agent in Settings."}\n' "$(esc "$program")"; fi`,
   ].join("\n");
 }
@@ -248,13 +240,13 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   ]);
 
   const agentStep = guided("step-agent", "2 · Choose your coding agent", [
-    "Setup is done by a CLI coding agent you already use, such as Codex, Claude Code, Gemini CLI, Cursor, Copilot CLI, or OpenCode. dash-bored runs it as a command and appends the prompt as its last argument, for example `codex exec` or `claude -p`.",
+    "Setup is done by a coding agent you already use, through the Agent Client Protocol (ACP). dash-bored recognizes known ACP agents on your PATH, such as Gemini CLI (`gemini --acp`) or Claude Code and Codex through their ACP adapters (`claude-agent-acp`, `codex-acp`), which you install yourself. Sign in through the agent.",
     "",
-    "The command comes from **Settings → General → Dashboard agent** when that field is set; otherwise from `DASH_BORED_AGENT` in this dashboard's `.env`, shown below. Give the CLI whatever permission flags it needs to edit files in this project.",
+    "The agent comes from **Settings → General → Dashboard agent** when that is set; otherwise from the optional `DASH_BORED_AGENT` in this dashboard's `.env`, shown below; otherwise the app uses the first detected agent. Any other ACP launch command works too.",
     "",
-    "**Expect:** *Agent CLI* turns healthy once the program is found on your PATH.",
+    "**Expect:** *Agent* reports the command that runs, or that the app uses a detected agent.",
   ], [
-    status("agent-cli-status", "Agent CLI", starterAgentStatusSource(), 5_000),
+    status("agent-cli-status", "Agent", starterAgentStatusSource(), 5_000),
     { id: "dashboard-environment", component: "./components/external/core/env", props: { path: environmentPath } },
   ]);
 
@@ -283,10 +275,10 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   const setupStep = guided("step-setup", "4 · Let the agent build your cockpit", [
     "**When you press Set up this dashboard:**",
     "",
-    "1. A review dialog shows the exact command and prompt. Nothing runs until you press **Send**.",
-    "2. The agent runs under **Agent work** in the header, with its terminal, a diff of `.dash-bored/`, and the full command.",
+    "1. A review dialog shows the agent and the exact prompt. Nothing runs until you press **Send**.",
+    "2. The agent works under **Agent work** in the header: its messages, plan, and tool calls appear there, and so do its permission requests, which you answer.",
     "3. It inspects this project and rewrites this dashboard's `dash-bored.yaml` into a project-specific cockpit with a custom sidebar icon. **This starter page is replaced.** Files outside the dashboard bundle are not part of the task.",
-    "4. When the agent exits, dash-bored validates the result and, if it finds configuration errors, asks the agent for one repair.",
+    "4. When the agent finishes its turn, dash-bored validates the result and, if it finds configuration errors, asks the agent once, in the same session, to repair them. You can send follow-ups until you close the session.",
     "",
     "**Expect** this to take several minutes. Validation proves the YAML is correct, not that the panels are useful, so review the result. If the new dashboard requests more capabilities, trust the project again.",
   ], [
@@ -518,9 +510,11 @@ async function createProjectFilesAtLocation(
   );
   const lock: DashboardLock = { lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } };
   const environment = [
-    "# Starter values shown in the dashboard environment editor.",
-    "# DASH_BORED_AGENT is also configurable app-wide in Settings.",
-    `DASH_BORED_AGENT=${formatDotenvValue("codex exec")}`,
+    "# Values shown in the dashboard environment editor.",
+    "# Optional: DASH_BORED_AGENT names the ACP agent command for this dashboard,",
+    "# such as claude-agent-acp, codex-acp, or \"gemini --acp\". Settings → General →",
+    "# Dashboard agent overrides it; when neither is set, the app uses a detected agent.",
+    "# DASH_BORED_AGENT=\"codex-acp\"",
     "",
   ].join("\n");
   let configCreated = false;

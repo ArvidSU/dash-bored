@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { AppSettingsStore, resolveDashBoredAgent } from "../../src/main/app-settings";
+import { AppSettingsStore } from "../../src/main/app-settings";
 import { cloneDefaultAppSettings, DEFAULT_ACTION_SHORTCUTS } from "../../src/shared/app-settings";
 import { projectThemeReference } from "../../src/shared/themes";
 import {
@@ -31,12 +31,12 @@ describe("AppSettingsStore", () => {
     const directory = await temporaryDirectory();
     cleanup.push(directory);
     const path = join(directory, "state", "settings-v1.json");
-    const store = new AppSettingsStore(path, "codex exec");
+    const store = new AppSettingsStore(path, "codex-acp");
 
     expect(await store.get()).toEqual({
       theme: "builtin:default",
       themeMode: "dark",
-      dashBoredAgent: "codex exec",
+      dashBoredAgent: "codex-acp",
       sidebarExpandedByDefault: false,
       favoriteActionIds: [],
       commandPaletteShortcut: "Mod+K",
@@ -86,7 +86,7 @@ describe("AppSettingsStore", () => {
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
       theme: "builtin:default",
       themeMode: "dark",
-      version: 3,
+      version: 4,
       dashBoredAgent: "claude -p",
       sidebarExpandedByDefault: true,
       favoriteActionIds: ["app:reload", "component:refresh"],
@@ -160,14 +160,27 @@ describe("AppSettingsStore", () => {
 
     const { ["project:edit"]: _cleared, ...remaining } = migrated;
     await store.update({ ...await store.get(), actionShortcuts: remaining });
-    expect(JSON.parse(await readFile(path, "utf8")).version).toBe(3);
+    expect(JSON.parse(await readFile(path, "utf8")).version).toBe(4);
     expect((await new AppSettingsStore(path).get()).actionShortcuts).toEqual(remaining);
   });
 
-  test("uses the bundle environment after the app override is cleared", () => {
-    expect(resolveDashBoredAgent(null, { DASH_BORED_AGENT: "project-agent --run" })).toBe("project-agent --run");
-    expect(resolveDashBoredAgent(null, {})).toBe("codex exec");
-    expect(resolveDashBoredAgent("app-agent", { DASH_BORED_AGENT: "project-agent" })).toBe("app-agent");
+  test("has no app-wide agent by default and retires the legacy codex exec default once", async () => {
+    const directory = await temporaryDirectory(); cleanup.push(directory);
+    const path = join(directory, "settings.json");
+    expect((await new AppSettingsStore(path, null).get()).dashBoredAgent).toBeNull();
+
+    const shortcuts = { "app:show-settings": "Alt+S" };
+    await writeFile(path, JSON.stringify({ version: 3, dashBoredAgent: "codex exec", actionShortcuts: shortcuts }));
+    const migrated = new AppSettingsStore(path, null);
+    expect(await migrated.get()).toMatchObject({ dashBoredAgent: null, actionShortcuts: shortcuts });
+    await migrated.update(await migrated.get());
+    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ version: 4, dashBoredAgent: null });
+
+    // A custom command is the user's choice and stays, as does codex exec saved after the migration.
+    await writeFile(path, JSON.stringify({ version: 3, dashBoredAgent: "claude -p" }));
+    expect((await new AppSettingsStore(path, null).get()).dashBoredAgent).toBe("claude -p");
+    await writeFile(path, JSON.stringify({ version: 4, dashBoredAgent: "codex exec" }));
+    expect((await new AppSettingsStore(path, null).get()).dashBoredAgent).toBe("codex exec");
   });
 
   test("old settings default to clearing keep-open searches and explicit false survives reload", async () => {

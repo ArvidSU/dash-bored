@@ -1,6 +1,5 @@
 import type { AppSettings } from "./contracts";
 
-export const DEFAULT_DASH_BORED_AGENT = "codex exec";
 export const DEFAULT_COMMAND_PALETTE_SHORTCUT = "Mod+K";
 /** App-local defaults; macOS conventions where one exists, mnemonics otherwise. */
 export const DEFAULT_ACTION_SHORTCUTS = {
@@ -22,7 +21,8 @@ export const VERSION_2_DEFAULT_ACTION_IDS: readonly string[] = ["app:reload"];
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: "builtin:default",
   themeMode: "dark",
-  dashBoredAgent: DEFAULT_DASH_BORED_AGENT,
+  // No app-wide agent: the owning bundle or a detected ACP agent decides.
+  dashBoredAgent: null,
   sidebarExpandedByDefault: false,
   favoriteActionIds: [],
   commandPaletteShortcut: DEFAULT_COMMAND_PALETTE_SHORTCUT,

@@ -33,7 +33,10 @@ describe("ensureProjectFiles", () => {
     });
     expect((await stat(join(root, ".dash-bored", "components"))).isDirectory()).toBeTrue();
     const environment = await readFile(join(root, ".dash-bored", ".env"), "utf8");
-    expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
+    // The agent is optional: a commented ACP example, never a CLI the app cannot speak to.
+    expect(environment).toContain('# DASH_BORED_AGENT="codex-acp"');
+    expect(environment).not.toMatch(/^DASH_BORED_AGENT=/m);
+    expect(environment).not.toContain("codex exec");
     expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
     const config = parse(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8"));
     const authored = JSON.stringify(config);

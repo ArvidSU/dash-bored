@@ -66,6 +66,17 @@ describe("initializeProject", () => {
     expect(nodes.find((node) => node.id === "skill-project-status").props.source.shell)
       .toContain('"$DASH_BORED_TOOL" install-skill . --check');
     expect(nodes.find((node) => node.id === "trust-actions").props.items[0].action).toBe("project:trust");
+    // The agent status explains detection when no ACP command is set, and checks one that is.
+    const agentStatus = async (agent?: string) => {
+      const { DASH_BORED_AGENT: _unset, ...env } = process.env;
+      const child = Bun.spawn(["/bin/sh", "-c", nodes.find((node) => node.id === "agent-cli-status").props.source.shell], {
+        env: agent === undefined ? env : { ...env, DASH_BORED_AGENT: agent }, stdout: "pipe",
+      });
+      return JSON.parse(await new Response(child.stdout).text());
+    };
+    expect(await agentStatus()).toEqual({ state: "healthy", detail: expect.stringContaining("No agent set — the app uses a detected ACP agent") });
+    expect(await agentStatus("sh --acp")).toMatchObject({ state: "healthy", detail: expect.stringContaining("Runs the ACP agent sh --acp") });
+    expect(await agentStatus("dash-bored-missing-agent --acp")).toMatchObject({ state: "error", detail: expect.stringContaining("was not found on PATH") });
 
     // The tour switches panels through a tab bar over a selection container and
     // reads the project's own files rather than hand-written sample data.
@@ -106,7 +117,8 @@ describe("initializeProject", () => {
     expect(agentCommand.props.action.with.prompt).toContain("Set up the dash-bored dashboard");
     expect(agentCommand.props.env).toBeUndefined();
     expect(agentCommand.props.command).toBeUndefined();
-    expect(environment).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(environment).toContain('# DASH_BORED_AGENT="codex-acp"');
+    expect(environment).not.toMatch(/^DASH_BORED_AGENT=/m);
     expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
     expect(lock).toEqual({ lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } });
@@ -133,7 +145,7 @@ describe("initializeProject", () => {
     expect(result.configPath).toBe(join(canonicalProject, ".dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
     expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } });
-    expect(await readFile(result.environmentPath, "utf8")).toContain('DASH_BORED_AGENT="codex exec"');
+    expect(await readFile(result.environmentPath, "utf8")).toContain('# DASH_BORED_AGENT="codex-acp"');
     expect(
       configuredNodes(parse(await readFile(result.configPath, "utf8")).root)
         .find((node) => node.id === "dashboard-environment").props.path,

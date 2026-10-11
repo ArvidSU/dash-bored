@@ -7,7 +7,7 @@ This directory is its portable dashboard bundle; it travels with the project.
 - `dash-bored.yaml`: dashboard layout, panels, actions, and schema version.
 - `dash-bored-lock.yaml`: exact revisions of external components and themes.
 - `components/`: project-local and pinned external component code.
-- `.env`: dashboard command variables and the coding-agent choice
+- `.env`: dashboard command variables and an optional ACP agent command
   (`DASH_BORED_AGENT`); keep credentials out of version control.
 - `install-app.sh`: downloads, verifies, and opens a compatible macOS installer.
 
@@ -44,9 +44,10 @@ DMG's SHA-256, and opens it. It stops if no compatible release is published.
    The app loads this bundle without replacing its configuration.
 3. Review the requested capabilities before choosing **Trust project** to enable
    checks, commands, and project-file access. Manifests can be inspected before trust; component execution follows trust.
-4. For a starter dashboard, follow **Get started**: choose an installed CLI coding
-   agent, install the dash-bored skill globally or for this project, then use
-   **Set up this dashboard** and review the command and prompt before **Send**.
+4. For a starter dashboard, follow **Get started**: choose a coding agent that
+   speaks the Agent Client Protocol (the app detects known ones on your PATH),
+   install the dash-bored skill globally or for this project, then use **Set up
+   this dashboard** and review the agent and prompt before **Send**.
    Existing dashboards are ready to use; use the component library or your agent
    to customize them. Save dashboard edits with **Save dashboard**.
 
