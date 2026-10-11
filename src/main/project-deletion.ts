@@ -19,6 +19,11 @@ export interface ProjectDeletionServiceOptions {
   configPath?: string;
   removeFiles: boolean;
   moveToTrash: (path: string) => boolean | Promise<boolean>;
+  /**
+   * Stops agent sessions working on what is removed: the whole project when
+   * its files go, otherwise only the removed dashboard (`configPath`).
+   */
+  stopAgents?: (projectRoot: string, configPath?: string) => Promise<void>;
 }
 
 function findRegisteredProject(
@@ -125,6 +130,7 @@ export async function deleteRegisteredProject(
 
   try {
     if (wasActive) await options.runtime.unload();
+    await options.stopAgents?.(project.projectRoot, options.removeFiles ? undefined : project.configPath);
     if (options.removeFiles) {
       await options.trustStore.revoke(project.projectRoot);
       trustRevoked = true;

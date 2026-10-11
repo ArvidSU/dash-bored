@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { DASH_BORED_SKILL_FILES } from "../cli/skill-payload";
 import { loadProjectDefinition, resolveProjectLocation, TrustStore } from "../core/index";
 import { resolveEnvironment } from "../core/environment";
-import { assertProjectLocationContained } from "../core/paths";
+import { assertProjectLocationContained, type ProjectLocation } from "../core/paths";
 import { assertAgentAvailable } from "../main/agent-preflight";
 import { DashboardSetupSupervisor, type DashboardSetupHarness } from "../main/dashboard-setup";
 import { updateInstalledTools } from "../main/installed-tools";
@@ -25,9 +25,111 @@ export interface MigrationAgentOptions {
   trustStore: TrustStore;
   harness: DashboardSetupHarness;
   cancelled: () => Promise<boolean>;
-  stop?: (id: string) => Promise<unknown>;
+  /** Ends one of the migration's agent sessions; `cancelled` when the migration was stopped. */
+  close?: (id: string, options: { cancelled: boolean }) => Promise<unknown>;
   report: (phase: UpdateState["phase"], message: string) => void;
   snapshotReady: (path: string) => Promise<void>;
+}
+
+export interface MigrationSessionOptions {
+  command: string;
+  location: ProjectLocation;
+  configPath: string;
+  prompt: string;
+  env: Record<string, string>;
+  /** The trust grant the migration was authorized with. */
+  permissions: Permission[];
+  /** The app's agent sessions. */
+  harness: DashboardSetupHarness;
+  close?: MigrationAgentOptions["close"];
+  /** Reads project trust again; false, or a thrown error, stops the migration. */
+  isTrusted: () => Promise<boolean>;
+  cancelled: () => Promise<boolean>;
+  report: MigrationAgentOptions["report"];
+}
+
+/**
+ * Runs the migration's agent session until the supervisor reports a final
+ * validation. Resolves on a valid dashboard; rejects on any other outcome,
+ * including a failed turn-end hook. Every session it started is closed
+ * before it returns, and validations after the outcome are ignored.
+ */
+export async function superviseMigrationSession(options: MigrationSessionOptions): Promise<{ stopped: boolean }> {
+  const { command, location, configPath, report } = options;
+  let trusted = true;
+  const refreshTrust = async () => { trusted = await options.isTrusted(); };
+  // Sessions stay open after their turn; every one this migration started is
+  // closed when it ends, and at once if it is cancelled or trust changes.
+  const active = new Set<string>();
+  const cancelled = new Set<string>();
+  let stopped = false;
+  let settled = false;
+  let succeed!: () => void;
+  let fail!: (error: unknown) => void;
+  const outcome = new Promise<void>((resolve, reject) => {
+    succeed = () => { settled = true; resolve(); };
+    fail = (error) => { settled = true; reject(error); };
+  });
+  const ensureAllowed = async () => {
+    await refreshTrust();
+    if (!trusted || await options.cancelled()) throw new Error('Migration cancelled or project trust changed.');
+  };
+  const harness: DashboardSetupHarness = {
+    launch: async request => {
+      await ensureAllowed();
+      const onTurnEnd = request.onTurnEnd;
+      const result = await options.harness.launch({ ...request, ...onTurnEnd ? { onTurnEnd: async task => {
+        try {
+          await refreshTrust();
+          await onTurnEnd(task);
+        } catch (error) {
+          // The sessions only record a failed hook on the task; the migration must end too.
+          fail(error);
+          throw error;
+        }
+      } } : {} });
+      active.add(result.taskId);
+      return result;
+    },
+    followUp: async (id, prompt) => {
+      await ensureAllowed();
+      await options.harness.followUp(id, prompt);
+    },
+    setValidation: (id, value) => options.harness.setValidation(id, value),
+    isCancelled: id => stopped || cancelled.has(id) || options.harness.isCancelled?.(id) === true,
+  };
+  const timer = setInterval(() => { void (async () => {
+    await refreshTrust();
+    if (!trusted || await options.cancelled()) {
+      stopped = true;
+      for (const id of active) { cancelled.add(id); await options.close?.(id, { cancelled: true }); }
+    }
+  })().catch(() => { stopped = true; }); }, 500);
+  try {
+    const supervisor = new DashboardSetupSupervisor({
+      command, location, harness, preflight: assertAgentAvailable,
+      runtime: {
+        getSnapshot: () => ({ configPath, projectRoot: location.projectRoot, tree: null, trusted, requestedPermissions: options.permissions }),
+        getLaunchEnvironment: async () => { await refreshTrust(); return options.env; },
+        reload: async () => { await refreshTrust(); },
+      },
+      onValidation: validation => {
+        if (settled) return;
+        if (validation.status === 'checking') report('verifying', 'Validating migrated dashboard…');
+        else if (validation.status === 'repairing') report('migrating', 'Running the single corrective attempt…');
+        else if (validation.status === 'valid') succeed();
+        else fail(new Error(`${validation.message ?? validation.status} ${validation.diagnostics.map(d => d.message).join('; ')}`));
+      },
+    });
+    report('migrating', `Migrating ${configPath}…`);
+    void supervisor.launchRequest({ prompt: options.prompt, configPath, componentPath: `${configPath}#migration`, request: 'Migrate this dashboard', purpose: 'migration' }).catch(fail);
+    await outcome;
+    return { stopped };
+  } finally {
+    clearInterval(timer);
+    // Closing an already closed session is a no-op; a finished migration's session is not "cancelled".
+    for (const id of active) await options.close?.(id, { cancelled: false }).catch(() => undefined);
+  }
 }
 
 /** Target executable's embedded payload is authoritative even when installed skills conflict. */
@@ -63,34 +165,6 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
   await cp(location.configDirectory, snapshot, { recursive: true, dereference: false, errorOnExist: true, force: false });
   await atomicJson(join(runDirectory, 'recovery.json'), { configPath, snapshot, createdAt: new Date().toISOString(), release: APP_VERSION });
   await options.snapshotReady(snapshot);
-  let trusted = true;
-  const refreshTrust = async () => { trusted = await trustStore.isTrusted(location.projectRoot, grant.permissions); };
-  const active = new Set<string>();
-  const cancelled = new Set<string>();
-  let stopped = false;
-  const harness: DashboardSetupHarness = {
-    ...options.harness,
-    launch: async request => {
-      await refreshTrust();
-      if (!trusted || await options.cancelled()) throw new Error('Migration cancelled or project trust changed.');
-      const result = await options.harness.launch({ ...request, onFinished: async task => {
-        active.delete(task.id);
-        await refreshTrust();
-        await request.onFinished?.(task);
-      } });
-      active.add(result.taskId);
-      return result;
-    },
-    setValidation: (id, value) => options.harness.setValidation(id, value),
-    isCancelled: id => stopped || cancelled.has(id) || options.harness.isCancelled?.(id) === true,
-  };
-  const timer = setInterval(() => { void (async () => {
-    await refreshTrust();
-    if (!trusted || await options.cancelled()) {
-      stopped = true;
-      for (const id of active) { cancelled.add(id); await options.stop?.(id); }
-    }
-  })().catch(() => { stopped = true; }); }, 500);
   const prompt = [
     `Migrate only the selected dashboard ${JSON.stringify(configPath)} to dash-bored ${APP_VERSION}.`,
     `Read the exact target skill ${JSON.stringify(join(handoff, 'SKILL.md'))} and its references/migrations.md, then ${JSON.stringify(join(handoff, 'migration.json'))}.`,
@@ -98,31 +172,16 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
     'Preserve unrelated files, environment files, customized guidance, and exact component pins. Do not grant trust. Do not edit the read-only handoff or snapshot.',
     `Current diagnostics: ${JSON.stringify(initial.diagnostics)}`,
     `Guidance refresh conflicts (preserved): ${JSON.stringify(conflicts)}`,
-    'Apply the supplied cumulative recipes in order, then validate with that agent tool. The host allows at most one repair after a successful exit.',
+    'Apply the supplied cumulative recipes in order, then validate with that agent tool. When your turn ends, the host validates the dashboard and may ask for at most one repair in this session.',
   ].join('\n');
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const supervisor = new DashboardSetupSupervisor({
-        command, location, harness, preflight: assertAgentAvailable,
-        runtime: {
-          getSnapshot: () => ({ configPath, projectRoot: location.projectRoot, tree: null, trusted, requestedPermissions: grant.permissions as Permission[] }),
-          getLaunchEnvironment: async () => { await refreshTrust(); return env; },
-          reload: async () => { await refreshTrust(); },
-        },
-        onValidation: validation => {
-          if (validation.status === 'checking') report('verifying', 'Validating migrated dashboard…');
-          else if (validation.status === 'repairing') report('migrating', 'Running the single corrective attempt…');
-          else if (validation.status === 'valid') resolve();
-          else reject(new Error(`${validation.message ?? validation.status} ${validation.diagnostics.map(d => d.message).join('; ')}`));
-        },
-      });
-      report('migrating', `Migrating ${configPath}…`);
-      void supervisor.launchRequest({ prompt, configPath, componentPath: `${configPath}#migration`, request: 'Migrate this dashboard', purpose: 'migration' }).catch(reject);
-    });
-    if (await options.cancelled() || stopped) throw new Error('Migration cancelled. Review the saved edits before retrying.');
-    if ((await inspectMigration(configPath, metadata)).status !== 'current') throw new Error('Agent finished but the dashboard contract was not migrated. Review the snapshot and retry.');
-    // Read recovery metadata back before reporting a usable recovery path.
-    await readFile(join(runDirectory, 'recovery.json'), 'utf8');
-    return { snapshot, message: 'Dashboard migration and validation finished.' };
-  } finally { clearInterval(timer); }
+  const { stopped } = await superviseMigrationSession({
+    command, location, configPath, prompt, env, permissions: grant.permissions as Permission[],
+    harness: options.harness, close: options.close, report, cancelled: options.cancelled,
+    isTrusted: () => trustStore.isTrusted(location.projectRoot, grant.permissions),
+  });
+  if (await options.cancelled() || stopped) throw new Error('Migration cancelled. Review the saved edits before retrying.');
+  if ((await inspectMigration(configPath, metadata)).status !== 'current') throw new Error('Agent finished but the dashboard contract was not migrated. Review the snapshot and retry.');
+  // Read recovery metadata back before reporting a usable recovery path.
+  await readFile(join(runDirectory, 'recovery.json'), 'utf8');
+  return { snapshot, message: 'Dashboard migration and validation finished.' };
 }

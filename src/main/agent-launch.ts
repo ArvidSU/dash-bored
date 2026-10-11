@@ -1,6 +1,19 @@
 import { CoreError, type ProjectRuntime, loadPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, resolveProjectLocation, resolvePromptTemplate } from "../core/index";
 import { readBundleEnvironment, resolveEnvironment } from "../core/environment";
 import type { ProjectLocation } from "../core/paths";
+import { KNOWN_AGENTS } from "../shared/agent-catalog";
+import type {
+  AgentCommandChoice,
+  AgentCommandOptions,
+  AgentLaunchRequest,
+  AgentSessionTask,
+  AgentTaskCommand,
+  ComponentAgentPreview,
+  ComponentAgentRequest,
+  ComponentCreationAgentRequest,
+  DetectedAgent,
+} from "../shared/agent-session";
+import { isAgentTaskBusy } from "../shared/agent-session";
 import {
   buildComponentCreationAgentPrompt,
   buildDiagnosticsAgentPrompt,
@@ -8,72 +21,100 @@ import {
   findResolvedNode,
   resolveDashboardInsertion,
 } from "../shared/component-agent";
-import { DEFAULT_DASH_BORED_AGENT } from "../shared/app-settings";
-import type {
-  AgentCommandChoice,
-  AgentCommandOptions,
-  AgentLaunchRequest,
-  AgentTaskCommand,
-  ComponentAgentLaunch,
-  ComponentAgentPreview,
-  ComponentAgentRequest,
-  ComponentCreationAgentRequest,
-  DashboardAgentTask,
-} from "../shared/contracts";
-import { isProcessRunActive } from "../shared/process-state";
+import type { ComponentAgentLaunch } from "../shared/contracts";
 import { assertAgentAvailable } from "./agent-preflight";
-import { AppSettingsStore, normalizeDashBoredAgent, resolveDashBoredAgent } from "./app-settings";
-import type { DashboardAgentHarness } from "./component-agent";
-import { readDashboardAgentDiff } from "./dashboard-agent-diff";
+import { agentDisplay, detectAgents } from "./agent-detection";
+import type { AgentSessions } from "./agent-sessions";
+import { AppSettingsStore, normalizeDashBoredAgent } from "./app-settings";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
 
 export interface AgentLauncherOptions {
   runtime: ProjectRuntime;
-  harness: DashboardAgentHarness;
-  settings: AppSettingsStore;
+  sessions: AgentSessions;
+  settings: Pick<AppSettingsStore, "get">;
   publishedEnvironment(): Record<string, string>;
+  /** Known agents on the app's PATH; injectable for tests. */
+  detect?: () => DetectedAgent[];
+}
+
+/** A resolved launch command and how it was chosen. */
+export interface ResolvedAgentCommand {
+  source: "app" | "project" | "detected" | "custom";
+  command: string;
+  name: string;
+}
+
+function unavailable(): CoreError {
+  const examples = KNOWN_AGENTS.slice(0, 3).map((agent) => `${agent.name} (${agent.command})`).join(", ");
+  return new CoreError(
+    "AGENT_UNAVAILABLE",
+    `No ACP agent is configured or detected on PATH. Install one, such as ${examples}, or choose a command in Settings → General → Dashboard agent.`,
+  );
 }
 
 /** Every agent the app starts: component, creation, diagnostics, and setup work. */
 export class AgentLauncher {
   constructor(private readonly options: AgentLauncherOptions) {}
 
+  private detected(): DetectedAgent[] {
+    return this.options.detect?.() ?? detectAgents();
+  }
+
   /**
-   * The configured agent command for work on `configPath`. `bundleless`
-   * excludes project-controlled bundle `.env` values so an untrusted repair
-   * cannot select or configure its own agent command.
+   * The effective agent for work on `configPath`: the app setting, else the
+   * owning bundle's `.env`, else the first detected agent. `bundleless`
+   * skips the project-controlled bundle `.env` so an untrusted repair cannot
+   * select its own agent command.
    */
-  async command(configPath: string, options: { bundleless?: boolean } = {}): Promise<string> {
-    const settings = await this.options.settings.get();
-    if (settings.dashBoredAgent !== null) return settings.dashBoredAgent;
-    const environment = await resolveEnvironment(
-      options.bundleless === true ? undefined : configPath,
-      this.options.publishedEnvironment(),
-    );
-    return resolveDashBoredAgent(settings.dashBoredAgent, environment);
-  }
-
-  /** The commands the composer offers for work on `configPath`, and which one applies by default. */
-  async commandOptions(configPath: string): Promise<AgentCommandOptions> {
-    const settings = await this.options.settings.get();
-    const project = (await readBundleEnvironment(configPath)).DASH_BORED_AGENT?.trim() || null;
-    return {
-      app: settings.dashBoredAgent ?? DEFAULT_DASH_BORED_AGENT,
-      project,
-      effective: settings.dashBoredAgent === null && project !== null ? "project" : "app",
-    };
-  }
-
-  /** The command one composer launch runs; an explicit choice is the user's reviewed pick. */
-  private async chosenCommand(configPath: string, choice: AgentCommandChoice | undefined): Promise<string> {
-    if (choice === undefined) return this.command(configPath);
-    if (choice.source === "custom") return normalizeDashBoredAgent(choice.command);
-    const options = await this.commandOptions(configPath);
-    if (choice.source === "app") return options.app;
-    if (options.project === null) {
-      throw new CoreError("AGENT_COMMAND_UNAVAILABLE", "This dashboard's .env does not set DASH_BORED_AGENT.");
+  async resolve(configPath: string | undefined, choice?: AgentCommandChoice, options: { bundleless?: boolean } = {}): Promise<ResolvedAgentCommand> {
+    const named = (source: ResolvedAgentCommand["source"], command: string): ResolvedAgentCommand =>
+      ({ source, command, name: agentDisplay(command).name });
+    if (choice?.source === "custom") return named("custom", normalizeDashBoredAgent(choice.command));
+    if (choice?.source === "detected") {
+      // Re-resolved from the catalog: a renderer never supplies this command.
+      const known = KNOWN_AGENTS.find((agent) => agent.id === choice.id);
+      if (!known) throw new CoreError("AGENT_UNAVAILABLE", "That agent is not in the known-agent list.");
+      return { source: "detected", command: known.command, name: known.name };
     }
-    return options.project;
+    const app = (await this.options.settings.get()).dashBoredAgent;
+    if (choice?.source === "app") {
+      if (app === null) throw new CoreError("AGENT_COMMAND_UNAVAILABLE", "No app-wide agent is set in Settings → General → Dashboard agent.");
+      return named("app", app);
+    }
+    const project = configPath && options.bundleless !== true ? await this.projectCommand(configPath) : null;
+    if (choice?.source === "project") {
+      if (project === null) throw new CoreError("AGENT_COMMAND_UNAVAILABLE", "This dashboard's .env does not set DASH_BORED_AGENT.");
+      return named("project", project);
+    }
+    if (app !== null) return named("app", app);
+    if (project !== null) return named("project", project);
+    const [first] = this.detected();
+    if (first) return { source: "detected", command: first.command, name: first.name };
+    throw unavailable();
+  }
+
+  /** The effective command for work on `configPath`, as a migration agent uses it. */
+  async command(configPath: string, options: { bundleless?: boolean } = {}): Promise<string> {
+    return (await this.resolve(configPath, undefined, options)).command;
+  }
+
+  private async projectCommand(configPath: string): Promise<string | null> {
+    return (await readBundleEnvironment(configPath)).DASH_BORED_AGENT?.trim() || null;
+  }
+
+  /** The agents Settings (no `configPath`) or one bundle's composer can pick from. */
+  async agentOptions(configPath?: string): Promise<AgentCommandOptions> {
+    const app = (await this.options.settings.get()).dashBoredAgent;
+    const project = configPath ? await this.projectCommand(configPath) : null;
+    const detected = this.detected();
+    const effective = app !== null
+      ? { source: "app" as const, command: app, name: agentDisplay(app).name }
+      : project !== null
+        ? { source: "project" as const, command: project, name: agentDisplay(project).name }
+        : detected[0]
+          ? { source: "detected" as const, command: detected[0].command, name: detected[0].name }
+          : null;
+    return { app, project, detected, known: KNOWN_AGENTS.map((agent) => ({ ...agent })), effective };
   }
 
   launch(request: AgentLaunchRequest): Promise<ComponentAgentLaunch> {
@@ -91,29 +132,17 @@ export class AgentLauncher {
       template: promptTemplateSummary(template),
       prompt,
       templates: promptTemplateSummaries(templates.templates),
-      agents: await this.commandOptions(source.configPath),
+      agents: await this.agentOptions(source.configPath),
     };
   }
 
-  taskCommand(taskId: string, command: AgentTaskCommand): Promise<DashboardAgentTask> {
-    const { harness } = this.options;
-    switch (command.type) {
-      case "stop": return harness.stop(taskId);
-      case "write": return harness.writeTerminal(taskId, command.input);
-      case "resize": return harness.resizeTerminal(taskId, command.cols, command.rows);
-    }
-  }
-
-  async diff(taskId: string): Promise<string> {
-    const task = this.options.harness.list().find((candidate) => candidate.id === taskId);
-    if (!task) throw new CoreError("DASHBOARD_AGENT_TASK_NOT_FOUND", "That dashboard agent task is no longer available.");
-    const location = await resolveProjectLocation(task.configPath);
-    return readDashboardAgentDiff(location.projectRoot, location.configDirectory, task.purpose === "project" ? "project" : "dashboard");
+  taskCommand(taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask> {
+    return this.options.sessions.command(taskId, command);
   }
 
   private supervisor(command: string, location: ProjectLocation): DashboardSetupSupervisor {
-    const { runtime, harness } = this.options;
-    return new DashboardSetupSupervisor({ runtime, harness, command, location, preflight: assertAgentAvailable });
+    const { runtime, sessions } = this.options;
+    return new DashboardSetupSupervisor({ runtime, harness: sessions, command, location, preflight: assertAgentAvailable });
   }
 
   private async prepareComponent(request: ComponentAgentRequest, preview = false) {
@@ -161,12 +190,12 @@ export class AgentLauncher {
 
   private async launchComponent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
     const { template, prompt, source, sourceLocation, locator } = await this.prepareComponent(request);
-    const command = await this.chosenCommand(source.configPath, request.agent);
+    const { command } = await this.resolve(source.configPath, request.agent);
     const dashboardWork = template.scope === "dashboard";
     return this.supervisor(command, sourceLocation).launchRequest({
       prompt,
-      // Project work is reviewed as a project diff; only dashboard work is
-      // validated and may receive the single automatic repair.
+      // Only dashboard work is validated when a turn ends and may receive the
+      // single automatic repair; project work is the user's to review.
       purpose: dashboardWork ? "edit" : "project",
       followUp: dashboardWork,
       template: template.name,
@@ -210,9 +239,10 @@ export class AgentLauncher {
       throw new CoreError("DIAGNOSTICS_NOT_FOUND", "This dashboard has no current diagnostics to fix.");
     }
     // A project that cannot be trusted yet must still be repairable. The
-    // untrusted repair runs the app-configured agent with no project-controlled
-    // input: no bundle `.env`, no project instructions in the prompt, and no
-    // capability grant. The project stays untrusted until the ordinary review.
+    // untrusted repair runs the app-selected agent with no project-controlled
+    // input: no bundle `.env`, no project instructions in the prompt, no
+    // capability grant, and out-of-bundle permission requests refused. The
+    // project stays untrusted until the ordinary review.
     const untrustedRepair = !snapshot.trusted;
     const sourceLocation = await resolveProjectLocation(snapshot.configPath);
     const prompt = buildDiagnosticsAgentPrompt({
@@ -237,7 +267,7 @@ export class AgentLauncher {
   }
 
   private async launchSetup(nodeId: string): Promise<ComponentAgentLaunch> {
-    const { runtime, harness } = this.options;
+    const { runtime, sessions } = this.options;
     const snapshot = runtime.getSnapshot();
     const session = runtime.getSessionToken();
     if (!snapshot.projectRoot || !snapshot.configPath || !snapshot.tree) {
@@ -251,11 +281,9 @@ export class AgentLauncher {
       throw new CoreError("DASHBOARD_SETUP_NODE_INVALID", "That setup action is no longer present in the active dashboard.");
     }
     const configPath = node.sourceConfigPath ?? snapshot.configPath;
-    if (harness.list().some((task) => task.configPath === configPath
-      && task.purpose !== undefined
-      && (isProcessRunActive(task.process)
-        || task.validation?.status === "checking" || task.validation?.status === "repairing"))) {
-      throw new CoreError("DASHBOARD_SETUP_RUNNING", "Setup is already active for this dashboard. Open Agent work to view or stop it.");
+    if (sessions.list().some((task) => task.configPath === configPath
+      && task.purpose !== undefined && isAgentTaskBusy(task))) {
+      throw new CoreError("DASHBOARD_SETUP_RUNNING", "Agent work is already active for this dashboard. Open Agent work to view or stop it.");
     }
     const sourceLocation = await resolveProjectLocation(configPath);
     const command = await this.command(configPath);

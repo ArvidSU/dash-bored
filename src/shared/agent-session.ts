@@ -243,6 +243,18 @@ export interface AgentSessionTask {
   };
 }
 
+/**
+ * Agent work is in progress: the session is starting, waiting for sign-in,
+ * running or blocked in a turn, or the app is validating or repairing its
+ * result. `auth-required` counts as busy because a prompt is pending and runs
+ * as soon as the user signs in. An idle session is not busy: it holds only a
+ * process the app stops on close or quit.
+ */
+export function isAgentTaskBusy(task: Pick<AgentSessionTask, "state" | "validation">): boolean {
+  return task.state === "starting" || task.state === "auth-required" || task.state === "working" || task.state === "waiting"
+    || task.validation?.status === "checking" || task.validation?.status === "repairing";
+}
+
 /** One command to an agent task; the host answers with the task afterwards. */
 export type AgentTaskCommand =
   /** A follow-up prompt; accepted only while the session is idle. */

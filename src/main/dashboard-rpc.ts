@@ -5,7 +5,7 @@ import type { AppSettings } from "../shared/contracts";
 import type { DashboardRPC } from "../shared/rpc";
 import type { ThemeCatalogItem } from "../shared/themes";
 import type { AgentLauncher } from "./agent-launch";
-import type { DashboardAgentHarness } from "./component-agent";
+import type { AgentSessions } from "./agent-sessions";
 import type { InstalledToolDiagnostics } from "./installed-tools";
 import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
@@ -17,7 +17,7 @@ export interface DashboardRPCOptions {
   runtime: ProjectRuntime;
   registry: ProjectRegistry;
   trustStore: TrustStore;
-  harness: DashboardAgentHarness;
+  sessions: AgentSessions;
   agents: AgentLauncher;
   installedTools: InstalledToolDiagnostics;
   updates: AppUpdates;
@@ -35,7 +35,7 @@ export interface DashboardRPCOptions {
  * resolve and answer with an ack or a command-specific result.
  */
 export function createDashboardRPC(options: DashboardRPCOptions) {
-  const { runtime, registry, trustStore, harness, agents, installedTools, updates } = options;
+  const { runtime, registry, trustStore, sessions, agents, installedTools, updates } = options;
 
   async function loadAndWatch(configPath: string): Promise<void> {
     await runtime.load(configPath, { inputKind: "auto" });
@@ -68,9 +68,9 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
           await options.publishThemes();
           return result;
         },
-        getDashboardAgentTasks: () => harness.list(),
-        getDashboardAgentDiff: ({ taskId }) => agents.diff(taskId),
+        getAgentTasks: () => sessions.list(),
         agentTaskCommand: ({ taskId, command }) => agents.taskCommand(taskId, command),
+        getAgentOptions: ({ configPath }) => agents.agentOptions(configPath),
         listProjects: () => registry.list(),
         moveProject: ({ configPath, targetConfigPath, before }) => registry.move(configPath, targetConfigPath, before),
         getProjectOutline: ({ projectRoot, configPath }) => getRegisteredProjectOutline(registry, projectRoot, configPath),
@@ -104,6 +104,7 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
             configPath,
             removeFiles,
             moveToTrash: (path) => Utils.moveToTrash(path),
+            stopAgents: (root, config) => sessions.stopProject(root, config),
           });
         },
         setTrust: async ({ trusted }) => {
@@ -113,7 +114,7 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
           }
           const projectRoot = runtime.getSnapshot().projectRoot;
           await runtime.revoke();
-          if (projectRoot) await harness.stopProject(projectRoot);
+          if (projectRoot) await sessions.stopProject(projectRoot);
         },
         reloadProject: async () => { await runtime.reload(); },
         getDashboardConfigSource: ({ configPath }) => runtime.getDashboardConfigSource(configPath),

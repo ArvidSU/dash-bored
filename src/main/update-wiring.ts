@@ -6,13 +6,14 @@ import { bundledInstallation, openVerifiedDmg } from "../updates/installation";
 import { runMigrationAgent } from "../updates/migration-agent";
 import { DIRECT_UNSIGNED_UPDATES_VERIFIED, applyVerifiedNativeUpdate } from "../updates/native-updater";
 import { atomicJson, getUpdateSettings, updateDirectory } from "../updates/storage";
+import { isAgentTaskBusy } from "../shared/agent-session";
 import type { UpdateAction, UpdateState } from "../shared/updates";
-import type { DashboardAgentHarness } from "./component-agent";
+import type { AgentSessions } from "./agent-sessions";
 import type { ProjectRegistry } from "./project-registry";
 
 export interface AppUpdatesOptions {
   runtime: ProjectRuntime;
-  harness: DashboardAgentHarness;
+  sessions: AgentSessions;
   registry: ProjectRegistry;
   trustStore: TrustStore;
   /** The bundled agent tool, or this executable in an unbundled run. */
@@ -24,12 +25,12 @@ const busy = (phase: string): boolean => phase === "running" || phase === "stopp
 
 /** The update coordinator wired to this app's runtime, agent work, and Electrobun updater. */
 export function createAppUpdates(options: AppUpdatesOptions) {
-  const { runtime, harness, registry } = options;
+  const { runtime, sessions, registry } = options;
   /** True while terminals or agent work run; `configPath` narrows it to one dashboard. */
   const workRunning = (configPath?: string): boolean => {
     const snapshot = runtime.getSnapshot();
     return (configPath === undefined || snapshot.configPath === configPath) && snapshot.processes.some((p) => busy(p.phase))
-      || harness.list().some((t) => (configPath === undefined || t.configPath === configPath) && busy(t.process.phase));
+      || sessions.list().some((t) => (configPath === undefined || t.configPath === configPath) && isAgentTaskBusy(t));
   };
   let nativeUpdateApplying = false;
   let operation: Promise<unknown> | null = null;
@@ -57,7 +58,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
       const installation = await bundledInstallation(options.toolPath);
       return runMigrationAgent({ directory: updateDirectory(), configPath, receipt, report, snapshotReady,
         toolPath: installation.cliPath, command: await options.agentCommand(configPath),
-        trustStore: options.trustStore, harness, stop: (id) => harness.stop(id),
+        trustStore: options.trustStore, harness: sessions, close: (id, closeOptions) => sessions.close(id, closeOptions),
         cancelled: () => coordinator.cancelled(receipt),
       });
     },

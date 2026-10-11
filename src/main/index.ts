@@ -13,7 +13,7 @@ import { AgentLauncher } from "./agent-launch";
 import { onApplicationMenuAction, setApplicationMenu } from "./app-menu";
 import { AppSettingsStore } from "./app-settings";
 import { loadApplicationThemes, watchPersonalThemes } from "./app-themes";
-import { DashboardAgentHarness } from "./component-agent";
+import { AgentSessions } from "./agent-sessions";
 import { createDashboardRPC } from "./dashboard-rpc";
 import { InstalledToolDiagnostics } from "./installed-tools";
 import { ProjectRegistry } from "./project-registry";
@@ -82,7 +82,10 @@ function agentEnvironment(settings: AppSettings): Record<string, string> {
 }
 let publishedEnvironment = agentEnvironment(initialAppSettings);
 
-const dashboardAgentHarness = new DashboardAgentHarness({ onTask: (task) => send("agentTask", task) });
+const agentSessions = new AgentSessions({
+  onTask: (task) => send("agentTask", task),
+  handoffDirectory: join(Utils.paths.userData, "agent-handoff"),
+});
 const runtime = new ProjectRuntime({
   trustStore,
   isConfigRegistered: async (configPath) => (await projectRegistry.list()).some((project) => project.configPath === configPath),
@@ -90,7 +93,7 @@ const runtime = new ProjectRuntime({
   onSnapshot(snapshot) {
     send("snapshot", installedTools.addTo(snapshot));
     if (snapshot.projectRoot) installedTools.checkProject(snapshot.projectRoot);
-    if (snapshot.configPath) dashboardAgentHarness.markDashboardChanged(snapshot.configPath);
+    if (snapshot.configPath) agentSessions.markDashboardChanged(snapshot.configPath);
     void projectRegistry.remember(snapshot).catch((error: unknown) => {
       console.error("Could not persist the dashboard list.", error);
     });
@@ -100,13 +103,13 @@ const runtime = new ProjectRuntime({
 
 const agents = new AgentLauncher({
   runtime,
-  harness: dashboardAgentHarness,
+  sessions: agentSessions,
   settings: appSettingsStore,
   publishedEnvironment: () => publishedEnvironment,
 });
 const updates = createAppUpdates({
   runtime,
-  harness: dashboardAgentHarness,
+  sessions: agentSessions,
   registry: projectRegistry,
   trustStore,
   toolPath: bundledTools ? bundledTools.toolPath : process.execPath,
@@ -123,7 +126,7 @@ const dashboardRPC = createDashboardRPC({
   runtime,
   registry: projectRegistry,
   trustStore,
-  harness: dashboardAgentHarness,
+  sessions: agentSessions,
   agents,
   installedTools,
   updates,
@@ -216,7 +219,7 @@ Electrobun.events.on("before-quit", (event) => {
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
-  void Promise.all([runtime.close(), dashboardAgentHarness.close(), agentControl?.close()]).finally(() => {
+  void Promise.all([runtime.close(), agentSessions.shutdown(), agentControl?.close()]).finally(() => {
     Utils.quit(0);
   });
 });

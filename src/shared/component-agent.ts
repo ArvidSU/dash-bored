@@ -53,6 +53,11 @@ export interface DiagnosticsAgentContext {
   diagnostics: readonly Diagnostic[];
   originalPrompt?: string;
   /**
+   * Validation after the agent's own turn found these: the request is a
+   * follow-up in the same session, so the agent already has its context.
+   */
+  followUp?: boolean;
+  /**
    * The project has no trust grant. Its files stay untrusted data and the
    * repair is confined to the dashboard bundle; nothing project-supplied
    * (instructions, environment, agent selection) may drive the run.
@@ -362,7 +367,9 @@ export function buildDiagnosticsAgentPrompt(
       ];
 
   return [
-    "You are fixing a dash-bored dashboard configuration after its diagnostics panel reported problems.",
+    context.followUp === true
+      ? "dash-bored validated the dashboard after your last turn and found configuration errors. Fix them in the owning bundle, then validate again; this is the single automatic repair request."
+      : "You are fixing a dash-bored dashboard configuration after its diagnostics panel reported problems.",
     ...guidance,
     `Project root: ${context.projectRoot}`,
     `Owning dashboard config: ${context.configPath}`,
