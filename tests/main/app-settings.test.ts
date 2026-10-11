@@ -27,6 +27,17 @@ test("shared app settings clones mutable collections", () => {
 });
 
 describe("AppSettingsStore", () => {
+  test("Send prompt favorites move to the template chooser while direct shortcuts are preserved", async () => {
+    const directory = await temporaryDirectory();
+    cleanup.push(directory);
+    const path = join(directory, "settings.json");
+    await writeFile(path, JSON.stringify({ version: 4, favoriteActionIds: ["agent:prompt", "agent:prompt-template", "app:reload"], actionShortcuts: { "agent:prompt": "Mod+Shift+A" } }));
+    const store = new AppSettingsStore(path);
+    const settings = await store.get();
+    expect(settings.favoriteActionIds).toEqual(["agent:prompt-template", "app:reload"]);
+    expect(settings.actionShortcuts["agent:prompt"]).toBe("Mod+Shift+A");
+    expect((await store.update(settings)).favoriteActionIds).toEqual(settings.favoriteActionIds);
+  });
   test("uses the configured default and atomically persists an app-wide agent command", async () => {
     const directory = await temporaryDirectory();
     cleanup.push(directory);

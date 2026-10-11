@@ -37,7 +37,11 @@ function defaults(dashBoredAgent: string | null): AppSettings {
 
 function normalizeActionIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim()))];
+  // The palette now chooses a template before opening the reviewed composer.
+  // Keep an existing Send prompt favorite on that visible parent; shortcuts
+  // still name the direct agent:prompt action and retain their default behavior.
+  return [...new Set(value.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+    .map((item) => item.trim() === "agent:prompt" ? "agent:prompt-template" : item.trim()))];
 }
 
 function normalizeActionShortcuts(value: unknown): Record<string, string> {

@@ -343,6 +343,12 @@ composition UI, so native webviews hide and their frames stay pickable.
 
 Change with agent opens the "Ask the agent" composer on the `dashboard` prompt
 template; `agent:prompt` opens it on its configured template, vars, and text.
+The palette's **Send prompt to agent** (`agent:prompt-template`) first offers
+a template choice from the focused target's owning bundle. Discovery reads
+template declarations without resolving launch environment values; replies for
+an older target or dashboard revision are discarded. The existing `agent:prompt`
+action remains directly callable by buttons and shortcuts. Existing favorites
+move to the visible template chooser; shortcuts retain their direct behavior.
 The composer names the target component, or lists every picked target in pick
 order, offers every template the owning
 bundle resolves (built-ins first, each with its scope) as a radio group, shows

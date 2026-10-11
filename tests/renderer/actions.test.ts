@@ -719,6 +719,27 @@ describe("application action providers", () => {
     expect(buildApplicationActions(options).find((item) => item.id === "project:trust")?.enabled).toBeFalse();
   });
 
+  test("trust stays visible as disabled when trusted and fails closed without capability inspection", () => {
+    const options = {
+      snapshot: snapshot({ trusted: true, trustReview: { available: true, hasLocalCode: false } }),
+      projects: [], activeView: "dashboard" as const, sidebarExpanded: false,
+      pendingAction: null, editing: false, draftDirty: false, draftValid: false,
+      savingDraft: false, callbacks,
+    };
+    const trustedActions = buildApplicationActions(options);
+    expect(trustedActions.find((item) => item.id === "project:trust")).toMatchObject({
+      enabled: false,
+      disabledReason: "This project is already trusted.",
+    });
+    expect(trustedActions.find((item) => item.id === "project:revoke-trust")?.enabled).toBeTrue();
+
+    options.snapshot = snapshot({ tree: commandTree() });
+    expect(buildApplicationActions(options).find((item) => item.id === "project:trust")).toMatchObject({
+      enabled: false,
+      disabledReason: "Requested capabilities could not be inspected. Fix the fatal configuration diagnostics first.",
+    });
+  });
+
   test("switches process actions between quick actions, terminal close, and stopping states", () => {
     const runningSnapshot = snapshot({
       trusted: true,

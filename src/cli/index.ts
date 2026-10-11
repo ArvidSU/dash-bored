@@ -284,6 +284,7 @@ async function main(): Promise<number> {
     }
     const output = summary ? {
       ok: result.ok, projectRoot: result.projectRoot, permissions: result.permissions, diagnostics: result.diagnostics,
+      promptTemplates: result.promptTemplates,
       componentCatalog: catalog.map(({ reference, available, manifest }) => ({ reference, available,
         name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions })),
     } : componentReference ? { ok: result.ok, diagnostics: result.diagnostics, component: selected } : result;

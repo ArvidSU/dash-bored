@@ -15,6 +15,8 @@ interface CommandPaletteProps {
   clearInputOnKeepOpen: boolean;
   executionError?: string | null;
   initialActionId?: string | null;
+  initialQuery?: string;
+  resetSequence?: number;
   initialSelections?: ComponentActionSelections;
   onDismiss(): void;
   onExecute(id: string, selections?: ComponentActionSelections): void;
@@ -54,6 +56,8 @@ export function CommandPalette({
   clearInputOnKeepOpen,
   executionError,
   initialActionId,
+  initialQuery = "",
+  resetSequence = 0,
   initialSelections = {},
   onDismiss,
   onExecute,
@@ -121,15 +125,6 @@ export function CommandPalette({
     if (!open) return;
     restoreFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setQuery("");
-    setRootQuery("");
-    setSelectedIndex(0);
-    setConfirmationId(null);
-    setChoiceActionId(null);
-    setChoiceIndex(0);
-    setChoices({});
-    setStatus("");
-    keepOpenRef.current = false;
     requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
       const target = restoreFocusRef.current;
@@ -138,6 +133,19 @@ export function CommandPalette({
       });
     };
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    setQuery(initialQuery);
+    setRootQuery(initialQuery);
+    setSelectedIndex(0);
+    setConfirmationId(null);
+    setChoiceActionId(null);
+    setChoiceIndex(0);
+    setChoices({});
+    setStatus("");
+    keepOpenRef.current = false;
+  }, [open, initialQuery, resetSequence]);
 
   useEffect(() => {
     if (!open || !initialActionId) return;

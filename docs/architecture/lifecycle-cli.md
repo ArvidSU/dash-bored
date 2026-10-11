@@ -62,7 +62,7 @@ dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
 dash-bored app status [--instance <identifier>]
 dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
-dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
+dash-bored app run <action> [--select <choice>=<option> ...] [--query <text>] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
 dash-bored app processes [<command-id>] [--instance <identifier>]
 dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
@@ -179,7 +179,9 @@ source equals the link target and that target is a bundled
   diagnostics. Unknown references fail; modes cannot be combined. Full
   `inspect` writes JSON describing the resolved tree, the complete component
   catalog, component metadata used by the tree, requested permissions, and
-  diagnostics. Agents read `componentCatalog[].manifest.propsSchema`, `children`,
+  diagnostics. `inspect --summary` also includes effective `promptTemplates`
+  with declaration metadata and no rendered environment values. Agents read
+  `componentCatalog[].manifest.propsSchema`, `children`,
   `actions`, and `permissions` before editing instead of relying on static
   examples.
 - `migrate inspect <dashboard>` reports whether the dashboard needs migration to
@@ -228,7 +230,7 @@ instances therefore never answer for the release app by accident.
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` summarizes each choice as `{id, label, optionCount}` (`--choices` includes the options) and hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
 | `GET /v1/processes/<id>/logs?tail=<n>` | Recent output lines of one command process from the log ring the process manager already retains (2,000 entries, 512 KiB). `tail` defaults to 200 and is capped at 1,000; lines are capped at 2,000 characters; an unknown id is `AGENT_CONTROL_NOT_FOUND`. `app logs` strips ANSI escapes and carriage-return overwrites. |
-| `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
+| `POST /v1/actions/run` | Resolves an id or reference in the renderer's `ActionStore` and runs it through the shared action path, then waits for the renderer to paint and go idle (see below). Body options: `wait: false`, `timeoutMs`. Only `app:open-palette` accepts `args: {query?: string}` (at most 200 characters); other action arguments and unknown keys are rejected. An unknown reference is `unavailable` with up to five close `suggestions`; a known user-only id is `refused` even when it is not currently registered. |
 | `POST /v1/open` | Loads a dashboard path the way an app launch for that path does, so it is registered; trust stays a separate decision. Refused while there are unsaved dashboard changes or a save in progress. Clean settings sessions do not block it. |
 | `POST /v1/read` | `{nodeId, timeoutMs?}`: reveals the node when it is not mounted, waits for idle, and returns its rendered `innerText` (whitespace-collapsed, at most 100,000 characters) with `idle` and `changes`, then restores the view the same way a node screenshot does. Shares the node-capture lock. |
 | `POST /v1/screenshot` | Waits for the renderer to paint and go idle (bounded by `timeoutMs`, default ten seconds), then returns the app window as PNG. An idle timeout still captures and sets the `x-dash-bored-idle: false` header, which the tool reports as `idle: false` with a `warning`. With `{nodeId}` it returns that node's bounds cropped from the capture and describes the node in an `x-dash-bored-node` header (see below). |
@@ -258,6 +260,12 @@ next window-state change). A minimized or hidden window still stops painting;
 paint waits are therefore bounded at five seconds. Runs and opens then return
 their result with a `warning`, and screenshots fail with
 `APP_WINDOW_NOT_RENDERING` instead of capturing stale pixels.
+
+For palette verification, `app run app:open-palette --query "Send prompt to agent"`
+opens a fresh search, including when the palette was already open. Capture it
+with `app screenshot` and inspect the PNG. `--query` is restricted to this
+action and accepts at most 200 characters. Opening the palette does not execute
+a search result; agent prompts still require review and explicit Send.
 
 For explicit user attention, `app run app:focus-window --no-wait` invokes the
 same Bring app to front palette action through the shared executor. It restores

@@ -50,6 +50,7 @@ export type DashboardRPC = {
       getAppSettings: { params: {}; response: AppSettings };
       updateAppSettings: { params: AppSettings; response: AppSettings };
       previewComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentPreview };
+      getPromptTemplates: { params: { nodeId: string }; response: import("./contracts").AgentPromptTemplateSummary[] };
       launchAgent: { params: AgentLaunchRequest; response: ComponentAgentLaunch };
       repairInstalledTools: { params: {}; response: { conflictsRemain: boolean } };
       manageExternalComponent: { params: ExternalComponentOperation; response: PackageOperationResult };

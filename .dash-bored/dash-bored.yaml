@@ -504,7 +504,7 @@ root:
                               - renderer
                           - id: todo-starter-trust-button-reason
                             description: The starter's Trust project button targets project:trust, which disappears once trusted, so the button shows the generic reason 'This action is not available in the current view.' Give state-dependent app actions a stable disabled entry (for example 'This project is already trusted') instead of vanishing.
-                            done: false
+                            done: true
                             tags:
                               - renderer
                               - onboarding
@@ -540,7 +540,7 @@ root:
                               - renderer
                           - id: todo-prompt-templates-discovery
                             description: "Make prompt templates discoverable: list them in `inspect --summary` for agents and let the command palette's Send prompt to agent pick a template."
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                           - id: todo-prompt-templates-whole-item
@@ -555,7 +555,7 @@ root:
                               - feature
                           - id: todo-7a00f90e-8069-4d73-9445-ba2519105d11
                             description: Let the app control channel open the command palette with a query (and screenshot it) so agents can prove palette changes in the dev app, not only in ui:fixture
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                           - id: todo-shortcuts-in-text-fields
@@ -629,7 +629,7 @@ root:
                               - acp
                               - agent
                           - id: todo-flaky-dropper-test
-                            description: "Investigate the intermittent ui-interaction 'agent work dropper' test failure (about 2 in 13 runs, pre-existing)."
+                            description: "Investigate the historical intermittent ui-interaction 'agent work dropper' failure (about 2 in 13 runs). On 2026-10-11, isolated runs passed 13/13 before and after moving capture listeners to a layout effect, closing the pre-paint input gap. The reported full-suite/load intermittency remains unproven."
                             done: false
                             tags:
                               - test
@@ -1260,6 +1260,13 @@ root:
                             action: app:focus-window
                           - name: Show whole dashboard
                             action: project:clear-focus
+                          - name: Trust project
+                            action: project:trust
+                          - name: Browse prompt templates
+                            action:
+                              run: app:open-palette
+                              with:
+                                query: Send prompt to agent
                 second:
                   axis: horizontal
                   ratio: 0.5

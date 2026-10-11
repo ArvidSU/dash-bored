@@ -61,6 +61,7 @@ export interface DashboardHost {
   getAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview>;
+  getPromptTemplates(nodeId: string): Promise<import("../../shared/contracts").AgentPromptTemplateSummary[]>;
   launchAgent(request: AgentLaunchRequest): Promise<ComponentAgentLaunch>;
   repairInstalledTools(): Promise<{ conflictsRemain: boolean }>;
   manageExternalComponent(operation: ExternalComponentOperation): Promise<PackageOperationResult>;
@@ -187,6 +188,7 @@ const liveHost: DashboardHost = {
   async getAppSettings() { ensureTransport(); return rpc.request.getAppSettings({}); },
   async updateAppSettings(settings) { ensureTransport(); return rpc.request.updateAppSettings(settings); },
   async previewComponentAgent(request) { ensureTransport(); return rpc.request.previewComponentAgent(request); },
+  async getPromptTemplates(nodeId) { ensureTransport(); return rpc.request.getPromptTemplates({ nodeId }); },
   async launchAgent(request) { ensureTransport(); return rpc.request.launchAgent(request); },
   async repairInstalledTools() { ensureTransport(); return rpc.request.repairInstalledTools({}); },
   async manageExternalComponent(operation) { ensureTransport(); return rpc.request.manageExternalComponent(operation); },
@@ -251,6 +253,8 @@ declare global {
     __DASH_BORED_UI_HARNESS__?: boolean;
     /** Present only on ui-harness.html so browser interaction tests can inspect host state. */
     __DASH_BORED_UI_HARNESS_HOST__?: UiHarnessHost;
+    /** Test-only access to the renderer action handler on ui-harness.html. */
+    __DASH_BORED_UI_HARNESS_RUN_ACTION__?: AgentControlHandler["runAction"];
   }
 }
 

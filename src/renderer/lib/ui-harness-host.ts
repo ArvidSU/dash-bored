@@ -499,6 +499,10 @@ export function createUiHarnessHost(): UiHarnessHost {
     setUpdateState(state) { updateOverride = state && structuredClone(state); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
+    async getPromptTemplates(nodeId: string) {
+      if (!findResolvedNode(snapshot().tree!, nodeId)) throw new Error("The prompt target is no longer present.");
+      return promptTemplateSummaries(fixturePromptTemplates());
+    },
     async previewComponentAgent(request: ComponentAgentRequest) {
       // The shipped defaults plus one bundle template with a declared var.
       const { templates, template, prompt } = renderComponentPrompt(request);

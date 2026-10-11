@@ -1,4 +1,5 @@
 import { checkedOutCommit } from "./package-store";
+import { loadPromptTemplates, promptTemplateSummaries } from "./prompt-templates";
 import { loadThemeCatalog } from "./themes";
 import { resolveTheme, type ThemeCatalogItem } from "../shared/themes";
 import { createHash } from "node:crypto";
@@ -277,6 +278,7 @@ export async function inspectProject(
     return {
       ok: definition.ok,
       themeCatalog: definition.themeCatalog,
+      promptTemplates: promptTemplateSummaries((await loadPromptTemplates(definition.location.configDirectory)).templates),
       projectRoot: definition.location.projectRoot,
       config: definition.config,
       lock: definition.lock,
@@ -291,6 +293,7 @@ export async function inspectProject(
       ok: false,
       themeCatalog: [],
       projectRoot: resolve(input),
+      promptTemplates: [],
       config: null,
       lock: null,
       tree: null,

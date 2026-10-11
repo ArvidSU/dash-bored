@@ -239,7 +239,10 @@ with agent). A bundle adds templates as `prompts/<name>.md` beside its
 `dash-bored.yaml`; a file named like a shipped template replaces it for that
 bundle, and `dash-bored/<name>` always means the shipped one. Names are
 lowercase letters, digits, and hyphens. Files are regular files of at most
-32 KiB, at most 64 per bundle; symlinks are rejected.
+32 KiB, at most 64 per bundle; symlinks are rejected. The `prompts/`
+directory itself must also be a real bundle-local directory.
+`inspect --summary` exposes the effective catalog as `promptTemplates`, using
+declaration summaries rather than rendered bodies or environment values.
 
 ```markdown
 ---

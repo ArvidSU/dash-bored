@@ -57,10 +57,16 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
-  await browser?.close();
-  await server?.stop();
-  if (outputDirectory) await rm(outputDirectory, { recursive: true, force: true });
-});
+  try {
+    await browser?.close();
+  } finally {
+    try {
+      await server?.stop();
+    } finally {
+      if (outputDirectory) await rm(outputDirectory, { recursive: true, force: true });
+    }
+  }
+}, 30_000);
 
 test("production renderer mounts pinned core components and switches button/selection panels", async () => {
   const page = await browser!.newPage({ viewport: { width: 1280, height: 800 } });

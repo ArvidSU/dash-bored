@@ -63,7 +63,10 @@ export function useAppActions({
     savingDraft: draft.saving,
     appSettings: settings.settings,
     themeCatalog,
+    promptTemplates: agent.promptTemplates,
+    promptTemplatesReason: agent.promptTemplatesReason,
     callbacks: {
+      openCommandPalette: (query) => actions.palette.showFresh(query),
       reloadApp: () => window.location.reload(),
       focusWindow: () => host.focusWindow(),
       showDashboard,

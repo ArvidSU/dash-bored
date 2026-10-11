@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { lstat, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { APP_VERSION } from "../../src/shared/app-metadata";
@@ -88,6 +88,19 @@ describe("dash-bored command arguments", () => {
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("Unknown option for init: --unknown");
     expect(await exists(join(project, ".dash-bored"))).toBeFalse();
+  });
+
+  test("app query flags are rejected outside the palette action", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+
+    const status = await run(project, "app", "status", "--query", "logs");
+    expect(status.exitCode).toBe(1);
+    expect(status.stderr).toContain("--query is only supported with app run app:open-palette.");
+
+    const otherAction = await run(project, "app", "run", "app:focus-window", "--query", "logs");
+    expect(otherAction.exitCode).toBe(1);
+    expect(otherAction.stderr).toContain("--query is only supported with app:open-palette.");
   });
 
   test("init accepts a named config and explicit project path", async () => {
@@ -294,12 +307,30 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect(summary.exitCode).toBe(0);
   expect(summary.stdout.length).toBeLessThan(full.stdout.length / 2);
   expect(JSON.parse(summary.stdout).componentCatalog[0].manifest).toBeUndefined();
+  expect(JSON.parse(summary.stdout).promptTemplates.map((template: { name: string }) => template.name)).toEqual(["dashboard", "project"]);
   const selected = await run(project, "inspect", ".", "--component", "./components/external/core/command");
   expect(selected.exitCode).toBe(0);
   expect(JSON.parse(selected.stdout).component.manifest.propsSchema.required).toContain("command");
   expect((await run(project, "inspect", ".", "--component", "missing")).exitCode).toBe(1);
   expect((await run(project, "inspect", ".", "--component")).exitCode).toBe(2);
   expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
+}, 15_000);
+
+test("inspect summary discovers bundle overrides, scope, input and declared variables without prompt bodies or environment values", async () => {
+  const project = await mkdtemp(join(tmpdir(), "dash-bored-template-inspect-"));
+  temporaryDirectories.push(project);
+  expect((await run(project, "init", ".")).exitCode).toBe(0);
+  const directory = join(project, ".dash-bored", "prompts");
+  await mkdir(directory);
+  await writeFile(join(project, ".dash-bored", ".env"), "PRIVATE_VALUE=secret-value\n");
+  await writeFile(join(directory, "project.md"), "---\ndescription: Custom project work\nscope: dashboard\ninput: optional\nvars:\n  id: Backlog item ID\nenv: [PRIVATE_VALUE]\n---\nSensitive body marker {{env.PRIVATE_VALUE}} {{vars.id}}\n");
+  const result = await run(project, "inspect", ".", "--summary");
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout).promptTemplates).toContainEqual({
+    name: "project", description: "Custom project work", scope: "dashboard", input: "optional", builtin: false, vars: { id: "Backlog item ID" },
+  });
+  expect(result.stdout).not.toContain("Sensitive body marker");
+  expect(result.stdout).not.toContain("secret-value");
 }, 15_000);
 
 test("validate text prints diagnostic paths and explains item templates in command text", async () => {

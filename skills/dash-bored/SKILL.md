@@ -96,6 +96,9 @@ with these and keep the ones the project gives you evidence for:
 | Numbers over time? | `chart` with a `source` |
 | Hand work or a judgment call to the agent? | A button or item action running `agent:prompt`; a `prompts/<name>.md` template when the briefing repeats |
 
+`inspect . --summary` lists the bundle's effective `promptTemplates` and
+declared variables; reuse one when it fits the request.
+
 Group panels into tabs by workflow, with an **Overview** tab first that
 answers "where does this stand" without scrolling. Put explanations next to
 the controls they explain. Skip any panel you cannot back with real data; an
@@ -340,7 +343,10 @@ is out of scope here.
    one returns close `suggestions`. Choices show as counts; `--choices` lists
    options for `--select <choice>=<option>`. In the desktop command palette,
    users reach the same options by searching a name or node ID, which lists
-   rows such as `Focus component › Backlog`.
+   rows such as `Focus component › Backlog`. To prove palette changes, run
+   `dash-bored app run app:open-palette --query "<search>"` (at most 200
+   characters), then capture and inspect `app screenshot`. The action opens
+   a fresh search and leaves result execution to the user.
 3. `dash-bored app read <node-id>` returns a panel's full rendered text (all of
    it, even below the fold or on another tab) once its sources have loaded,
    and leaves the user's view as it was (`changes.revealed: true` means it

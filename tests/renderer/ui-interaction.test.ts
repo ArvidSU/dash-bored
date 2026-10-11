@@ -294,6 +294,31 @@ describe("renderer fixture interactions", () => {
     expect(await shell.getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
   }, 20_000);
 
+  test("repeating the same app-control palette query resets edited search text", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.waitForFunction(() => window.__DASH_BORED_UI_HARNESS_RUN_ACTION__ !== undefined);
+      const openPalette = async (query: string) => proof.evaluate(async (value) => {
+        const run = window.__DASH_BORED_UI_HARNESS_RUN_ACTION__;
+        if (!run) throw new Error("Renderer app-control action handler is unavailable.");
+        return run({ reference: "app:open-palette", args: { query: value } });
+      }, query);
+      await openPalette("todo status");
+      const palette = proof.getByRole("dialog", { name: "Command palette" });
+      const input = palette.getByRole("combobox");
+      await palette.waitFor();
+      await proof.waitForFunction((query) => document.querySelector<HTMLInputElement>('[role="dialog"] input')?.value === query, "todo status");
+      expect(await input.inputValue()).toBe("todo status");
+      await input.fill("Edited by the user");
+      await openPalette("todo status");
+      await proof.waitForFunction((query) => document.querySelector<HTMLInputElement>('[role="dialog"] input')?.value === query, "todo status");
+      expect(await input.inputValue()).toBe("todo status");
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("palette search keeps the top result selected until the pointer moves", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     try {

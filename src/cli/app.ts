@@ -7,6 +7,7 @@ import { printJson as print } from "./print-json";
 import {
   AGENT_LOG_DEFAULT_TAIL,
   AGENT_LOG_MAX_TAIL,
+  MAX_COMMAND_PALETTE_QUERY_CHARS,
   type AgentActionDescriptor,
   type AgentNodeMeasurement,
   type AgentNodeText,
@@ -18,7 +19,7 @@ import {
 
 export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
-  dash-bored app run <action> [--select <choice>=<option> ...] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
+  dash-bored app run <action> [--select <choice>=<option> ...] [--query <text>] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
   dash-bored app open <dashboard> [--instance <identifier>]
   dash-bored app processes [<command-id>] [--instance <identifier>]
   dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
@@ -26,7 +27,8 @@ export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app read <node-id> [--timeout <ms>] [--instance <identifier>]
   dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
 
-\`actions\` prints choices as {id, label, optionCount}; \`--choices\` adds their options. \`screenshot\`
+\`actions\` prints choices as {id, label, optionCount}; \`--choices\` adds their options. Run
+\`app:open-palette --query <text>\` to open the command palette on a bounded search. \`screenshot\`
 captures the window; \`--node\` crops to one node and restores any view change it made;
 \`--focus\` focuses a node for the capture and then restores the previous focus unless
 \`--keep-focus\` is given.`;
@@ -43,6 +45,7 @@ interface AppArguments {
   choices: boolean;
   keepFocus: boolean;
   timeout?: number;
+  query?: string;
   wait: boolean;
   untilExit: boolean;
   selections: Record<string, string>;
@@ -77,6 +80,7 @@ function parseAppArguments(args: string[]): AppArguments {
       if (!Number.isInteger(timeout) || timeout < 0) throw new Error("--timeout expects a number of milliseconds.");
       parsed.timeout = timeout;
     }
+    else if (argument === "--query") parsed.query = value();
     else if (argument === "--choices" || argument === "--full") parsed.choices = true;
     else if (argument === "--keep-focus") parsed.keepFocus = true;
     else if (argument === "--select") {
@@ -153,10 +157,12 @@ async function runAction(
   reference: string,
   selections: Record<string, string>,
   wait: { wait?: boolean; timeoutMs?: number } = {},
+  args?: { query?: string },
 ): Promise<RunOutcome> {
   const response = await call(instance, "/v1/actions/run", {
     reference,
     ...(Object.keys(selections).length ? { selections } : {}),
+    ...(args ? { args } : {}),
     ...(wait.wait === false ? { wait: false } : {}),
     ...(wait.timeoutMs === undefined ? {} : { timeoutMs: wait.timeoutMs }),
   });
@@ -240,6 +246,9 @@ export async function runAppCommand(args: string[]): Promise<number> {
     return 0;
   }
   const parsed = parseAppArguments(args);
+  if (parsed.query !== undefined && parsed.verb !== "run") {
+    throw new Error("--query is only supported with app run app:open-palette.");
+  }
 
   if (parsed.verb === "status" && parsed.positional.length === 0) {
     const instances = await listAppInstances();
@@ -263,15 +272,21 @@ export async function runAppCommand(args: string[]): Promise<number> {
   }
 
   if (parsed.verb === "run" && parsed.positional.length === 1) {
-    const instance = await selectedInstance(parsed.instance);
     const reference = parsed.positional[0]!;
+    if (parsed.query !== undefined && reference !== "app:open-palette") {
+      throw new Error("--query is only supported with app:open-palette.");
+    }
+    if (parsed.query !== undefined && parsed.query.length > MAX_COMMAND_PALETTE_QUERY_CHARS) {
+      throw new Error(`--query must be at most ${MAX_COMMAND_PALETTE_QUERY_CHARS} characters.`);
+    }
+    const instance = await selectedInstance(parsed.instance);
     const commandId = reference.startsWith("process:") ? decodeURIComponent(reference.slice("process:".length)) : undefined;
     if (parsed.untilExit && commandId === undefined) throw new Error("--until-exit applies only to process:<command-id> actions.");
     const previousStartedAt = parsed.untilExit ? (await processInfo(instance, commandId!)).startedAt : undefined;
     const outcome = await runAction(instance, reference, parsed.selections, {
       wait: parsed.wait,
       ...(parsed.timeout === undefined || parsed.untilExit ? {} : { timeoutMs: parsed.timeout }),
-    });
+    }, parsed.query === undefined ? undefined : { query: parsed.query });
     if (!parsed.untilExit || outcome.result.status !== "completed") {
       print(outcome);
       return outcome.result.status === "completed" ? 0 : 1;

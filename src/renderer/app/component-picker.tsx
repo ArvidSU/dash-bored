@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { ResolvedComponentNode } from "../../shared/contracts";
 import { nodeLabel } from "../lib/virtual-root";
@@ -43,7 +43,10 @@ export function useComponentPicker(
     if (!enabled) setActive(false);
   }, [enabled]);
 
-  useEffect(() => {
+  // Install capture listeners in the same commit that exposes active mode.
+  // A passive effect leaves a window where the active UI is visible but an
+  // immediate Escape or component click can arrive before the picker handles it.
+  useLayoutEffect(() => {
     if (!active) {
       setHover(null);
       setSelection([]);

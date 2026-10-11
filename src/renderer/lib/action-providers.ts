@@ -8,6 +8,7 @@ import type {
 } from "../../shared/contracts";
 import type { ThemeCatalogItem, ThemeMode } from "../../shared/themes";
 import type { PaletteAction } from "./actions";
+import { MAX_COMMAND_PALETTE_QUERY_CHARS } from "../../shared/agent-control";
 import { componentActionReference } from "../../shared/action-reference";
 import { isProcessLive, isProcessRunActive } from "../../shared/process-state";
 import { childNodes } from "./component-children";
@@ -26,6 +27,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 };
 
 export interface ApplicationActionCallbacks {
+  openCommandPalette?(query?: string): void;
   reloadApp(): void;
   focusWindow(): void | Promise<void>;
   showDashboard(): void;
@@ -58,6 +60,8 @@ export interface ApplicationActionContext {
   savingDraft: boolean;
   appSettings?: Pick<AppSettings, "theme" | "themeMode">;
   themeCatalog?: readonly ThemeCatalogItem[];
+  promptTemplates?: readonly import("../../shared/contracts").AgentPromptTemplateSummary[];
+  promptTemplatesReason?: string;
   callbacks: ApplicationActionCallbacks;
 }
 
@@ -243,6 +247,20 @@ export function buildApplicationActions(
   const pendingReason = blockedReason(pendingAction);
   const actions: PaletteAction[] = [
     appAction({
+      id: "app:open-palette",
+      label: "Open command palette",
+      description: "Open the command palette, optionally showing a search query.",
+      keywords: ["palette", "search", "commands", "actions"],
+      group: "Application",
+      run: (_selections, args) => {
+        const query = args?.query;
+        if (query !== undefined && (typeof query !== "string" || query.length > MAX_COMMAND_PALETTE_QUERY_CHARS)) {
+          throw new Error(`query must be a string of at most ${MAX_COMMAND_PALETTE_QUERY_CHARS} characters.`);
+        }
+        callbacks.openCommandPalette?.(query ?? "");
+      },
+    }),
+    appAction({
       id: "app:focus-window",
       label: "Bring app to front",
       description: "Show and focus the dash-bored window when work finishes or needs your attention.",
@@ -251,7 +269,32 @@ export function buildApplicationActions(
       run: callbacks.focusWindow,
     }),
     appAction({
+      id: "agent:prompt-template",
+      label: "Send prompt to agent",
+      description: "Choose a prompt template, review its request, and send it to your agent.",
+      keywords: ["agent", "prompt", "template", "send", "activity"],
+      group: "Agent work",
+      enabled: pendingAction === null && Boolean(snapshot?.trusted) && Boolean(context.promptTemplates?.length),
+      disabledReason: pendingReason ?? (!snapshot?.trusted ? "Trust the project before sending an agent prompt."
+        : context.promptTemplatesReason ?? (!context.promptTemplates?.length ? "No prompt templates are available." : undefined)),
+      ...(context.promptTemplates?.length ? { choices: [{
+        id: "template",
+        label: "Prompt template",
+        options: (context.promptTemplates ?? []).map((template) => ({
+          value: template.name,
+          label: template.name,
+          description: `${template.scope} · ${template.description}${template.vars && Object.keys(template.vars).length ? ` · Variables: ${Object.keys(template.vars).join(", ")}` : ""}`,
+        })),
+      }] } : {}),
+      run: (selections) => {
+        const template = context.promptTemplates?.find(({ name }) => name === selections?.template);
+        if (!template) throw new Error("Choose an available prompt template.");
+        callbacks.requestAgentPrompt?.({ template: template.name });
+      },
+    }),
+    appAction({
       id: "agent:prompt",
+      parentActionId: "agent:prompt-template",
       label: "Send prompt to agent",
       description: "Review and send a prompt to the app-wide agent and follow its work in Agent activity.",
       keywords: ["agent", "prompt", "send", "activity"],
@@ -486,28 +529,28 @@ export function buildApplicationActions(
           run: callbacks.revokeTrust,
         }),
       );
-    } else {
-      actions.push(
-        appAction({
-          id: "project:trust",
-          label: "Trust project",
-          description: "Review and enable this project's requested capabilities.",
-          keywords: ["security", "permissions", "capabilities"],
-          group: "Dashboard",
-          enabled: pendingAction === null && (snapshot.trustReview?.available ?? snapshot.tree !== null),
-          disabledReason:
-            !(snapshot.trustReview?.available ?? snapshot.tree !== null)
-              ? "Requested capabilities could not be inspected. Fix the fatal configuration diagnostics first."
-              : pendingReason,
-          confirmation: {
-            title: "Trust this project?",
-            message: trustMessage(snapshot),
-            confirmLabel: "Trust project",
-          },
-          run: callbacks.trustProject,
-        }),
-      );
     }
+    const trustReviewAvailable = snapshot.trustReview?.available === true;
+    const trustDisabledReason = snapshot.trusted
+      ? "This project is already trusted."
+      : !trustReviewAvailable
+        ? "Requested capabilities could not be inspected. Fix the fatal configuration diagnostics first."
+        : pendingReason;
+    actions.push(appAction({
+      id: "project:trust",
+      label: "Trust project",
+      description: "Review and enable this project's requested capabilities.",
+      keywords: ["security", "permissions", "capabilities"],
+      group: "Dashboard",
+      enabled: !snapshot.trusted && pendingAction === null && trustReviewAvailable,
+      ...(trustDisabledReason ? { disabledReason: trustDisabledReason } : {}),
+      confirmation: {
+        title: "Trust this project?",
+        message: trustMessage(snapshot),
+        confirmLabel: "Trust project",
+      },
+      run: callbacks.trustProject,
+    }));
   }
 
   actions.push(

@@ -54,6 +54,7 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
         getAppSettings: () => options.readAppSettings(),
         updateAppSettings: (settings) => options.updateAppSettings(settings),
         previewComponentAgent: (request) => agents.preview(request),
+        getPromptTemplates: ({ nodeId }) => agents.promptTemplates(nodeId),
         launchAgent: (request) => agents.launch(request),
         repairInstalledTools: () => installedTools.repairConflicts(),
         manageExternalComponent: async (operation) => {

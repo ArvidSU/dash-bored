@@ -22,7 +22,7 @@ import {
   promptComponent,
   resolveDashboardInsertion,
 } from "../shared/component-agent";
-import type { ComponentAgentLaunch, ResolvedComponentNode } from "../shared/contracts";
+import type { AgentPromptTemplateSummary, ComponentAgentLaunch, ResolvedComponentNode } from "../shared/contracts";
 import { assertAgentAvailable } from "./agent-preflight";
 import { agentDisplay, detectAgents } from "./agent-detection";
 import type { AgentSessions } from "./agent-sessions";
@@ -135,6 +135,17 @@ export class AgentLauncher {
       templates: promptTemplateSummaries(templates.templates),
       agents: await this.agentOptions(source.configPath),
     };
+  }
+
+  /** Catalog for the focused target's owning bundle; discovery reads no launch environment. */
+  async promptTemplates(nodeId: string): Promise<AgentPromptTemplateSummary[]> {
+    const { runtime } = this.options;
+    const tree = runtime.getSnapshot().tree;
+    const node = tree ? findResolvedNode(tree, nodeId) : null;
+    if (!node) throw new CoreError("COMPONENT_NOT_FOUND", "The prompt target is no longer present. Choose a component again.");
+    const source = await runtime.getDashboardConfigSource(node.sourceConfigPath);
+    const location = await resolveProjectLocation(source.configPath);
+    return promptTemplateSummaries((await loadPromptTemplates(location.configDirectory)).templates);
   }
 
   taskCommand(taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask> {

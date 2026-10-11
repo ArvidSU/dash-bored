@@ -150,6 +150,10 @@ test("several picked components brief one agent; targets across bundles are refu
   const { root, configPath, runtime, launcher, launches } = await setup("", { value: "/usr/bin/true" });
   const linked = join(root, ".dash-bored", "linked");
   await mkdir(join(linked, "components"), { recursive: true });
+  await mkdir(join(linked, "prompts"));
+  await mkdir(join(root, ".dash-bored", "prompts"));
+  await writeFile(join(root, ".dash-bored", "prompts", "root-only.md"), "---\ndescription: Root work\nscope: project\n---\n{{input}}\n");
+  await writeFile(join(linked, "prompts", "linked-only.md"), "---\ndescription: Linked dashboard work\nscope: dashboard\ninput: optional\nvars:\n  id: Target ID\n---\n{{vars.id}}\n");
   await installCoreFixture(linked);
   await Promise.all([
     writeFile(join(linked, "dash-bored.yaml"), stringify({
@@ -169,6 +173,13 @@ test("several picked components brief one agent; targets across bundles are refu
   await runtime.trust();
   expect(runtime.getSnapshot().diagnostics).toEqual([]);
 
+  expect((await launcher.promptTemplates("notes")).map(({ name }) => name)).toEqual(["dashboard", "project", "root-only"]);
+  const linkedCatalog = await launcher.promptTemplates("personal::linked-note");
+  expect(linkedCatalog.map(({ name }) => name)).toEqual(["dashboard", "project", "linked-only"]);
+  expect(linkedCatalog[2]).toMatchObject({ scope: "dashboard", input: "optional", vars: { id: "Target ID" } });
+  expect(launches).toHaveLength(0);
+  await expect(launcher.promptTemplates("gone")).rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
+
   const preview = await launcher.preview({ nodeIds: ["status", "notes", "status"], prompt: "Align them.", template: "dashboard" });
   expect(preview.prompt).toContain(`Target components:\n- ${configPath}#root.children[1].node (id \`status\``);
   expect(preview.prompt).toContain(`- ${configPath}#root.children[0].node (id \`notes\``);
@@ -181,4 +192,18 @@ test("several picked components brief one agent; targets across bundles are refu
     .rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
   await expect(launcher.preview({ nodeIds: [], prompt: "" }))
     .rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
+});
+
+test("template discovery re-reads summaries without launch environment or an agent launch", async () => {
+  const { root, runtime, launcher, launches } = await setup("PRIVATE_VALUE=secret-value\n", { value: null });
+  const directory = join(root, ".dash-bored", "prompts");
+  await mkdir(directory);
+  await writeFile(join(directory, "custom.md"), "---\ndescription: A custom request\nscope: project\nenv: [PRIVATE_VALUE]\n---\n{{env.PRIVATE_VALUE}} {{input}}\n");
+  runtime.getLaunchEnvironment = async () => { throw new Error("Catalog must not resolve environment."); };
+  const catalog = await launcher.promptTemplates("test");
+  expect(catalog.map(({ name }) => name)).toEqual(["dashboard", "project", "custom"]);
+  expect(JSON.stringify(catalog)).not.toContain("secret-value");
+  await writeFile(join(directory, "custom.md"), "---\ndescription: Updated request\nscope: dashboard\n---\n{{input}}\n");
+  expect((await launcher.promptTemplates("test"))[2]).toMatchObject({ description: "Updated request", scope: "dashboard" });
+  expect(launches).toHaveLength(0);
 });

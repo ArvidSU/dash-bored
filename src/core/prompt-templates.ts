@@ -96,6 +96,9 @@ export async function loadPromptTemplates(configDirectory: string): Promise<Prom
   const directory = join(configDirectory, PROMPTS_DIRECTORY);
   let entries: string[];
   try {
+    if (!(await lstat(directory)).isDirectory()) {
+      return { templates, diagnostics: [frontmatterError(directory, "Prompt template directory must be a real directory.")] };
+    }
     entries = (await readdir(directory)).filter((entry) => entry.endsWith(".md")).sort();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT" || (error as NodeJS.ErrnoException).code === "ENOTDIR") {

@@ -344,6 +344,8 @@ export function App(): ReactNode {
       />
       <CommandPalette
         open={actions.palette.open}
+        initialQuery={actions.palette.initialQuery}
+        resetSequence={actions.palette.resetSequence}
         actions={allActions}
         runningActionIds={actions.runningActionIds}
         favoriteActionIds={settings.favoriteActionIds}

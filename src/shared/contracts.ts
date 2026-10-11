@@ -406,6 +406,8 @@ export interface DeleteProjectRequest {
 }
 
 export interface InspectResult {
+  /** Effective prompt templates from this bundle; summaries never contain rendered environment values. */
+  promptTemplates?: AgentPromptTemplateSummary[];
   themeCatalog?: import("./themes").ThemeCatalogItem[];
   ok: boolean;
   projectRoot: string;

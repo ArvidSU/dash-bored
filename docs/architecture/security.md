@@ -47,6 +47,9 @@ A successful decision persists the grant even when rendering is still invalid,
 so diagnostics repair uses the ordinary trusted agent launcher and bundle
 environment. Component code and configured processes remain withheld until
 validation and compilation succeed. Added permissions still require review.
+The palette retains `project:trust` after approval as a disabled action with
+the reason "This project is already trusted." A new approval is available
+only when `trustReview.available` is explicitly true.
 Failed reloads can keep the last valid dashboard running; a newly inspected
 permission expansion restricts it until approval. Fatal reloads do not grant
 any capabilities from the broken config.

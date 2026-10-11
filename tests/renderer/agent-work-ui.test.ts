@@ -70,6 +70,58 @@ afterAll(async () => {
 }, 30_000);
 
 describe("agent work", () => {
+  test("palette chooses a bundle template, collects its variables, and waits for explicit Send", async () => {
+    const page = await openFixture();
+    try {
+      const before = await page.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTasks()).length);
+      await page.keyboard.press("Meta+k");
+      const palette = page.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("Send prompt to agent");
+      const action = palette.getByRole("option").filter({ has: page.locator("strong").filter({ hasText: /^Send prompt to agent$/ }) });
+      await action.waitFor();
+      await action.click();
+      const choices = palette.getByRole("listbox", { name: "Prompt template", exact: true });
+      await choices.waitFor();
+      await choices.getByRole("option", { name: /triage-item/ }).click();
+      const composer = page.getByRole("dialog", { name: "Ask the agent" });
+      await composer.waitFor();
+      await composer.getByRole("textbox", { name: "id", exact: true }).fill("todo-42");
+      await composer.getByRole("tab", { name: "Full prompt", exact: true }).click();
+      await composer.getByLabel("Full agent prompt").getByText("Triage backlog item `todo-42`.", { exact: false }).waitFor();
+      expect(await composer.locator('input[type="radio"][value="triage-item"]').isChecked()).toBeTrue();
+      expect(await page.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTasks()).length)).toBe(before);
+      await composer.getByRole("button", { name: "Cancel", exact: true }).click();
+      expect(await page.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTasks()).length)).toBe(before);
+    } finally { await page.close(); }
+  }, 20_000);
+
+  test("a late template catalog for an old focus cannot replace the current target's choices", async () => {
+    const page = await openFixture();
+    try {
+      await page.evaluate(() => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        host.getPromptTemplates = async (nodeId) => nodeId === "responsive-card"
+          ? new Promise((resolve) => { (window as unknown as { finishOldCatalog: () => void }).finishOldCatalog = () => resolve([{ name: "old-focus", description: "Old focus", scope: "project", input: "required", builtin: false, vars: null }]); })
+          : [{ name: "current-focus", description: "Current focus", scope: "project", input: "required", builtin: false, vars: null }];
+      });
+      await page.locator('[data-node-id="responsive-card"] header').first().click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Focus component", exact: true }).click();
+      await page.waitForFunction(() => typeof (window as unknown as { finishOldCatalog?: () => void }).finishOldCatalog === "function");
+      await page.keyboard.press("Meta+k");
+      const palette = page.getByRole("dialog", { name: "Command palette" });
+      await palette.getByRole("combobox").fill("Send prompt to agent");
+      expect(await palette.getByRole("option").filter({ has: page.locator("strong").filter({ hasText: /^Send prompt to agent$/ }) }).getAttribute("aria-disabled")).toBe("true");
+      await palette.getByRole("combobox").fill("whole dashboard");
+      await palette.getByRole("option", { name: /^Show whole dashboard/ }).click();
+      await page.evaluate(() => (window as unknown as { finishOldCatalog: () => void }).finishOldCatalog());
+      await page.keyboard.press("Meta+k");
+      await palette.getByRole("combobox").fill("Send prompt to agent");
+      await palette.getByRole("option").filter({ has: page.locator("strong").filter({ hasText: /^Send prompt to agent$/ }) }).click();
+      const choices = palette.getByRole("listbox", { name: "Prompt template", exact: true });
+      await choices.getByRole("option", { name: /current-focus/ }).waitFor();
+      expect(await choices.getByRole("option", { name: /old-focus/ }).count()).toBe(0);
+    } finally { await page.close(); }
+  }, 20_000);
   test("drawer rows show each session's state with color, shape, and text, and the badge counts sessions that need watching", async () => {
     const page = await openFixture();
     try {

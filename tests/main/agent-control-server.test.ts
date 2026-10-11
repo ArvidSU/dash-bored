@@ -9,6 +9,7 @@ import {
   agentActionRefusal,
   agentProcessInfo,
   agentProcessLogs,
+  MAX_COMMAND_PALETTE_QUERY_CHARS,
   summarizeAgentDiagnostics,
   suggestActions,
   unknownActionReason,
@@ -190,6 +191,33 @@ test("the agent tool reads state, runs actions, and reports refusals through the
   const ran = await cli(homeDirectory, "run", "focus:logs", "--select", "mode=all");
   expect(ran.exitCode).toBe(0);
   expect(runs.at(-1)).toEqual({ reference: "focus:logs", selections: { mode: "all" } });
+});
+
+test("the app-control action forwards bounded palette queries through the shared action runner", async () => {
+  const homeDirectory = await home();
+  const { runs, server } = await serve(homeDirectory);
+
+  const opened = await cli(homeDirectory, "run", "app:open-palette", "--query", "todo status");
+  expect(opened.exitCode).toBe(0);
+  expect(runs.at(-1)).toEqual({ reference: "app:open-palette", args: { query: "todo status" } });
+
+  const invalid = await fetch("http://dash-bored/v1/actions/run", {
+    method: "POST",
+    unix: server.record.socketPath,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reference: "app:open-palette", args: { query: "x".repeat(MAX_COMMAND_PALETTE_QUERY_CHARS + 1) } }),
+  } as RequestInit);
+  expect(invalid.status).toBe(400);
+  expect((await invalid.json() as { error: { message: string } }).error.message).toContain("at most 200 characters");
+
+  const unexpectedArgs = await fetch("http://dash-bored/v1/actions/run", {
+    method: "POST",
+    unix: server.record.socketPath,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reference: "focus:logs", args: { query: "logs" } }),
+  } as RequestInit);
+  expect(unexpectedArgs.status).toBe(400);
+  expect((await unexpectedArgs.json() as { error: { message: string } }).error.message).toContain("Only app:open-palette");
 });
 
 test("status reports diagnostic text, bounded, and the read-only trust state", async () => {

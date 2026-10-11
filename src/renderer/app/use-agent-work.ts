@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { AgentPromptTemplateSummary, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import type { AgentCommandOptions, AgentSessionTask, AgentTaskCommand } from "../../shared/agent-session";
 import { findResolvedNode } from "../../shared/component-agent";
 import type { InsertionTarget } from "../composition/dashboard-editor";
@@ -61,6 +61,23 @@ export function useAgentWork({
   const configPath = snapshot?.configPath ?? undefined;
   const revision = snapshot?.revision;
   const [agentOptions, setAgentOptions] = useState<AgentCommandOptions | null>(null);
+  const targetId = focusedNodeId ?? snapshot?.tree?.id;
+  const catalogKey = JSON.stringify([configPath, revision, targetId, snapshot?.trusted]);
+  const [promptCatalog, setPromptCatalog] = useState<{
+    key: string; templates: AgentPromptTemplateSummary[]; error?: string;
+  } | null>(null);
+
+  // A focused linked component may own different templates from the open
+  // dashboard. Discovery follows that target, and discards superseded replies.
+  useEffect(() => {
+    let active = true;
+    if (!targetId || !snapshot?.tree || !snapshot.trusted) return;
+    void host.getPromptTemplates(targetId).then(
+      (templates) => { if (active) setPromptCatalog({ key: catalogKey, templates }); },
+      () => { if (active) setPromptCatalog({ key: catalogKey, templates: [], error: "Prompt templates could not be loaded. Reload the dashboard and try again." }); },
+    );
+    return () => { active = false; };
+  }, [catalogKey, targetId, snapshot?.trusted, snapshot?.tree]);
 
   // What an omitted choice runs for the active dashboard; the main process
   // resolves it (app setting, bundle .env, then the first detected agent).
@@ -170,5 +187,8 @@ export function useAgentWork({
     runCreationAgent,
     /** The command an omitted choice runs for the active dashboard, or "" when none is available. */
     effectiveAgentCommand: agentOptions?.effective?.command ?? "",
+    promptTemplates: promptCatalog?.key === catalogKey ? promptCatalog.templates : [],
+    promptTemplatesReason: !targetId || !snapshot?.tree ? "Open a dashboard component before choosing a prompt template."
+      : promptCatalog?.key === catalogKey ? promptCatalog.error : "Loading prompt templates…",
   };
 }

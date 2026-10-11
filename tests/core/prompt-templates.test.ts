@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadProjectDefinition } from "../../src/core";
 import {
@@ -54,6 +54,17 @@ async function bundleWithPrompts(prompts: Record<string, string>): Promise<{ roo
 }
 
 describe("prompt templates", () => {
+  test("a missing prompts directory leaves built-in templates available", async () => {
+    const root = await temporaryDirectory();
+    temporaryProjects.push(root);
+    await createProject(root);
+
+    const set = await loadPromptTemplates(join(root, ".dash-bored"));
+
+    expect(set.diagnostics).toEqual([]);
+    expect([...set.templates.keys()].sort()).toEqual(["dashboard", "project"]);
+  });
+
   test("agent:prompt defaults to project work, not a dashboard edit", () => {
     const { template, prompt } = prepareAgentPrompt(builtins, request({ vars: { backlogItem: "todo-022" } }));
     expect(template.name).toBe("project");
@@ -185,6 +196,26 @@ describe("prompt templates", () => {
     // Template diagnostics surface with the rest of the dashboard's.
     const loaded = await loadProjectDefinition(root);
     expect(loaded.diagnostics.filter((item) => item.code === "PROMPT_TEMPLATE_INVALID").length).toBe(set.diagnostics.length);
+  });
+
+  test("does not load prompt templates through a symlinked prompts directory", async () => {
+    const { directory } = await bundleWithPrompts({});
+    const outside = await temporaryDirectory();
+    temporaryProjects.push(outside);
+    await mkdir(join(outside, "prompts"), { recursive: true });
+    await writeFile(join(outside, "prompts", "outside-only.md"), "Private prompt body", "utf8");
+    await rm(join(directory, "prompts"), { recursive: true });
+    await symlink(join(outside, "prompts"), join(directory, "prompts"), "dir");
+
+    const set = await loadPromptTemplates(directory);
+
+    expect(set.templates.has("outside-only")).toBeFalse();
+    expect(set.diagnostics).toHaveLength(1);
+    expect(set.diagnostics[0]).toMatchObject({
+      code: "PROMPT_TEMPLATE_INVALID",
+      file: join(directory, "prompts"),
+      message: "Prompt template directory must be a real directory.",
+    });
   });
 
   test("dashboard loading checks agent:prompt templates and vars", async () => {

@@ -8,6 +8,8 @@ import { errorMessage } from "./app-utils";
 interface PaletteState {
   open: boolean;
   initialActionId: string | null;
+  initialQuery: string;
+  resetSequence: number;
   invocation: {
     actionId: string;
     args: Record<string, unknown>;
@@ -16,7 +18,7 @@ interface PaletteState {
   } | null;
 }
 
-const CLOSED_PALETTE: PaletteState = { open: false, initialActionId: null, invocation: null };
+const CLOSED_PALETTE: PaletteState = { open: false, initialActionId: null, initialQuery: "", resetSequence: 0, invocation: null };
 
 /**
  * The window's one action registry: providers register into the store, and
@@ -67,12 +69,14 @@ export function useActionRegistry(setError: (message: string | null) => void) {
       setPalette({
         open: true,
         initialActionId: action.id,
+        initialQuery: "",
+        resetSequence: palette.resetSequence + 1,
         invocation: { actionId: action.id, args: actionArgs, callerNodeId, key: invocationKey },
       });
       return;
     }
     void runFromPalette(invocation.run, selections, actionArgs, callerNodeId, invocationKey ?? action?.id);
-  }, [runFromPalette, store]);
+  }, [palette.resetSequence, runFromPalette, store]);
 
   /** What builtins and local components resolve and invoke actions through. */
   const controller = useMemo(() => ({
@@ -99,7 +103,15 @@ export function useActionRegistry(setError: (message: string | null) => void) {
         ? invocation.args as Readonly<Record<string, string>>
         : {},
       show: () => setPalette((current) => ({ ...current, open: true })),
-      showFresh: () => setPalette((current) => ({ ...current, open: true, initialActionId: null })),
+      showFresh: (query = "") => setPalette((current) => ({
+        open: true,
+        initialActionId: null,
+        initialQuery: query,
+        resetSequence: current.resetSequence + 1,
+        invocation: null,
+      })),
+      initialQuery: palette.initialQuery,
+      resetSequence: palette.resetSequence,
       dismiss: () => setPalette(CLOSED_PALETTE),
       execute: (id: string, selections: Readonly<Record<string, string>>) => {
         const forThis = invocation?.actionId === id ? invocation : null;

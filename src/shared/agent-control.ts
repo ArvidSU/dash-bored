@@ -185,7 +185,11 @@ export interface AgentNodeMeasurement {
 export interface AgentRunActionRequest {
   reference: string;
   selections?: Readonly<Record<string, string>>;
+  /** Only `app:open-palette` accepts a query argument. */
+  args?: { query?: string };
 }
+
+export const MAX_COMMAND_PALETTE_QUERY_CHARS = 200;
 
 export type AgentRunActionResult =
   /** `process: "started"` marks a command start; it keeps running after the run returns. */

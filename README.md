@@ -245,8 +245,9 @@ With those tools an agent can:
   restoring any view change it made, and `--focus <node-id>` restores your
   previous focus afterwards unless `--keep-focus` is given. The **Show whole
   dashboard** action (`app run project:clear-focus`) clears component focus.
-  `app actions` lists
-  choices by option count; `--choices` includes their options. `app run` and `app screenshot`
+  `app run app:open-palette --query "Send prompt to agent"` opens a fresh
+  palette search (at most 200 characters); capture it with `app screenshot`.
+  `app actions` lists choices by option count; `--choices` includes their options. `app run` and `app screenshot`
   wait up to ten seconds for views to finish loading their sources, so a
   refresh is complete when the command returns; `--timeout <ms>` changes the
   bound and `app run --no-wait` skips the wait. Started commands keep running.
@@ -521,6 +522,11 @@ for every core component and discovered local component. Each catalog manifest i
 machine-readable contract for its rendering mode, JSON Schema props, children
 contract, and required permissions. Agents use this version-matched catalog instead of guessing from
 examples; invalid local components remain in the catalog with diagnostics.
+`inspect --summary` also lists effective `promptTemplates`, including their
+description, scope, input policy, variable declarations, and built-in status.
+The palette's **Send prompt to agent** lets you choose one from the focused
+panel's owning bundle before reviewing the request and its variables in the
+composer. Sending still requires an explicit **Send**.
 
 `validate` and `inspect` accept a project root, a standalone bundle directory,
 or the path to its `dash-bored.yaml`. `app open` accepts the same three forms

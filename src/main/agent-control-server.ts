@@ -2,6 +2,7 @@ import { chmod, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   DEFAULT_IDLE_TIMEOUT_MS,
+  MAX_COMMAND_PALETTE_QUERY_CHARS,
   MAX_IDLE_TIMEOUT_MS,
   type AgentActionDescriptor,
   type AgentNodeMeasurement,
@@ -99,6 +100,22 @@ function selections(value: unknown): Record<string, string> | undefined {
     throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "selections must map choice ids to option ids.");
   }
   return value as Record<string, string>;
+}
+
+function actionArgs(value: unknown, reference: string): { query?: string } | undefined {
+  if (value === undefined) return undefined;
+  if (reference !== "app:open-palette") {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "Only app:open-palette accepts action arguments.");
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)
+    || Object.keys(value).some((key) => key !== "query")) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "app:open-palette args may contain only query.");
+  }
+  const query = (value as Record<string, unknown>).query;
+  if (query !== undefined && (typeof query !== "string" || query.length > MAX_COMMAND_PALETTE_QUERY_CHARS)) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", `query must be a string of at most ${MAX_COMMAND_PALETTE_QUERY_CHARS} characters.`);
+  }
+  return query === undefined ? {} : { query };
 }
 
 /**
@@ -213,7 +230,12 @@ export async function startAgentControlServer(
             throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "reference must name an action id or reference.");
           }
           const selected = selections(body.selections);
-          const result = await bridge.runAction({ reference: body.reference, ...(selected ? { selections: selected } : {}) });
+          const args = actionArgs(body.args, body.reference);
+          const result = await bridge.runAction({
+            reference: body.reference,
+            ...(selected ? { selections: selected } : {}),
+            ...(args ? { args } : {}),
+          });
           if (body.wait !== undefined && typeof body.wait !== "boolean") {
             throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "wait must be true or false.");
           }
