@@ -613,3 +613,25 @@ test("user-only ids are refused by id alone, even when the action is not registe
   expect(agentActionRefusal({ id: "project:trust" })).toContain("reserved for the user");
   expect(agentActionRefusal({ id: "app:add-dashboard" })).toContain("reserved for the user");
 });
+
+// Agent sessions are the user's: the channel an agent drives must not be able
+// to answer or approve another agent's permission requests, prompt, or close it.
+type AgentTaskMembers = Extract<keyof AgentControlBridge, `${string}${"task" | "Task" | "permission" | "Permission" | "session" | "Session"}${string}`>;
+const bridgeHasNoAgentTaskMembers: [AgentTaskMembers] extends [never] ? true : false = true;
+
+test("the channel has no path to agent tasks or their permission requests", async () => {
+  expect(bridgeHasNoAgentTaskMembers).toBeTrue();
+  for (const path of ["../../src/main/agent-control-server.ts", "../../src/main/agent-control-bridge.ts", "../../src/shared/agent-control.ts"]) {
+    const source = await readFile(resolve(import.meta.dirname, path), "utf8");
+    expect(source).not.toMatch(/agent-sessions|agent-launch|agentTaskCommand|AgentTaskCommand|answerPermission/);
+  }
+  const homeDirectory = await home();
+  const { server } = await serve(homeDirectory);
+  for (const [method, path] of [["GET", "/v1/agent-tasks"], ["POST", "/v1/agent-tasks/t/command"], ["POST", "/v1/permission"]] as const) {
+    const response = await fetch(`http://localhost${path}`, { method, unix: server.record.socketPath, ...(method === "POST" ? { body: "{}" } : {}) });
+    expect(response.ok).toBeFalse();
+    expect(JSON.stringify(await response.json())).toContain("AGENT_CONTROL_NOT_FOUND");
+  }
+  // Agent palette actions, which would include any permission action, are refused by id.
+  expect(agentActionRefusal({ id: "agent:answer-permission" })).toContain("user review");
+});

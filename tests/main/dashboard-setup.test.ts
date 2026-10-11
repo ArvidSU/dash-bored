@@ -1,17 +1,31 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { stringify, parse } from "yaml";
-import type { ComponentAgentLaunch, DashboardAgentTask, Permission, ProcessSnapshot, ResolvedComponentNode } from "../../src/shared/contracts";
+import type { AgentSessionTask } from "../../src/shared/agent-session";
+import type { ComponentAgentLaunch, Permission, ResolvedComponentNode } from "../../src/shared/contracts";
 import { ensureProjectFiles, loadProjectDefinition, resolveProjectLocation } from "../../src/core";
-import { DashboardSetupSupervisor } from "../../src/main/dashboard-setup";
-import { DashboardAgentHarness } from "../../src/main/component-agent";
+import { AgentSessions, type AgentSessionLaunchOptions } from "../../src/main/agent-sessions";
+import { shellWord } from "../../src/main/agent-handoff";
+import { DashboardSetupSupervisor, type DashboardSetupHarness } from "../../src/main/dashboard-setup";
 import { installCoreFixture, removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
 
-const cleanup: string[] = [];
-afterEach(async () => Promise.all(cleanup.splice(0).map(removeTemporaryDirectory)));
+const FAKE_AGENT = join(import.meta.dir, "..", "fixtures", "acp", "fake-agent.ts");
+const FAKE_COMMAND = [shellWord(process.execPath), shellWord(FAKE_AGENT)].join(" ");
 
-function task(phase: ProcessSnapshot["phase"] = "exited", exitCode: number | null = 0, signal: string | null = null): DashboardAgentTask {
-  return { id: `task-${Math.random()}`, command: "fake-agent", prompt: "original", componentPath: "config#setup", request: "Set up this dashboard", configPath: "", dashboardChanged: false, process: { id: "p", phase, pid: null, exitCode, signal, logs: [] } };
+const cleanup: Array<() => Promise<unknown>> = [];
+afterEach(async () => {
+  for (const step of cleanup.splice(0).reverse()) await step();
+});
+
+/** A task as `onTurnEnd` sees it after one turn. */
+function task(overrides: Partial<AgentSessionTask> = {}): AgentSessionTask {
+  return {
+    id: `task-${Math.random()}`, agent: { command: "fake-agent", name: "fake-agent" }, prompt: "original", componentPath: "config#setup",
+    request: "Set up this dashboard", configPath: "", startedAt: new Date().toISOString(), state: "idle", sessionId: "s", pid: 1,
+    entries: [], truncated: 0, plan: null, permission: null, configOptions: [], turns: 1, stopReason: "end_turn", handoff: null,
+    dashboardChanged: false, log: [], ...overrides,
+  };
 }
 
 function runtime(location: Awaited<ReturnType<typeof resolveProjectLocation>>, node: ResolvedComponentNode, requestedPermissions: Permission[] = []) {
@@ -27,7 +41,8 @@ function runtime(location: Awaited<ReturnType<typeof resolveProjectLocation>>, n
 }
 
 async function fixture() {
-  const root = await temporaryDirectory(); cleanup.push(root);
+  const root = await temporaryDirectory();
+  cleanup.push(() => removeTemporaryDirectory(root));
   await ensureProjectFiles(root);
   await installCoreFixture((await resolveProjectLocation(root)).configDirectory);
   const location = await resolveProjectLocation(root);
@@ -37,76 +52,116 @@ async function fixture() {
   return { location, node, config, permissions: definition.permissions };
 }
 
+const INVALID_ROOT = { component: "./components/external/core/setup-agent", props: { unexpected: true } };
+
+/** Records launches and follow-ups; a test ends each turn by calling `turnEnd`. */
 function harness() {
-  const launches: any[] = [];
-  return { launches, setValidation(id: string, validation: DashboardAgentTask["validation"]) { launches.find((x) => x.task.id === id)?.validations.push(validation); }, launch(options: any): Promise<ComponentAgentLaunch> { const t = task(); t.configPath = options.configPath; t.purpose = options.purpose; launches.push({ options, task: t, validations: [] }); return Promise.resolve({ taskId: t.id, command: options.command, componentPath: options.componentPath, pid: null }); } };
+  const launches: Array<{ options: AgentSessionLaunchOptions; task: AgentSessionTask; validations: NonNullable<AgentSessionTask["validation"]>[] }> = [];
+  const followUps: Array<{ id: string; prompt: string }> = [];
+  const fake = {
+    launches,
+    followUps,
+    setValidation(id: string, validation: AgentSessionTask["validation"]) {
+      if (validation) launches.find((launch) => launch.task.id === id)?.validations.push(validation);
+    },
+    launch(options: AgentSessionLaunchOptions): Promise<ComponentAgentLaunch> {
+      const launched = task({ configPath: options.configPath, ...(options.purpose ? { purpose: options.purpose } : {}) });
+      launches.push({ options, task: launched, validations: [] });
+      return Promise.resolve({ taskId: launched.id, command: options.command, componentPath: options.componentPath, pid: null });
+    },
+    followUp(id: string, prompt: string) {
+      followUps.push({ id, prompt });
+    },
+    /** End the current turn of launch `index` with the task's state at that point. */
+    async turnEnd(index = 0, overrides: Partial<AgentSessionTask> = {}) {
+      const launch = launches[index]!;
+      launch.task = { ...launch.task, turns: launch.task.turns + 1, ...overrides };
+      await launch.options.onTurnEnd?.(launch.task);
+      return launch.validations.at(-1);
+    },
+  };
+  return fake satisfies DashboardSetupHarness;
 }
 
 describe("DashboardSetupSupervisor", () => {
-  test("a real PTY agent exit reaches the app validation verdict", async () => {
-    const { location, node, permissions } = await fixture();
-    const rt = runtime(location, node, permissions);
-    const h = new DashboardAgentHarness();
-    try {
-      await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "sh -c 'exit 0'", location }).launch(node);
-      const deadline = Date.now() + 5_000;
-      while (h.list()[0]?.validation?.status !== "valid" && Date.now() < deadline) await Bun.sleep(10);
-      expect(h.list()[0]).toMatchObject({ process: { phase: "running", run: { phase: "exited", exitCode: 0 } }, validation: { status: "valid" } });
-    } finally {
-      await h.close();
-    }
-  });
-
   test("project work skips dashboard validation and keeps its template", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launchRequest({
       purpose: "project", followUp: false, template: "project", prompt: "Implement todo-022", configPath: location.configPath,
       componentPath: `${location.configPath}#id=yaml-todo`, request: "Implement todo-022",
     });
-    expect(h.launches[0].options).toMatchObject({ purpose: "project", template: "project" });
-    expect(h.launches[0].options.onFinished).toBeUndefined();
-    expect(h.launches[0].options.followUp).toBeUndefined();
+    expect(h.launches[0]!.options).toMatchObject({ purpose: "project", template: "project", projectRoot: location.projectRoot, bundleDirectory: location.configDirectory });
+    expect(h.launches[0]!.options.onTurnEnd).toBeUndefined();
+    expect(h.launches[0]!.options.untrusted).toBeUndefined();
   });
 
-  test("passes resolved launch environment and validates a successful fresh config", async () => {
+  test("passes resolved launch environment and validates a successful turn", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    expect(h.launches[0].options.env).toEqual({ DASH_BORED_AGENT: "fake-agent" });
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches[0].validations.at(-1).status).toBe("valid");
-    expect(h.launches).toHaveLength(1);
+    expect(h.launches[0]!.options.env).toEqual({ DASH_BORED_AGENT: "fake-agent" });
+    expect((await h.turnEnd())?.status).toBe("valid");
+    expect(h.launches[0]!.validations.map((validation) => validation.status)).toEqual(["checking", "valid"]);
+    expect(h.followUps).toHaveLength(0);
   });
 
-  test("repairs invalid config once and validates the repair", async () => {
+  test("repairs invalid config once as a follow-up in the same session and validates the repair", async () => {
     const { location, node, config, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
-    await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
-    const supervisor = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await supervisor.launch(node);
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches).toHaveLength(2); expect(h.launches[1].options.componentPath).toBe(`${location.configPath}#diagnostics`);
+    await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
+    expect((await h.turnEnd())?.status).toBe("repairing");
+    expect(h.launches).toHaveLength(1);
+    expect(h.followUps).toEqual([{ id: h.launches[0]!.task.id, prompt: expect.stringContaining("dash-bored validated the dashboard after your last turn") }]);
+    expect(h.followUps[0]!.prompt).toContain("COMPONENT_PROPS_INVALID");
+    expect(h.followUps[0]!.prompt).not.toContain("Original setup request");
     await writeFile(location.configPath, stringify(config));
-    await h.launches[1].options.onFinished(h.launches[1].task);
-    expect(h.launches[1].validations.at(-1).status).toBe("valid");
+    expect((await h.turnEnd())?.status).toBe("valid");
   });
 
-  test.each([[1, null], [0, "SIGTERM"]] as const)("does not repair non-clean finish %j", async (exitCode, signal) => {
-    const { location, node } = await fixture(); const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); const t = h.launches[0].task; t.process = { ...t.process, exitCode, signal }; await h.launches[0].options.onFinished(t); expect(h.launches).toHaveLength(1);
+  test("does not repair twice when the repair turn leaves errors, nor after a later turn", async () => {
+    const { location, node, config, permissions } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    const rt = runtime(location, node, permissions); const h = harness();
+    await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
+    await h.turnEnd();
+    expect(await h.turnEnd()).toMatchObject({ status: "failed", message: "Configuration errors remain after the single repair attempt." });
+    // A later user follow-up is validated again but never repaired automatically.
+    expect(await h.turnEnd()).toMatchObject({ status: "failed", message: expect.stringContaining("automatic repair was already used") });
+    expect(h.followUps).toHaveLength(1);
   });
 
-  test("does not repair after active config switch or trust revoke", async () => {
-    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
-    const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); rt.revoke(); await h.launches[0].options.onFinished(h.launches[0].task); expect(h.launches).toHaveLength(1); expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
+  test.each([
+    [{ stopReason: "max_tokens" as const }, "failed", "max_tokens"],
+    [{ stopReason: "refusal" as const }, "failed", "refusal"],
+    [{ stopReason: "cancelled" as const }, "cancelled", "cancelled"],
+    [{ state: "failed" as const, stopReason: undefined, error: "The agent process exited with code 3." }, "failed", "exited with code 3"],
+    [{ state: "closed" as const, stopReason: undefined, cancelled: true }, "cancelled", "stopped"],
+  ])("does not repair after a turn that did not end cleanly %j", async (overrides, status, message) => {
+    const { location, node, config, permissions } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    const rt = runtime(location, node, permissions); const h = harness();
+    await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
+    const validation = await h.turnEnd(0, overrides);
+    expect(String(validation?.status)).toBe(String(status));
+    expect(validation?.message ?? "").toContain(String(message));
+    expect(validation?.message).toMatch(/no automatic repair/i);
+    expect(h.followUps).toHaveLength(0);
   });
 
-  test("an untrusted repair launches without trust and never auto-repairs", async () => {
-    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
+  test("does not repair after trust revoke", async () => {
+    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    const rt = runtime(location, node); const h = harness();
+    await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
+    rt.revoke();
+    expect((await h.turnEnd())?.status).toBe("trust-required");
+    expect(h.followUps).toHaveLength(0);
+  });
+
+  test("an untrusted repair launches without trust, refuses out-of-bundle requests, and never auto-repairs", async () => {
+    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
     const rt = runtime(location, node); rt.revoke(); const h = harness();
     const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location });
     await s.launchRequest({ prompt: "fix", configPath: location.configPath, componentPath: `${location.configPath}#diagnostics`, request: "Fix dashboard configuration diagnostics.", purpose: "edit", untrustedRepair: true, env: { CLEAN: "yes" } });
-    expect(h.launches[0].options.env).toEqual({ CLEAN: "yes" });
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches).toHaveLength(1);
-    expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
-    expect(h.launches[0].validations.at(-1).message).toContain("review project trust");
+    expect(h.launches[0]!.options).toMatchObject({ env: { CLEAN: "yes" }, untrusted: true, bundleDirectory: location.configDirectory });
+    expect(await h.turnEnd()).toMatchObject({ status: "trust-required", message: expect.stringContaining("review project trust") });
+    expect(h.followUps).toHaveLength(0);
   });
 
   test("a trusted-required request still refuses to launch without a grant", async () => {
@@ -117,23 +172,18 @@ describe("DashboardSetupSupervisor", () => {
     expect(h.launches).toHaveLength(0);
   });
 
-  test("does not retry twice when repair remains invalid", async () => {
-    const { location, node, config } = await fixture(); await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
-    const rt = runtime(location, node); const h = harness(); const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }); await s.launch(node); await h.launches[0].options.onFinished(h.launches[0].task); await h.launches[1].options.onFinished(h.launches[1].task); expect(h.launches).toHaveLength(2);
-  });
   test.each(["navigation", "cancel", "session"] as const)("does not repair after %s", async (reason) => {
     const { location, node, config, permissions } = await fixture();
     const rt = runtime(location, node, permissions); const h = harness();
     let session = 1; let cancelled = false;
-    const s = new DashboardSetupSupervisor({ runtime: { ...rt, getSessionToken: () => session }, harness: { ...h, isCancelled: () => cancelled }, command: "fake-agent", location });
+    const s = new DashboardSetupSupervisor({ runtime: { ...rt, getSessionToken: () => session }, harness: Object.assign(h, { isCancelled: () => cancelled }), command: "fake-agent", location });
     await s.launch(node);
-    await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
+    await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
     if (reason === "navigation") rt.switchConfig("/other/dashboard.yaml");
     if (reason === "cancel") cancelled = true;
     if (reason === "session") session += 1;
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches).toHaveLength(1);
-    expect(h.launches[0].validations.at(-1).status).toBe("cancelled");
+    expect((await h.turnEnd())?.status).toBe("cancelled");
+    expect(h.followUps).toHaveLength(0);
   });
 
   test("finishes after the agent replaces the starter and removes its setup node", async () => {
@@ -141,26 +191,23 @@ describe("DashboardSetupSupervisor", () => {
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
     await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Finished", root: { component: "./components/external/core/status", props: { label: "Ready", state: "healthy" } } }));
     rt.removeNode();
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches[0].validations.at(-1).status).toBe("valid");
+    expect((await h.turnEnd())?.status).toBe("valid");
   });
 
   test("reports missing config as a read failure without an automatic repair", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
     await unlink(location.configPath);
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches).toHaveLength(1);
-    expect(h.launches[0].validations.at(-1).status).toBe("failed");
+    expect((await h.turnEnd())?.status).toBe("failed");
+    expect(h.followUps).toHaveLength(0);
   });
 
   test("new permissions require trust even when the saved dashboard validates", async () => {
     const { location, node, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
     await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Needs trust", root: { component: "./components/external/core/webview", props: { url: "https://example.com" } } }));
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches).toHaveLength(1);
-    expect(h.launches[0].validations.at(-1).status).toBe("trust-required");
+    expect((await h.turnEnd())?.status).toBe("trust-required");
+    expect(h.followUps).toHaveLength(0);
   });
 
   test("local component syntax errors trigger the bounded repair", async () => {
@@ -171,48 +218,96 @@ describe("DashboardSetupSupervisor", () => {
     await writeFile(`${directory}/component.yaml`, stringify({ schemaVersion: 3, apiVersion: "1.0.0", id: "broken", name: "Broken", description: "Test component", entry: "./index.tsx", propsSchema: { type: "object" } }));
     await writeFile(`${directory}/index.tsx`, "export default (;");
     await writeFile(location.configPath, stringify({ schemaVersion: 4, name: "Compile check", root: { component: "./components/broken" } }));
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches).toHaveLength(2);
-    expect(h.launches[1].options.prompt).toContain("COMPONENT_COMPILE_FAILED");
+    await h.turnEnd();
+    expect(h.followUps).toHaveLength(1);
+    expect(h.followUps[0]!.prompt).toContain("COMPONENT_COMPILE_FAILED");
   });
 
-  test("repair launch errors remain visible on the original task", async () => {
+  test("repair errors remain visible on the task", async () => {
     const { location, node, config, permissions } = await fixture(); const rt = runtime(location, node, permissions); const h = harness();
-    const realLaunch = h.launch;
-    h.launch = (options: any) => h.launches.length ? Promise.reject(new Error("repair executable unavailable")) : realLaunch(options);
+    h.followUp = () => { throw new Error("The agent is still working."); };
     await new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location }).launch(node);
-    await writeFile(location.configPath, stringify({ ...config, root: { component: "./components/external/core/setup-agent", props: { unexpected: true } } }));
-    await h.launches[0].options.onFinished(h.launches[0].task);
-    expect(h.launches[0].validations.at(-1)).toMatchObject({ status: "failed", diagnostics: [{ severity: "error", code: "DASHBOARD_SETUP_FOLLOWUP_FAILED", message: "repair executable unavailable" }] });
+    await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    expect(await h.turnEnd()).toMatchObject({ status: "failed", diagnostics: [{ severity: "error", code: "DASHBOARD_SETUP_FOLLOWUP_FAILED", message: "The agent is still working." }] });
+  });
+});
+
+test.each(["edit", "migration"] as const)("%s uses the shared verification boundary with one repair", async (purpose) => {
+  const { location, node, permissions } = await fixture();
+  const rt = runtime(location, node, permissions); const h = harness();
+  const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location });
+  await s.launchRequest({ purpose, prompt: "Change the selected dashboard", configPath: location.configPath, componentPath: `${location.configPath}#root`, request: "Change dashboard" });
+  await writeFile(location.configPath, "schemaVersion: 4\nroot: invalid\n");
+  await h.turnEnd();
+  expect(h.followUps).toHaveLength(1);
+  expect((await h.turnEnd())?.status).toBe("failed");
+  expect(h.followUps).toHaveLength(1);
+});
+
+test.each(["edit", "migration"] as const)("%s respects migration authorization when an agent leaves schema v2", async (purpose) => {
+  const { location, node, permissions } = await fixture();
+  const rt = runtime(location, node, permissions); const h = harness();
+  const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: "fake-agent", location });
+  await s.launchRequest({ purpose, prompt: "Change the selected dashboard", configPath: location.configPath, componentPath: `${location.configPath}#root`, request: "Change dashboard" });
+  await writeFile(location.configPath, "schemaVersion: 2\nname: Old dashboard\nroot:\n  component: \"./components/external/core/group\"\n");
+  await h.turnEnd();
+  expect(h.followUps).toHaveLength(purpose === "migration" ? 1 : 0);
+  if (purpose === "migration") await h.turnEnd();
+  expect(h.launches[0]!.validations.at(-1)?.status).toBe("failed");
+});
+
+describe("DashboardSetupSupervisor with a real ACP session", () => {
+  async function until(sessions: AgentSessions, id: string, predicate: (task: AgentSessionTask) => boolean): Promise<AgentSessionTask> {
+    const deadline = Date.now() + 15_000;
+    while (true) {
+      const current = sessions.get(id);
+      if (predicate(current)) return current;
+      if (Date.now() > deadline) throw new Error(`Timed out: ${JSON.stringify({ state: current.state, validation: current.validation, error: current.error })}`);
+      await Bun.sleep(10);
+    }
+  }
+
+  test("validates when the turn ends and repairs in the same session", async () => {
+    const { location, node, config, permissions } = await fixture();
+    const rt = { ...runtime(location, node, permissions), getLaunchEnvironment: async () => process.env as Record<string, string> };
+    const sessions = new AgentSessions({ emitDelayMs: 5, shutdownGraceMs: 300 });
+    cleanup.push(() => sessions.shutdown());
+    const statuses: string[] = [];
+    const supervisor = new DashboardSetupSupervisor({ runtime: rt, harness: sessions, command: FAKE_COMMAND, location, onValidation: (validation) => statuses.push(validation.status) });
+    const { taskId, pid } = await supervisor.launchRequest({ purpose: "edit", prompt: "bundle-edit the dashboard", configPath: location.configPath, componentPath: `${location.configPath}#root`, request: "Edit" });
+
+    let task = await until(sessions, taskId, (candidate) => candidate.state === "waiting");
+    // Validation runs on turn end, not before.
+    expect(task.validation).toBeUndefined();
+    await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    sessions.answerPermission(taskId, task.permission!.id, "allow");
+
+    task = await until(sessions, taskId, (candidate) => candidate.state === "waiting" && candidate.turns === 1);
+    expect(task.validation?.status).toBe("repairing");
+    expect(task.sessionId).toBe("fake-session-1");
+    expect(task.pid).toBe(pid);
+    const repairPrompt = task.entries.filter((entry) => entry.kind === "user").at(-1);
+    expect(repairPrompt).toMatchObject({ kind: "user", text: expect.stringContaining("COMPONENT_PROPS_INVALID") });
+    expect(() => sessions.prompt(taskId, "user follow-up")).toThrow("still working");
+
+    await writeFile(location.configPath, stringify(config));
+    sessions.answerPermission(taskId, task.permission!.id, "allow");
+    task = await until(sessions, taskId, (candidate) => candidate.validation?.status === "valid");
+    expect(task).toMatchObject({ state: "idle", turns: 2, stopReason: "end_turn" });
+    expect(statuses).toEqual(["checking", "repairing", "checking", "valid"]);
   });
 
-});
-
-test.each(['edit', 'migration'] as const)('%s uses the shared verification boundary with one repair', async purpose => {
-  const { location, node, permissions } = await fixture();
-  const rt = runtime(location, node, permissions); const h = harness();
-  const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
-  await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
-  await writeFile(location.configPath, 'schemaVersion: 4\nroot: invalid\n');
-  await h.launches[0].options.onFinished(h.launches[0].task);
-  expect(h.launches).toHaveLength(2);
-  await h.launches[1].options.onFinished(h.launches[1].task);
-  expect(h.launches).toHaveLength(2);
-  expect(h.launches[0].validations.at(-1).status).toBe('failed');
-});
-
-
-test.each(['edit', 'migration'] as const)('%s respects migration authorization when an agent leaves schema v2', async purpose => {
-  const { location, node, permissions } = await fixture();
-  const rt = runtime(location, node, permissions); const h = harness();
-  const s = new DashboardSetupSupervisor({ runtime: rt, harness: h, command: 'fake-agent', location });
-  await s.launchRequest({ purpose, prompt: 'Change the selected dashboard', configPath: location.configPath, componentPath: `${location.configPath}#root`, request: 'Change dashboard' });
-  await writeFile(location.configPath, 'schemaVersion: 2\nname: Old dashboard\nroot:\n  component: "./components/external/core/group"\n');
-  await h.launches[0].options.onFinished(h.launches[0].task);
-  expect(h.launches).toHaveLength(purpose === 'migration' ? 2 : 1);
-  if (purpose === 'migration') {
-    await h.launches[1].options.onFinished(h.launches[1].task);
-    expect(h.launches).toHaveLength(2);
-  }
-  expect(h.launches[0].validations.at(-1).status).toBe('failed');
+  test("a refused turn is reported as failed without a repair", async () => {
+    const { location, node, config, permissions } = await fixture();
+    await writeFile(location.configPath, stringify({ ...config, root: INVALID_ROOT }));
+    const rt = { ...runtime(location, node, permissions), getLaunchEnvironment: async () => process.env as Record<string, string> };
+    const sessions = new AgentSessions({ emitDelayMs: 5, shutdownGraceMs: 300 });
+    cleanup.push(() => sessions.shutdown());
+    const supervisor = new DashboardSetupSupervisor({ runtime: rt, harness: sessions, command: FAKE_COMMAND, location });
+    const { taskId } = await supervisor.launchRequest({ purpose: "edit", prompt: "refuse", configPath: location.configPath, componentPath: `${location.configPath}#root`, request: "Edit" });
+    const task = await until(sessions, taskId, (candidate) => candidate.validation?.status === "failed");
+    expect(task).toMatchObject({ state: "idle", turns: 1, stopReason: "refusal" });
+    expect(task.validation?.message).toContain("refusal");
+    expect(task.entries.filter((entry) => entry.kind === "user")).toHaveLength(1);
+  });
 });

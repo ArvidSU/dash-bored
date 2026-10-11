@@ -15,7 +15,6 @@ import type {
   DashboardInsertionTarget,
   ResolvedComponentNode,
 } from "../../src/shared/contracts";
-import { componentAgentInvocation } from "../../src/main/component-agent";
 import { insertNode } from "../../src/renderer/composition/dashboard-editor";
 
 const leaf = (node: ComponentNode) => ({ node });
@@ -103,12 +102,6 @@ describe("component agent context", () => {
     expect(findResolvedNode(tree(), "missing")).toBeNull();
   });
 
-  test("passes the enriched prompt as one environment-backed shell argument", () => {
-    const invocation = componentAgentInvocation(" codex exec ");
-    expect(invocation.startsWith("codex exec ")).toBeTrue();
-    expect(invocation).toContain("DASH_BORED_AGENT_PROMPT");
-  });
-
   test("gives a diagnostics repair request the owning dashboard and reported issues", () => {
     const prompt = buildDiagnosticsAgentPrompt({
       projectRoot: "/project",
@@ -124,6 +117,19 @@ describe("component agent context", () => {
     expect(prompt).toContain("fixing a dash-bored dashboard configuration");
     expect(prompt).toContain("Owning dashboard config: /project/.dash-bored/dash-bored.yaml");
     expect(prompt).toContain("- ERROR COMPONENT_UNAVAILABLE: Component ./components/missing is unavailable. (root.component)");
+  });
+
+  test("frames the automatic repair as a follow-up in the agent's own session", () => {
+    const prompt = buildDiagnosticsAgentPrompt({
+      projectRoot: "/project",
+      configPath: "/project/.dash-bored/dash-bored.yaml",
+      diagnostics: [{ severity: "error", code: "YAML_INVALID", message: "Bad YAML." }],
+      followUp: true,
+    });
+    expect(prompt).toStartWith("dash-bored validated the dashboard after your last turn");
+    expect(prompt).toContain("single automatic repair");
+    expect(prompt).toContain("- ERROR YAML_INVALID: Bad YAML.");
+    expect(prompt).not.toContain("Original setup request");
   });
 
   test("frames an untrusted diagnostics repair with project content as data", () => {

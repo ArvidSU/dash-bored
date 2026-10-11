@@ -74,6 +74,7 @@ describe("registered dashboard deletion", () => {
     await createProject(root);
     const { canonicalRoot, registry, runtime, trustStore } = await setupRegisteredProject(root, "Keep files");
     const moved: string[] = [];
+    const stopped: Array<[string, string | undefined]> = [];
 
     const result = await deleteRegisteredProject({
       registry,
@@ -85,10 +86,13 @@ describe("registered dashboard deletion", () => {
         moved.push(path);
         return true;
       },
+      stopAgents: async (projectRoot, configPath) => { stopped.push([projectRoot, configPath]); },
     });
 
     expect(result.projectRoot).toBeNull();
     expect(moved).toEqual([]);
+    // Only the removed dashboard's agent sessions stop.
+    expect(stopped).toEqual([[canonicalRoot, join(canonicalRoot, ".dash-bored", "dash-bored.yaml")]]);
     expect(await registry.list()).toEqual([]);
     expect(await new ProjectRegistry(join(root, ".state", "projects.json")).list()).toEqual([]);
     expect(await readFile(join(root, ".dash-bored", "dash-bored.yaml"), "utf8")).toContain("Test project");
@@ -104,6 +108,7 @@ describe("registered dashboard deletion", () => {
     await runtime.processCommand("server", { type: "start" });
     expect(runtime.getSnapshot().processes[0]?.phase).toBe("running");
     const moved: string[] = [];
+    const stopped: Array<[string, string | undefined]> = [];
 
     const result = await deleteRegisteredProject({
       registry,
@@ -112,10 +117,13 @@ describe("registered dashboard deletion", () => {
       projectRoot: canonicalRoot,
       removeFiles: true,
       moveToTrash: async (path) => {
+        // Agent sessions stop before the bundle moves.
+        expect(stopped).toEqual([[canonicalRoot, undefined]]);
         moved.push(path);
         await rm(path, { recursive: true });
         return true;
       },
+      stopAgents: async (projectRoot, configPath) => { stopped.push([projectRoot, configPath]); },
     });
 
     expect(result.projectRoot).toBeNull();
