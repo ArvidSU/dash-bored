@@ -73,11 +73,35 @@ function validateResourceProviderId(manifest: ComponentManifest, id: string | un
 }
 
 function validateComponentProps(manifest: ComponentManifest, props: Record<string, unknown>, nodePath: string): Diagnostic[] {
-  return validatePropsSchema(manifest.propsSchema, props).map((error) => diagnostic({
-    code: "COMPONENT_PROPS_INVALID",
-    message: error.message ?? "Invalid component props.",
-    path: `${nodePath}.props${error.instancePath.replaceAll("/", ".")}`,
-  }));
+  const commandProp = manifest.resources?.process?.commandProp;
+  const command = commandProp ? props[commandProp] : undefined;
+  const hasItemTemplate = typeof command === "string" && command.includes("${item.");
+  const commandPath = commandProp ? `/${commandProp.replaceAll("~", "~0").replaceAll("/", "~1")}` : undefined;
+  let commandTemplateDiagnosticAdded = false;
+  const errors = validatePropsSchema(manifest.propsSchema, props);
+  const diagnostics = errors.map((error) => {
+    if (hasItemTemplate && error.keyword === "not" && error.instancePath === commandPath) {
+      commandTemplateDiagnosticAdded = true;
+      return diagnostic({
+        code: "COMPONENT_PROPS_INVALID",
+        message: "Command text cannot contain list item templates. Pass item values as action arguments; commands receive them through DASH_ITEM_* environment variables.",
+        path: `${nodePath}.props.${commandProp}`,
+      });
+    }
+    return diagnostic({
+      code: "COMPONENT_PROPS_INVALID",
+      message: error.message ?? "Invalid component props.",
+      path: `${nodePath}.props${error.instancePath.replaceAll("/", ".")}`,
+    });
+  });
+  if (hasItemTemplate && !commandTemplateDiagnosticAdded && commandProp) {
+    diagnostics.push(diagnostic({
+      code: "COMPONENT_PROPS_INVALID",
+      message: "Command text cannot contain list item templates. Pass item values as action arguments; commands receive them through DASH_ITEM_* environment variables.",
+      path: `${nodePath}.props.${commandProp}`,
+    }));
+  }
+  return diagnostics;
 }
 
 function validateProcessResource(manifest: ComponentManifest, props: Record<string, unknown>, nodePath: string): Diagnostic[] {

@@ -93,7 +93,8 @@ function fakeBridge() {
         const suggestions = ["focus:logs"];
         return { status: "unavailable", reason: unknownActionReason(request.reference, suggestions), suggestions };
       }
-      state.focusedNodeId = decodeURIComponent(request.reference.replace(/^focus:/, ""));
+      state.focusedNodeId = request.reference === "project:clear-focus"
+        ? null : decodeURIComponent(request.reference.replace(/^focus:/, ""));
       return { status: "completed", id: request.reference };
     },
     settle: async () => undefined,
@@ -436,9 +437,45 @@ test("screenshot focuses the requested node and writes the captured PNG", async 
   const result = await cli(homeDirectory, "screenshot", "--focus", "logs", "--output", output);
 
   expect(result.exitCode).toBe(0);
-  expect(runs.map((run) => run.reference)).toEqual(["focus:logs"]);
+  expect(runs.map((run) => run.reference)).toEqual(["focus:logs", "project:clear-focus"]);
   expect(new Uint8Array(await readFile(output))).toEqual(PNG);
-  expect(JSON.parse(result.stdout)).toMatchObject({ path: output, bytes: PNG.byteLength, state: { focusedNodeId: "logs" } });
+  expect(JSON.parse(result.stdout)).toMatchObject({ path: output, bytes: PNG.byteLength, previousFocusedNodeId: null, focusRestored: true, state: { focusedNodeId: null } });
+});
+
+test("screenshot of an already-focused node captures repeatedly without invoking its disabled focus action", async () => {
+  const homeDirectory = await home();
+  const { runs, state, capture } = await serve(homeDirectory, undefined, {
+    runAction: async () => { throw new Error("The already-focused action must not run."); },
+  });
+  state.focusedNodeId = "logs";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await cli(homeDirectory, "screenshot", "--focus", "logs", "--output", join(homeDirectory, `focused-${attempt}.png`));
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ previousFocusedNodeId: "logs", focusRestored: false, state: { focusedNodeId: "logs" } });
+  }
+  expect(runs).toEqual([]);
+  expect(capture.events).toEqual(["capture", "capture", "capture"]);
+});
+
+test("screenshot of the dashboard root restores an initially unset focus", async () => {
+  const homeDirectory = await home();
+  const { runs, state } = await serve(homeDirectory);
+  const result = await cli(homeDirectory, "screenshot", "--focus", "root", "--output", join(homeDirectory, "root.png"));
+  expect(result.exitCode).toBe(0);
+  expect(runs.map((run) => run.reference)).toEqual(["focus:root", "project:clear-focus"]);
+  expect(JSON.parse(result.stdout)).toMatchObject({ previousFocusedNodeId: null, focusRestored: true });
+  expect(state.focusedNodeId).toBeNull();
+});
+
+test("screenshot capture failure still restores the previous whole-dashboard view", async () => {
+  const homeDirectory = await home();
+  const { runs, state, capture } = await serve(homeDirectory);
+  capture.failCapture = true;
+  const result = await cli(homeDirectory, "screenshot", "--focus", "logs", "--output", join(homeDirectory, "failed.png"));
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("capture failed");
+  expect(runs.map((run) => run.reference)).toEqual(["focus:logs", "project:clear-focus"]);
+  expect(state.focusedNodeId).toBeNull();
 });
 
 test("a window that never paints fails screenshots and warns on runs instead of hanging", async () => {

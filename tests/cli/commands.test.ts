@@ -301,3 +301,27 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect((await run(project, "inspect", ".", "--component")).exitCode).toBe(2);
   expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
 }, 15_000);
+
+test("validate text prints diagnostic paths and explains item templates in command text", async () => {
+  const project = await mkdtemp(join(tmpdir(), "dash-bored-validate-"));
+  temporaryDirectories.push(project);
+  expect((await run(project, "init", ".")).exitCode).toBe(0);
+  await writeFile(join(project, ".dash-bored", "dash-bored.yaml"), `schemaVersion: 4
+name: Invalid command
+root:
+  id: run-command
+  component: "./components/external/core/command"
+  props:
+    label: ""
+    command: "echo \${item.sha}"
+`, "utf8");
+
+  const result = await run(project, "validate");
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("root.props.label");
+  expect(result.stderr).toContain("must NOT have fewer than 1 characters");
+  expect(result.stderr).toContain("root.props.command");
+  expect(result.stderr).toContain("Command text cannot contain list item templates.");
+  expect(result.stderr).not.toContain("must NOT be valid");
+});

@@ -2710,7 +2710,7 @@ html:has(.editor-modal) {
 .component-node__drag-handle {
   position: absolute;
   z-index: 7;
-  top: 5px;
+  top: 2px;
   left: 50%;
   display: grid;
   width: 34px;

@@ -149,6 +149,9 @@ source equals the link target and that target is a bundled
   not accept a project path.
 - `validate` runs project, manifest, resolver, schema, and local compilation
   validation. It emits stable diagnostics and a non-zero status on errors.
+  Text diagnostics include the configuration path alongside the file, code,
+  and message. List item templates in process command text report how to pass
+  those values as action arguments and `DASH_ITEM_*` environment variables.
 - `component api` reports supported API targets, app and dashboard/manifest
   contract versions, React and TypeScript versions, virtual-module exports,
   capabilities, and an SDK digest for the exact shipped declaration set;
@@ -313,7 +316,8 @@ undid. Scroll positions inside a panel the reveal unmounted again may reset.
 
 `app screenshot --focus <node-id>` remains for capturing the window with a node
 focused. It records the previous `focusedNodeId`, restores it afterwards by
-default (`--keep-focus` leaves the new focus), and prints
+default, including a previously unfocused dashboard through `project:clear-focus`
+(`--keep-focus` leaves the new focus), and prints
 `previousFocusedNodeId` and `focusRestored`. Focus also expands and selects the
 node's ancestors; only the focus itself is restored, so prefer `--node`.
 

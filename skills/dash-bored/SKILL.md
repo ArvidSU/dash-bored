@@ -365,7 +365,8 @@ is out of scope here.
 Leave the user's view as you found it: `app read` and `--node` restore it
 (`viewRestored: true`), and so does `--focus` unless you pass `--keep-focus`.
 After `app run select:` or `focus:`, run `select:<selection>/<child>` from the
-original `selections`, or `focus:<original focusedNodeId>`. When another
+original `selections`, or `focus:<original focusedNodeId>`; use
+`project:clear-focus` if the dashboard was unfocused. When another
 agent is reading or capturing at the same time, `app read` and `--node` fail
 with "retry in a few seconds"; `--node` also fails with "The view changed"
 when someone switches tabs mid-capture. Retry both. An unknown `app` command
@@ -390,8 +391,8 @@ missing and fall back to screenshots and the YAML.
 - **Item templates are whole values.** `"${item.sha}"` works;
   `"commit ${item.sha}"` is rejected. A `command` receives each argument as
   `DASH_ITEM_<ARG>` (upper-cased): quote it (`"$DASH_ITEM_SHA"`) and never put
-  `${item.…}` in command text, which fails as `COMPONENT_PROPS_INVALID`
-  "must NOT be valid".
+  `${item.…}` in command text. Validation reports `COMPONENT_PROPS_INVALID`
+  with guidance to pass item values as action arguments instead.
 - **`markdown` with `path:` requests file read and write permission**, even
   when used read-only.
 - **Commands never auto-start.** A `command` runs only when the user clicks it

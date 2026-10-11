@@ -28,6 +28,7 @@ export function useDashboardViewState(
   updateSplitRatio: (branchKey: string, defaultRatio: number, ratio: number | null) => void;
   updateComponentHeight: (nodeId: string, height: number | null) => void;
   focusComponent: (nodeId: string) => void;
+  clearFocus: () => void;
   revealComponent: (nodeId: string) => void;
   selectChild: (containerId: string, childId: string) => void;
   forgetDashboard: (configPath: string) => void;
@@ -156,6 +157,12 @@ export function useDashboardViewState(
     expandAndSelectPath(nodeId);
   }
 
+  function clearFocus(): void {
+    updatePath(dashboardPath, (current) => current.virtualRoot === null
+      ? current
+      : { ...current, virtualRoot: null });
+  }
+
   function forgetDashboard(configPath: string): void {
     dashboardViewStateStore.forget(configPath);
   }
@@ -173,6 +180,7 @@ export function useDashboardViewState(
     updateSplitRatio,
     updateComponentHeight,
     focusComponent,
+    clearFocus,
     revealComponent,
     selectChild,
     forgetDashboard,

@@ -100,7 +100,8 @@ export function useAppActions({
     (nodeId) => {
       if (draft.session) draft.end();
       showDashboard();
-      viewState.focusComponent(nodeId);
+      if (nodeId === null) viewState.clearFocus();
+      else viewState.focusComponent(nodeId);
     },
   );
   const selectionActions = buildSelectionActions(snapshot, viewState.activeChildSelections, viewState.selectChild);

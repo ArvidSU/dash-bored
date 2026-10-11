@@ -96,7 +96,7 @@ export function buildNodeFocusActions(
   snapshot: ProjectSnapshot | null,
   focusedNodeId: string | null,
   editing: boolean,
-  focusNode: (nodeId: string) => void,
+  focusNode: (nodeId: string | null) => void,
 ): PaletteAction[] {
   if (!snapshot?.projectRoot || !snapshot.tree) return [];
 
@@ -157,7 +157,20 @@ export function buildNodeFocusActions(
       if (!target) throw new Error("Choose an available component to focus.");
       target.action.run();
     },
-  } satisfies PaletteAction, ...targets.map(({ action }) => action)];
+  } satisfies PaletteAction, ...targets.map(({ action }) => action), {
+    id: "project:clear-focus",
+    label: "Show whole dashboard",
+    description: "Clear component focus and return to the complete dashboard.",
+    keywords: ["focus", "clear", "unfocus", "reset", "show", "whole", "dashboard"],
+    group: "Dashboard nodes",
+    enabled: !editing && focusedNodeId !== null,
+    disabledReason: editing
+      ? "Finish dashboard editing before focusing a node."
+      : focusedNodeId === null
+        ? "The whole dashboard is already shown."
+        : undefined,
+    run: () => focusNode(null),
+  } satisfies PaletteAction];
 }
 
 /** Stable palette entries for declared actions whose component code is not mounted. */

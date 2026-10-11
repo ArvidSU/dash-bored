@@ -814,7 +814,7 @@ describe("application action providers", () => {
   });
 
   test("derives focus actions for every node in the active dashboard", () => {
-    let focusedNode: string | undefined;
+    let focusedNode: string | null | undefined;
     const actions = buildNodeFocusActions(
       snapshot({ trusted: true }),
       "server",
@@ -828,6 +828,7 @@ describe("application action providers", () => {
       "project:focus",
       "focus:root",
       "focus:server",
+      "project:clear-focus",
     ]);
     expect(actions[1]).toMatchObject({
       label: "Focus Dashboard",
@@ -841,8 +842,8 @@ describe("application action providers", () => {
       disabledReason: "This node is already focused.",
     });
 
-    expect(rankActions(actions, "focus").map((action) => action.id)).toEqual(["project:focus"]);
-    expect(rankActions(actions, "", new Set(["focus:root"])).map((action) => action.id)).toEqual(["project:focus"]);
+    expect(rankActions(actions, "focus").map((action) => action.id)).toEqual(["project:focus", "project:clear-focus"]);
+    expect(rankActions(actions, "", new Set(["focus:root"])).map((action) => action.id)).toEqual(["project:focus", "project:clear-focus"]);
     expect(rankActions(actions, "focus", new Set(), true).map((action) => action.id)).toContain("focus:root");
     expect(actions[0]?.choices?.[0]?.options).toEqual([{
       value: "root", label: "Dashboard", description: "root",
@@ -851,11 +852,24 @@ describe("application action providers", () => {
     expect(focusedNode).toBe("root");
     actions[1]?.run();
     expect(focusedNode).toBe("root");
+    const clear = actions.find(({ id }) => id === "project:clear-focus")!;
+    expect(clear).toMatchObject({ label: "Show whole dashboard", enabled: true });
+    expect(rankActions(actions, "clear focus")[0]?.id).toBe(clear.id);
+    expect(rankActions(actions, "whole dashboard")[0]?.id).toBe(clear.id);
+    clear.run();
+    expect(focusedNode).toBeNull();
+    expect(buildNodeFocusActions(snapshot(), null, false, () => undefined)
+      .find(({ id }) => id === clear.id)).toMatchObject({ enabled: false, disabledReason: "The whole dashboard is already shown." });
+    const rootFocus = buildNodeFocusActions(snapshot(), "root", false, (nodeId) => { focusedNode = nodeId; })
+      .find(({ id }) => id === clear.id)!;
+    expect(rootFocus.enabled).toBeTrue();
+    rootFocus.run();
+    expect(focusedNode).toBeNull();
   });
 
   test("keeps the focus chooser and direct targets unavailable while editing", () => {
     const actions = buildNodeFocusActions(snapshot(), null, true, () => undefined);
-    expect(actions).toHaveLength(3);
+    expect(actions).toHaveLength(4);
     expect(actions.every((item) => item.enabled)).toBeFalse();
     expect(actions[0]?.disabledReason).toBe(
       "Finish dashboard editing before focusing a node.",

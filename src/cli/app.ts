@@ -367,8 +367,14 @@ export async function runAppCommand(args: string[]): Promise<number> {
       const header = response.headers.get("x-dash-bored-node");
       if (header) node = JSON.parse(header) as AgentNodeMeasurement;
     } finally {
-      if (focusChanged && !parsed.keepFocus && previousFocusedNodeId) {
-        await runAction(instance, `focus:${encodeURIComponent(previousFocusedNodeId)}`, {}, { wait: false });
+      if (focusChanged && !parsed.keepFocus) {
+        const reference = previousFocusedNodeId
+          ? `focus:${encodeURIComponent(previousFocusedNodeId)}`
+          : "project:clear-focus";
+        const restored = await runAction(instance, reference, {}, { wait: false });
+        if (restored.result.status !== "completed") {
+          throw new Error(`Could not restore the previous dashboard focus: ${restored.result.reason}`);
+        }
       }
     }
     const { state } = await (await call(instance, "/v1/status")).json() as { state: unknown };

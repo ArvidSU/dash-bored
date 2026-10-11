@@ -243,7 +243,9 @@ With those tools an agent can:
   (`app open <dashboard>`), and capture the app window to check the result
   visually (`app screenshot [--node <node-id>]`). `--node` crops to one node,
   restoring any view change it made, and `--focus <node-id>` restores your
-  previous focus afterwards unless `--keep-focus` is given. `app actions` lists
+  previous focus afterwards unless `--keep-focus` is given. The **Show whole
+  dashboard** action (`app run project:clear-focus`) clears component focus.
+  `app actions` lists
   choices by option count; `--choices` includes their options. `app run` and `app screenshot`
   wait up to ten seconds for views to finish loading their sources, so a
   refresh is complete when the command returns; `--timeout <ms>` changes the
@@ -511,7 +513,9 @@ dash-bored validate . --json
 dash-bored inspect .
 ```
 
-`validate` exits non-zero when it finds errors. `inspect` emits JSON containing
+`validate` exits non-zero when it finds errors. Its text diagnostics include the
+file, configuration path, code, and message; `--json` retains the structured fields.
+`inspect` emits JSON containing
 the resolved tree, requested permissions, diagnostics, and a `componentCatalog`
 for every core component and discovered local component. Each catalog manifest is the
 machine-readable contract for its rendering mode, JSON Schema props, children

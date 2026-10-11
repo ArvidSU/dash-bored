@@ -712,7 +712,9 @@ choice options always close over current state. The command palette merges three
   inline Focus controls. Individual `focus:<node-id>` actions declare
   `parentActionId: project:focus` and stay out of top-level palette results and
   favorites while remaining callable through buttons, shortcuts, and agent
-  tools;
+  tools. **Show whole dashboard** (`project:clear-focus`) clears stored focus
+  without changing panel selections or collapse state, and uses the same
+  unsaved-change navigation guard;
 - one **Reveal component** action whose choice step lists every resolved node
   in the selected dashboard. Individual `reveal:<node-id>` actions declare
   `parentActionId: project:reveal` and stay out of top-level palette results

@@ -57,8 +57,9 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
     const location = diagnostic.file
       ? `${diagnostic.file}${diagnostic.line ? `:${diagnostic.line}${diagnostic.column ? `:${diagnostic.column}` : ""}` : ""}`
       : "dash-bored";
+    const path = diagnostic.path ? ` (${diagnostic.path})` : "";
     const stream = diagnostic.severity === "error" ? console.error : console.warn;
-    stream(`${location} [${diagnostic.code}] ${diagnostic.message}`);
+    stream(`${location}${path} [${diagnostic.code}] ${diagnostic.message}`);
   }
 }
 

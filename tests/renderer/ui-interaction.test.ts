@@ -2776,8 +2776,8 @@ test('visual overview preserves refresh geometry, state shapes, and reduced moti
     expect(await status.locator('svg').count()).toBe(1);
     expect(await list.locator('li[data-tone="warning"] svg').count()).toBe(1);
     const before = await Promise.all([status, list].map(view => view.boundingBox()));
-    // The hover drag handle ends at the vertical centre of a 44 px button frame; click below it.
-    await proof.getByRole('button', { name: 'Refresh source state', exact: true }).click({ position: { x: 16, y: 34 } });
+    // The button's center stays clickable while its hover drag handle remains visible at the top.
+    await proof.getByRole('button', { name: 'Refresh source state', exact: true }).click();
     await status.locator('.status__refreshing').waitFor({ state: 'attached' });
     await list.getByRole('button', { name: 'Refresh', exact: true }).click();
     await proof.waitForFunction(() => document.querySelector('.source-list')?.getAttribute('data-refreshing') === 'true');
