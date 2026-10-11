@@ -678,11 +678,11 @@ root:
                                   cwd: .
                             second:
                               node:
-                                id: verify-agent-terminal-ui
+                                id: verify-agent-session-ui
                                 component: "./components/external/core/command"
                                 props:
-                                  label: Verify Agent work terminal layout
-                                  command: bun test tests/renderer/ui-interaction.test.ts --test-name-pattern 'long agent prompts|modal scroll boundaries|agent terminals keep keyboard focus'
+                                  label: Verify Agent work session UI
+                                  command: bun test --timeout 60000 tests/renderer/agent-work-ui.test.ts tests/renderer/agent-tasks.test.ts tests/renderer/markdown-lite.test.ts
                                   cwd: .
           - metadata:
               label: Changes
