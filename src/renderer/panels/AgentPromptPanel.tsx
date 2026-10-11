@@ -1,16 +1,23 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type {
-  AgentCommandChoice,
-  AgentCommandOptions,
-  AgentPromptTemplateSummary,
-  ComponentAgentPreview,
-  ResolvedComponentNode,
-} from "../../shared/contracts";
+import type { AgentPromptTemplateSummary, ResolvedComponentNode } from "../../shared/contracts";
+import type { AgentCommandChoice, AgentCommandOptions, ComponentAgentPreview } from "../../shared/agent-session";
 import { componentPath } from "../../shared/component-agent";
 import { DEFAULT_PROMPT_TEMPLATE } from "../../shared/prompt-templates";
 import { errorMessage } from "../app/app-utils";
+import {
+  choiceForPickerValue,
+  commandForPickerValue,
+  detectedPickerValue,
+  effectivePickerValue,
+  pickerValueForChoice,
+  storeCustomAgentCommand,
+  storedCustomAgentCommand,
+  undetectedKnownAgents,
+  type AgentPickerValue,
+} from "../lib/agent-options";
 import { nodeLabel } from "../lib/virtual-root";
+import { AgentInstallHints } from "./AgentInstallHints";
 
 /** What the composer opens with: a template, its typed values, and editable input. */
 export interface AgentPromptDraft {
@@ -18,7 +25,7 @@ export interface AgentPromptDraft {
   /** Prompt template name; the main process falls back to `project`. */
   template?: string;
   vars?: Record<string, string | number | boolean>;
-  /** Omitted until the user picks; the main process then uses the effective command. */
+  /** Omitted until the user picks; the main process then uses the effective agent. */
   agent?: AgentCommandChoice;
 }
 
@@ -30,33 +37,6 @@ const BUILTIN_LABELS: Record<string, string> = {
   dashboard: "Dashboard change",
   project: "Project work",
 };
-
-type AgentSource = AgentCommandChoice["source"];
-
-/** Remembered per viewer so a custom command survives reopening the composer. */
-const CUSTOM_COMMAND_KEY = "dash-bored.agent-prompt.custom-command";
-
-function storedCustomCommand(): string {
-  try {
-    return window.localStorage.getItem(CUSTOM_COMMAND_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function storeCustomCommand(command: string): void {
-  try {
-    window.localStorage.setItem(CUSTOM_COMMAND_KEY, command);
-  } catch {
-    // Storage is a convenience; the composer works without it.
-  }
-}
-
-function commandFor(source: AgentSource, agents: AgentCommandOptions | null, custom: string, fallback: string): string {
-  if (source === "custom") return custom.trim();
-  if (!agents) return fallback;
-  return (source === "project" ? agents.project : agents.app) ?? "";
-}
 
 function templateLabel(template: Pick<AgentPromptTemplateSummary, "name" | "builtin">): string {
   return (template.builtin ? BUILTIN_LABELS[template.name] : undefined) ?? template.name;
@@ -77,7 +57,6 @@ function sentVars(declared: readonly string[] | null, vars: PromptVars): PromptV
 
 export function AgentPromptPanel({
   node,
-  agentCommand,
   pending,
   draft,
   onDismiss,
@@ -85,7 +64,6 @@ export function AgentPromptPanel({
   onSend,
 }: {
   node: ResolvedComponentNode;
-  agentCommand: string;
   pending: boolean;
   draft: AgentPromptDraft;
   onDismiss: () => void;
@@ -101,10 +79,12 @@ export function AgentPromptPanel({
   const [templates, setTemplates] = useState<AgentPromptTemplateSummary[]>([]);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentCommandOptions | null>(null);
-  // `null` follows the effective command until the user picks one.
-  const [agentSource, setAgentSource] = useState<AgentSource | null>(draft.agent?.source ?? null);
+  // `null` follows the effective agent until the user picks one.
+  const [agentValue, setAgentValue] = useState<AgentPickerValue | null>(
+    draft.agent ? pickerValueForChoice(draft.agent) : null,
+  );
   const [customCommand, setCustomCommand] = useState(() => (
-    draft.agent?.source === "custom" ? draft.agent.command : storedCustomCommand()
+    draft.agent?.source === "custom" ? draft.agent.command : storedCustomAgentCommand()
   ));
   const previewRequest = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -124,11 +104,13 @@ export function AgentPromptPanel({
     const accepted = sentVars(declared, vars);
     return { input: prompt.trim(), template: templateName, ...(accepted ? { vars: accepted } : {}) };
   }, [prompt, declared, templateName, vars]);
-  const shownSource = agentSource ?? agents?.effective ?? "app";
-  const shownCommand = commandFor(shownSource, agents, customCommand, agentCommand);
-  const agentChoice: AgentCommandChoice | undefined = agentSource === null
+  const shownValue = agentValue ?? effectivePickerValue(agents);
+  const shownCommand = commandForPickerValue(shownValue, agents, customCommand);
+  const agentChoice: AgentCommandChoice | undefined = agentValue === null
     ? undefined
-    : agentSource === "custom" ? { source: "custom", command: customCommand.trim() } : { source: agentSource };
+    : choiceForPickerValue(agentValue, customCommand);
+  const noAgent = agents !== null && agents.effective === null && agentValue === null;
+  const installable = undetectedKnownAgents(agents);
   const canSend = !pending
     && previewError === null
     && (inputOptional || prompt.trim() !== "")
@@ -162,7 +144,7 @@ export function AgentPromptPanel({
     if (!canSend) return;
     setError(null);
     try {
-      if (agentChoice?.source === "custom") storeCustomCommand(agentChoice.command);
+      if (agentChoice?.source === "custom") storeCustomAgentCommand(agentChoice.command);
       await onSend(agentChoice ? { ...request, agent: agentChoice } : request);
     } catch (submitError) {
       setError(errorMessage(submitError));
@@ -297,27 +279,37 @@ export function AgentPromptPanel({
             <span className="agent-prompt__runner-label">via</span>
             <select
               className="agent-prompt__agent-select"
-              aria-label="Agent command"
-              value={shownSource}
+              aria-label="Agent"
+              value={shownValue ?? ""}
               disabled={pending}
               onChange={(event) => {
-                const next = event.target.value as AgentSource;
-                setAgentSource(next);
+                const next = event.target.value as AgentPickerValue;
+                setAgentValue(next);
                 if (next === "custom") requestAnimationFrame(() => customRef.current?.focus());
               }}
             >
-              <option value="app">App default</option>
+              {shownValue === null ? <option value="" disabled>{agents === null ? "Resolving…" : "No agent found"}</option> : null}
+              <option value="app" disabled={agents !== null && agents.app === null}>
+                {agents !== null && agents.app === null ? "App default (not set)" : "App default"}
+              </option>
               <option value="project" disabled={agents !== null && agents.project === null}>
                 {agents !== null && agents.project === null ? "Project .env (not set)" : "Project .env"}
               </option>
-              <option value="custom">Custom</option>
+              {agents && agents.detected.length > 0 ? (
+                <optgroup label="Detected on PATH">
+                  {agents.detected.map((agent) => (
+                    <option key={agent.id} value={detectedPickerValue(agent.id)}>{agent.name}</option>
+                  ))}
+                </optgroup>
+              ) : null}
+              <option value="custom">Custom command</option>
             </select>
-            {shownSource === "custom" ? (
+            {shownValue === "custom" ? (
               <input
                 ref={customRef}
                 className="agent-prompt__agent-custom"
                 aria-label="Custom agent command"
-                placeholder="claude -p"
+                placeholder="gemini --acp"
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
@@ -327,7 +319,7 @@ export function AgentPromptPanel({
                 onChange={(event) => setCustomCommand(event.target.value)}
               />
             ) : (
-              <code title={shownCommand}>{shownCommand}</code>
+              <code title={shownCommand ? `Runs ${shownCommand}` : undefined} aria-label="Agent launch command">{shownCommand || "—"}</code>
             )}
           </span>
           <span className="agent-prompt__shortcut" aria-hidden="true"><kbd>⌘</kbd><kbd>↵</kbd></span>
@@ -338,6 +330,17 @@ export function AgentPromptPanel({
         </div>
       </div>
 
+      {noAgent ? (
+        <div className="agent-prompt__no-agent" role="status">
+          <p>
+            No ACP agent is configured or detected on your PATH. Install one of these agents, set one in
+            Settings, or choose Custom command.
+          </p>
+          <AgentInstallHints agents={installable} prominent />
+        </div>
+      ) : agents !== null ? (
+        <AgentInstallHints agents={installable} summary="Install another agent" />
+      ) : null}
       {previewError ? <div className="agent-prompt__error" role="alert">{previewError}</div> : null}
       {error ? <div className="agent-prompt__error" role="alert">{error}</div> : null}
     </form>

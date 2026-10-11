@@ -1,14 +1,9 @@
 import { Electroview } from "electrobun/view";
 import { whenIdle } from "./activity";
 import type {
-  AgentLaunchRequest,
-  AgentTaskCommand,
   AppSettings,
   ComponentAgentLaunch,
-  ComponentAgentPreview,
-  ComponentAgentRequest,
   DashboardConfig,
-  DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
   ComponentPropsValidation,
@@ -30,6 +25,14 @@ import type {
   ThemePackageOperation,
 } from "../../shared/contracts";
 import type {
+  AgentCommandOptions,
+  AgentLaunchRequest,
+  AgentSessionTask,
+  AgentTaskCommand,
+  ComponentAgentPreview,
+  ComponentAgentRequest,
+} from "../../shared/agent-session";
+import type {
   AgentActionDescriptor,
   AgentNodeMeasurement,
   AgentNodeText,
@@ -44,7 +47,7 @@ export type HostEvent =
   | { type: "themes"; catalog: import("../../shared/themes").ThemeCatalogItem[] }
   | { type: "snapshot"; snapshot: ProjectSnapshot }
   | { type: "process"; process: ProcessSnapshot }
-  | { type: "agent-task"; task: DashboardAgentTask }
+  | { type: "agent-task"; task: AgentSessionTask }
   | { type: "open-command-palette" };
 
 type HostEventListener = (event: HostEvent) => void;
@@ -62,9 +65,11 @@ export interface DashboardHost {
   repairInstalledTools(): Promise<{ conflictsRemain: boolean }>;
   manageExternalComponent(operation: ExternalComponentOperation): Promise<PackageOperationResult>;
   manageThemePackage(operation: ThemePackageOperation): Promise<PackageOperationResult>;
-  getDashboardAgentTasks(): Promise<DashboardAgentTask[]>;
-  getDashboardAgentDiff(taskId: string): Promise<string>;
-  agentTaskCommand(taskId: string, command: AgentTaskCommand): Promise<DashboardAgentTask>;
+  getAgentTasks(): Promise<AgentSessionTask[]>;
+  /** The task after the command; the store learns about it from the host's push. */
+  agentTaskCommand(taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask>;
+  /** Agent choices for Settings, or for one bundle's composer when `configPath` is given. */
+  getAgentOptions(configPath?: string): Promise<AgentCommandOptions>;
   listProjects(): Promise<ProjectListItem[]>;
   moveProject(configPath: string, targetConfigPath: string, before: boolean): Promise<ProjectListItem[]>;
   getProjectOutline(project: ProjectListItem): Promise<ProjectOutline>;
@@ -186,9 +191,12 @@ const liveHost: DashboardHost = {
   async repairInstalledTools() { ensureTransport(); return rpc.request.repairInstalledTools({}); },
   async manageExternalComponent(operation) { ensureTransport(); return rpc.request.manageExternalComponent(operation); },
   async manageThemePackage(operation) { ensureTransport(); return rpc.request.manageThemePackage(operation); },
-  async getDashboardAgentTasks() { ensureTransport(); return rpc.request.getDashboardAgentTasks({}); },
-  async getDashboardAgentDiff(taskId) { ensureTransport(); return rpc.request.getDashboardAgentDiff({ taskId }); },
+  async getAgentTasks() { ensureTransport(); return rpc.request.getAgentTasks({}); },
   async agentTaskCommand(taskId, command) { ensureTransport(); return rpc.request.agentTaskCommand({ taskId, command }); },
+  async getAgentOptions(configPath) {
+    ensureTransport();
+    return rpc.request.getAgentOptions(configPath === undefined ? {} : { configPath });
+  },
   async listProjects() { ensureTransport(); return rpc.request.listProjects({}); },
   async moveProject(configPath, targetConfigPath, before) {
     ensureTransport();

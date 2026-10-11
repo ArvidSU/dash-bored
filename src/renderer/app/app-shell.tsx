@@ -94,7 +94,10 @@ export interface AppShellProps {
   editing: boolean;
   componentLibraryOpen: boolean;
   agentActivityOpen: boolean;
+  /** Agent sessions that are working or waiting on the user (permission or sign-in). */
   activeAgentTaskCount: number;
+  /** Agent sessions blocked on the user (a permission request or sign-in). */
+  waitingAgentTaskCount: number;
   /** Whether the header dropper can pick a dashboard component for the agent. */
   agentPickerAvailable: boolean;
   agentPickerActive: boolean;
@@ -140,6 +143,7 @@ export function AppShell({
   componentLibraryOpen,
   agentActivityOpen,
   activeAgentTaskCount,
+  waitingAgentTaskCount,
   agentPickerAvailable,
   agentPickerActive,
   editorToolbar,
@@ -327,10 +331,22 @@ export function AppShell({
                   type="button"
                   aria-label={agentActivityOpen ? "Close agent work" : "Open agent work"}
                   aria-expanded={agentActivityOpen}
+                  title={waitingAgentTaskCount > 0
+                    ? `${waitingAgentTaskCount} agent ${waitingAgentTaskCount === 1 ? "session needs" : "sessions need"} you`
+                    : activeAgentTaskCount > 0
+                      ? `${activeAgentTaskCount} agent ${activeAgentTaskCount === 1 ? "session is" : "sessions are"} working`
+                      : undefined}
                   onClick={onToggleAgentActivity}
                 >
                   <span>Agent work</span>
-                  {activeAgentTaskCount > 0 ? <strong>{activeAgentTaskCount}</strong> : null}
+                  {activeAgentTaskCount > 0 ? (
+                    <strong
+                      className={waitingAgentTaskCount > 0 ? "agent-activity-trigger__count agent-activity-trigger__count--attention" : "agent-activity-trigger__count"}
+                      data-waiting={waitingAgentTaskCount > 0 ? "true" : undefined}
+                    >
+                      {activeAgentTaskCount}
+                    </strong>
+                  ) : null}
                 </button>
                 {/* A sibling, not a child: buttons cannot nest. CSS seats it inside the trigger. */}
                 <button

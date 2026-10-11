@@ -1,12 +1,12 @@
 import { useCallback } from "react";
 import type { ReactNode } from "react";
 import type {
-  ComponentAgentPreview,
   DashboardConfig,
   ProjectDeletionPreview,
   ProjectListItem,
   ResolvedComponentNode,
 } from "../../shared/contracts";
+import type { ComponentAgentPreview } from "../../shared/agent-session";
 import { ComponentDialog } from "../composition/ComponentDialog";
 import { EditorModal } from "../lib/editor-modal";
 import type { InsertionTarget, NodePath } from "../composition/dashboard-editor";
@@ -33,8 +33,8 @@ export interface AppDialogsProps {
   editingActiveProject: boolean;
   dialog: AppDialog | null;
   pendingAction: string | null;
+  /** The active dashboard's effective agent command; empty hides Build with agent. */
   agentCommand: string;
-  agentCommandForNode?: (node: ResolvedComponentNode) => string;
   agentCreatePending: boolean;
   onApplyCompositionDraft: (next: DashboardConfig) => void;
   onDismissCompositionDialog: () => void;
@@ -59,7 +59,6 @@ export function AppDialogs({
   dialog,
   pendingAction,
   agentCommand,
-  agentCommandForNode,
   agentCreatePending,
   onApplyCompositionDraft,
   onDismissCompositionDialog,
@@ -165,7 +164,6 @@ export function AppDialogs({
       <AgentPromptPanel
         key={agentDialog.id}
         node={agentDialog}
-        agentCommand={agentCommandForNode?.(agentDialog) ?? agentCommand}
         draft={agentRequest!.draft}
         pending={pendingAction === `component-agent:${agentDialog.id}`}
         onDismiss={() => onDismissDialog()}

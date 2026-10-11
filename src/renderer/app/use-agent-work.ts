@@ -1,14 +1,12 @@
-import { useCallback } from "react";
-import type { ProcessSnapshot, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
-import { DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
+import { useCallback, useEffect, useState } from "react";
+import type { ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
+import type { AgentCommandOptions, AgentSessionTask, AgentTaskCommand } from "../../shared/agent-session";
 import { findResolvedNode } from "../../shared/component-agent";
 import type { InsertionTarget } from "../composition/dashboard-editor";
 import { host } from "../lib/rpc-client";
 import type { AgentPromptDraft } from "../panels/AgentPromptPanel";
 import type { AppDialog } from "./AppDialogs";
 import type { Notices } from "./use-notices";
-
-const STARTER_TASK_ID = "setup-dashboard-with-agent";
 
 /** The composer's reviewed draft as a host request; the main process re-checks it. */
 function componentAgentRequest(node: ResolvedComponentNode, draft: AgentPromptDraft) {
@@ -27,7 +25,7 @@ export interface AgentWorkOptions {
   activityOpen: boolean;
   setActivityOpen(open: boolean): void;
   snapshot: ProjectSnapshot | null;
-  /** The configured app-wide agent command, below a node's DASH_BORED_AGENT. */
+  /** The app-wide agent setting; a change re-resolves the effective agent. */
   appAgentCommand: string | null;
   focusedNodeId: string | undefined;
   setDialog(dialog: AppDialog | null): void;
@@ -52,6 +50,23 @@ export function useAgentWork({
   closeLibrary,
 }: AgentWorkOptions) {
   const { perform, showNotice, setError } = notices;
+  const configPath = snapshot?.configPath ?? undefined;
+  const revision = snapshot?.revision;
+  const [agentOptions, setAgentOptions] = useState<AgentCommandOptions | null>(null);
+
+  // What an omitted choice runs for the active dashboard; the main process
+  // resolves it (app setting, bundle .env, then the first detected agent).
+  useEffect(() => {
+    let active = true;
+    if (!configPath) {
+      setAgentOptions(null);
+      return;
+    }
+    void host.getAgentOptions(configPath)
+      .then((options) => { if (active) setAgentOptions(options); })
+      .catch(() => { if (active) setAgentOptions(null); });
+    return () => { active = false; };
+  }, [appAgentCommand, configPath, revision]);
 
   function toggleActivity(): void {
     // Render-state based (like the library toggle): the shared drawer also
@@ -64,20 +79,11 @@ export function useAgentWork({
     closeLibrary();
   }
 
-  function stopTask(taskId: string): Promise<ProcessSnapshot> {
-    if (taskId === STARTER_TASK_ID) return host.processCommand(taskId, { type: "stop" });
-    return host.agentTaskCommand(taskId, { type: "stop" }).then((task) => task.process);
-  }
-
-  function writeTerminal(taskId: string, input: string): Promise<ProcessSnapshot> {
-    if (taskId === STARTER_TASK_ID) return host.processCommand(taskId, { type: "write", input });
-    return host.agentTaskCommand(taskId, { type: "write", input }).then((task) => task.process);
-  }
-
-  function resizeTerminal(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot> {
-    if (taskId === STARTER_TASK_ID) return host.processCommand(taskId, { type: "resize", cols, rows });
-    return host.agentTaskCommand(taskId, { type: "resize", cols, rows }).then((task) => task.process);
-  }
+  /** One user command to a session; the host also pushes the updated task. */
+  const taskCommand = useCallback(
+    (taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask> => host.agentTaskCommand(taskId, command),
+    [],
+  );
 
   /** Change with agent briefs the agent with the dashboard template. */
   function openChangeWithAgent(node: ResolvedComponentNode): void {
@@ -138,24 +144,16 @@ export function useAgentWork({
     });
   }
 
-  function commandForNode(nodeId?: string): string {
-    const environmentValue = nodeId === undefined
-      ? undefined
-      : snapshot?.environmentByNode?.[nodeId]?.values.find((entry) => entry.key === "DASH_BORED_AGENT")?.value.trim();
-    return environmentValue || appAgentCommand || DEFAULT_DASH_BORED_AGENT;
-  }
-
   return {
     toggleActivity,
-    stopTask,
-    writeTerminal,
-    resizeTerminal,
+    taskCommand,
     openChangeWithAgent,
     requestPrompt,
     previewComponentAgent,
     runComponentAgent,
     runDiagnosticsAgent,
     runCreationAgent,
-    commandForNode,
+    /** The command an omitted choice runs for the active dashboard, or "" when none is available. */
+    effectiveAgentCommand: agentOptions?.effective?.command ?? "",
   };
 }

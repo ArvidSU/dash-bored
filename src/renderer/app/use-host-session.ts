@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AppSettings,
-  DashboardAgentTask,
   ProcessSnapshot,
   ProjectListItem,
   ProjectSnapshot,
 } from "../../shared/contracts";
-import { processRun } from "../../shared/process-state";
+import type { AgentSessionState, AgentSessionTask } from "../../shared/agent-session";
 import { BUILTIN_THEMES, type ThemeCatalogItem } from "../../shared/themes";
+import {
+  agentStateNeedsUser,
+  boundAgentTasks,
+  isAgentStateActive,
+  replaceAgentTask,
+  sortAgentTasks,
+} from "../lib/agent-tasks";
 import { host } from "../lib/rpc-client";
 import type { ProjectOutlineState } from "./app-shell";
 import {
@@ -15,18 +21,17 @@ import {
   errorMessage,
   outlineError,
   rememberProject,
-  replaceDashboardAgentTask,
   replaceProcess,
-  starterDashboardAgentTask,
 } from "./app-utils";
 import { useLatestRef } from "./use-latest-ref";
-
-const STARTER_TASK_ID = "setup-dashboard-with-agent";
 
 export interface HostSessionHandlers {
   /** The first host read finished; settings seed the renderer's copy. */
   onBoot(settings: AppSettings): void;
-  /** An agent task became active; the work surface should open. */
+  /**
+   * An agent task became active, or started waiting on the user; the work
+   * surface should open. Other task updates never reopen a dismissed drawer.
+   */
   onAgentTaskActivated(): void;
   /** The host asked for the command palette (native menu). */
   onPaletteRequested(): void;
@@ -43,7 +48,7 @@ export function useHostSession(handlers: HostSessionHandlers) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [outlines, setOutlines] = useState<Record<string, ProjectOutlineState>>({});
   const [themes, setThemes] = useState<ThemeCatalogItem[]>([...BUILTIN_THEMES]);
-  const [agentTasks, setAgentTasks] = useState<DashboardAgentTask[]>([]);
+  const [agentTasks, setAgentTasks] = useState<AgentSessionTask[]>([]);
   const [loading, setLoading] = useState(true);
   const handlersRef = useLatestRef(handlers);
   const snapshotRef = useLatestRef(snapshot);
@@ -54,21 +59,17 @@ export function useHostSession(handlers: HostSessionHandlers) {
 
   useEffect(() => {
     let active = true;
-    const activeTaskIds = new Set<string>();
+    const taskStates = new Map<string, AgentSessionState>();
     const pendingProcessEvents = new Map<string, ProcessSnapshot>();
-    const syncAgentActivity = (
-      taskId: string,
-      phase: ProcessSnapshot["phase"],
-      openOnActivation = true,
-    ): void => {
-      const isActive = phase === "running" || phase === "stopping";
-      const wasActive = activeTaskIds.has(taskId);
-      if (!isActive) {
-        activeTaskIds.delete(taskId);
-        return;
+    // Opens Agent work when a task becomes active or starts needing the user
+    // (a permission request or sign-in), even if the user dismissed it before.
+    const syncAgentActivity = (task: AgentSessionTask, openOnActivation = true): void => {
+      const previous = taskStates.get(task.id);
+      taskStates.set(task.id, task.state);
+      if (!openOnActivation || previous === task.state) return;
+      if (agentStateNeedsUser(task.state) || (isAgentStateActive(task.state) && !isAgentStateActive(previous))) {
+        handlersRef.current.onAgentTaskActivated();
       }
-      activeTaskIds.add(taskId);
-      if (openOnActivation && !wasActive) handlersRef.current.onAgentTaskActivated();
     };
     // The active project's outline is its snapshot tree; remember it so the
     // sidebar keeps showing it after another project becomes active.
@@ -86,9 +87,6 @@ export function useHostSession(handlers: HostSessionHandlers) {
       setSnapshot(next);
       rememberOutline(next);
     };
-    const starterTask = (next: ProjectSnapshot) => next.processes
-      .map((process) => starterDashboardAgentTask(next.configPath, process))
-      .find((task): task is DashboardAgentTask => task !== null);
 
     const unsubscribe = host.subscribe((event) => {
       if (!active) return;
@@ -96,45 +94,32 @@ export function useHostSession(handlers: HostSessionHandlers) {
         setThemes(event.catalog);
       } else if (event.type === "snapshot") {
         applySnapshot(event.snapshot);
-        const starter = starterTask(event.snapshot);
-        if (starter) setAgentTasks((current) => replaceDashboardAgentTask(current, starter));
-        syncAgentActivity(STARTER_TASK_ID, starter?.process.phase ?? "idle", false);
         setProjects((current) => rememberProject(current, event.snapshot));
       } else if (event.type === "process") {
         pendingProcessEvents.set(event.process.id, event.process);
         if (hasSnapshot) processesRef.current = new Map(processesRef.current).set(event.process.id, event.process);
         setSnapshot((current) => current ? replaceProcess(current, event.process) : current);
-        if (event.process.id === STARTER_TASK_ID) {
-          const starter = starterDashboardAgentTask(snapshotRef.current?.configPath, event.process);
-          setAgentTasks((current) => starter
-            ? replaceDashboardAgentTask(current, starter)
-            : current.filter((task) => task.id !== event.process.id));
-          syncAgentActivity(event.process.id, event.process.phase);
-        }
       } else if (event.type === "agent-task") {
-        setAgentTasks((current) => replaceDashboardAgentTask(current, event.task));
-        syncAgentActivity(event.task.id, processRun(event.task.process)?.phase ?? "idle");
+        setAgentTasks((current) => replaceAgentTask(current, event.task));
+        syncAgentActivity(event.task);
       } else {
         handlersRef.current.onPaletteRequested();
       }
     });
 
-    void Promise.all([host.getSnapshot(), host.listProjects(), host.getAppSettings(), host.getDashboardAgentTasks()])
+    void Promise.all([host.getSnapshot(), host.listProjects(), host.getAppSettings(), host.getAgentTasks()])
       .then(([initialSnapshot, initialProjects, initialSettings, initialAgentTasks]) => {
         if (!active) return;
         const withPendingProcesses = [...pendingProcessEvents.values()].reduce(replaceProcess, initialSnapshot);
         applySnapshot(withPendingProcesses);
-        const starter = starterTask(withPendingProcesses);
         setProjects(rememberProject(initialProjects, initialSnapshot));
         handlersRef.current.onBoot(initialSettings);
-        setAgentTasks((current) => {
-          const withStarter = starter ? replaceDashboardAgentTask(initialAgentTasks, starter) : initialAgentTasks;
-          return current.reduce(replaceDashboardAgentTask, withStarter);
-        });
+        // Pushes that raced the initial read are newer than its copies.
+        const initial = boundAgentTasks(sortAgentTasks(initialAgentTasks));
+        setAgentTasks((current) => current.reduce(replaceAgentTask, initial));
         for (const task of initialAgentTasks) {
-          syncAgentActivity(task.id, processRun(task.process)?.phase ?? "idle", false);
+          if (!taskStates.has(task.id)) syncAgentActivity(task, false);
         }
-        if (starter) syncAgentActivity(starter.id, starter.process.phase, false);
       })
       .catch((error: unknown) => {
         if (active) handlersRef.current.onError(errorMessage(error));

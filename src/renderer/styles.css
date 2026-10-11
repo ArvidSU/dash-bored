@@ -940,26 +940,6 @@ img.sidebar__project-icon {
   gap: 0.7rem;
 }
 
-.agent-task-modal__panel > .command {
-  flex: 1 1 0;
-  min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.agent-task-modal__panel .command__terminal {
-  min-height: 0;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.agent-task-modal__panel .command__content strong {
-  flex: 0 0 100%;
-}
-
-.agent-task-modal__panel .command__actions {
-  max-width: 100%;
-}
-
 @media (max-width: 760px) {
   .editor-modal__panel.agent-task-dialog {
     height: calc(100dvh - 16px);
@@ -967,15 +947,6 @@ img.sidebar__project-icon {
   }
 
   .agent-task-modal { padding: 0.7rem; }
-
-  .agent-task-modal__panel > .command {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .agent-task-modal__panel .command__actions {
-    width: auto;
-    flex-direction: column;
-  }
 }
 
 .editor-modal__panel--wide {
@@ -1021,11 +992,9 @@ img.sidebar__project-icon {
   display: none;
 }
 
-.agent-task-modal__diff,
-.agent-task-modal__command {
+.agent-task-modal__prompt-text {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: min(52vh, 34rem);
   margin: 0;
   padding: 0.8rem;
   overflow: auto;
@@ -1036,13 +1005,6 @@ img.sidebar__project-icon {
   font: 0.72rem/1.45 var(--font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-.agent-task-modal__command-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
 }
 
 .agent-task-modal__request {
@@ -1057,7 +1019,7 @@ img.sidebar__project-icon {
 
 .agent-task-modal__path {
   overflow: hidden;
-  color: var(--text);
+  color: var(--muted);
   font-size: 0.7rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1172,6 +1134,29 @@ img.sidebar__project-icon {
 
 .button--danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--negative) 18%, transparent);
+}
+
+.button--small {
+  min-height: 28px;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.inline-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--negative);
+  font-size: 10px;
+}
+
+.inline-warning {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  font-size: 11px;
 }
 
 .button--large {
@@ -4724,6 +4709,7 @@ body,
 .component-picker__search,
 .props-editor__json,
 .settings-agent input,
+.settings-agent select,
 .settings-actions__heading input,
 .theme-manager input,
 .theme-manager select,
@@ -4857,7 +4843,6 @@ select:focus,
 }
 
 .settings-value,
-.phase,
 .agent-task-modal__tabs,
 .command-palette__option-meta > span {
   border-radius: var(--radius-sm);
@@ -4876,8 +4861,8 @@ select:focus,
 }
 
 .terminal-surface,
-.agent-task-modal__diff,
-.agent-task-modal__command {
+.agent-task-modal__prompt-text,
+.agent-task-modal__launch {
   border-color: var(--border-dark);
   border-radius: var(--radius-sm);
   background: var(--panel-dark);

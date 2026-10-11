@@ -1,5 +1,5 @@
 import { BUILTIN_THEME, projectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
-import { cloneDefaultAppSettings, DEFAULT_DASH_BORED_AGENT } from "../../shared/app-settings";
+import { cloneDefaultAppSettings } from "../../shared/app-settings";
 import Ajv, { type ErrorObject } from "ajv";
 import { permissionsForComponent } from "../../shared/component-permissions";
 import fixturePayload from "../../../.cottontail-tmp/core-fixture.json";
@@ -7,12 +7,8 @@ import fixturePayload from "../../../.cottontail-tmp/core-fixture.json";
 // manifests and compiled components, so the JSON shape matches this cast.
 const coreFixture = fixturePayload as unknown as { manifests: ComponentManifest[]; components: CompiledLocalComponent[] };
 import type {
-  AgentCommandChoice,
-  AgentCommandOptions,
   AppSettings,
   CompiledLocalComponent,
-  ComponentAgentLaunch,
-  ComponentAgentRequest,
   ComponentCatalogItem,
   ComponentManifest,
   ComponentChildEdge,
@@ -21,7 +17,6 @@ import type {
   ComponentNode,
   Diagnostic,
   DashboardConfig,
-  DashboardAgentTask,
   DashboardConfigSource,
   DashboardDraftValidation,
   NodePath,
@@ -40,12 +35,14 @@ import type {
   ShellRunRequest,
   ShellRunResult,
 } from "../../shared/contracts";
+import type { AgentCommandChoice, ComponentAgentRequest } from "../../shared/agent-session";
 import { childEdges } from "../../shared/child-edges";
 import type { DashboardHost, HostEvent } from "./rpc-client";
 import type { UpdateState } from "../../shared/updates";
 import { envEntries, parseEnv } from "../../shared/env";
 import { componentPath, findResolvedNode } from "../../shared/component-agent";
 import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, type PromptTemplate } from "../../shared/prompt-templates";
+import { createFixtureAgents, type FixtureAgentControls } from "./ui-harness-agents";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
 
@@ -367,16 +364,13 @@ function project(config: DashboardConfig): ProjectListItem {
   return { projectRoot: PROJECT_ROOT, configPath: CONFIG_PATH, dashboardName: config.name };
 }
 
-export interface UiHarnessHost extends DashboardHost {
+/** Test-only controls are exposed only on the ui-harness page. */
+export interface UiHarnessHost extends DashboardHost, FixtureAgentControls {
   setProcessSnapshot(process: ProcessSnapshot): void;
   /** Test-only inspection is exposed only on the ui-harness page. */
   getPersistedConfig(): DashboardConfig;
   /** Test-only diagnostics control is exposed only on the ui-harness page. */
   setDiagnostics(diagnostics: Diagnostic[]): Promise<void>;
-  finishAgentTask(taskId: string, validation: NonNullable<DashboardAgentTask["validation"]>, keepShell?: boolean): Promise<void>;
-  appendAgentOutput(taskId: string, text: string): Promise<void>;
-  getAgentTerminalResizes(): readonly { taskId: string; cols: number; rows: number }[];
-  getAgentTerminalInputs(): readonly { taskId: string; input: string }[];
   /** Test-only record of package operations the UI asked the app to run. */
   getPackageOperations(): readonly unknown[];
   /** Test-only override for the Updates panel state; null restores the idle fixture. */
@@ -385,7 +379,8 @@ export interface UiHarnessHost extends DashboardHost {
 
 export function createUiHarnessHost(): UiHarnessHost {
   const listeners = new Set<(event: HostEvent) => void>();
-  let settings: AppSettings = cloneDefaultAppSettings();
+  // Like a migrated install: no app-wide agent, so the bundle .env wins.
+  let settings: AppSettings = { ...cloneDefaultAppSettings(), dashBoredAgent: null };
   let persistedConfig = structuredClone(initialConfig);
   let configRevision = 1;
   let snapshotRevision = 1;
@@ -438,68 +433,50 @@ export function createUiHarnessHost(): UiHarnessHost {
     emit({ type: "snapshot", snapshot: currentSnapshot });
     return currentSnapshot;
   };
-  const agentTasks: DashboardAgentTask[] = [];
-  const agentTerminalResizes: { taskId: string; cols: number; rows: number }[] = [];
-  const agentTerminalInputs: { taskId: string; input: string }[] = [];
-  // Mirrors the main process: app setting (or default), else the bundle `.env`.
-  const commandOptions = (): AgentCommandOptions => {
-    const project = envEntries(parseEnv(files.get(".dash-bored/.env") ?? ""))
-      .find(({ entry }) => entry.key === "DASH_BORED_AGENT")?.entry.value.trim() || null;
-    return {
-      app: settings.dashBoredAgent ?? DEFAULT_DASH_BORED_AGENT,
-      project,
-      effective: settings.dashBoredAgent === null && project !== null ? "project" : "app",
-    };
-  };
-  const chosenCommand = (choice: AgentCommandChoice | undefined): string => {
-    const options = commandOptions();
-    const source = choice?.source ?? options.effective;
-    if (choice?.source === "custom") {
-      if (!choice.command.trim()) throw new Error("DASH_BORED_AGENT must be a command string.");
-      return choice.command.trim();
-    }
-    if (source === "project") {
-      if (options.project === null) throw new Error("This dashboard's .env does not set DASH_BORED_AGENT.");
-      return options.project;
-    }
-    return options.app;
-  };
-  const launch = (request?: { prompt: string; componentPath?: string; agent?: AgentCommandChoice }): ComponentAgentLaunch => {
-    const task: DashboardAgentTask = {
-      id: `agent-task-${agentTasks.length + 1}`,
-      command: chosenCommand(request?.agent),
-      prompt: request?.prompt ?? "Fixture agent request",
-      componentPath: request?.componentPath ?? "harness.root",
-      request: request?.prompt ?? "Fixture agent request",
+  const bundleAgent = (): string | null => envEntries(parseEnv(files.get(".dash-bored/.env") ?? ""))
+    .find(({ entry }) => entry.key === "DASH_BORED_AGENT")?.entry.value.trim() || null;
+  const agents = createFixtureAgents({
+    projectRoot: PROJECT_ROOT,
+    configPath: CONFIG_PATH,
+    appAgent: () => settings.dashBoredAgent,
+    projectAgent: bundleAgent,
+    publish: (task) => emit({ type: "agent-task", task }),
+  });
+  const renderComponentPrompt = (request: ComponentAgentRequest) => {
+    const node = findResolvedNode(snapshot().tree!, request.nodeId);
+    if (!node) throw new Error("That component is no longer present.");
+    const templates = fixturePromptTemplates();
+    const prepared = prepareAgentPrompt({ templates, diagnostics: [] }, {
+      ...(request.template ? { template: request.template } : {}),
+      input: request.prompt,
+      ...(request.vars ? { vars: request.vars } : {}),
+      projectRoot: "/ui-harness",
       configPath: CONFIG_PATH,
-      startedAt: new Date().toISOString(),
-      dashboardChanged: false,
-      process: { id: `agent-task-${agentTasks.length + 1}`, phase: "running", pid: null, exitCode: null, signal: null, logs: [] },
-    };
-    agentTasks.unshift(task);
-    emit({ type: "agent-task", task });
-    return { taskId: task.id, command: task.command, componentPath: task.componentPath, pid: null };
+      configDirectory: PROJECT_ROOT,
+      component: { id: node.id, reference: node.component, path: componentPath(node), name: node.configName?.trim() || node.manifest?.name || node.component },
+      allowEmptyInput: true,
+    });
+    return { node, templates, ...prepared };
+  };
+  const launchComponent = (request: ComponentAgentRequest & { agent?: AgentCommandChoice }) => {
+    const { node, template, prompt } = renderComponentPrompt(request);
+    return agents.launch({
+      purpose: template.scope === "dashboard" ? "edit" : "project",
+      template: template.name,
+      request: request.prompt.trim() || template.description || template.name,
+      prompt,
+      componentPath: componentPath(node),
+      ...(request.agent ? { agent: request.agent } : {}),
+    });
   };
 
   return {
-    async finishAgentTask(taskId, validation, keepShell = false) {
-      const task = agentTasks.find((candidate) => candidate.id === taskId);
-      if (!task) throw new Error("Fixture agent task not found.");
-      task.process = { ...task.process, phase: "exited", exitCode: 0,
-        logs: [{ sequence: 1, stream: "stdout", text: "Created project workflows and checked the dashboard.\n" }] };
-      if (keepShell) task.process = { ...task.process, phase: "running", exitCode: null, interactive: true,
-        run: { phase: "exited", exitCode: 0, signal: null, startedAt: task.startedAt! } };
-      task.validation = validation;
-      emit({ type: "agent-task", task: structuredClone(task) });
-    },
-    async appendAgentOutput(taskId, text) {
-      const task = agentTasks.find((candidate) => candidate.id === taskId);
-      if (!task) throw new Error("Fixture agent task not found.");
-      task.process.logs.push({ sequence: (task.process.logs.at(-1)?.sequence ?? 0) + 1, stream: "stdout", text });
-      emit({ type: "agent-task", task: structuredClone(task) });
-    },
-    getAgentTerminalResizes() { return structuredClone(agentTerminalResizes); },
-    getAgentTerminalInputs() { return structuredClone(agentTerminalInputs); },
+    finishAgentTask: agents.finishAgentTask,
+    appendAgentMessage: agents.appendAgentMessage,
+    requestAgentPermission: agents.requestAgentPermission,
+    patchAgentTask: agents.patchAgentTask,
+    getAgentTaskCommands: agents.getAgentTaskCommands,
+    setDetectedAgents: agents.setDetectedAgents,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -522,29 +499,22 @@ export function createUiHarnessHost(): UiHarnessHost {
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async previewComponentAgent(request: ComponentAgentRequest) {
       // The shipped defaults plus one bundle template with a declared var.
-      const node = findResolvedNode(snapshot().tree!, request.nodeId);
-      if (!node) throw new Error("That component is no longer present.");
-      const templates = fixturePromptTemplates();
-      const { template, prompt } = prepareAgentPrompt({ templates, diagnostics: [] }, {
-        ...(request.template ? { template: request.template } : {}),
-        input: request.prompt,
-        ...(request.vars ? { vars: request.vars } : {}),
-        projectRoot: "/ui-harness",
-        configPath: CONFIG_PATH,
-        configDirectory: PROJECT_ROOT,
-        component: { id: node.id, reference: node.component, path: componentPath(node), name: node.configName?.trim() || node.manifest?.name || node.component },
-        allowEmptyInput: true,
-      });
-      return { template: promptTemplateSummary(template), prompt, templates: promptTemplateSummaries(templates), agents: commandOptions() };
+      const { templates, template, prompt } = renderComponentPrompt(request);
+      return { template: promptTemplateSummary(template), prompt, templates: promptTemplateSummaries(templates), agents: await agents.getAgentOptions(CONFIG_PATH) };
     },
     async launchAgent(request) {
       if (request.kind === "diagnostics") {
-        return launch({ prompt: "Fix dashboard configuration diagnostics.", componentPath: `${CONFIG_PATH}#diagnostics` });
+        const prompt = "Fix dashboard configuration diagnostics.";
+        return agents.launch({ purpose: "repair", request: prompt, prompt, componentPath: `${CONFIG_PATH}#diagnostics` });
       }
       if (request.kind === "setup") {
-        return launch({ prompt: "Set up the fixture dashboard.", componentPath: `${CONFIG_PATH}#setup-agent` });
+        const prompt = "Set up the fixture dashboard.";
+        return agents.launch({ purpose: "setup", request: prompt, prompt, componentPath: `${CONFIG_PATH}#setup-agent` });
       }
-      return launch(request);
+      if (request.kind === "creation") {
+        return agents.launch({ purpose: "edit", template: "dashboard", request: request.prompt, prompt: request.prompt, componentPath: `${CONFIG_PATH}#create` });
+      }
+      return launchComponent(request);
     },
     async repairInstalledTools() {
       currentDiagnostics = [];
@@ -561,29 +531,12 @@ export function createUiHarnessHost(): UiHarnessHost {
       return { message: `Ran theme ${operation.op}.` };
     },
     getPackageOperations() { return structuredClone(packageOperations); },
-    async getDashboardAgentTasks() { return structuredClone(agentTasks); },
-    async getDashboardAgentDiff(taskId: string) {
-      const task = agentTasks.find((item) => item.id === taskId);
-      if (!task) throw new Error("That dashboard agent task is no longer available.");
-      return `diff --git a/.dash-bored/dash-bored.yaml b/.dash-bored/dash-bored.yaml\nindex fixture..updated 100644\n--- a/.dash-bored/dash-bored.yaml\n+++ b/.dash-bored/dash-bored.yaml\n@@ -1,3 +1,3 @@\n-# Fixture dashboard\n+# Updated by ${task.request}\n`;
-    },
+    getAgentTasks: agents.getAgentTasks,
+    getAgentOptions: agents.getAgentOptions,
+    agentTaskCommand: agents.agentTaskCommand,
     async setDiagnostics(next) {
       currentDiagnostics = structuredClone(next);
       emitSnapshot();
-    },
-    async agentTaskCommand(taskId, command) {
-      const task = agentTasks.find((item) => item.id === taskId);
-      if (!task) throw new Error("That dashboard agent task is no longer available.");
-      if (command.type === "stop") {
-        task.process = { ...task.process, phase: "exited", signal: "SIGTERM" };
-        emit({ type: "agent-task", task: structuredClone(task) });
-      } else if (command.type === "write") {
-        if (task.process.phase !== "running") throw new Error("That dashboard agent terminal is closed.");
-        agentTerminalInputs.push({ taskId, input: command.input });
-      } else {
-        agentTerminalResizes.push({ taskId, cols: command.cols, rows: command.rows });
-      }
-      return structuredClone(task);
     },
     async listProjects() { return [project(persistedConfig)]; },
     async moveProject() { return [project(persistedConfig)]; },
@@ -635,12 +588,7 @@ export function createUiHarnessHost(): UiHarnessHost {
         return processSnapshots.get(nodeId)
           ?? { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
       }
-      const starter = nodeId === "setup-dashboard-with-agent";
-      const process: ProcessSnapshot = command.type === "stop"
-        ? starter
-          ? { id: nodeId, phase: "exited", pid: null, exitCode: null, signal: "SIGTERM", logs: [] }
-          : { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] }
-        : { id: nodeId, phase: starter ? "running" : "idle", pid: null, exitCode: null, signal: null, logs: [] };
+      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
       processSnapshots.set(nodeId, process);
       emit({ type: "process", process });
       return process;

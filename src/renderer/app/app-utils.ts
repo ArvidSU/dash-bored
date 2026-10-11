@@ -2,7 +2,6 @@ import type {
   ComponentChildLayout,
   ComponentCatalogItem,
   ComponentNode,
-  DashboardAgentTask,
   DashboardConfig,
   DashboardConfigSource,
   DashboardDraftValidation,
@@ -28,33 +27,6 @@ export function replaceProcess(
   if (index === -1) processes.push(process);
   else processes[index] = process;
   return { ...snapshot, processes };
-}
-
-export function replaceDashboardAgentTask(
-  tasks: readonly DashboardAgentTask[],
-  next: DashboardAgentTask,
-): DashboardAgentTask[] {
-  return [next, ...tasks.filter((task) => task.id !== next.id)]
-    .sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""));
-}
-
-export function starterDashboardAgentTask(
-  configPath: string | null | undefined,
-  process: ProcessSnapshot,
-): DashboardAgentTask | null {
-  if (process.id !== "setup-dashboard-with-agent" || process.phase === "idle") return null;
-  const resolvedConfigPath = configPath ?? "dash-bored.yaml";
-  return {
-    id: process.id,
-    command: "DASH_BORED_AGENT",
-    prompt: "Initial dashboard setup",
-    componentPath: `${resolvedConfigPath}#id=${encodeURIComponent(process.id)}`,
-    request: "Initial dashboard setup",
-    configPath: resolvedConfigPath,
-    startedAt: new Date().toISOString(),
-    dashboardChanged: false,
-    process,
-  };
 }
 
 export function errorMessage(error: unknown): string {

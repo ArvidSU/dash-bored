@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { createUiHarnessHost } from "../../src/renderer/lib/ui-harness-host";
-import { DEFAULT_DASH_BORED_AGENT } from "../../src/shared/app-settings";
 import { childNodes } from "../../src/renderer/lib/component-children";
 
 describe("ui harness host", () => {
@@ -8,7 +7,7 @@ describe("ui harness host", () => {
     const host = createUiHarnessHost();
     const snapshot = await host.getSnapshot();
 
-    expect((await host.getAppSettings()).dashBoredAgent).toBe(DEFAULT_DASH_BORED_AGENT);
+    expect((await host.getAppSettings()).dashBoredAgent).toBeNull();
 
     expect(snapshot.projectRoot).toBe("/ui-harness/.dash-bored");
     expect(snapshot.trusted).toBeTrue();

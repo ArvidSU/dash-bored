@@ -4,9 +4,20 @@ import { ThemeSelect } from "../lib/theme";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { AppSettings, DashboardConfig, DashboardSettingsItem } from "../../shared/contracts";
+import type { AgentCommandOptions } from "../../shared/agent-session";
 import { keyboardShortcutFromEvent, keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 import { rankActions } from "../lib/actions";
 import type { PaletteAction } from "../lib/actions";
+import {
+  commandForPickerValue,
+  detectedPickerValue,
+  settingsPickerValue,
+  storeCustomAgentCommand,
+  storedCustomAgentCommand,
+  undetectedKnownAgents,
+  type AgentPickerValue,
+} from "../lib/agent-options";
+import { AgentInstallHints } from "./AgentInstallHints";
 
 function ShortcutRecorder({
   shortcut,
@@ -65,12 +76,124 @@ function ShortcutRecorder({
   );
 }
 
+type SettingsAgentValue = AgentPickerValue | "bundle";
+
+/**
+ * The app-wide agent: each dashboard's own choice (null), a detected known
+ * agent, or a custom ACP command. Always shows the command that will run.
+ */
+function AgentSettings({
+  setting,
+  options,
+  saving,
+  onSave,
+}: {
+  setting: string | null;
+  options: AgentCommandOptions | null;
+  saving: boolean;
+  onSave: (command: string | null) => void;
+}): ReactNode {
+  const [value, setValue] = useState<SettingsAgentValue>(() => settingsPickerValue(setting, options));
+  const [custom, setCustom] = useState(() => (
+    settingsPickerValue(setting, options) === "custom" && setting !== null ? setting : storedCustomAgentCommand()
+  ));
+  // The saved setting and detection are authoritative once they (re)load.
+  useEffect(() => {
+    const next = settingsPickerValue(setting, options);
+    setValue(next);
+    if (next === "custom" && setting !== null) setCustom(setting);
+  }, [setting, options]);
+
+  const draft: string | null = value === "bundle" ? null : commandForPickerValue(value, options, custom);
+  const invalid = draft !== null && draft === "";
+  const unchanged = draft === (setting?.trim() ?? null);
+  const firstDetected = options?.detected[0] ?? null;
+  const nothingAvailable = options !== null && options.detected.length === 0 && setting === null;
+
+  return (
+    <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
+      <div>
+        <h2 id="agent-settings-title">Dashboard agent</h2>
+        <p>
+          Choose the <abbr title="Agent Client Protocol">ACP</abbr> agent that Change with agent, agent prompts, and
+          dashboard setup start. This app-wide choice overrides each dashboard&apos;s <code>DASH_BORED_AGENT</code>.
+          dash-bored detects known agents on your PATH and never installs them; signing in belongs to the agent.
+        </p>
+      </div>
+      <form className="settings-agent" onSubmit={(event) => {
+        event.preventDefault();
+        if (invalid || unchanged) return;
+        if (value === "custom") storeCustomAgentCommand(custom.trim());
+        onSave(draft);
+      }}>
+        <label htmlFor="dash-bored-agent">Agent</label>
+        <div className="settings-agent__controls">
+          <select
+            id="dash-bored-agent"
+            value={value}
+            disabled={saving}
+            onChange={(event) => setValue(event.target.value as SettingsAgentValue)}
+          >
+            <option value="bundle">Each dashboard&apos;s choice</option>
+            {options && options.detected.length > 0 ? (
+              <optgroup label="Detected on PATH">
+                {options.detected.map((agent) => (
+                  <option key={agent.id} value={detectedPickerValue(agent.id)}>{agent.name}</option>
+                ))}
+              </optgroup>
+            ) : null}
+            <option value="custom">Custom command</option>
+          </select>
+          <button className="button button--secondary" type="submit" disabled={saving || invalid || unchanged}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+        {value === "custom" ? (
+          <input
+            type="text"
+            aria-label="Custom agent command"
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            maxLength={1_024}
+            placeholder="gemini --acp"
+            value={custom}
+            disabled={saving}
+            onChange={(event) => setCustom(event.target.value)}
+          />
+        ) : null}
+        <span className="settings-agent__hint" aria-live="polite">
+          {value === "bundle" ? (
+            <>
+              Uses each dashboard&apos;s <code>.env</code> <code>DASH_BORED_AGENT</code>, else the first detected agent
+              {firstDetected ? <> (now <code>{firstDetected.command}</code>)</> : null}.
+            </>
+          ) : draft ? (
+            <>Runs <code>{draft}</code> from the project root.</>
+          ) : (
+            "Enter an ACP launch command, such as gemini --acp."
+          )}
+        </span>
+      </form>
+      {nothingAvailable ? (
+        <div className="settings-agent__none" role="status">
+          <p>No ACP agent was detected on your PATH. Install one of these agents, or enter a custom ACP command.</p>
+          <AgentInstallHints agents={options.known} prominent />
+        </div>
+      ) : (
+        <AgentInstallHints agents={undetectedKnownAgents(options)} summary="Install another agent" />
+      )}
+    </section>
+  );
+}
+
 export function SettingsPanel({
   draftsOpen = false,
   appSettings,
   dashboardSettings,
   actions,
   pendingAction,
+  agentOptions = null,
   onSaveAgent,
   onUpdateSettings,
   onUpdateDashboardAppearance,
@@ -80,16 +203,15 @@ export function SettingsPanel({
   dashboardSettings: readonly DashboardSettingsItem[];
   actions: readonly PaletteAction[];
   pendingAction: string | null;
+  /** Detected and known agents for the agent picker; null while loading. */
+  agentOptions?: AgentCommandOptions | null;
   onSaveAgent: (command: string | null) => void;
   onUpdateSettings: (settings: AppSettings, notice: string) => void;
   onUpdateDashboardAppearance: (dashboard: DashboardSettingsItem, change: Pick<DashboardConfig, "theme" | "themeMode">) => Promise<void>;
 }): ReactNode {
-  const [agentDraft, setAgentDraft] = useState(appSettings.dashBoredAgent ?? "");
   const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions" | "updates">("general");
   const [actionQuery, setActionQuery] = useState("");
   const [updatingDashboard, setUpdatingDashboard] = useState<string | null>(null);
-  useEffect(() => setAgentDraft(appSettings.dashBoredAgent ?? ""), [appSettings.dashBoredAgent]);
-  const normalizedAgentDraft = agentDraft.trim();
   const savingSettings = pendingAction === "save-settings";
   const favoriteIds = useMemo(() => new Set(appSettings.favoriteActionIds), [appSettings.favoriteActionIds]);
   const visibleActions = useMemo(
@@ -261,42 +383,12 @@ export function SettingsPanel({
           <span>Start expanded</span>
         </label>
       </section>
-      <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
-        <div>
-          <h2 id="agent-settings-title">Dashboard agent</h2>
-          <p>Set the app-wide <code>DASH_BORED_AGENT</code> command used by every component’s Change with agent action, or clear it to use the owning dashboard’s <code>.env</code>.</p>
-        </div>
-        <form className="settings-agent" onSubmit={(event) => {
-          event.preventDefault();
-          onSaveAgent(normalizedAgentDraft || null);
-        }}>
-          <label htmlFor="dash-bored-agent">DASH_BORED_AGENT</label>
-          <div className="settings-agent__controls">
-            <input
-              id="dash-bored-agent"
-              type="text"
-              spellCheck={false}
-              maxLength={1_024}
-              placeholder="Leave empty — use project .env"
-              value={agentDraft}
-              disabled={savingSettings}
-              onChange={(event) => setAgentDraft(event.target.value)}
-            />
-            <button
-              className="button button--secondary"
-              type="submit"
-              disabled={savingSettings || normalizedAgentDraft === (appSettings.dashBoredAgent ?? "")}
-            >
-              {savingSettings ? "Saving…" : "Save"}
-            </button>
-          </div>
-          <span className="settings-agent__hint">
-            {appSettings.dashBoredAgent === null
-              ? "Unset — the owning dashboard's .env value is used when available."
-              : <>Example: <code>{normalizedAgentDraft || "codex exec"} &quot;Change this thing&quot;</code></>}
-          </span>
-        </form>
-      </section>
+      <AgentSettings
+        setting={appSettings.dashBoredAgent}
+        options={agentOptions}
+        saving={savingSettings}
+        onSave={onSaveAgent}
+      />
       </div> : activeTab === "actions" ? (
         <div className="settings-tab-panel settings-actions" role="tabpanel">
           <div className="settings-actions__heading">

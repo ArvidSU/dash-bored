@@ -808,17 +808,6 @@ describe("renderer fixture interactions", () => {
     expect(await sidebarPreference.isChecked()).toBeFalse();
     expect(await active.locator(".app-shell").getAttribute("class")).not.toContain("app-shell--sidebar-expanded");
 
-    const agentInput = settings.getByRole("textbox", { name: "DASH_BORED_AGENT" });
-    expect(await settings.getByRole("button", { name: "Clear app-wide DASH_BORED_AGENT setting", exact: true }).count()).toBe(0);
-    await agentInput.fill("");
-    await settings.locator(".settings-agent").getByRole("button", { name: "Save", exact: true }).click();
-    await active.getByRole("status").getByText("App-wide DASH_BORED_AGENT cleared; the project .env will be used when available.", { exact: true }).waitFor();
-    await active.waitForFunction(() => (document.querySelector<HTMLInputElement>("#dash-bored-agent")?.value ?? "") === "");
-    expect(await agentInput.inputValue()).toBe("");
-    await agentInput.fill("codex exec");
-    await settings.locator(".settings-agent").getByRole("button", { name: "Save", exact: true }).click();
-    expect(await agentInput.inputValue()).toBe("codex exec");
-
     await settings.getByRole("tab", { name: "Actions" }).click();
     expect(await settings.getByRole("tab", { name: "Actions" }).getAttribute("aria-selected")).toBe("true");
     await settings.getByRole("searchbox", { name: "Search actions" }).fill("reload app");
@@ -964,62 +953,57 @@ describe("renderer fixture interactions", () => {
       // The pick swallowed the click, so the frame's own collapse gesture never ran.
       expect(await frame.getAttribute("data-collapsed")).toBe("false");
 
-      // The command picker offers the app default, the bundle `.env`, and a custom command.
-      const agentSelect = composer.getByRole("combobox", { name: "Agent command" });
-      expect(await agentSelect.inputValue()).toBe("app");
-      await agentSelect.selectOption("project");
-      await composer.locator(".agent-prompt__runner code").getByText("bundle-agent", { exact: true }).waitFor();
+      // The agent picker offers the app setting, the bundle `.env`, each detected agent, and a custom command.
+      const agentSelect = composer.getByRole("combobox", { name: "Agent", exact: true });
+      const runs = composer.locator(".agent-prompt__runner code");
+      await runs.getByText("bundle-agent", { exact: true }).waitFor();
+      expect(await agentSelect.inputValue()).toBe("project");
+      await agentSelect.selectOption("detected:codex");
+      await runs.getByText("codex-acp", { exact: true }).waitFor();
       await agentSelect.selectOption("custom");
       const custom = composer.getByRole("textbox", { name: "Custom agent command" });
       await custom.fill("");
       expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
-      await custom.fill("claude -p");
+      await custom.fill("gemini --acp");
       await composer.getByRole("button", { name: "Send", exact: true }).click();
-      await proof.getByRole("status").getByText("Started claude -p for", { exact: false }).waitFor();
+      await proof.getByRole("status").getByText("Started gemini --acp for", { exact: false }).waitFor();
     } finally {
       await proof.close();
     }
   }, 20_000);
 
-  test("agent work keeps a dashboard-only request visible after dispatch", async () => {
+  test("agent work shows a dispatched request as a session with its prompt and closes it", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open agent work" }).click();
     const activity = active.getByRole("dialog", { name: "Agent work" });
     await activity.waitFor();
-    await active.evaluate(async () => {
+    const taskId = await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      await host.launchAgent({ kind: "component",  nodeId: "status", prompt: "Show a clearer fixture state." });
+      return (await host.launchAgent({ kind: "component", nodeId: "status", prompt: "Show a clearer fixture state." })).taskId;
     });
-    const task = activity.locator(".agent-task").first();
+    const task = activity.locator(`[data-task-id="${taskId}"]`);
     await task.waitFor();
     expect(await task.getByText("Show a clearer fixture state.", { exact: true }).count()).toBe(1);
     expect(await task.locator("time").count()).toBe(1);
+    expect(await task.getByText("bundle-agent", { exact: true }).count()).toBe(1);
+    await task.getByText("Working", { exact: true }).waitFor();
     await task.click();
-    const command = active.getByRole("dialog", { name: "Agent command" });
-    await command.locator(".command__terminal .xterm").waitFor();
-    expect(await command.getByRole("tab").count()).toBe(3);
-    expect(await command.getByRole("tab", { name: "Terminal", exact: true }).getAttribute("aria-selected")).toBe("true");
-    await command.getByRole("tab", { name: "Diff", exact: true }).click();
-    await command.locator(".agent-task-modal__diff").getByText("diff --git", { exact: false }).waitFor();
-    expect(await command.locator(".agent-task-modal__diff").getByText(".dash-bored/dash-bored.yaml", { exact: false }).count()).toBe(1);
-    await command.getByRole("tab", { name: "Command", exact: true }).click();
-    expect(await command.locator(".agent-task-modal__command").getByText("codex exec 'Show a clearer fixture state.'", { exact: true }).count()).toBe(1);
-    await command.getByRole("button", { name: "Copy command", exact: true }).click();
-    await command.getByRole("button", { name: "Copied", exact: true }).waitFor();
-    await command.getByRole("tab", { name: "Terminal", exact: true }).click();
-    await command.locator(".command__terminal .xterm").waitFor();
-    expect(await command.getByRole("button", { name: "Close terminal", exact: true }).count()).toBe(1);
-    await command.getByRole("button", { name: "Close terminal", exact: true }).click();
-    await task.getByText("Not working", { exact: true }).waitFor();
-    expect(await command.locator(".command__terminal .xterm").count()).toBe(1);
-    await command.getByRole("button", { name: "Close", exact: true }).click();
-
-    await task.click();
-    const completedCommand = active.getByRole("dialog", { name: "Agent command" });
-    await completedCommand.locator(".command__terminal .xterm").waitFor();
-    expect(await completedCommand.getByRole("button", { name: "Close terminal", exact: true }).count()).toBe(0);
-    await completedCommand.getByRole("button", { name: "Close", exact: true }).click();
+    const session = active.getByRole("dialog", { name: "Agent session" });
+    await session.getByRole("log", { name: "Agent transcript" }).getByText("Reading the dashboard and the request…", { exact: true }).waitFor();
+    expect(await session.getByRole("tab").count()).toBe(2);
+    expect(await session.getByRole("tab", { name: "Session", exact: true }).getAttribute("aria-selected")).toBe("true");
+    await session.getByRole("tab", { name: "Prompt", exact: true }).click();
+    expect(await session.locator(".agent-task-modal__launch").textContent()).toBe("bundle-agent");
+    expect(await session.locator(".agent-task-modal__prompt-text").textContent()).toContain("Show a clearer fixture state.");
+    await session.getByRole("button", { name: "Copy prompt", exact: true }).click();
+    await session.getByRole("button", { name: "Copied", exact: true }).waitFor();
+    await session.getByRole("tab", { name: "Session", exact: true }).click();
+    await session.getByRole("button", { name: "Close session", exact: true }).click();
+    await task.getByText("Closed", { exact: true }).waitFor();
+    expect(await session.getByRole("button", { name: "Close session", exact: true }).count()).toBe(0);
+    expect(await session.getByRole("textbox", { name: "Follow-up message" }).count()).toBe(0);
+    await session.getByRole("button", { name: "Close", exact: true }).click();
     await activity.getByRole("button", { name: "Close", exact: true }).click();
     expect(await activity.count()).toBe(0);
   }, 20_000);
@@ -1048,11 +1032,11 @@ describe("renderer fixture interactions", () => {
     const task = activity.locator(".agent-task").first();
     await task.waitFor();
     await task.click();
-    const command = active.getByRole("dialog", { name: "Agent command" });
+    const command = active.getByRole("dialog", { name: "Agent session" });
     await command.locator(".agent-task-modal__request").getByText("Fix dashboard configuration diagnostics.", { exact: true }).waitFor();
     expect(await command.getByText("/ui-harness/.dash-bored/dash-bored.yaml#diagnostics", { exact: true }).count()).toBe(1);
-    await command.getByRole("button", { name: "Close terminal", exact: true }).click();
-    await task.getByText("Not working", { exact: true }).waitFor();
+    await command.getByRole("button", { name: "Close session", exact: true }).click();
+    await task.getByText("Closed", { exact: true }).waitFor();
     await command.getByRole("button", { name: "Close", exact: true }).click();
 
     await active.evaluate(async () => {
@@ -1093,7 +1077,7 @@ describe("renderer fixture interactions", () => {
     const tasksBefore = await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      return (await host.getDashboardAgentTasks()).length;
+      return (await host.getAgentTasks()).length;
     });
     await repair.click();
     await active.getByRole("status").getByText("Moved the old installed tools to Trash and installed the current dash-bored tools.", { exact: true }).waitFor();
@@ -1101,7 +1085,7 @@ describe("renderer fixture interactions", () => {
     expect(await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      return (await host.getDashboardAgentTasks()).length;
+      return (await host.getAgentTasks()).length;
     })).toBe(tasksBefore);
     await active.setViewportSize({ width: 1280, height: 800 });
   }, 20_000);
@@ -1979,46 +1963,6 @@ describe("renderer fixture interactions", () => {
     expect(await persistedTodoDone()).toBeFalse();
   }, 20_000);
 
-  test("the legacy starter command remains active when Agent work closes", async () => {
-    const active = currentPage();
-    await active.evaluate(async () => {
-      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
-      if (!host) throw new Error("UI harness host is unavailable.");
-      await host.processCommand("setup-dashboard-with-agent", { type: "quick-action" });
-    });
-    const activity = active.getByRole("dialog", { name: "Agent work" });
-    await activity.waitFor();
-    const task = activity.locator(".agent-task").first();
-    await task.waitFor();
-    await task.click();
-    const command = active.getByRole("dialog", { name: "Agent command" });
-    await command.locator(".command__terminal .xterm").waitFor();
-
-    await command.getByRole("button", { name: "Close", exact: true }).click();
-    await activity.getByRole("button", { name: "Close", exact: true }).click();
-    await active.getByRole("button", { name: "Open agent work", exact: true }).waitFor();
-
-    const activeProcess = await active.evaluate(async () => {
-      const host = window.__DASH_BORED_UI_HARNESS_HOST__;
-      if (!host) throw new Error("UI harness host is unavailable.");
-      await host.processCommand("setup-dashboard-with-agent", { type: "write", input: "still running\n" });
-      return (await host.getSnapshot()).processes.find((process) => process.id === "setup-dashboard-with-agent");
-    });
-    expect(activeProcess?.phase).toBe("running");
-    expect(await active.getByRole("button", { name: "Open agent work", exact: true }).count()).toBe(1);
-
-    await active.getByRole("button", { name: "Open agent work", exact: true }).click();
-    const reopenedActivity = active.getByRole("dialog", { name: "Agent work" });
-    const reopenedTask = reopenedActivity.locator(".agent-task").first();
-    await reopenedTask.click();
-    const reopenedCommand = active.getByRole("dialog", { name: "Agent command" });
-    await reopenedCommand.locator(".command__terminal .xterm").waitFor();
-    expect(await reopenedCommand.getByRole("button", { name: "Close terminal", exact: true }).count()).toBe(1);
-    await reopenedCommand.getByRole("button", { name: "Close terminal", exact: true }).click();
-    await reopenedTask.getByText("Not working", { exact: true }).waitFor();
-    await reopenedCommand.getByRole("button", { name: "Close", exact: true }).click();
-    await reopenedActivity.getByRole("button", { name: "Close", exact: true }).click();
-  }, 20_000);
   test("setup agent inserts lazily, survives starter replacement, and shows validation truthfully", async () => {
     const proof = await browser!.newPage({ viewport: { width: 390, height: 844 } });
     proof.setDefaultTimeout(5_000);
@@ -2036,8 +1980,8 @@ describe("renderer fixture interactions", () => {
       await setup.waitFor({ state: "attached" });
       const setupTab = await setup.locator("xpath=ancestor::*[@role='tabpanel'][1]").getAttribute("aria-labelledby");
       if (setupTab) await proof.locator(`[id="${setupTab}"]`).click();
-      await setup.getByText("Runs codex exec", { exact: true }).waitFor();
-      await setup.getByText("Command source: App settings", { exact: true }).waitFor();
+      await setup.getByText("Runs bundle-agent", { exact: true }).waitFor();
+      await setup.getByText("Command source: bundle", { exact: true }).waitFor();
       const bounds = await setup.boundingBox();
       expect(bounds!.width).toBeLessThanOrEqual(390);
       await setup.getByRole("button", { name: "Set up this dashboard", exact: true }).click();
@@ -2054,21 +1998,22 @@ describe("renderer fixture interactions", () => {
       await row.getByText("Working", { exact: true }).waitFor();
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-        await host.finishAgentTask((await host.getDashboardAgentTasks())[0]!.id, { status: "trust-required", diagnostics: [], message: "Review newly requested permissions." });
+        await host.finishAgentTask((await host.getAgentTasks())[0]!.id, { status: "trust-required", diagnostics: [], message: "Review newly requested permissions." });
       });
       await row.getByText("Review project trust", { exact: true }).waitFor();
       expect(await row.getByText("Dashboard validated", { exact: true }).count()).toBe(0);
       await row.click();
-      const details = proof.getByRole("dialog", { name: "Agent command" });
+      const details = proof.getByRole("dialog", { name: "Agent session" });
       await details.getByText("Review newly requested permissions.", { exact: true }).waitFor();
-      await details.locator(".xterm-accessibility-tree").getByText("Created project workflows and checked the dashboard.", { exact: true }).waitFor({ state: "attached" });
+      await details.getByRole("log", { name: "Agent transcript" }).getByText("Created project workflows and checked the dashboard.", { exact: false }).waitFor();
+      await row.getByText("Idle", { exact: true }).waitFor();
       await proof.screenshot({ path: "/tmp/dash-bored-setup-proof.png", fullPage: true });
     } finally {
       await proof.close();
     }
   }, 30_000);
 
-  test("agent terminals keep keyboard focus through output and accept shell input after the run finishes", async () => {
+  test("the follow-up composer opens when a turn ends, sends on Enter, and keeps Shift+Enter for new lines", async () => {
     const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
@@ -2077,43 +2022,44 @@ describe("renderer fixture interactions", () => {
       const taskId = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.launchAgent({ kind: "component",
         nodeId: "status", prompt: "Interactive agent proof.",
       })).taskId);
-      const row = proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first();
+      const row = proof.getByRole("dialog", { name: "Agent work" }).locator(`[data-task-id="${taskId}"]`);
+      await row.getByText("Working", { exact: true }).waitFor();
       await row.click();
-      const dialog = proof.getByRole("dialog", { name: "Agent command" });
-      const terminal = dialog.locator(".command__terminal");
-      const input = terminal.locator(".xterm-helper-textarea");
-      const rows = terminal.locator(".xterm-accessibility-tree");
-      await terminal.locator(".xterm-screen").click();
-      await proof.keyboard.type("help");
-      await proof.evaluate(async (taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.appendAgentOutput(taskId, "LIVE UPDATE\r\n"), taskId);
-      await rows.getByText("LIVE UPDATE", { exact: false }).waitFor({ state: "attached" });
-      expect(await input.evaluate((element) => element === document.activeElement)).toBe(true);
+      const dialog = proof.getByRole("dialog", { name: "Agent session" });
+      const followUp = dialog.getByRole("textbox", { name: "Follow-up message" });
+      await followUp.waitFor();
+      expect(await followUp.isDisabled()).toBe(true);
+      expect(await dialog.getByRole("button", { name: "Stop", exact: true }).count()).toBe(1);
+
+      await proof.evaluate(async (taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.finishAgentTask(taskId, { status: "valid", diagnostics: [] }), taskId);
+      await row.getByText("Idle", { exact: true }).waitFor();
+      await row.getByText("Dashboard validated", { exact: true }).waitFor();
+      expect(await dialog.getByRole("button", { name: "Stop", exact: true }).count()).toBe(0);
+      await proof.waitForFunction(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Follow-up message"]')?.disabled === false);
+      await followUp.click();
+      await proof.keyboard.type("First line");
+      await proof.keyboard.press("Shift+Enter");
+      await proof.keyboard.type("Second line");
+      expect(await followUp.inputValue()).toBe("First line\nSecond line");
       await proof.keyboard.press("Enter");
+      const commands = () => proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTaskCommands());
+      await proof.waitForFunction((taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTaskCommands().some((entry) => entry.taskId === taskId), taskId);
+      expect((await commands()).filter((entry) => entry.taskId === taskId).map((entry) => entry.command))
+        .toEqual([{ type: "prompt", text: "First line\nSecond line" }]);
+      expect(await followUp.inputValue()).toBe("");
+      const transcript = dialog.getByRole("log", { name: "Agent transcript" });
+      await transcript.locator(".agent-entry--user").getByText("Second line", { exact: false }).waitFor();
+      await transcript.getByText("Done. I handled the follow-up: First line", { exact: true }).waitFor();
+      await row.getByText("Idle", { exact: true }).waitFor();
+      // Focus returns to the composer once the agent accepts follow-ups again.
+      await proof.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Follow-up message");
+      // Escape in the composer dismisses the modal like any other field.
       await proof.keyboard.press("Escape");
-      await proof.keyboard.press("Tab");
-      await proof.keyboard.press("Control+c");
-      expect(await dialog.isVisible()).toBe(true);
-      const inputs = () => proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTerminalInputs());
-      expect((await inputs()).map((entry) => entry.input).join("")).toBe("help\r\x1b\t\x03");
-      await proof.evaluate(async (taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.finishAgentTask(taskId,
-        { status: "valid", diagnostics: [] }, true), taskId);
-      await row.getByText("Not working", { exact: true }).waitFor();
-      await dialog.getByText("exit 0", { exact: true }).waitFor();
-      expect(await input.evaluate((element) => element === document.activeElement)).toBe(true);
-      await proof.keyboard.type("pwd");
-      await proof.keyboard.press("Enter");
-      expect((await inputs()).map((entry) => entry.input).join("")).toBe("help\r\x1b\t\x03pwd\r");
-      expect((await inputs()).every((entry) => entry.taskId === taskId)).toBe(true);
-      await dialog.getByRole("button", { name: "Close terminal", exact: true }).click();
-      await dialog.getByRole("button", { name: "Close terminal", exact: true }).waitFor({ state: "detached" });
-      await terminal.locator(".xterm-screen").click();
-      await proof.keyboard.type("closed");
-      expect((await inputs()).map((entry) => entry.input).join("")).not.toContain("closed");
-      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await dialog.waitFor({ state: "detached" });
     } finally { await proof.close(); }
   }, 20_000);
 
-  test("long agent prompts leave room for fitted terminals and latest output at desktop and narrow widths", async () => {
+  test("long transcripts follow the tail, keep the reading position when scrolled up, and fit desktop and narrow widths", async () => {
     const prompt = "Set up the dash-bored dashboard for this project. " + "Inspect the project, preserve unrelated changes, and validate the cockpit. ".repeat(45);
     for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
       const proof = await browser!.newPage({ viewport });
@@ -2121,57 +2067,59 @@ describe("renderer fixture interactions", () => {
       try {
         await proof.goto(fixtureUrl);
         await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
-        await proof.evaluate(async (prompt) => {
+        const taskId = await proof.evaluate(async (prompt) => {
           const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-          const task = await host.launchAgent({ kind: "component",  nodeId: "status", prompt });
-          await host.appendAgentOutput(task.taskId, Array.from({ length: 180 }, (_, i) => `Activity ${i}\r\n`).join("") + "LATEST BEFORE OPEN\r\n");
+          const task = await host.launchAgent({ kind: "component", nodeId: "status", prompt });
+          await host.appendAgentMessage(task.taskId, Array.from({ length: 180 }, (_, i) => `Activity ${i}`).join("\n\n") + "\n\nLATEST BEFORE OPEN");
+          return task.taskId;
         }, prompt);
-        const row = proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first();
+        const row = proof.getByRole("dialog", { name: "Agent work" }).locator(`[data-task-id="${taskId}"]`);
         await row.waitFor();
         expect((await row.boundingBox())!.height).toBeLessThan(150);
         expect(await row.locator("strong").textContent()).toBe("Set up the dash-bored dashboard for this project.");
         await row.click();
-        const dialog = proof.getByRole("dialog", { name: "Agent command" });
-        const terminal = dialog.locator(".command__terminal");
-        const rows = terminal.locator(".xterm-accessibility-tree");
-        await rows.getByText("LATEST BEFORE OPEN", { exact: false }).waitFor({ state: "attached" });
+        const dialog = proof.getByRole("dialog", { name: "Agent session" });
+        const transcript = dialog.getByRole("log", { name: "Agent transcript" });
+        await transcript.getByText("LATEST BEFORE OPEN", { exact: true }).waitFor();
+        const atBottom = () => transcript.evaluate((element) => element.scrollHeight - element.scrollTop - element.clientHeight <= 2);
         const assertFit = async () => {
           const modalBox = (await dialog.boundingBox())!;
-          const terminalBox = (await terminal.boundingBox())!;
-          const screenBox = (await terminal.locator(".xterm-screen").boundingBox())!;
+          const transcriptBox = (await transcript.boundingBox())!;
+          const composerBox = (await dialog.getByRole("textbox", { name: "Follow-up message" }).boundingBox())!;
           expect(modalBox.y).toBeGreaterThanOrEqual(0);
           expect(modalBox.y + modalBox.height).toBeLessThanOrEqual(viewport.height);
-          expect(terminalBox.height).toBeGreaterThan(200);
-          expect(terminalBox.y + terminalBox.height).toBeLessThan(modalBox.y + modalBox.height);
-          expect(screenBox.y + screenBox.height).toBeLessThanOrEqual(terminalBox.y + terminalBox.height - 8);
-          expect(screenBox.x + screenBox.width).toBeLessThanOrEqual(terminalBox.x + terminalBox.width - 8);
+          expect(transcriptBox.height).toBeGreaterThan(150);
+          expect(composerBox.y + composerBox.height).toBeLessThanOrEqual(modalBox.y + modalBox.height);
+          expect(await proof.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         };
         await assertFit();
-        await proof.evaluate(async () => {
-          const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-          await host.appendAgentOutput((await host.getDashboardAgentTasks())[0]!.id, "LATEST LIVE ACTIVITY\r\n");
+        await proof.waitForFunction(() => {
+          const element = document.querySelector(".agent-transcript");
+          return element !== null && element.scrollHeight - element.scrollTop - element.clientHeight <= 2;
         });
-        await rows.getByText("LATEST LIVE ACTIVITY", { exact: false }).waitFor({ state: "attached" });
-        await terminal.hover();
-        await proof.mouse.wheel(0, -700);
-        await proof.waitForFunction(() => !document.querySelector(".xterm-accessibility-tree")?.textContent?.includes("LATEST LIVE ACTIVITY"));
-        await proof.evaluate(async () => {
-          const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-          await host.appendAgentOutput((await host.getDashboardAgentTasks())[0]!.id, "LATEST AFTER HISTORY\r\n");
-        });
-        await proof.waitForTimeout(100);
-        expect(await rows.textContent()).not.toContain("LATEST AFTER HISTORY");
-        await dialog.getByRole("button", { name: "Latest output", exact: true }).click();
-        await rows.getByText("LATEST AFTER HISTORY", { exact: false }).waitFor({ state: "attached" });
-        await dialog.getByRole("tab", { name: "Command", exact: true }).click();
-        expect(await dialog.locator(".agent-task-modal__command").textContent()).toBe(`codex exec '${prompt.trim()}'`);
-        await dialog.getByRole("tab", { name: "Terminal", exact: true }).click();
-        await rows.getByText("LATEST AFTER HISTORY", { exact: false }).waitFor({ state: "attached" });
+        await proof.evaluate((taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.appendAgentMessage(taskId, "\n\nLATEST LIVE ACTIVITY"), taskId);
+        await transcript.getByText("LATEST LIVE ACTIVITY", { exact: true }).waitFor();
+        expect(await atBottom()).toBe(true);
+
+        await transcript.hover();
+        await proof.mouse.wheel(0, -900);
+        await proof.waitForFunction(() => (document.querySelector(".agent-transcript")?.scrollTop ?? 0) > 0
+          && document.querySelector(".agent-transcript")!.scrollHeight - document.querySelector(".agent-transcript")!.scrollTop - document.querySelector(".agent-transcript")!.clientHeight > 100);
+        const readingPosition = await transcript.evaluate((element) => element.scrollTop);
+        await proof.evaluate((taskId) => window.__DASH_BORED_UI_HARNESS_HOST__!.appendAgentMessage(taskId, "\n\nLATEST AFTER HISTORY"), taskId);
+        await transcript.getByText("LATEST AFTER HISTORY", { exact: true }).waitFor({ state: "attached" });
+        expect(await transcript.evaluate((element) => element.scrollTop)).toBe(readingPosition);
+        await dialog.getByRole("button", { name: "Latest", exact: true }).click();
+        expect(await atBottom()).toBe(true);
+        await dialog.getByRole("button", { name: "Latest", exact: true }).waitFor({ state: "detached" });
+
+        await dialog.getByRole("tab", { name: "Prompt", exact: true }).click();
+        expect(await dialog.locator(".agent-task-modal__prompt-text").textContent()).toContain(prompt.trim());
+        await dialog.getByRole("tab", { name: "Session", exact: true }).click();
+        await transcript.getByText("LATEST AFTER HISTORY", { exact: true }).waitFor();
+        expect(await atBottom()).toBe(true);
         await assertFit();
-        const sizes = await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTerminalResizes());
-        expect(sizes.length).toBeGreaterThan(0);
-        expect(sizes.every(({ rows }) => rows > 10)).toBe(true);
-        await proof.screenshot({ path: `/tmp/dash-bored-agent-terminal-${viewport.width}.png` });
+        await proof.screenshot({ path: `/tmp/dash-bored-agent-session-${viewport.width}.png` });
       } finally { await proof.close(); }
     }
   }, 30_000);
@@ -2183,20 +2131,20 @@ describe("renderer fixture interactions", () => {
       try {
         await proof.goto(fixtureUrl);
         await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
-        await proof.evaluate(async () => {
+        const taskId = await proof.evaluate(async () => {
           const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
           const snapshot = await host.getSnapshot();
           await host.saveDashboardConfig({ schemaVersion: 4, name: "Scroll background", root: {
             id: "background", component: "./components/external/core/markdown", props: { content: "Background paragraph.\n\n".repeat(150) },
           } }, snapshot.configRevision!);
           const task = await host.launchAgent({ kind: "component",  nodeId: "background", prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
-          await host.appendAgentOutput(task.taskId, Array.from({ length: 120 }, (_, i) => `Activity ${i}\r\n`).join("") + "LAST ACTIVITY\r\n");
+          await host.appendAgentMessage(task.taskId, Array.from({ length: 120 }, (_, i) => `Activity ${i}`).join("\n\n") + "\n\nLAST ACTIVITY");
+          return task.taskId;
         });
-        await proof.getByRole("dialog", { name: "Agent work" }).locator(".agent-task").first().click();
-        const dialog = proof.getByRole("dialog", { name: "Agent command" });
-        const terminal = dialog.locator(".command__terminal");
-        const rows = terminal.locator(".xterm-accessibility-tree");
-        await rows.getByText("LAST ACTIVITY", { exact: false }).waitFor({ state: "attached" });
+        await proof.getByRole("dialog", { name: "Agent work" }).locator(`[data-task-id="${taskId}"]`).click();
+        const dialog = proof.getByRole("dialog", { name: "Agent session" });
+        const transcript = dialog.getByRole("log", { name: "Agent transcript" });
+        await transcript.getByText("LAST ACTIVITY", { exact: true }).waitFor();
         await proof.evaluate(() => window.scrollTo(0, 400));
         const backgroundPosition = await proof.evaluate(() => window.scrollY);
         expect(backgroundPosition).toBe(400);
@@ -2205,18 +2153,13 @@ describe("renderer fixture interactions", () => {
           await proof.waitForTimeout(150);
           expect(await proof.evaluate(() => window.scrollY)).toBe(backgroundPosition);
         };
-        await terminal.hover();
-        await wheel(1500); // Already at the bottom of the terminal.
-        // Xterm normalizes wheel ticks, so reach the top with repeated ticks.
-        for (let i = 0; i < 60 && !(await rows.textContent())?.includes("Activity 0"); i++) {
-          await proof.mouse.wheel(0, -700);
-          await proof.waitForTimeout(20);
-        }
-        await rows.getByText("Activity 0", { exact: true }).waitFor({ state: "attached" });
+        await transcript.hover();
+        await wheel(1500); // Already at the bottom of the transcript.
+        await wheel(-40000);
+        expect(await transcript.evaluate((element) => element.scrollTop)).toBe(0);
         await wheel(-1500); // Remain at the top without moving the dashboard.
-        expect(await rows.textContent()).toContain("Activity 0");
-        await dialog.getByRole("tab", { name: "Command", exact: true }).click();
-        const command = dialog.locator(".agent-task-modal__command");
+        await dialog.getByRole("tab", { name: "Prompt", exact: true }).click();
+        const command = dialog.locator(".agent-task-modal__prompt-text");
         await command.hover();
         await wheel(20000);
         expect(await command.evaluate((element) => element.scrollTop > 0)).toBe(true);
@@ -2224,7 +2167,7 @@ describe("renderer fixture interactions", () => {
         await wheel(-20000);
         await wheel(-1500);
         expect(await command.evaluate((element) => element.scrollTop)).toBe(0);
-        await dialog.getByRole("heading", { name: "Agent command", exact: true }).hover();
+        await dialog.getByRole("heading", { name: "Agent session", exact: true }).hover();
         await wheel(1500); // Non-scrollable modal chrome also contains the gesture.
         await dialog.getByRole("button", { name: "Close", exact: true }).click();
         await proof.getByRole("dialog", { name: "Agent work" }).getByRole("button", { name: "Close", exact: true }).click();
@@ -2247,14 +2190,15 @@ describe("renderer fixture interactions", () => {
         await host.saveDashboardConfig({ schemaVersion: 4, name: "Environment proof", root: { id: "env-proof", component: "./components/external/core/env", props: { path: ".dash-bored/.env" } } }, snapshot.configRevision!);
       });
       const editor = proof.getByRole("region", { name: "Environment editor for .dash-bored/.env", exact: true });
-      await editor.locator(".env-editor__effective").getByText("codex exec", { exact: true }).waitFor();
-      await editor.getByText("Source: Settings", { exact: true }).waitFor();
+      await editor.locator(".env-editor__effective").getByText("bundle-agent", { exact: true }).waitFor();
+      await editor.getByText("Source: Bundle .env", { exact: true }).waitFor();
       expect(await editor.getByRole("textbox", { name: "Variable value for DASH_BORED_AGENT", exact: true }).inputValue()).toBe("bundle-agent");
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
         await host.updateAppSettings({ ...await host.getAppSettings(), dashBoredAgent: "fixture-agent --run" });
       });
       await editor.locator(".env-editor__effective").getByText("fixture-agent --run", { exact: true }).waitFor();
+      await editor.getByText("Source: Settings", { exact: true }).waitFor();
       expect(await editor.getByRole("textbox", { name: "Variable value for DASH_BORED_AGENT", exact: true }).inputValue()).toBe("bundle-agent");
       await proof.evaluate(async () => {
         const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
@@ -2262,10 +2206,6 @@ describe("renderer fixture interactions", () => {
       });
       await editor.locator(".env-editor__effective").getByText("bundle-agent", { exact: true }).waitFor();
       await editor.getByText("Source: Bundle .env", { exact: true }).waitFor();
-      await proof.evaluate(async () => {
-        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-        await host.updateAppSettings({ ...await host.getAppSettings(), dashBoredAgent: "codex exec" });
-      });
     } finally {
       await proof.close();
     }
