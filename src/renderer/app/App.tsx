@@ -96,6 +96,7 @@ export function App(): ReactNode {
     notices,
     activityOpen: agentActivityOpen,
     setActivityOpen: setAgentActivityOpen,
+    applyAgentTask: session.applyAgentTask,
     snapshot,
     appAgentCommand: settings.settings.dashBoredAgent,
     focusedNodeId: virtualRoot?.target.id,

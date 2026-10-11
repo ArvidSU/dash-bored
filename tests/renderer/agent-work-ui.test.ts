@@ -9,6 +9,9 @@ import { startFixtureServer, type FixtureServer } from "../helpers/fixture-serve
  * waiting for sign-in, and one failed launch (src/renderer/lib/ui-harness-agents.ts).
  */
 
+/** The header trigger's name starts with its action and then counts sessions. */
+const OPEN_AGENT_WORK = /^Open agent work\b/;
+
 let fixtureServer: FixtureServer | null = null;
 let browser: Browser | null = null;
 let fixtureUrl = "";
@@ -30,7 +33,7 @@ async function openFixture(viewport = { width: 1280, height: 800 }): Promise<Pag
 }
 
 async function openSession(page: Page, taskId: string) {
-  const trigger = page.getByRole("button", { name: "Open agent work", exact: true });
+  const trigger = page.getByRole("button", { name: OPEN_AGENT_WORK });
   if (await trigger.count()) await trigger.click();
   const drawer = page.getByRole("dialog", { name: "Agent work" });
   await drawer.locator(`[data-task-id="${taskId}"]`).click();
@@ -70,10 +73,12 @@ describe("agent work", () => {
   test("drawer rows show each session's state with color, shape, and text, and the badge counts sessions that need watching", async () => {
     const page = await openFixture();
     try {
-      const trigger = page.getByRole("button", { name: "Open agent work", exact: true });
+      const trigger = page.getByRole("button", { name: OPEN_AGENT_WORK });
       const badge = trigger.locator(".agent-activity-trigger__count");
       expect(await badge.textContent()).toBe("3");
       expect(await badge.getAttribute("data-waiting")).toBe("true");
+      // The badge is visual; the name says the same.
+      expect(await trigger.getAttribute("aria-label")).toBe("Open agent work, 3 active, 2 need you");
       await trigger.click();
       const drawer = page.getByRole("dialog", { name: "Agent work" });
       const expected = [
@@ -92,6 +97,7 @@ describe("agent work", () => {
         expect(await row.locator("time").count()).toBe(1);
         expect((await row.getAttribute("aria-label"))?.startsWith(`${state}: `)).toBe(true);
       }
+      expect(await drawer.locator('[data-task-id="fixture-idle"]').getAttribute("aria-label")).toMatch(/\. Dashboard validated$/);
       // Newest first, as the host orders them.
       expect(await drawer.locator(".agent-task").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-task-id"))))
         .toEqual(expected.map(([taskId]) => taskId));
@@ -112,7 +118,7 @@ describe("agent work", () => {
     const page = await openFixture();
     try {
       const drawer = page.getByRole("dialog", { name: "Agent work" });
-      await page.getByRole("button", { name: "Open agent work", exact: true }).click();
+      await page.getByRole("button", { name: OPEN_AGENT_WORK }).click();
       await drawer.waitFor();
       await drawer.getByRole("button", { name: "Close", exact: true }).click();
       await drawer.waitFor({ state: "detached" });
@@ -125,7 +131,7 @@ describe("agent work", () => {
       await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.requestAgentPermission("fixture-idle"));
       await drawer.waitFor();
       await drawer.locator('[data-task-id="fixture-idle"]').getByText("Needs permission", { exact: true }).waitFor();
-      expect(await page.getByRole("button", { name: "Close agent work", exact: true }).locator(".agent-activity-trigger__count").textContent()).toBe("3");
+      expect(await page.getByRole("button", { name: /^Close agent work\b/ }).locator(".agent-activity-trigger__count").textContent()).toBe("3");
     } finally { await page.close(); }
   }, 20_000);
 
@@ -144,6 +150,8 @@ describe("agent work", () => {
       // The follow-up composer waits for the answer.
       expect(await session.getByRole("textbox", { name: "Follow-up message" }).isDisabled()).toBe(true);
 
+      // A card that just appeared ignores input briefly; then its options take focus.
+      await card.getByRole("button", { name: "Always allow" }).click({ trial: true });
       await card.getByRole("button", { name: "Always allow" }).focus();
       await page.keyboard.press("Shift+Tab");
       expect(await card.getByRole("button", { name: "Allow once" }).evaluate((button) => button === document.activeElement)).toBe(true);
@@ -165,6 +173,124 @@ describe("agent work", () => {
       expect((await taskCommands(page, "fixture-waiting")).at(-1)).toEqual({ type: "permission", requestId: "perm-fixture-2", optionId: null });
       await session.getByText("Permission request dismissed; the turn was cancelled.", { exact: true }).waitFor();
       await row.getByText("Idle", { exact: true }).waitFor();
+    } finally { await page.close(); }
+  }, 20_000);
+
+  test("a double-click answers only the request it landed on; a queued request shows disabled, then takes its own answer", async () => {
+    const page = await openFixture();
+    try {
+      // The host answers first and pushes 50 ms later, and a second request waits behind the first.
+      await page.evaluate(() => {
+        const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+        host.setAgentCommandLatency({ pushMs: 50 });
+        return host.requestAgentPermission("fixture-waiting", { id: "perm-queued", title: "Edit tests/release/checklist.test.ts" });
+      });
+      const { session } = await openSession(page, "fixture-waiting");
+      const first = session.getByRole("group", { name: "Run bun test tests/release/checklist.test.ts" });
+      const allowFirst = first.getByRole("button", { name: "Allow once", exact: true });
+      await allowFirst.click({ trial: true });
+      await page.evaluate(() => {
+        const record = window as unknown as { queuedCardDisabled?: boolean };
+        const observer = new MutationObserver(() => {
+          const card = document.querySelector('[data-request-id="perm-queued"]');
+          if (!card) return;
+          record.queuedCardDisabled = [...card.querySelectorAll("button")].every((button) => button.disabled);
+          observer.disconnect();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      });
+
+      await allowFirst.dblclick();
+      const second = session.getByRole("group", { name: "Edit tests/release/checklist.test.ts" });
+      await second.waitFor();
+      expect(await page.evaluate(() => (window as unknown as { queuedCardDisabled?: boolean }).queuedCardDisabled)).toBe(true);
+      // Focus was on the answered card, so the new request's heading takes it.
+      expect(await second.getByRole("heading").evaluate((heading) => heading === document.activeElement)).toBe(true);
+      await second.getByRole("button", { name: "Allow once", exact: true }).click({ trial: true });
+      await page.waitForTimeout(100);
+      expect(await taskCommands(page, "fixture-waiting")).toEqual([
+        { type: "permission", requestId: "perm-fixture-1", optionId: "approved" },
+      ]);
+
+      await second.getByRole("button", { name: "Allow once", exact: true }).click();
+      await second.waitFor({ state: "detached" });
+      expect((await taskCommands(page, "fixture-waiting")).at(-1)).toEqual({ type: "permission", requestId: "perm-queued", optionId: "allow" });
+      // The answered card took its focused button along; focus stays in the session.
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Agent transcript");
+    } finally { await page.close(); }
+  }, 20_000);
+
+  test("controls stay disabled while a command is pending and show its answer before the push arrives", async () => {
+    const page = await openFixture();
+    try {
+      await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setAgentCommandLatency({ responseMs: 250, pushMs: 600 }));
+      const { row, session } = await openSession(page, "fixture-working");
+      const stopStates = page.evaluate(() => new Promise<string[]>((resolve) => {
+        const seen: string[] = [];
+        const started = performance.now();
+        const sample = (): void => {
+          const stop = [...document.querySelectorAll<HTMLButtonElement>(".agent-task-modal__actions button")]
+            .find((button) => button.textContent?.startsWith("Stop"));
+          const state = stop ? `${stop.textContent} ${stop.disabled ? "disabled" : "enabled"}` : "gone";
+          if (seen.at(-1) !== state) seen.push(state);
+          if (performance.now() - started < 900) requestAnimationFrame(sample);
+          else resolve(seen);
+        };
+        sample();
+      }));
+      await session.getByRole("button", { name: "Stop", exact: true }).click();
+      expect(await session.getByRole("button", { name: "Close session", exact: true }).isDisabled()).toBe(true);
+      expect(await session.getByRole("combobox", { name: "Model" }).isDisabled()).toBe(true);
+      // Stop never enables again between the answer (250 ms) and the push (600 ms).
+      expect(await stopStates).toEqual(["Stop enabled", "Stopping… disabled", "gone"]);
+      await row.getByText("Idle", { exact: true }).waitFor();
+      expect(await session.getByRole("button", { name: "Close session", exact: true }).isDisabled()).toBe(false);
+    } finally { await page.close(); }
+  }, 20_000);
+
+  test("a follow-up draft survives tab switches and closing the modal, and focus returns after the turn when the push trails the answer", async () => {
+    const page = await openFixture();
+    try {
+      await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setAgentCommandLatency({ pushMs: 50 }));
+      const { row, session } = await openSession(page, "fixture-idle");
+      const followUp = session.getByRole("textbox", { name: "Follow-up message" });
+      await followUp.fill("Keep this draft");
+      await session.getByRole("tab", { name: "Prompt", exact: true }).click();
+      await session.getByRole("tab", { name: "Session", exact: true }).click();
+      expect(await followUp.inputValue()).toBe("Keep this draft");
+      await page.keyboard.press("Escape");
+      await session.waitFor({ state: "detached" });
+      await openSession(page, "fixture-idle");
+      expect(await followUp.inputValue()).toBe("Keep this draft");
+
+      await followUp.focus();
+      await page.keyboard.press("Enter");
+      await session.getByRole("log", { name: "Agent transcript" }).getByText("Done. I handled the follow-up: Keep this draft", { exact: true }).waitFor();
+      await row.getByText("Idle", { exact: true }).waitFor();
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Follow-up message");
+      expect(await followUp.inputValue()).toBe("");
+    } finally { await page.close(); }
+  }, 20_000);
+
+  test("a new permission request is announced politely and takes focus inside the session modal", async () => {
+    const page = await openFixture();
+    try {
+      const { session } = await openSession(page, "fixture-idle");
+      const announcer = session.locator('.visually-hidden[role="status"]');
+      expect(await announcer.textContent()).toBe("");
+      await session.getByRole("textbox", { name: "Follow-up message" }).focus();
+      await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.requestAgentPermission("fixture-idle", { id: "perm-new", title: "Edit .dash-bored/dash-bored.yaml" }));
+      const card = session.getByRole("group", { name: "Edit .dash-bored/dash-bored.yaml" });
+      await card.waitFor();
+      expect(await announcer.getAttribute("aria-live")).toBe("polite");
+      expect(await announcer.textContent()).toBe("Gemini CLI needs permission: Edit .dash-bored/dash-bored.yaml");
+      await page.waitForFunction(() => document.activeElement?.matches('[data-request-id="perm-new"] h3') === true);
+      // A card shown again with its tab leaves focus on the tab.
+      const sessionTab = session.getByRole("tab", { name: "Session", exact: true });
+      await session.getByRole("tab", { name: "Prompt", exact: true }).click();
+      await sessionTab.click();
+      await card.waitFor();
+      expect(await sessionTab.evaluate((tab) => tab === document.activeElement)).toBe(true);
     } finally { await page.close(); }
   }, 20_000);
 
@@ -230,6 +356,15 @@ describe("agent work", () => {
       await session.getByRole("button", { name: "Show resume command", exact: true }).click();
       const popover = session.getByRole("group", { name: "Resume command" });
       expect(await popover.locator("code").textContent()).toBe("gemini --resume '4f6c1d2e-gemini-session'");
+      expect(await popover.locator(".agent-handoff__hint").textContent()).toBe("dash-bored closes its session when you resume in Gemini CLI.");
+      // While the agent works the command and its copy action are not offered.
+      await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.patchAgentTask("fixture-idle", { state: "working" }));
+      await popover.waitFor({ state: "detached" });
+      expect(await session.getByRole("button", { name: "Show resume command", exact: true }).count()).toBe(0);
+      expect(await session.getByRole("button", { name: "Resume in Gemini CLI", exact: true }).isDisabled()).toBe(true);
+      await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.patchAgentTask("fixture-idle", { state: "idle" }));
+      expect(await popover.count()).toBe(0);
+      await session.getByRole("button", { name: "Show resume command", exact: true }).click();
       await popover.getByRole("button", { name: "Copy command", exact: true }).click();
       await popover.getByRole("button", { name: "Copied", exact: true }).waitFor();
       await page.keyboard.press("Escape");
@@ -240,6 +375,7 @@ describe("agent work", () => {
       await row.getByText("Closed", { exact: true }).waitFor();
       expect((await taskCommands(page, "fixture-idle")).at(-1)).toEqual({ type: "handoff" });
       await row.getByText("Continued in Gemini CLI", { exact: true }).waitFor();
+      expect(await row.getAttribute("aria-label")).toMatch(/\. Continued in Gemini CLI$/);
       await session.getByRole("status").getByText("Continued in Gemini CLI. dash-bored no longer drives this session.", { exact: true }).waitFor();
       expect(await session.getByRole("button", { name: "Close session", exact: true }).count()).toBe(0);
       expect(await session.getByRole("textbox", { name: "Follow-up message" }).count()).toBe(0);
@@ -262,7 +398,7 @@ describe("agent work", () => {
       await alert.getByText("The agent did not answer ACP initialize within 60 seconds.", { exact: false }).waitFor();
       expect(await alert.getByText("Agent log · last 7 lines", { exact: true }).count()).toBe(1);
       expect(await alert.locator(".agent-failure__log").textContent()).toContain("hint: run with --acp to speak the Agent Client Protocol");
-      expect(await failed.session.getByRole("toolbar", { name: "Session controls" }).count()).toBe(0);
+      expect(await failed.session.getByRole("group", { name: "Session controls" }).count()).toBe(0);
       expect(await failed.session.getByRole("textbox", { name: "Follow-up message" }).count()).toBe(0);
       await failed.session.getByRole("tab", { name: "Prompt", exact: true }).click();
       expect(await failed.session.locator(".agent-task-modal__launch").textContent()).toBe("my-acp-agent --stdio");

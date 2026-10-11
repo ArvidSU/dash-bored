@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import type {
   AgentPermissionOption,
   AgentPermissionRequest,
@@ -30,19 +30,54 @@ export type AgentSessionSend = (key: string, command: AgentTaskCommand) => Promi
 const MAX_FOLLOW_UP = 12_000;
 /** Within this distance of the end the transcript follows new output. */
 const FOLLOW_SLACK_PX = 32;
+/**
+ * A permission card that just appeared ignores clicks this long, so the rest
+ * of a click aimed at the request before it cannot answer one the user has
+ * not read (queued requests replace each other in place).
+ */
+const PERMISSION_SETTLE_MS = 400;
+
+/** Focus moved off the page (its element was removed or disabled) rather than elsewhere. */
+function focusLost(): boolean {
+  const active = document.activeElement;
+  return active === null || active === document.body || !active.isConnected;
+}
 
 /** The Session tab: plan, transcript, what needs the user, and the follow-up composer. */
 export function AgentSession({
   task,
   pending,
+  draft,
+  onDraftChange,
   onSend,
 }: {
   task: AgentSessionTask;
   pending: string | null;
+  /** The unsent follow-up, owned by the modal so it survives tab switches. */
+  draft: string;
+  onDraftChange(text: string): void;
   onSend: AgentSessionSend;
 }): ReactNode {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const answeringRef = useRef(false);
+  // Cards shown with the tab (opening the modal, switching tabs) leave focus alone.
+  const shownRef = useRef(false);
+  const permissionId = task.permission?.id ?? null;
+
+  useEffect(() => {
+    shownRef.current = true;
+  }, []);
+
+  // An answered card disappears with its focused button; keep focus in the
+  // modal on the transcript. A next request's card takes focus itself.
+  useEffect(() => {
+    if (!answeringRef.current || pending !== null) return;
+    answeringRef.current = false;
+    if (permissionId === null && focusLost()) rootRef.current?.querySelector<HTMLElement>(".agent-transcript")?.focus();
+  }, [pending, permissionId]);
+
   return (
-    <div className="agent-session">
+    <div className="agent-session" ref={rootRef}>
       {task.plan && task.plan.length > 0 ? <AgentPlan plan={task.plan} /> : null}
       <AgentTranscript task={task} />
       {task.permission ? (
@@ -52,7 +87,11 @@ export function AgentSession({
           configPath={task.configPath}
           untrusted={task.untrusted === true}
           pending={pending !== null}
-          onAnswer={(optionId) => onSend("permission", { type: "permission", requestId: task.permission!.id, optionId })}
+          takeFocus={shownRef.current}
+          onAnswer={(optionId) => {
+            answeringRef.current = true;
+            void onSend("permission", { type: "permission", requestId: task.permission!.id, optionId });
+          }}
         />
       ) : null}
       {task.state === "auth-required" ? (
@@ -60,7 +99,13 @@ export function AgentSession({
       ) : null}
       {task.state === "failed" ? <AgentFailure task={task} /> : null}
       {task.state !== "closed" && task.state !== "failed" && task.state !== "auth-required" ? (
-        <AgentFollowUp task={task} pending={pending === "prompt"} onSend={(text) => onSend("prompt", { type: "prompt", text })} />
+        <AgentFollowUp
+          task={task}
+          pending={pending === "prompt"}
+          text={draft}
+          onTextChange={onDraftChange}
+          onSend={(text) => onSend("prompt", { type: "prompt", text })}
+        />
       ) : null}
     </div>
   );
@@ -216,8 +261,8 @@ function AgentToolRow({ entry, configPath }: { entry: AgentToolEntry; configPath
       </div>
       {entry.edits.length > 0 || locations.length > 0 ? (
         <ul className="agent-tool__paths" aria-label="Touched files">
-          {entry.edits.map((edit) => (
-            <li key={`edit:${edit.path}`} title={edit.path}>
+          {entry.edits.map((edit, index) => (
+            <li key={`edit:${index}:${edit.path}`} title={edit.path}>
               <code>{agentDisplayPath(edit.path, configPath)}</code>
               {" "}<span className="agent-tool__added">+{edit.added}</span>
               {" "}<span className="agent-tool__removed">{"−"}{edit.removed}</span>
@@ -261,22 +306,46 @@ function AgentPermissionCard({
   configPath,
   untrusted,
   pending,
+  takeFocus,
   onAnswer,
 }: {
   permission: AgentPermissionRequest;
   configPath: string;
   untrusted: boolean;
   pending: boolean;
+  /** The request arrived while the Session tab showed. */
+  takeFocus: boolean;
   onAnswer(optionId: string | null): void;
 }): ReactNode {
   const titleId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [settling, setSettling] = useState(true);
+  const disabled = pending || settling;
+
+  // Each request mounts its own card (keyed by id). When focus was in the
+  // session modal, or left it because the answered card vanished, a request
+  // that arrives takes it on its heading, so it is read before any choice.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettling(false), PERMISSION_SETTLE_MS);
+    const modal = sectionRef.current?.closest('[role="dialog"]');
+    if (takeFocus && modal && (focusLost() || modal.contains(document.activeElement))) headingRef.current?.focus();
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function answer(event: MouseEvent<HTMLButtonElement>, optionId: string | null): void {
+    // The second click of a double-click never answers (keyboard activation reports 0).
+    if (event.detail > 1) return;
+    onAnswer(optionId);
+  }
+
   return (
-    <section className="agent-permission" role="group" aria-labelledby={titleId} data-request-id={permission.id}>
+    <section ref={sectionRef} className="agent-permission" role="group" aria-labelledby={titleId} data-request-id={permission.id}>
       <div className="agent-permission__header">
         <span className="agent-permission__mark"><AgentAttentionGlyph /></span>
         <div className="agent-permission__heading">
           <span className="agent-permission__eyebrow">Permission needed</span>
-          <h3 id={titleId}>{permission.title}</h3>
+          <h3 id={titleId} ref={headingRef} tabIndex={-1}>{permission.title}</h3>
         </div>
         {permission.toolKind ? <span className="agent-tool__kind">{AGENT_TOOL_KIND_LABELS[permission.toolKind]}</span> : null}
       </div>
@@ -292,7 +361,13 @@ function AgentPermissionCard({
           This repair runs untrusted: requests outside the dashboard bundle are refused automatically.
         </p>
       ) : null}
-      <div className="agent-permission__options">
+      <div
+        className="agent-permission__options"
+        onMouseDown={(event) => {
+          // A click on a waiting option must not move focus off the request.
+          if (disabled) event.preventDefault();
+        }}
+      >
         {permission.options.map((option) => (
           <button
             key={option.optionId}
@@ -300,8 +375,8 @@ function AgentPermissionCard({
             type="button"
             data-kind={option.kind}
             title={PERMISSION_KIND_TITLES[option.kind]}
-            disabled={pending}
-            onClick={() => onAnswer(option.optionId)}
+            disabled={disabled}
+            onClick={(event) => answer(event, option.optionId)}
           >
             {option.name}
           </button>
@@ -310,8 +385,8 @@ function AgentPermissionCard({
           className="button button--quiet button--small agent-permission__dismiss"
           type="button"
           title="Answer without choosing; the agent treats the request as cancelled"
-          disabled={pending}
-          onClick={() => onAnswer(null)}
+          disabled={disabled}
+          onClick={(event) => answer(event, null)}
         >
           Dismiss
         </button>
@@ -393,13 +468,16 @@ function followUpHint(task: AgentSessionTask): string {
 function AgentFollowUp({
   task,
   pending,
+  text,
+  onTextChange,
   onSend,
 }: {
   task: AgentSessionTask;
   pending: boolean;
+  text: string;
+  onTextChange(text: string): void;
   onSend(text: string): Promise<boolean>;
 }): ReactNode {
-  const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // After a send the field disables until the turn ends; give focus back then.
   const refocusRef = useRef(false);
@@ -416,7 +494,7 @@ function AgentFollowUp({
   async function submit(): Promise<void> {
     if (!canSend) return;
     refocusRef.current = true;
-    if (await onSend(text.trim())) setText("");
+    if (await onSend(text.trim())) onTextChange("");
   }
 
   return (
@@ -435,7 +513,7 @@ function AgentFollowUp({
         maxLength={MAX_FOLLOW_UP}
         value={text}
         disabled={!enabled}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => onTextChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
           event.preventDefault();

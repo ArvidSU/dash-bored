@@ -37,12 +37,23 @@ export interface FixtureAgentControls {
   finishAgentTask(taskId: string, validation: NonNullable<AgentSessionTask["validation"]>): Promise<void>;
   /** Streams agent text into the transcript, merged into a trailing agent message. */
   appendAgentMessage(taskId: string, text: string): Promise<void>;
-  /** Puts a permission request on the task; it starts waiting on the user. */
+  /**
+   * Puts a permission request on the task; it starts waiting on the user. While
+   * another request is open the new one queues behind it, as an agent's
+   * parallel tool calls do, and appears once the open one is answered.
+   */
   requestAgentPermission(taskId: string, permission?: Partial<AgentPermissionRequest>): Promise<void>;
   /** Applies a raw patch to a task and publishes it, for state transitions tests need. */
   patchAgentTask(taskId: string, patch: Partial<AgentSessionTask>): Promise<void>;
   /** Every task command the UI sent, oldest first. */
   getAgentTaskCommands(): readonly { taskId: string; command: AgentTaskCommand }[];
+  /**
+   * Simulates host latency for task commands: the answer arrives `responseMs`
+   * after the command and the task push `pushMs` after it, so a push can trail
+   * the answer. Both carry the task as it is when they are sent. Zero (the
+   * default) answers at once and pushes before answering.
+   */
+  setAgentCommandLatency(latency: { responseMs?: number; pushMs?: number }): void;
   /** Known agent IDs found on the fixture PATH. */
   setDetectedAgents(ids: readonly string[]): void;
 }
@@ -357,6 +368,9 @@ export function createFixtureAgents({
 }): FixtureAgents {
   const tasks: AgentSessionTask[] = seededTasks(projectRoot, configPath);
   const commands: { taskId: string; command: AgentTaskCommand }[] = [];
+  /** Requests waiting behind each task's open permission request, oldest first. */
+  const queuedPermissions = new Map<string, AgentPermissionRequest[]>();
+  let latency = { responseMs: 0, pushMs: 0 };
   let detectedIds: readonly string[] = ["claude", "codex", "gemini"];
   let launches = 0;
   let sequence = 0;
@@ -427,6 +441,7 @@ export function createFixtureAgents({
   const endTurn = (task: AgentSessionTask, stopReason: AgentStopReason): void => {
     task.state = "idle";
     task.permission = null;
+    queuedPermissions.delete(task.id);
     task.stopReason = stopReason;
     if (stopReason === "end_turn") task.turns += 1;
     for (const entry of task.entries) {
@@ -481,7 +496,13 @@ export function createFixtureAgents({
         if (command.optionId !== null && !option) throw new Error("That permission option is not available.");
         const tool = toolEntry(task, request.toolCallId);
         task.permission = null;
-        if (!option) {
+        const queued = option ? queuedPermissions.get(task.id)?.shift() : undefined;
+        if (queued) {
+          // The next queued request shows at once; the turn waits on it.
+          if (tool) tool.status = option?.kind === "reject_once" || option?.kind === "reject_always" ? "failed" : "in_progress";
+          task.permission = queued;
+          task.state = "waiting";
+        } else if (!option) {
           task.entries.push({ kind: "notice", id: nextId("n"), level: "warning", text: "Permission request dismissed; the turn was cancelled." });
           endTurn(task, "cancelled");
         } else if (option.kind === "reject_once" || option.kind === "reject_always") {
@@ -534,12 +555,15 @@ export function createFixtureAgents({
         if (task.state === "closed") break;
         task.state = "closed";
         task.permission = null;
+        queuedPermissions.delete(task.id);
         task.handoff = null;
         task.pid = null;
         break;
       }
     }
-    emit(task);
+    if (latency.pushMs > 0) setTimeout(() => emit(task), latency.pushMs);
+    else emit(task);
+    if (latency.responseMs > 0) await new Promise((resolve) => setTimeout(resolve, latency.responseMs));
     return structuredClone(task);
   }
 
@@ -612,7 +636,7 @@ export function createFixtureAgents({
           edits: [],
         });
       }
-      task.permission = {
+      const request: AgentPermissionRequest = {
         id: permission.id ?? nextId("perm"),
         toolCallId,
         title: permission.title ?? "Edit dash-bored.yaml",
@@ -623,6 +647,12 @@ export function createFixtureAgents({
           { optionId: "reject", name: "Reject", kind: "reject_once" },
         ],
       };
+      if (task.permission) {
+        queuedPermissions.set(taskId, [...queuedPermissions.get(taskId) ?? [], request]);
+        emit(task);
+        return;
+      }
+      task.permission = request;
       task.state = "waiting";
       task.handoff = null;
       emit(task);
@@ -633,6 +663,7 @@ export function createFixtureAgents({
       emit(task);
     },
     getAgentTaskCommands() { return structuredClone(commands); },
+    setAgentCommandLatency(next) { latency = { responseMs: next.responseMs ?? 0, pushMs: next.pushMs ?? 0 }; },
     setDetectedAgents(ids) { detectedIds = [...ids]; },
   };
 }

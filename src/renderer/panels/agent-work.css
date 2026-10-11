@@ -197,7 +197,8 @@
   display: inline-flex;
 }
 
-.agent-handoff__resume {
+/* Joined to the command toggle, which shows only while hand-off is possible. */
+.agent-handoff__resume:not(:only-child) {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -708,6 +709,14 @@
   flex-wrap: wrap;
   gap: 6px;
   padding-left: 27px;
+}
+
+/*
+ * Disabled options let clicks through to the row, which keeps focus where it
+ * is; a disabled button would swallow the click and still drop focus to body.
+ */
+.agent-permission__options .button:disabled {
+  pointer-events: none;
 }
 
 .agent-permission__option--allow.button--secondary {

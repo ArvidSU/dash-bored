@@ -128,6 +128,15 @@ export interface AppShellProps {
 }
 
 /** Window chrome, navigation, and header only. Dashboard state stays with its workspace. */
+/** The Agent work trigger's name: its action, then the counts its badge shows. */
+function agentActivityTriggerLabel(open: boolean, active: number, waiting: number): string {
+  const counts = [
+    ...(active > 0 ? [`${active} active`] : []),
+    ...(waiting > 0 ? [`${waiting} ${waiting === 1 ? "needs" : "need"} you`] : []),
+  ];
+  return [open ? "Close agent work" : "Open agent work", ...counts].join(", ");
+}
+
 export function AppShell({
   snapshot,
   projects,
@@ -329,7 +338,7 @@ export function AppShell({
                 <button
                   className={`button button--quiet agent-activity-trigger${agentActivityOpen ? " agent-activity-trigger--active" : ""}`}
                   type="button"
-                  aria-label={agentActivityOpen ? "Close agent work" : "Open agent work"}
+                  aria-label={agentActivityTriggerLabel(agentActivityOpen, activeAgentTaskCount, waitingAgentTaskCount)}
                   aria-expanded={agentActivityOpen}
                   title={waitingAgentTaskCount > 0
                     ? `${waitingAgentTaskCount} agent ${waitingAgentTaskCount === 1 ? "session needs" : "sessions need"} you`

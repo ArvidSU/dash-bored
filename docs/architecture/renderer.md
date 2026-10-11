@@ -365,17 +365,22 @@ agent edits.
 
 Agent work shows main's ACP sessions (`AgentSessionTask`), newest first.
 `app/use-host-session.ts` merges pushed task snapshots over the initial
-`getAgentTasks` read and mirrors main's bound of 20 sessions
+`getAgentTasks` read, applies the task each command answers with before the
+modal re-enables its controls (so they never act on the pre-command state
+while the push is in flight), and mirrors main's bound of 20 sessions
 (`boundAgentTasks` in `lib/agent-tasks.ts`): the oldest closed or failed
 sessions go first, then the oldest idle ones; a session that is starting,
 working, waiting for permission, or needs sign-in, or whose validation is
 checking or repairing, is never dropped. Each drawer row shows a bounded
 first-sentence summary, the agent name, start time, a state chip, a validation
-chip, and "Continued in <app>" after a hand-off. Chips (`panels/AgentStatus.tsx`)
+chip, and "Continued in <app>" after a hand-off; its accessible name carries
+the same state, validation, and hand-off. Chips (`panels/AgentStatus.tsx`)
 pair a color family with a distinct glyph and text; only starting and working
 glyphs spin, and only without reduced motion. The header control's badge counts
 working, waiting, and sign-in sessions and switches to an attention style while
-any session needs the user. The drawer opens when a session becomes active
+any session needs the user; the control's accessible name states both counts.
+A polite live region announces each new permission request (the modal holds
+it while open). The drawer opens when a session becomes active
 (starting, working, waiting, or sign-in required after any other state) and
 whenever one starts waiting for permission or sign-in, even after the user
 dismissed it. Sessions present at startup and other updates never open it, and
@@ -383,14 +388,16 @@ closing the drawer never stops a session.
 
 Clicking a row opens the Agent session modal with Session and Prompt tabs; only
 the active tab renders. Its header shows the summary, state, agent, start time,
-and component path. Unless the session is closed or failed, a toolbar carries
+and component path. Unless the session is closed or failed, a Session controls
+group carries
 the agent's config options as selects (grouped as the agent groups them) or
 checkboxes, enabled while the session is idle, working, or waiting; Stop, which
 cancels the current turn while working or waiting and keeps the session open;
 Resume in <agent>, when main resolved a resume command; and Close session.
-Resume is enabled only while idle. Its split toggle opens a popover with the
-exact command and a copy action; Escape closes only the popover. After a
-hand-off the toolbar gives way to "Continued in <app>". Validation feedback
+Resume is enabled only while idle; only then does its split toggle show, opening
+a popover with the exact command, a copy action, and a note that dash-bored
+closes its session on resume. Escape closes only the popover. After a hand-off
+the controls give way to "Continued in <app>". Validation feedback
 (checking, repairing, validated, failed, trust-required, or cancelled, with
 diagnostics) sits above the tabs; while checking, Cancel automatic follow-up
 sends `cancel`. Command errors appear inline.
@@ -405,11 +412,17 @@ keeps their place and offers Latest, and notes how many earlier entries main
 dropped. A permission request is a card with the requested files, the agent's
 options (allow or reject, once or always), Dismiss (answers without a choice,
 which the agent treats as cancelled), and a note when an untrusted repair
-refuses requests outside the bundle. Sign-in required lists the agent's
+refuses requests outside the bundle. A newly shown card keeps its options
+disabled for 400 ms and options ignore the second click of a double-click, so
+a click aimed at an answered request cannot answer the queued one that replaces
+it. A request that arrives while the Session tab shows and focus is in the
+modal moves focus to its card's heading; after an answer removes the card, focus moves to the
+transcript. Sign-in required lists the agent's
 sign-in methods; signing in belongs to the agent. A failed session shows its
 error and the bounded agent log. The follow-up composer is enabled only while
 idle and says why otherwise; Enter sends, Shift+Enter adds a line, and focus
-returns when the turn ends. The Prompt tab shows the launch command and the
+returns when the turn ends. Agent work keeps each session's unsent draft, so it
+survives tab switches and closing the modal. The Prompt tab shows the launch command and the
 full first prompt, each with a copy action.
 
 `lib/markdown-lite.tsx` renders agent messages as a safe subset: paragraphs and
@@ -419,7 +432,9 @@ plus the URL (only a URL, optionally with a quoted title, makes a link, so
 bracketed prose such as `arr[0](see below)` stays text). It emits only React text and fixed elements: raw HTML shows
 literally, nothing navigates, and parsing stays linear on pathological input.
 The UI fixture seeds one session per interesting state and answers task
-commands like main (`lib/ui-harness-agents.ts`).
+commands like main (`lib/ui-harness-agents.ts`). It queues a permission
+request behind an open one, and `setAgentCommandLatency` delays command
+answers and pushes, for example to push after answering.
 
 The modal reserves its remaining height for the active panel, with bounded,
 scrollable validation feedback. The shared modal overlay and panel contain

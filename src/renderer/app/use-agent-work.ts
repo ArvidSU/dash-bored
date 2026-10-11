@@ -24,6 +24,8 @@ export interface AgentWorkOptions {
   /** Whether the Agent work surface is open; host task events also open it. */
   activityOpen: boolean;
   setActivityOpen(open: boolean): void;
+  /** Puts a task a command answered with into the task list. */
+  applyAgentTask(task: AgentSessionTask): void;
   snapshot: ProjectSnapshot | null;
   /** The app-wide agent setting; a change re-resolves the effective agent. */
   appAgentCommand: string | null;
@@ -42,6 +44,7 @@ export function useAgentWork({
   notices,
   activityOpen,
   setActivityOpen,
+  applyAgentTask,
   snapshot,
   appAgentCommand,
   focusedNodeId,
@@ -79,11 +82,16 @@ export function useAgentWork({
     closeLibrary();
   }
 
-  /** One user command to a session; the host also pushes the updated task. */
-  const taskCommand = useCallback(
-    (taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask> => host.agentTaskCommand(taskId, command),
-    [],
-  );
+  /**
+   * One user command to a session. The answer is applied before the caller
+   * re-enables its controls, so they never act on the pre-command state (such
+   * as a permission request that was just answered) while the push is in flight.
+   */
+  const taskCommand = useCallback(async (taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask> => {
+    const task = await host.agentTaskCommand(taskId, command);
+    applyAgentTask(task);
+    return task;
+  }, [applyAgentTask]);
 
   /** Change with agent briefs the agent with the dashboard template. */
   function openChangeWithAgent(node: ResolvedComponentNode): void {

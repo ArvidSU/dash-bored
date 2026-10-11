@@ -27,6 +27,44 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** The row's accessible name: state and request, then validation and hand-off. */
+function agentTaskRowLabel(task: AgentSessionTask): string {
+  const validation = agentValidationLabel(task);
+  return [
+    `${AGENT_STATE_LABELS[task.state]}: ${agentTaskSummary(task)}`,
+    ...(validation ? [validation] : []),
+    ...(task.handedOff ? [`Continued in ${agentHandoffApp(task)}`] : []),
+  ].join(". ");
+}
+
+/**
+ * A polite announcement for each new permission request. A task's first
+ * appearance (the initial read, or a launch) only records it.
+ */
+function usePermissionAnnouncement(tasks: readonly AgentSessionTask[]): [string, () => void] {
+  const seenRef = useRef(new Map<string, string | null>());
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    const seen = seenRef.current;
+    let next: string | null = null;
+    for (const task of tasks) {
+      const known = seen.has(task.id);
+      const previous = seen.get(task.id);
+      const current = task.permission?.id ?? null;
+      seen.set(task.id, current);
+      if (known && task.permission && current !== previous) {
+        next = `${task.agent.name} needs permission: ${task.permission.title}`;
+      }
+    }
+    if (next !== null) setMessage(next);
+  }, [tasks]);
+  return [message, () => setMessage("")];
+}
+
+function Announcement({ message }: { message: string }): ReactNode {
+  return <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{message}</p>;
+}
+
 /** The Agent work drawer: one row per agent session, and the session modal. */
 export function AgentActivity({
   open,
@@ -41,10 +79,31 @@ export function AgentActivity({
 }): ReactNode {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+  // Unsent follow-ups per session; they outlive tab switches and the modal.
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+  const [announcement, clearAnnouncement] = usePermissionAnnouncement(tasks);
+  const modalOpen = open && selectedTask !== null;
+
+  // The live region moves into the modal while it is open (outside content is
+  // hidden from assistive tech then); it starts empty so nothing repeats.
+  function selectTask(taskId: string | null): void {
+    setSelectedTaskId(taskId);
+    clearAnnouncement();
+  }
 
   useEffect(() => {
     if (!open) setSelectedTaskId(null);
   }, [open]);
+
+  function setDraft(taskId: string, text: string): void {
+    setDrafts((current) => {
+      if ((current[taskId] ?? "") === text) return current;
+      const next = { ...current };
+      if (text) next[taskId] = text;
+      else delete next[taskId];
+      return next;
+    });
+  }
 
   return (
     <>
@@ -69,8 +128,8 @@ export function AgentActivity({
                     className={`agent-task agent-task--${agentStateTone(task.state)}`}
                     type="button"
                     data-task-id={task.id}
-                    aria-label={`${AGENT_STATE_LABELS[task.state]}: ${agentTaskSummary(task)}`}
-                    onClick={() => setSelectedTaskId(task.id)}
+                    aria-label={agentTaskRowLabel(task)}
+                    onClick={() => selectTask(task.id)}
                   >
                     <span className="agent-task__heading">
                       <strong>{agentTaskSummary(task)}</strong>
@@ -91,9 +150,17 @@ export function AgentActivity({
           </ol>
         )}
       </RightDrawer>
-      {open && selectedTask ? (
-        <EditorModal title="Agent session" className="editor-modal__panel--wide agent-task-dialog" onDismiss={() => setSelectedTaskId(null)}>
-          <AgentTaskDetails key={selectedTask.id} task={selectedTask} onCommand={(command) => onCommand(selectedTask.id, command)} />
+      {modalOpen ? null : <Announcement message={announcement} />}
+      {modalOpen ? (
+        <EditorModal title="Agent session" className="editor-modal__panel--wide agent-task-dialog" onDismiss={() => selectTask(null)}>
+          <Announcement message={announcement} />
+          <AgentTaskDetails
+            key={selectedTask.id}
+            task={selectedTask}
+            draft={drafts[selectedTask.id] ?? ""}
+            onDraftChange={(text) => setDraft(selectedTask.id, text)}
+            onCommand={(command) => onCommand(selectedTask.id, command)}
+          />
         </EditorModal>
       ) : null}
     </>
@@ -102,9 +169,13 @@ export function AgentActivity({
 
 function AgentTaskDetails({
   task,
+  draft,
+  onDraftChange,
   onCommand,
 }: {
   task: AgentSessionTask;
+  draft: string;
+  onDraftChange(text: string): void;
   onCommand(command: AgentTaskCommand): Promise<AgentSessionTask>;
 }): ReactNode {
   const [activeTab, setActiveTab] = useState<AgentModalTab>("session");
@@ -115,7 +186,8 @@ function AgentTaskDetails({
   const started = agentTaskStartedTime(task);
   const validationLabel = agentValidationLabel(task);
 
-  // A pending key disables the controls it covers until the host answers.
+  // A pending key disables the controls it covers until the host answers; the
+  // answer is in the task list by the time the controls enable again.
   async function send(key: string, command: AgentTaskCommand): Promise<boolean> {
     setPending(key);
     setError(null);
@@ -185,7 +257,7 @@ function AgentTaskDetails({
           Continued in {agentHandoffApp(task)}. dash-bored no longer drives this session.
         </p>
       ) : task.state !== "closed" && task.state !== "failed" ? (
-        <div className="agent-task-modal__controls" role="toolbar" aria-label="Session controls">
+        <div className="agent-task-modal__controls" role="group" aria-label="Session controls">
           {task.configOptions.length > 0 ? (
             <div className="agent-task-modal__config">
               {task.configOptions.map((option) => (
@@ -259,7 +331,9 @@ function AgentTaskDetails({
         aria-labelledby={`${tabsId}-session-tab`}
         hidden={activeTab !== "session"}
       >
-        {activeTab === "session" ? <AgentSession task={task} pending={pending} onSend={send} /> : null}
+        {activeTab === "session" ? (
+          <AgentSession task={task} pending={pending} draft={draft} onDraftChange={onDraftChange} onSend={send} />
+        ) : null}
       </div>
       <div
         className="agent-task-modal__panel"
@@ -311,8 +385,9 @@ function AgentConfigControl({
       <select value={current} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
         {known ? null : <option value={current} disabled>{current}</option>}
         {optionSegments(choices).map((segment, index) => {
-          const items = segment.options.map((choice) => (
-            <option key={choice.value} value={choice.value} title={choice.description}>{choice.name}</option>
+          // Agents may repeat a value across groups; the key stays unique anyway.
+          const items = segment.options.map((choice, choiceIndex) => (
+            <option key={`${segment.group ?? ""}:${choiceIndex}:${choice.value}`} value={choice.value} title={choice.description}>{choice.name}</option>
           ));
           return segment.group ? <optgroup key={`${segment.group}-${index}`} label={segment.group}>{items}</optgroup> : items;
         })}
@@ -361,6 +436,11 @@ function AgentHandoffControl({
   const app = agentHandoffApp(task);
   const available = task.state === "idle";
 
+  // The resume command is only offered while hand-off is possible.
+  useEffect(() => {
+    if (!available) setOpen(false);
+  }, [available]);
+
   useEffect(() => {
     if (!open) return;
     const closeOutside = (event: PointerEvent): void => {
@@ -393,24 +473,27 @@ function AgentHandoffControl({
       >
         {pending ? "Opening…" : `Resume in ${app}`}
       </button>
-      <button
-        ref={toggleRef}
-        className="button button--quiet button--small agent-handoff__toggle"
-        type="button"
-        aria-label="Show resume command"
-        aria-expanded={open}
-        aria-controls={popoverId}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg>
-      </button>
-      {open ? (
+      {available ? (
+        <button
+          ref={toggleRef}
+          className="button button--quiet button--small agent-handoff__toggle"
+          type="button"
+          aria-label="Show resume command"
+          aria-expanded={open}
+          aria-controls={popoverId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg>
+        </button>
+      ) : null}
+      {open && available ? (
         <div className="agent-handoff__popover" id={popoverId} role="group" aria-label="Resume command">
           <p>Runs from the project root in your terminal:</p>
           <code>{handoff.command}</code>
           <button className="button button--quiet button--small" type="button" onClick={() => void copy("handoff", handoff.command)}>
             {copied === "handoff" ? "Copied" : "Copy command"}
           </button>
+          <p className="agent-handoff__hint">dash-bored closes its session when you resume in {app}.</p>
           {error ? <p className="inline-error" role="alert">{error}</p> : null}
         </div>
       ) : null}

@@ -56,10 +56,12 @@ export function useHostSession(handlers: HostSessionHandlers) {
   // it through this ref (so their host objects stay stable) during render, so
   // the host events below write it before the matching snapshot update renders.
   const processesRef = useRef<ReadonlyMap<string, ProcessSnapshot>>(new Map());
+  // The last state seen per agent task, from pushes and command results alike.
+  const agentTaskStatesRef = useRef(new Map<string, AgentSessionState>());
 
   useEffect(() => {
     let active = true;
-    const taskStates = new Map<string, AgentSessionState>();
+    const taskStates = agentTaskStatesRef.current;
     const pendingProcessEvents = new Map<string, ProcessSnapshot>();
     // Opens Agent work when a task becomes active or starts needing the user
     // (a permission request or sign-in), even if the user dismissed it before.
@@ -165,6 +167,17 @@ export function useHostSession(handlers: HostSessionHandlers) {
       });
   }, []);
 
+  /**
+   * Applies the task a command answered with. The answer carries the task as
+   * of when it was sent, on the same ordered channel as pushes, so it is never
+   * older than a push that arrived before it. Applying it at once keeps
+   * controls off the pre-command state until a later push arrives.
+   */
+  const applyAgentTask = useCallback((task: AgentSessionTask): void => {
+    agentTaskStatesRef.current.set(task.id, task.state);
+    setAgentTasks((current) => replaceAgentTask(current, task));
+  }, []);
+
   const forgetOutline = useCallback((configPath: string): void => {
     setOutlines((current) => {
       if (!Object.hasOwn(current, configPath)) return current;
@@ -185,6 +198,7 @@ export function useHostSession(handlers: HostSessionHandlers) {
     forgetOutline,
     themes,
     agentTasks,
+    applyAgentTask,
     processesRef,
     loading,
   };

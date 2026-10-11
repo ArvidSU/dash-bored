@@ -476,6 +476,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     requestAgentPermission: agents.requestAgentPermission,
     patchAgentTask: agents.patchAgentTask,
     getAgentTaskCommands: agents.getAgentTaskCommands,
+    setAgentCommandLatency: agents.setAgentCommandLatency,
     setDetectedAgents: agents.setDetectedAgents,
     subscribe(listener) {
       listeners.add(listener);
