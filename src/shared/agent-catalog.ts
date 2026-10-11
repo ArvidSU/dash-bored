@@ -6,8 +6,8 @@ import type { KnownAgent } from "./agent-session";
  * never branches on an agent's id. Launch commands follow the ACP registry
  * (github.com/agentclientprotocol/registry); resume commands were checked
  * against each agent's source: the ACP session id is the agent's own id.
- * Claude and Codex speak ACP through adapters that must be installed
- * separately; the app never installs them.
+ * Claude and Codex speak ACP through adapters. Package runners are configured
+ * only for agents the user explicitly enables in Settings.
  */
 export const KNOWN_AGENTS: readonly KnownAgent[] = [
   {
@@ -51,6 +51,7 @@ export const KNOWN_AGENTS: readonly KnownAgent[] = [
     name: "OpenCode",
     command: "opencode acp",
     cli: "opencode",
+    package: "opencode-ai",
     resume: "opencode {cwd} --session {sessionId}",
     homepage: "https://opencode.ai",
   },

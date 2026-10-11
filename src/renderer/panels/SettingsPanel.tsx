@@ -14,10 +14,9 @@ import {
   settingsPickerValue,
   storeCustomAgentCommand,
   storedCustomAgentCommand,
-  undetectedKnownAgents,
   type AgentPickerValue,
 } from "../lib/agent-options";
-import { AgentInstallHints } from "./AgentInstallHints";
+import { host } from "../lib/rpc-client";
 
 function ShortcutRecorder({
   shortcut,
@@ -87,12 +86,21 @@ function AgentSettings({
   options,
   saving,
   onSave,
+  onToggle,
+  enabledIds,
 }: {
   setting: string | null;
   options: AgentCommandOptions | null;
   saving: boolean;
   onSave: (command: string | null) => void;
+  onToggle: (id: string, enabled: boolean, options: AgentCommandOptions) => void;
+  enabledIds?: readonly string[];
 }): ReactNode {
+  const [refreshed, setRefreshed] = useState<AgentCommandOptions | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  useEffect(() => setRefreshed(null), [options]);
+  options = refreshed ?? options;
   const [value, setValue] = useState<SettingsAgentValue>(() => settingsPickerValue(setting, options));
   const [custom, setCustom] = useState(() => (
     settingsPickerValue(setting, options) === "custom" && setting !== null ? setting : storedCustomAgentCommand()
@@ -108,7 +116,6 @@ function AgentSettings({
   const invalid = draft !== null && draft === "";
   const unchanged = draft === (setting?.trim() ?? null);
   const firstDetected = options?.detected[0] ?? null;
-  const nothingAvailable = options !== null && options.detected.length === 0 && setting === null;
 
   return (
     <section className="settings-card settings-card--agent" aria-labelledby="agent-settings-title">
@@ -117,7 +124,8 @@ function AgentSettings({
         <p>
           Choose the <abbr title="Agent Client Protocol">ACP</abbr> agent that Change with agent, agent prompts, and
           dashboard setup start. This app-wide choice overrides each dashboard&apos;s <code>DASH_BORED_AGENT</code>.
-          dash-bored detects known agents on your PATH and never installs them; signing in belongs to the agent.
+          Check the agents you want to use. Installed agents are used directly; supported packages download
+          on first use. Signing in belongs to the agent.
         </p>
       </div>
       <form className="settings-agent" onSubmit={(event) => {
@@ -136,7 +144,7 @@ function AgentSettings({
           >
             <option value="bundle">Each dashboard&apos;s choice</option>
             {options && options.detected.length > 0 ? (
-              <optgroup label="Detected on PATH">
+              <optgroup label="Enabled agents">
                 {options.detected.map((agent) => (
                   <option key={agent.id} value={detectedPickerValue(agent.id)}>{agent.name}</option>
                 ))}
@@ -165,7 +173,7 @@ function AgentSettings({
         <span className="settings-agent__hint" aria-live="polite">
           {value === "bundle" ? (
             <>
-              Uses each dashboard&apos;s <code>.env</code> <code>DASH_BORED_AGENT</code>, else the first detected agent
+              Uses each dashboard&apos;s <code>.env</code> <code>DASH_BORED_AGENT</code>, else the first enabled agent
               {firstDetected ? <> (now <code>{firstDetected.command}</code>)</> : null}.
             </>
           ) : draft ? (
@@ -175,14 +183,38 @@ function AgentSettings({
           )}
         </span>
       </form>
-      {nothingAvailable ? (
-        <div className="settings-agent__none" role="status">
-          <p>No ACP agent was detected on your PATH. Install one of these agents, or enter a custom ACP command.</p>
-          <AgentInstallHints agents={options.known} prominent />
+      <div className="settings-agent-catalog">
+        <div className="settings-agent-catalog__heading">
+          <div><h3>Enabled agents</h3><p>Changes save automatically. Unchecking leaves installed software in place.</p></div>
+          <button type="button" className="button button--quiet" disabled={refreshing || saving} onClick={async () => {
+            setRefreshing(true);
+            setRefreshError(null);
+            try { setRefreshed(await host.getAgentOptions()); }
+            catch { setRefreshError("Could not refresh agents. Try again."); }
+            finally { setRefreshing(false); }
+          }}>{refreshing ? "Refreshing…" : "Refresh agents"}</button>
         </div>
-      ) : (
-        <AgentInstallHints agents={undetectedKnownAgents(options)} summary="Install another agent" />
-      )}
+        {options ? <ul className="settings-agent-catalog__list">
+          {options.known.map((agent) => {
+            const setup = options.setup?.find((item) => item.id === agent.id);
+            const enabled = enabledIds ? enabledIds.includes(agent.id) : setup?.enabled ?? options.detected.some((item) => item.id === agent.id);
+            const installed = setup?.installed ?? enabled;
+            return <li key={agent.id}>
+              <label className="settings-agent-catalog__choice">
+                <input type="checkbox" aria-label={`Enable ${agent.name}`} checked={enabled} disabled={saving || refreshing}
+                  onChange={(event) => onToggle(agent.id, event.target.checked, options!)} />
+                <span><strong>{agent.name}</strong><span className="settings-agent-catalog__status">
+                  {installed ? "Installed" : setup?.command ? "Downloads on first use" : setup?.needs ?? "Install the agent, then refresh."}
+                </span></span>
+              </label>
+              <a href={agent.homepage} target="_blank" rel="noreferrer" aria-label={`${agent.name} setup instructions`}>Setup ↗</a>
+              <code>{setup?.command ?? agent.command}</code>
+            </li>;
+          })}
+        </ul> : <p role="status">Loading agents…</p>}
+        {options && options.detected.length === 0 ? <p role="status">No enabled agent is ready. Check an agent above or finish its setup.</p> : null}
+        {refreshError ? <p role="alert">{refreshError}</p> : null}
+      </div>
     </section>
   );
 }
@@ -388,6 +420,16 @@ export function SettingsPanel({
         options={agentOptions}
         saving={savingSettings}
         onSave={onSaveAgent}
+        enabledIds={appSettings.enabledAgentIds}
+        onToggle={(id, enabled, options) => {
+          const ids = new Set(appSettings.enabledAgentIds ?? options.setup?.filter((item) => item.enabled).map((item) => item.id) ?? options.detected.map((item) => item.id));
+          if (enabled) ids.add(id); else ids.delete(id);
+          const known = options.known.find((item) => item.id === id);
+          const command = options.setup?.find((item) => item.id === id)?.command;
+          const clearDefault = !enabled && (appSettings.dashBoredAgent === command || appSettings.dashBoredAgent === known?.command);
+          onUpdateSettings({ ...appSettings, enabledAgentIds: [...ids], ...(clearDefault ? { dashBoredAgent: null } : {}) },
+            `${known?.name ?? "Agent"} ${enabled ? "enabled" : "disabled"}.${clearDefault ? " App default cleared." : ""}`);
+        }}
       />
       </div> : activeTab === "actions" ? (
         <div className="settings-tab-panel settings-actions" role="tabpanel">

@@ -870,92 +870,41 @@
   font-size: 11.5px;
 }
 
-/* Agent pickers: install hints and the nothing-detected state. */
-.agent-install-hints {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.agent-install-hints summary {
-  width: fit-content;
-  cursor: pointer;
-}
-
-.agent-install-hints p {
-  margin: 6px 0 0;
-}
-
-.agent-install-hints__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
-  gap: 4px 14px;
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.agent-install-hints__list li {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.agent-install-hints__list a {
-  color: var(--text);
-  text-decoration: underline;
-  text-decoration-color: var(--border-bright);
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
-
-.agent-install-hints__list a:hover {
-  text-decoration-color: currentColor;
-}
-
-.agent-install-hints__list code {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--faint);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-prompt__no-agent,
-.settings-agent__none {
-  display: grid;
-  gap: 4px;
+/* Settings agent checklist and composer setup entry. */
+.agent-prompt__no-agent {
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text);
-  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  color: var(--muted);
   font-size: 12px;
 }
-
-.agent-prompt__no-agent p,
-.settings-agent__none p {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.agent-install-hints--prominent .agent-install-hints__list {
-  margin-top: 2px;
-}
-
-.settings-card--agent {
+.agent-prompt__no-agent p { margin: 0; }
+.agent-prompt__configure { justify-self: start; }
+.settings-card.settings-card--agent {
   display: grid;
   grid-template-columns: minmax(0, 340px) minmax(0, 440px);
   justify-content: space-between;
   align-items: start;
-  gap: 12px 24px;
+  gap: 20px 24px;
 }
-
-.settings-card--agent > .agent-install-hints,
-.settings-card--agent > .settings-agent__none {
-  grid-column: 2;
+.settings-card--agent > .settings-agent-catalog {
+  grid-column: 1 / -1;
+  max-width: none;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
 }
+.settings-agent-catalog__heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.settings-agent-catalog h3 { margin: 0 0 5px; font-size: 13px; }
+.settings-agent-catalog__heading p { margin: 0; font-size: 11px; }
+.settings-agent-catalog__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 14px 0 0; }
+.settings-agent-catalog__list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: var(--control-bg); }
+.settings-agent-catalog__choice { display: flex; align-items: start; gap: 9px; cursor: pointer; min-width: 0; font-size: 12px; }
+.settings-agent-catalog__choice input { margin: 2px 0 0; accent-color: var(--accent); }
+.settings-agent-catalog__choice > span { display: grid; gap: 4px; }
+.settings-agent-catalog__status { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.settings-agent-catalog__list a { color: var(--muted); font-size: 10px; text-underline-offset: 3px; }
+.settings-agent-catalog__list code { grid-column: 1 / -1; min-width: 0; color: var(--faint); font-size: 10px; overflow-wrap: anywhere; }
 
 .settings-agent select {
   min-width: 0;
@@ -970,14 +919,12 @@
 }
 
 @media (max-width: 760px) {
-  .settings-card--agent {
+  .settings-card.settings-card--agent {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .settings-card--agent > .agent-install-hints,
-  .settings-card--agent > .settings-agent__none {
-    grid-column: 1;
-  }
+  .settings-agent-catalog__list { grid-template-columns: minmax(0, 1fr); }
+  .settings-agent-catalog__heading { flex-wrap: wrap; }
 
   .agent-tool__paths,
   .agent-tool__output {

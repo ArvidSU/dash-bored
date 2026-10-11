@@ -18,7 +18,7 @@ afterEach(async () => {
 
 const GEMINI: DetectedAgent = { id: "gemini", name: "Gemini CLI", command: "gemini --acp", resumable: true };
 
-async function setup(environment: string, appSetting: { value: string | null }, detected: DetectedAgent[] = []) {
+async function setup(environment: string, appSetting: { value: string | null; enabledAgentIds?: string[] }, detected: DetectedAgent[] = []) {
   const root = await temporaryDirectory();
   cleanup.push(root);
   const config = { schemaVersion: 4 as const, name: "Agents", root: {
@@ -43,9 +43,10 @@ async function setup(environment: string, appSetting: { value: string | null }, 
   const launcher = new AgentLauncher({
     runtime,
     sessions,
-    settings: { get: async () => ({ dashBoredAgent: appSetting.value }) } as never,
+    settings: { get: async () => ({ dashBoredAgent: appSetting.value, enabledAgentIds: appSetting.enabledAgentIds }) } as never,
     publishedEnvironment: () => ({ APP_PUBLISHED_VALUE: "available" }),
     detect: () => detected,
+    packageRunner: () => "npx",
   });
   return { root: await realpath(root), config, configPath: await realpath(configPath), runtime, launcher, launches };
 }
@@ -99,7 +100,7 @@ test("an omitted choice resolves the app setting, then the bundle, then the firs
 });
 
 test("a detected choice is re-resolved from the catalog, never from the request", async () => {
-  const { configPath, launcher } = await setup("", { value: null });
+  const { configPath, launcher } = await setup("", { value: null }, [{ id: "codex", name: "Codex", command: "codex-acp", resumable: true }]);
   const forged = { source: "detected", id: "codex", command: "rm -rf ~" } as unknown as AgentCommandChoice;
   expect(await launcher.resolve(configPath, forged)).toEqual({ source: "detected", command: "codex-acp", name: "Codex" });
   await expect(launcher.resolve(configPath, { source: "detected", id: "nope" })).rejects.toMatchObject({ code: "AGENT_UNAVAILABLE" });
@@ -109,7 +110,7 @@ test("the composer's choice selects the app, bundle, or a custom command", async
   const app = { value: "/usr/bin/true" as string | null };
   const { root, configPath, runtime, launcher } = await setup("DASH_BORED_AGENT=/bin/echo\n", app, [GEMINI]);
   await runtime.trust();
-  expect(await launcher.agentOptions(configPath)).toEqual({
+  expect(await launcher.agentOptions(configPath)).toMatchObject({
     app: "/usr/bin/true",
     project: "/bin/echo",
     detected: [GEMINI],
@@ -133,6 +134,16 @@ test("the composer's choice selects the app, bundle, or a custom command", async
   await writeFile(join(root, ".dash-bored", ".env"), "OTHER=1\n");
   expect(await launcher.agentOptions(configPath)).toMatchObject({ project: null, effective: { source: "detected", command: "gemini --acp" } });
   await expect(launch({ source: "project" })).rejects.toThrow("does not set DASH_BORED_AGENT");
+});
+
+test("enabled packages resolve in main and stale disabled picker choices are rejected", async () => {
+  const app = { value: null, enabledAgentIds: ["codex"] };
+  const { configPath, launcher } = await setup("", app);
+  expect((await launcher.resolve(configPath, { source: "detected", id: "codex" })).command).toBe("npx -y @agentclientprotocol/codex-acp");
+  app.enabledAgentIds = [];
+  await expect(launcher.resolve(configPath, { source: "detected", id: "codex" })).rejects.toMatchObject({ code: "AGENT_UNAVAILABLE" });
+  await expect(launcher.resolve(configPath)).rejects.toMatchObject({ code: "AGENT_UNAVAILABLE" });
+  expect((await launcher.agentOptions()).setup?.find((agent) => agent.id === "codex")?.enabled).toBe(false);
 });
 
 test("project work is not validated; dashboard work validates on each turn end", async () => {

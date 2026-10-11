@@ -34,6 +34,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 export function cloneDefaultAppSettings(): AppSettings {
   return {
     ...DEFAULT_APP_SETTINGS,
+    ...(DEFAULT_APP_SETTINGS.enabledAgentIds ? { enabledAgentIds: [...DEFAULT_APP_SETTINGS.enabledAgentIds] } : {}),
     favoriteActionIds: [...DEFAULT_APP_SETTINGS.favoriteActionIds],
     actionShortcuts: { ...DEFAULT_APP_SETTINGS.actionShortcuts },
   };

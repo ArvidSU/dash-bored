@@ -354,14 +354,22 @@ dash-bored runs coding agents through the
 known ACP agents on your `PATH`, such as Gemini CLI (`gemini --acp`), GitHub
 Copilot CLI (`copilot --acp`), OpenCode (`opencode acp`), and Goose
 (`goose acp`). Claude Code and Codex speak ACP through adapters you install
-yourself: `claude-agent-acp` and `codex-acp`. dash-bored never installs or
-downloads agents and holds no API keys. When an agent asks for sign-in, Agent
+via **Settings → General → Dashboard agent**: check the agents you want to
+enable, then choose an app default. Installed agents are used directly. Supported
+packages download and cache through Node.js (`npx`) or Bun on first use, without
+a global installation. Each row shows its setup status and launch command.
+For agents that need manual installation, follow **Setup**, then **Refresh agents**.
+Checkbox changes save automatically; unchecking removes a picker choice and
+leaves installed software and existing sessions alone. Existing configurations
+keep detecting PATH agents until you first change the checklist. Custom commands
+and dashboard `.env` choices remain available. dash-bored holds no API keys.
+When an agent asks for sign-in, Agent
 work offers the agent's own sign-in methods; otherwise sign in with the
 agent's CLI first.
 
 The agent that runs is, in order: **Settings → General → Dashboard agent**
 when set; otherwise `DASH_BORED_AGENT` in the dashboard's `.env`; otherwise the
-first detected agent. Both take an ACP launch command, so any other ACP agent
+first enabled, available agent. Both take an ACP launch command, so any other ACP agent
 works as a custom command. The bundle environment editor shows the effective
 agent command and its source. Desktop launches also recognize conventional
 user CLI locations, including `~/.local/bin`, `~/.bun/bin`, Homebrew, pnpm, and
@@ -386,7 +394,7 @@ the resolved agent command, the prompt template, and the full prompt for
 review, then wait for the user's Send. Before sending, you can switch to any
 template the dashboard bundle offers, fill in the values it declares, and
 choose which agent runs it: the app default, the dashboard's `.env` command, a
-detected agent, or a custom ACP command for this request.
+enabled agent, or a custom ACP command for this request.
 
 Agents are briefed with prompt templates. `agent:prompt` uses the built-in
 `project` template, which asks for work in the project and names the button or

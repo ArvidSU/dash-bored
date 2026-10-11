@@ -140,10 +140,10 @@ export function useDashboardSettings(
 }
 
 /**
- * The agents Settings can pick from (detected on PATH, plus the known table
- * for install hints), read while Settings is open and after the setting changes.
+ * The enabled agents and setup status, read while Settings is open and
+ * after optimistic settings are persisted by the host.
  */
-export function useSettingsAgentOptions(open: boolean, appSetting: string | null): AgentCommandOptions | null {
+export function useSettingsAgentOptions(open: boolean, appSettings: AppSettings): AgentCommandOptions | null {
   const [options, setOptions] = useState<AgentCommandOptions | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -152,7 +152,9 @@ export function useSettingsAgentOptions(open: boolean, appSetting: string | null
       .then((next) => { if (active) setOptions(next); })
       .catch(() => { if (active) setOptions(null); });
     return () => { active = false; };
-  }, [open, appSetting]);
+  // Re-read after the host's saved settings object replaces the optimistic
+  // one, even when their fields match: early discovery can precede the write.
+  }, [open, appSettings]);
   return options;
 }
 

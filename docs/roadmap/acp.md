@@ -11,10 +11,11 @@ records what was deferred.
    terminal and its resting shell, `DASH_BORED_AGENT_PROMPT`, and
    `componentAgentInvocation` are removed. A plain CLI can still run in a
    command component.
-2. Detect first. A data table of known agents (`src/shared/agent-catalog.ts`)
-   is matched against the app's normalized PATH. A custom ACP launch command is
-   always accepted. The app never downloads or installs agents (no registry
-   fetch, no implicit `npx`; a user may still type an `npx …` custom command).
+2. A data table of known agents (`src/shared/agent-catalog.ts`) is matched
+   against the app's normalized PATH. Settings now adds explicit checkbox
+   enablement and first-use downloads through package runners; custom ACP
+   commands remain accepted. See the shipped [setup contract](../architecture/agents.md#detection-catalog).
+   Binary-archive installation remains deferred in the project dashboard.
 3. Hand-off resumes the same session in the agent's own app: the known agent's
    `resume` template run from the project root in the user's terminal. The app
    closes its side of the session first so two clients never drive it.

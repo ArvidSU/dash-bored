@@ -457,7 +457,7 @@ describe("agent work", () => {
     } finally { await page.close(); }
   }, 20_000);
 
-  test("the composer lists detected agents with install links and says plainly when no agent exists", async () => {
+  test("the composer lists enabled agents and links to Settings when no agent exists", async () => {
     const page = await openFixture();
     try {
       const openComposer = async () => {
@@ -473,13 +473,10 @@ describe("agent work", () => {
       expect(await agentSelect.locator("option").allTextContents())
         .toEqual(["App default (not set)", "Project .env", "Claude Code", "Codex", "Gemini CLI", "Custom command"]);
       expect(await agentSelect.locator('option[value="app"]').isDisabled()).toBe(true);
-      expect(await agentSelect.locator("optgroup").getAttribute("label")).toBe("Detected on PATH");
+      expect(await agentSelect.locator("optgroup").getAttribute("label")).toBe("Enabled agents");
       await agentSelect.selectOption("detected:claude");
       await composer.locator(".agent-prompt__runner code").getByText("claude-agent-acp", { exact: true }).waitFor();
-      await composer.getByText("Install another agent", { exact: true }).click();
-      const copilot = composer.getByRole("link", { name: "GitHub Copilot CLI", exact: true });
-      expect(await copilot.getAttribute("href")).toBe("https://github.com/github/copilot-cli");
-      expect(await composer.getByRole("link", { name: "Codex", exact: true }).count()).toBe(0);
+      expect(await composer.getByRole("button", { name: "Enable or set up agents in Settings ↗", exact: true }).count()).toBe(1);
       await composer.getByRole("button", { name: "Cancel", exact: true }).click();
 
       await page.evaluate(async () => {
@@ -488,9 +485,9 @@ describe("agent work", () => {
         await host.writeTextFile({ nodeId: "status", path: ".dash-bored/.env", content: "" });
       });
       composer = await openComposer();
-      await composer.getByRole("status").getByText("No ACP agent is configured or detected on your PATH.", { exact: false }).waitFor();
+      await composer.getByRole("status").getByText("No ACP agent is configured or enabled.", { exact: false }).waitFor();
       expect(await composer.getByRole("combobox", { name: "Agent", exact: true }).inputValue()).toBe("");
-      expect(await composer.getByRole("link").count()).toBe(11);
+      expect(await composer.getByRole("link").count()).toBe(0);
       await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Tighten this tile.");
       await page.waitForTimeout(300);
       expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
@@ -534,14 +531,59 @@ describe("agent work", () => {
       await save.click();
       await page.getByRole("status").getByText("App-wide agent cleared; each dashboard's .env, then a detected agent, is used.", { exact: true }).waitFor();
       expect(await page.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getAppSettings()).dashBoredAgent)).toBeNull();
-      await card.getByText("Install another agent", { exact: true }).waitFor();
+      await card.getByRole("checkbox", { name: "Enable Codex", exact: true }).waitFor();
 
       // Nothing configured or detected: say so plainly and list where to get agents.
       await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setDetectedAgents([]));
       await page.locator(".sidebar__project-link").first().click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await card.getByRole("status").getByText("No ACP agent was detected on your PATH.", { exact: false }).waitFor();
+      await card.getByRole("status").getByText("No enabled agent is ready.", { exact: false }).waitFor();
       expect(await card.getByRole("link").count()).toBe(11);
+    } finally { await page.close(); }
+  }, 20_000);
+
+  test("the Settings checklist enables missing packages, filters the composer, and clears a disabled default", async () => {
+    const page = await openFixture();
+    try {
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const card = page.getByRole("region", { name: "Dashboard agent" });
+      const copilot = card.getByRole("checkbox", { name: "Enable GitHub Copilot CLI", exact: true });
+      await copilot.waitFor();
+      expect(await copilot.isChecked()).toBe(false);
+      await copilot.check();
+      await page.getByRole("status").getByText("GitHub Copilot CLI enabled.", { exact: true }).waitFor();
+      const select = card.getByRole("combobox", { name: "Agent", exact: true });
+      await select.selectOption("detected:copilot");
+      await card.getByText("Runs npx -y @github/copilot --acp from the project root.", { exact: true }).waitFor();
+      await card.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("status").getByText("The app-wide agent is now npx -y @github/copilot --acp.", { exact: true }).waitFor();
+      await copilot.uncheck();
+      await page.getByRole("status").getByText("GitHub Copilot CLI disabled. App default cleared.", { exact: true }).waitFor();
+      expect(await select.inputValue()).toBe("bundle");
+      expect(await page.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.getAppSettings()).enabledAgentIds)).toEqual(["claude", "codex", "gemini"]);
+
+      await card.getByRole("checkbox", { name: "Enable Codex", exact: true }).uncheck();
+      await page.getByRole("status").getByText("Codex disabled.", { exact: true }).waitFor();
+      await page.locator(".sidebar__project-link").first().click();
+      await page.locator('[data-node-id="responsive-card"] header').first().click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Change with agent…", exact: true }).click();
+      const composer = page.getByRole("dialog", { name: "Ask the agent" });
+      await composer.getByRole("combobox", { name: "Agent", exact: true }).waitFor();
+      expect(await composer.locator('option[value="detected:codex"]').count()).toBe(0);
+      await composer.getByRole("button", { name: "Enable or set up agents in Settings ↗", exact: true }).click();
+      await card.getByRole("checkbox", { name: "Enable Codex", exact: true }).waitFor();
+      expect(await card.getByRole("checkbox", { name: "Enable Codex", exact: true }).isChecked()).toBe(false);
+      await card.getByRole("button", { name: "Refresh agents", exact: true }).click();
+      expect(await card.getByRole("checkbox", { name: "Enable Codex", exact: true }).isChecked()).toBe(false);
+      await card.getByRole("checkbox", { name: "Enable Goose", exact: true }).check();
+      await page.getByRole("status").getByText("Goose enabled.", { exact: true }).waitFor();
+      expect(await select.locator('option[value="detected:goose"]').count()).toBe(0);
+      await page.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setDetectedAgents(["claude", "codex", "gemini", "goose"]));
+      await card.getByRole("button", { name: "Refresh agents", exact: true }).click();
+      await select.locator('option[value="detected:goose"]').waitFor({ state: "attached" });
+      expect(await card.getByRole("checkbox", { name: "Enable Goose", exact: true }).isChecked()).toBe(true);
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     } finally { await page.close(); }
   }, 20_000);
 });

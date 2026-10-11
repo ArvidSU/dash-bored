@@ -242,7 +242,7 @@ function defaultConfig(bundleNameSource: string, environmentPath: string): Dashb
   const agentStep = guided("step-agent", "2 · Choose your coding agent", [
     "Setup is done by a coding agent you already use, through the Agent Client Protocol (ACP). dash-bored recognizes known ACP agents on your PATH, such as Gemini CLI (`gemini --acp`) or Claude Code and Codex through their ACP adapters (`claude-agent-acp`, `codex-acp`), which you install yourself. Sign in through the agent.",
     "",
-    "The agent comes from **Settings → General → Dashboard agent** when that is set; otherwise from the optional `DASH_BORED_AGENT` in this dashboard's `.env`, shown below; otherwise the app uses the first detected agent. Any other ACP launch command works too.",
+    "The agent comes from **Settings → General → Dashboard agent** when that is set; otherwise from the optional `DASH_BORED_AGENT` in this dashboard's `.env`, shown below; otherwise the app uses the first enabled agent. Any other ACP launch command works too.",
     "",
     "**Expect:** *Agent* reports the command that runs, or that the app uses a detected agent.",
   ], [

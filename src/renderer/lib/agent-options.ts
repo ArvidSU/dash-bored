@@ -1,7 +1,6 @@
 import type {
   AgentCommandChoice,
   AgentCommandOptions,
-  KnownAgent,
 } from "../../shared/agent-session";
 
 /*
@@ -49,13 +48,6 @@ export function commandForPickerValue(
   if (value === "project") return options.project ?? "";
   const id = value.slice(DETECTED_PREFIX.length);
   return options.detected.find((agent) => agent.id === id)?.command ?? "";
-}
-
-/** Known agents that were not found on PATH, for quiet install links. */
-export function undetectedKnownAgents(options: AgentCommandOptions | null): KnownAgent[] {
-  if (!options) return [];
-  const detected = new Set(options.detected.map((agent) => agent.id));
-  return options.known.filter((agent) => !detected.has(agent.id));
 }
 
 /** Settings stores a command string (null returns selection to each bundle). */

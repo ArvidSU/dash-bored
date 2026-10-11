@@ -13,11 +13,9 @@ import {
   pickerValueForChoice,
   storeCustomAgentCommand,
   storedCustomAgentCommand,
-  undetectedKnownAgents,
   type AgentPickerValue,
 } from "../lib/agent-options";
 import { nodeLabel } from "../lib/virtual-root";
-import { AgentInstallHints } from "./AgentInstallHints";
 
 /** What the composer opens with: a template, its typed values, and editable input. */
 export interface AgentPromptDraft {
@@ -71,6 +69,7 @@ export function AgentPromptPanel({
   onDismiss,
   onPreview,
   onSend,
+  onConfigureAgents,
 }: {
   /** Never empty; several when the dropper Shift-selected them, in pick order. */
   nodes: readonly ResolvedComponentNode[];
@@ -79,6 +78,7 @@ export function AgentPromptPanel({
   onDismiss: () => void;
   onPreview: (request: AgentPromptDraft) => Promise<ComponentAgentPreview>;
   onSend: (request: AgentPromptDraft) => Promise<void>;
+  onConfigureAgents: () => void;
 }): ReactNode {
   const [prompt, setPrompt] = useState(draft.input);
   const [templateName, setTemplateName] = useState(draft.template ?? DEFAULT_PROMPT_TEMPLATE);
@@ -119,7 +119,6 @@ export function AgentPromptPanel({
     ? undefined
     : choiceForPickerValue(agentValue, customCommand);
   const noAgent = agents !== null && agents.effective === null && agentValue === null;
-  const installable = undetectedKnownAgents(agents);
   const canSend = !pending
     && previewError === null
     && (inputOptional || prompt.trim() !== "")
@@ -319,7 +318,7 @@ export function AgentPromptPanel({
                 {agents !== null && agents.project === null ? "Project .env (not set)" : "Project .env"}
               </option>
               {agents && agents.detected.length > 0 ? (
-                <optgroup label="Detected on PATH">
+                <optgroup label="Enabled agents">
                   {agents.detected.map((agent) => (
                     <option key={agent.id} value={detectedPickerValue(agent.id)}>{agent.name}</option>
                   ))}
@@ -356,14 +355,13 @@ export function AgentPromptPanel({
       {noAgent ? (
         <div className="agent-prompt__no-agent" role="status">
           <p>
-            No ACP agent is configured or detected on your PATH. Install one of these agents, set one in
-            Settings, or choose Custom command.
+            No ACP agent is configured or enabled. Enable an agent in Settings, or choose Custom command.
           </p>
-          <AgentInstallHints agents={installable} prominent />
         </div>
-      ) : agents !== null ? (
-        <AgentInstallHints agents={installable} summary="Install another agent" />
       ) : null}
+      <button type="button" className="button button--quiet agent-prompt__configure" disabled={pending} onClick={onConfigureAgents}>
+        Enable or set up agents in Settings ↗
+      </button>
       {previewError ? <div className="agent-prompt__error" role="alert">{previewError}</div> : null}
       {error ? <div className="agent-prompt__error" role="alert">{error}</div> : null}
     </form>

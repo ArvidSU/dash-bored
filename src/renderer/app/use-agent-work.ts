@@ -34,6 +34,7 @@ export interface AgentWorkOptions {
   snapshot: ProjectSnapshot | null;
   /** The app-wide agent setting; a change re-resolves the effective agent. */
   appAgentCommand: string | null;
+  enabledAgentIds?: string[];
   focusedNodeId: string | undefined;
   setDialog(dialog: AppDialog | null): void;
   /** Building a component with the agent replaces the open draft. */
@@ -52,6 +53,7 @@ export function useAgentWork({
   applyAgentTask,
   snapshot,
   appAgentCommand,
+  enabledAgentIds,
   focusedNodeId,
   setDialog,
   endDraft,
@@ -80,7 +82,7 @@ export function useAgentWork({
   }, [catalogKey, targetId, snapshot?.trusted, snapshot?.tree]);
 
   // What an omitted choice runs for the active dashboard; the main process
-  // resolves it (app setting, bundle .env, then the first detected agent).
+  // resolves it (app setting, bundle .env, then the first enabled agent).
   useEffect(() => {
     let active = true;
     if (!configPath) {
@@ -91,7 +93,7 @@ export function useAgentWork({
       .then((options) => { if (active) setAgentOptions(options); })
       .catch(() => { if (active) setAgentOptions(null); });
     return () => { active = false; };
-  }, [appAgentCommand, configPath, revision]);
+  }, [appAgentCommand, configPath, revision, JSON.stringify(enabledAgentIds)]);
 
   function toggleActivity(): void {
     // Render-state based (like the library toggle): the shared drawer also

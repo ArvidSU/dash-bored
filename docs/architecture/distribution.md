@@ -66,10 +66,10 @@ The following are not part of this architecture yet:
 - Developer ID signing, notarization, and independent update signing
 - general project-file editing and a general process viewer
 - simultaneously active multi-project views or windows
-- agent installation, ACP registry downloads, model-provider keys or
+- global or binary-archive agent installation, ACP registry downloads, model-provider keys or
   infrastructure, MCP-server injection into agent sessions, and agent-specific
   code paths. The app is an ACP client (see [Agents](./agents.md)); the agent
-  itself is the user's install.
+  setup may configure an explicitly enabled package runner to download on first use.
 - claims of hostile-code or per-component isolation for trusted local components
 
 These can be added only after their contracts are reflected here and remain

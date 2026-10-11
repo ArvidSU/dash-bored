@@ -181,9 +181,15 @@ diffs belong to custom components or external apps. When work leaves the app's
 scope, the user hands the session off and the app resumes that same session in
 the agent's own app; the app then lets go of the session.
 
-Agent selection is detect-first. The app recognizes known ACP agents on the
-user's `PATH` from a small data table and accepts a custom ACP launch command;
-it does not download or install agents. Signing in belongs to the agent.
+Agent setup is a checklist in Settings. Users enable the known ACP agents they
+want in the picker and choose a default, or supply a custom launch command.
+The app prefers an installed executable on `PATH`; explicitly enabling a
+supported package authorizes its package runner to download and cache it on
+first use. Setup shows that distinction and missing prerequisites before launch.
+Merely opening Settings never downloads or runs an agent. Signing in belongs
+to the agent. Disabling an agent removes its picker choice without uninstalling
+it or interrupting an existing session; explicit custom and bundle commands
+remain available.
 
 Each request is one ACP session. Dashboard work is validated when the agent
 finishes a turn; when bundle-fixable errors remain, the single automatic repair

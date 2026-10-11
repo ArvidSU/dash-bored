@@ -48,7 +48,7 @@ Everything else lives in focused modules under feature directories:
   `AgentActivity.tsx` (Agent work drawer and session modal),
   `AgentSession.tsx` (plan, transcript, permission, sign-in, follow-up),
   `AgentStatus.tsx` (state and validation chips and glyphs),
-  `AgentInstallHints.tsx` (known agents not on PATH), `agent-work.css`
+  `agent-work.css`
   (Agent work and its header badge, the composer and Settings agent
   pickers, and agent Markdown),
   `SettingsPanel.tsx`, `CommandPalette.tsx`.
@@ -357,13 +357,17 @@ tab above a bar with the Agent picker, the launch command it runs, and Send.
 The picker (`lib/agent-options.ts`) presents the main process's command
 options: App default (the app setting) and Project .env (the owning bundle's
 `DASH_BORED_AGENT`), each disabled and marked "not set" when empty; a
-"Detected on PATH" group of known ACP agents main found; and Custom command
+"Enabled agents" group of available ACP agents configured in Settings; and Custom command
 (typed for this launch, remembered per viewer in local storage). It starts on
 the effective source; until the user picks, the launch omits the choice and
-main resolves the command. When nothing is configured or detected, the picker
-reads "No agent found" and the composer lists the known agents with their
-homepages (`panels/AgentInstallHints.tsx`); otherwise undetected known agents
-fold under "Install another agent". The app never installs agents. Vars the
+main resolves the command. When nothing is configured or enabled, the picker
+reads "No agent found" and the composer links to the Settings checklist.
+Settings lists every known agent with an immediately persisted checkbox,
+installed/download/manual-setup status, the launch command, and setup link.
+Refresh rechecks availability; supported package commands require explicit
+enablement before first-use download (see [Agents](./agents.md#detection-catalog)).
+The default selector still accepts a custom command or returns selection to
+individual dashboards. Vars the
 selected template does not declare are dropped, so switching templates cannot
 send a foreign var. The renderer sends only the selected node IDs (`nodeIds`,
 in pick order), the template name, typed vars, user text, and the optional

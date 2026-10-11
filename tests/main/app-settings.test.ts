@@ -27,6 +27,17 @@ test("shared app settings clones mutable collections", () => {
 });
 
 describe("AppSettingsStore", () => {
+  test("enabled agents persist across restart, normalize known IDs, and retain an explicit empty checklist", async () => {
+    const directory = await temporaryDirectory();
+    cleanup.push(directory);
+    const path = join(directory, "settings.json");
+    const store = new AppSettingsStore(path, null);
+    expect((await store.get()).enabledAgentIds).toBeUndefined();
+    await store.update({ ...await store.get(), enabledAgentIds: ["gemini", "codex", "codex", "unknown"] });
+    expect((await new AppSettingsStore(path, null).get()).enabledAgentIds).toEqual(["codex", "gemini"]);
+    await store.update({ ...await store.get(), enabledAgentIds: [] });
+    expect((await new AppSettingsStore(path, null).get()).enabledAgentIds).toEqual([]);
+  });
   test("Send prompt favorites move to the template chooser while direct shortcuts are preserved", async () => {
     const directory = await temporaryDirectory();
     cleanup.push(directory);

@@ -99,6 +99,7 @@ export function App(): ReactNode {
     applyAgentTask: session.applyAgentTask,
     snapshot,
     appAgentCommand: settings.settings.dashBoredAgent,
+    enabledAgentIds: settings.settings.enabledAgentIds,
     focusedNodeId: virtualRoot?.target.id,
     setDialog,
     endDraft: draft.end,
@@ -139,7 +140,7 @@ export function App(): ReactNode {
     openChangeWithAgent: (node) => agent.openChangeWithAgent([node]),
   });
   const dashboardSettings = useDashboardSettings(notices, activeView === "settings", session.projects, snapshot?.revision);
-  const settingsAgentOptions = useSettingsAgentOptions(activeView === "settings", settings.settings.dashBoredAgent);
+  const settingsAgentOptions = useSettingsAgentOptions(activeView === "settings", settings.settings);
 
   function toggleCompositionLibrary(): void {
     setAgentActivityOpen(false);
@@ -388,6 +389,7 @@ export function App(): ReactNode {
         />
       ) : null}
       <AppDialogs
+      onConfigureAgents={() => { setDialog(null); setActiveView("settings"); }}
         compositionDialog={interaction.dialog}
         compositionRemovePath={interaction.removePath}
         editSession={editSession}

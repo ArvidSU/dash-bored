@@ -198,6 +198,11 @@ root:
                                 vars:
                                   id: ${item.id}
                         todos:
+                          - id: acp-binary-setup
+                            description: Add app-managed installation for ACP agents distributed only as binary archives, with version and integrity verification. The Settings checklist currently enables installed binaries and downloads supported npm packages on first use.
+                            done: false
+                            tags:
+                              - agents
                           - id: todo-001
                             description: Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path.
                             done: true
@@ -882,6 +887,8 @@ root:
                         props:
                           title: Run several palette actions
                           content: |
+                            **Choose your agents.** In Settings → General → Dashboard agent, check the ACP agents you want to enable. Installed agents are used directly; supported packages download on first use. Refresh agents after a manual install, then choose your default. The prompt picker lists enabled agents.
+
                             Open Commands with **⌘K**, search for a command, and use **⌘Enter** (or **⌘click**)
                             to run it while keeping the palette open. Try **Validate dashboard** followed by
                             **Typecheck (fast)**. Regular Enter closes the palette.

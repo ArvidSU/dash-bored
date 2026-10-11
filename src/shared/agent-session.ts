@@ -17,7 +17,8 @@ export interface KnownAgent {
   cli?: string;
   /**
    * npm package that runs `command` through `npx`/`bunx`, so a custom
-   * `npx <package>` command is recognized as this agent. Never installed.
+   * `npx <package>` command is recognized as this agent. Explicit enablement
+   * may configure this package to download on first use.
    */
   package?: string;
   /**
@@ -30,7 +31,7 @@ export interface KnownAgent {
   homepage: string;
 }
 
-/** A known agent whose launch executable was found on the app's PATH. */
+/** An enabled known agent with an installed or opted-in package-runner command. */
 export interface DetectedAgent {
   id: string;
   name: string;
@@ -41,7 +42,7 @@ export interface DetectedAgent {
 
 /**
  * Which agent runs one composer launch. Omitted means the effective choice:
- * the app setting, else the owning bundle's `.env`, else the first detected agent.
+ * the app setting, else the owning bundle's `.env`, else the first enabled agent.
  * `detected` names a known agent; the main process re-resolves its command.
  */
 export type AgentCommandChoice =
@@ -56,12 +57,24 @@ export interface AgentCommandOptions {
   app: string | null;
   /** The owning bundle's `.env` DASH_BORED_AGENT, when it sets one. */
   project: string | null;
-  /** Known agents found on PATH, in catalog order. */
+  /** Enabled, available agents in catalog order; includes opted-in package commands. */
   detected: DetectedAgent[];
-  /** The full known-agent table, for install hints. */
+  /** The full known-agent table, for Settings setup. */
   known: KnownAgent[];
+  /** Setup status for every known agent, including disabled and missing ones. */
+  setup?: AgentSetupOption[];
   /** What an omitted choice runs, or null when no agent is configured or detected. */
   effective: { source: "app" | "project" | "detected"; command: string; name: string } | null;
+}
+
+export interface AgentSetupOption {
+  id: string;
+  enabled: boolean;
+  installed: boolean;
+  /** Installed command or opted-in package-runner command; null needs manual setup. */
+  command: string | null;
+  /** Missing prerequisite when there is no usable command. */
+  needs?: string;
 }
 
 export interface ComponentAgentRequest {

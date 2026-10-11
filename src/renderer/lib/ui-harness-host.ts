@@ -439,6 +439,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     projectRoot: PROJECT_ROOT,
     configPath: CONFIG_PATH,
     appAgent: () => settings.dashBoredAgent,
+    enabledAgentIds: () => settings.enabledAgentIds,
     projectAgent: bundleAgent,
     publish: (task) => emit({ type: "agent-task", task }),
   });

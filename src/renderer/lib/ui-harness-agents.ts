@@ -1,3 +1,4 @@
+import { agentSetup } from "../../shared/agent-setup";
 import { KNOWN_AGENTS } from "../../shared/agent-catalog";
 import type {
   AgentCommandChoice,
@@ -355,6 +356,7 @@ export function createFixtureAgents({
   projectRoot,
   configPath,
   appAgent,
+  enabledAgentIds,
   projectAgent,
   publish,
 }: {
@@ -362,6 +364,7 @@ export function createFixtureAgents({
   configPath: string;
   /** The app-wide agent setting. */
   appAgent(): string | null;
+  enabledAgentIds(): string[] | undefined;
   /** The bundle `.env` DASH_BORED_AGENT. */
   projectAgent(): string | null;
   publish(task: AgentSessionTask): void;
@@ -386,9 +389,10 @@ export function createFixtureAgents({
   const options = (): AgentCommandOptions => {
     const app = appAgent()?.trim() || null;
     const project = projectAgent()?.trim() || null;
-    const detected: DetectedAgent[] = KNOWN_AGENTS
+    const installed: DetectedAgent[] = KNOWN_AGENTS
       .filter((agent) => detectedIds.includes(agent.id))
       .map((agent) => ({ id: agent.id, name: agent.name, command: agent.command, resumable: agent.resume !== undefined }));
+    const { detected, setup } = agentSetup(KNOWN_AGENTS, installed, enabledAgentIds(), "npx");
     const effective = app
       ? { source: "app" as const, command: app, name: agentIdentity(app).name }
       : project
@@ -396,7 +400,7 @@ export function createFixtureAgents({
         : detected[0]
           ? { source: "detected" as const, command: detected[0].command, name: detected[0].name }
           : null;
-    return { app, project, detected, known: structuredClone([...KNOWN_AGENTS]), effective };
+    return { app, project, detected, setup, known: structuredClone([...KNOWN_AGENTS]), effective };
   };
 
   const resolveCommand = (choice: AgentCommandChoice | undefined): string => {

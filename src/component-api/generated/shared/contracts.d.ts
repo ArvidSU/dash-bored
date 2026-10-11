@@ -155,6 +155,8 @@ export interface AppSettings {
     themeMode?: import("./themes").ThemeMode;
     /** App-wide ACP agent launch command, or null to return agent selection to the owning bundle. */
     dashBoredAgent: string | null;
+    /** Known ACP agents enabled in Settings; omitted preserves legacy PATH detection. */
+    enabledAgentIds?: string[];
     /** Whether the project sidebar should open expanded in a new app session. */
     sidebarExpandedByDefault: boolean;
     /** Action ids promoted ahead of other matching command-palette results. */

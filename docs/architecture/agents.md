@@ -16,6 +16,7 @@ run in a command component's terminal; it is not an integrated agent.
 | --- | --- |
 | `shared/agent-catalog.ts` | Known ACP agents, as data. |
 | `shared/agent-session.ts` | App-internal task projection, launch requests, and task commands. Not part of `contracts.ts` or the component SDK. |
+| `shared/agent-setup.ts` | Pure enabled-agent and setup-status projection; package-runner commands require explicit enablement. |
 | `main/agent-detection.ts` | Matches commands against the catalog; detects known agents on PATH. |
 | `main/agent-launch.ts` | `AgentLauncher`: command resolution, prompt preparation, and every launch kind. |
 | `main/dashboard-setup.ts` | `DashboardSetupSupervisor`: validation when a turn ends and the single repair. |
@@ -36,13 +37,13 @@ push, which carries the whole `AgentSessionTask`.
 `AgentLauncher.resolve` picks the launch command in this order:
 
 1. An explicit per-request choice. `custom` is normalized like the setting;
-   `detected` names a catalog id and is re-resolved from the catalog, so the
+   `detected` names an enabled, available catalog id and is re-resolved from setup, so the
    renderer never supplies that command; `app` and `project` require that
    source to be set.
 2. The app setting `dashBoredAgent` (Settings → General → Dashboard agent).
 3. `DASH_BORED_AGENT` in the owning bundle's `.env`. An untrusted repair skips
    this step, so a project cannot select its own repair agent.
-4. The first detected known agent, in catalog order.
+4. The first enabled, available known agent, in catalog order.
 5. Otherwise `AGENT_UNAVAILABLE`, naming example agents and the Settings field.
 
 `DASH_BORED_AGENT` keeps its name and now holds an ACP launch command. The
@@ -70,10 +71,28 @@ branches on an id.
   command (for example `codex exec` or `claude -p`) fails the handshake; the
   error names the agent's ACP command and, for adapters, where to install it.
 
-Claude Code and Codex speak ACP through separately installed adapters
-(`claude-agent-acp`, `codex-acp`). The app never installs or downloads agents:
-there is no registry fetch and no implicit `npx`. A custom command such as
-`npx …` runs exactly as the user typed it. Signing in belongs to the agent.
+Settings → General → Dashboard agent shows a checkbox for every catalog entry.
+`enabledAgentIds` is an optional app-settings field: omission preserves legacy
+PATH detection; an explicit array (including an empty array) is authoritative.
+The setting is normalized to unique known IDs in catalog order. Discovery is
+read-only and returns `setup` status for all entries; `detected` now projects
+the enabled, available picker choices, including opted-in package commands.
+
+Installed PATH executables win. For an explicitly enabled entry with `package`,
+a missing executable uses `npx -y <package> <ACP args>`, or `bunx` when npx is
+absent. The package runner downloads and caches the package on first launch;
+checking a box only saves configuration. No registry is fetched. Without a
+runner, or for entries without a package, setup names the missing prerequisite
+and links to the agent's instructions. Refresh rechecks PATH without reopening
+Settings. There is no global install, uninstall, or automatic upgrade policy.
+
+Checkbox changes save immediately. Disabling the currently selected exact
+catalog/setup command clears the app default; custom and bundle commands remain
+explicit overrides. Disabling does not stop an existing session. Per-request
+catalog choices are checked again in main so stale or forged disabled IDs cannot
+launch. The composer links to Settings instead of repeating installation lists.
+Signing in belongs to the agent; setup availability does not prove sign-in or
+an ACP handshake.
 
 ## Process and connection
 
@@ -350,6 +369,6 @@ before the clear.
 
 ## Out of scope
 
-Agent installation, registry downloads, provider keys, MCP-server injection,
+Global agent installation, binary archive installation, registry downloads, provider keys, MCP-server injection,
 the `fs` and `terminal` client capabilities, file diffs, and session
 persistence across app restarts. See [Distribution](./distribution.md#deliberate-exclusions).

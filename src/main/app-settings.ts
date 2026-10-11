@@ -11,6 +11,7 @@ import {
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
 import { isAppThemeReference } from "../shared/themes";
 import { isLegacyAppThemeReference } from "../migrations/app-theme-reference";
+import { KNOWN_AGENTS } from "../shared/agent-catalog";
 
 const MAX_AGENT_COMMAND_LENGTH = 1_024;
 
@@ -80,6 +81,9 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string | n
     dashBoredAgent: value.dashBoredAgent === undefined
       ? defaultAgent
       : value.dashBoredAgent === null ? null : normalizeDashBoredAgent(value.dashBoredAgent),
+    ...(Array.isArray(value.enabledAgentIds) ? {
+      enabledAgentIds: KNOWN_AGENTS.filter((agent) => value.enabledAgentIds!.includes(agent.id)).map((agent) => agent.id),
+    } : {}),
     sidebarExpandedByDefault: value.sidebarExpandedByDefault === true,
     favoriteActionIds: normalizeActionIds(value.favoriteActionIds),
     commandPaletteShortcut: paletteShortcut,

@@ -46,6 +46,7 @@ export interface AppDialogsProps {
   onRunComponentAgent: (nodes: readonly ResolvedComponentNode[], request: AgentPromptDraft) => Promise<void>;
   onPreviewComponentAgent: (nodes: readonly ResolvedComponentNode[], request: AgentPromptDraft) => Promise<ComponentAgentPreview>;
   onDismissDialog: () => void;
+  onConfigureAgents: () => void;
   onConfirmDiscard: (continueAction: () => void) => void;
   onSaveDiscard: (continueAction: () => void) => void;
   onToggleDeletionFiles: (removeFiles: boolean) => void;
@@ -70,6 +71,7 @@ export function AppDialogs({
   onRunComponentAgent,
   onPreviewComponentAgent,
   onDismissDialog,
+  onConfigureAgents,
   onConfirmDiscard,
   onSaveDiscard,
   onToggleDeletionFiles,
@@ -170,6 +172,7 @@ export function AppDialogs({
         draft={agentRequest!.draft}
         pending={pendingAction === agentAction}
         onDismiss={() => onDismissDialog()}
+        onConfigureAgents={onConfigureAgents}
         onPreview={previewAgent}
         onSend={(request) => onRunComponentAgent(agentTargets, request)}
       />

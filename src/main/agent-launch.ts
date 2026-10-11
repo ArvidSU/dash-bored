@@ -2,6 +2,7 @@ import { CoreError, type ProjectRuntime, loadPromptTemplates, prepareAgentPrompt
 import { readBundleEnvironment, resolveEnvironment } from "../core/environment";
 import type { ProjectLocation } from "../core/paths";
 import { KNOWN_AGENTS } from "../shared/agent-catalog";
+import { agentSetup } from "../shared/agent-setup";
 import type {
   AgentCommandChoice,
   AgentCommandOptions,
@@ -36,6 +37,7 @@ export interface AgentLauncherOptions {
   publishedEnvironment(): Record<string, string>;
   /** Known agents on the app's PATH; injectable for tests. */
   detect?: () => DetectedAgent[];
+  packageRunner?: () => "npx" | "bunx" | null;
 }
 
 /** A resolved launch command and how it was chosen. */
@@ -49,7 +51,7 @@ function unavailable(): CoreError {
   const examples = KNOWN_AGENTS.slice(0, 3).map((agent) => `${agent.name} (${agent.command})`).join(", ");
   return new CoreError(
     "AGENT_UNAVAILABLE",
-    `No ACP agent is configured or detected on PATH. Install one, such as ${examples}, or choose a command in Settings → General → Dashboard agent.`,
+    `No ACP agent is configured or enabled. Enable one, such as ${examples}, or choose a command in Settings → General → Dashboard agent.`,
   );
 }
 
@@ -57,13 +59,16 @@ function unavailable(): CoreError {
 export class AgentLauncher {
   constructor(private readonly options: AgentLauncherOptions) {}
 
-  private detected(): DetectedAgent[] {
-    return this.options.detect?.() ?? detectAgents();
+  private async configured() {
+    const settings = await this.options.settings.get();
+    const installed = this.options.detect?.() ?? detectAgents();
+    const runner = this.options.packageRunner ? this.options.packageRunner() : (Bun.which("npx") ? "npx" : Bun.which("bunx") ? "bunx" : null);
+    return agentSetup(KNOWN_AGENTS, installed, settings.enabledAgentIds, runner);
   }
 
   /**
    * The effective agent for work on `configPath`: the app setting, else the
-   * owning bundle's `.env`, else the first detected agent. `bundleless`
+   * owning bundle's `.env`, else the first enabled agent. `bundleless`
    * skips the project-controlled bundle `.env` so an untrusted repair cannot
    * select its own agent command.
    */
@@ -73,8 +78,8 @@ export class AgentLauncher {
     if (choice?.source === "custom") return named("custom", normalizeDashBoredAgent(choice.command));
     if (choice?.source === "detected") {
       // Re-resolved from the catalog: a renderer never supplies this command.
-      const known = KNOWN_AGENTS.find((agent) => agent.id === choice.id);
-      if (!known) throw new CoreError("AGENT_UNAVAILABLE", "That agent is not in the known-agent list.");
+      const known = (await this.configured()).detected.find((agent) => agent.id === choice.id);
+      if (!known) throw new CoreError("AGENT_UNAVAILABLE", "That agent is disabled or needs setup in Settings → General → Dashboard agent.");
       return { source: "detected", command: known.command, name: known.name };
     }
     const app = (await this.options.settings.get()).dashBoredAgent;
@@ -89,7 +94,7 @@ export class AgentLauncher {
     }
     if (app !== null) return named("app", app);
     if (project !== null) return named("project", project);
-    const [first] = this.detected();
+    const [first] = (await this.configured()).detected;
     if (first) return { source: "detected", command: first.command, name: first.name };
     throw unavailable();
   }
@@ -107,7 +112,7 @@ export class AgentLauncher {
   async agentOptions(configPath?: string): Promise<AgentCommandOptions> {
     const app = (await this.options.settings.get()).dashBoredAgent;
     const project = configPath ? await this.projectCommand(configPath) : null;
-    const detected = this.detected();
+    const { detected, setup } = await this.configured();
     const effective = app !== null
       ? { source: "app" as const, command: app, name: agentDisplay(app).name }
       : project !== null
@@ -115,7 +120,7 @@ export class AgentLauncher {
         : detected[0]
           ? { source: "detected" as const, command: detected[0].command, name: detected[0].name }
           : null;
-    return { app, project, detected, known: KNOWN_AGENTS.map((agent) => ({ ...agent })), effective };
+    return { app, project, detected, setup, known: KNOWN_AGENTS.map((agent) => ({ ...agent })), effective };
   }
 
   launch(request: AgentLaunchRequest): Promise<ComponentAgentLaunch> {

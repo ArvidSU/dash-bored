@@ -21,7 +21,6 @@ import {
   effectivePickerValue,
   pickerValueForChoice,
   settingsPickerValue,
-  undetectedKnownAgents,
 } from "../../src/renderer/lib/agent-options";
 
 const states = (...list: AgentSessionState[]) => list.map((state) => ({ state }));
@@ -151,7 +150,6 @@ describe("agent picker options", () => {
     expect(commandForPickerValue("project", { ...options, project: null }, "")).toBe("");
     expect(commandForPickerValue("detected:gemini", options, "")).toBe("gemini --experimental-acp");
     expect(commandForPickerValue("custom", options, " mine ")).toBe("mine");
-    expect(undetectedKnownAgents(options).map((agent) => agent.id)).toEqual(["codex"]);
   });
 
   test("maps the Settings command string onto the picker", () => {
