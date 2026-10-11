@@ -32,12 +32,6 @@ root:
               action: select:project-sections/agent-setup
             - name: Docs
               action: select:project-sections/documentation
-            - name: Lab
-              action: select:project-sections/dogfood-dashboard
-            - name: Focus
-              action: select:project-sections/project-focus-timer
-            - name: Themes
-              action: select:project-sections/theme-reference
     second:
       node:
         id: project-sections
@@ -1460,42 +1454,3 @@ root:
                           component: "./components/external/core/markdown"
                           props:
                             path: docs/release-qa.md
-          - metadata:
-              label: Lab
-            node:
-              id: dogfood-dashboard
-              component: ./dogfood
-          - metadata:
-              label: Focus
-            node:
-              id: project-focus-timer
-              component: "./components/external/core/group"
-              children:
-                axis: vertical
-                first:
-                  node:
-                    id: builtin-timer
-                    component: "./components/external/core/focus-timer"
-                    props:
-                      title: Make something worth shipping
-                      focusMinutes: 25
-                      breakMinutes: 5
-                second:
-                  node:
-                    id: timer-actions
-                    component: "./components/external/core/button"
-                    props:
-                      items:
-                        - name: Start or resume
-                          action: component:builtin-timer:start
-                        - name: Pause
-                          action: component:builtin-timer:pause
-                        - name: Reset
-                          action: component:builtin-timer:reset
-                        - name: Next session
-                          action: component:builtin-timer:next
-          - metadata:
-              label: Themes
-            node:
-              id: theme-reference
-              component: ./components/theme-reference

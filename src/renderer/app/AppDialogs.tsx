@@ -16,6 +16,7 @@ import { basename } from "./app-utils";
 import type { DashboardEditSession } from "./app-utils";
 import type { CompositionDialogState } from "../composition/composition-interaction-controller";
 import { AgentPromptPanel, type AgentPromptDraft } from "../panels/AgentPromptPanel";
+import { componentAgentAction } from "./use-agent-work";
 
 /**
  * The one app-level modal open at a time. Composition dialogs stay with the
@@ -24,7 +25,8 @@ import { AgentPromptPanel, type AgentPromptDraft } from "../panels/AgentPromptPa
 export type AppDialog =
   | { kind: "discard"; message: string; continueAction: () => void }
   | { kind: "deletion"; project: ProjectListItem; preview: ProjectDeletionPreview; removeFiles: boolean }
-  | { kind: "agent"; node: ResolvedComponentNode; draft: AgentPromptDraft };
+  /** `nodes` is never empty; the first is the template's `component`. */
+  | { kind: "agent"; nodes: readonly ResolvedComponentNode[]; draft: AgentPromptDraft };
 
 export interface AppDialogsProps {
   compositionDialog: CompositionDialogState | null;
@@ -41,8 +43,8 @@ export interface AppDialogsProps {
   onDismissRemoval: () => void;
   onConfirmRemoval: () => void;
   onBuildWithAgent: (target: InsertionTarget, description: string) => void;
-  onRunComponentAgent: (node: ResolvedComponentNode, request: AgentPromptDraft) => Promise<void>;
-  onPreviewComponentAgent: (node: ResolvedComponentNode, request: AgentPromptDraft) => Promise<ComponentAgentPreview>;
+  onRunComponentAgent: (nodes: readonly ResolvedComponentNode[], request: AgentPromptDraft) => Promise<void>;
+  onPreviewComponentAgent: (nodes: readonly ResolvedComponentNode[], request: AgentPromptDraft) => Promise<ComponentAgentPreview>;
   onDismissDialog: () => void;
   onConfirmDiscard: (continueAction: () => void) => void;
   onSaveDiscard: (continueAction: () => void) => void;
@@ -74,14 +76,15 @@ export function AppDialogs({
   onConfirmDeletion,
 }: AppDialogsProps): ReactNode {
   const agentRequest = dialog?.kind === "agent" ? dialog : null;
-  const agentDialog = agentRequest?.node ?? null;
+  const agentTargets = agentRequest?.nodes ?? null;
+  const agentAction = agentTargets ? componentAgentAction(agentTargets) : null;
   const discardConfirmation = dialog?.kind === "discard" ? dialog : null;
   const deletionDialog = dialog?.kind === "deletion" ? dialog : null;
   const previewAgent = useCallback(
-    (request: AgentPromptDraft) => agentDialog
-      ? onPreviewComponentAgent(agentDialog, request)
+    (request: AgentPromptDraft) => agentTargets
+      ? onPreviewComponentAgent(agentTargets, request)
       : Promise.reject(new Error("The agent prompt target is no longer available.")),
-    [agentDialog, onPreviewComponentAgent],
+    [agentTargets, onPreviewComponentAgent],
   );
   const compositionExisting = compositionDialog?.mode === "configure"
     && editSession
@@ -153,22 +156,22 @@ export function AppDialogs({
       </div>
     </EditorModal>
   ) : null}
-  {agentDialog ? (
+  {agentTargets && agentAction ? (
     <EditorModal
       title="Ask the agent"
       className="agent-prompt-modal"
       onDismiss={() => {
-        if (pendingAction !== `component-agent:${agentDialog.id}`) onDismissDialog();
+        if (pendingAction !== agentAction) onDismissDialog();
       }}
     >
       <AgentPromptPanel
-        key={agentDialog.id}
-        node={agentDialog}
+        key={agentAction}
+        nodes={agentTargets}
         draft={agentRequest!.draft}
-        pending={pendingAction === `component-agent:${agentDialog.id}`}
+        pending={pendingAction === agentAction}
         onDismiss={() => onDismissDialog()}
         onPreview={previewAgent}
-        onSend={(request) => onRunComponentAgent(agentDialog, request)}
+        onSend={(request) => onRunComponentAgent(agentTargets, request)}
       />
     </EditorModal>
   ) : null}

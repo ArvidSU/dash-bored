@@ -25,15 +25,23 @@ function request(overrides: Partial<AgentPromptRequest> = {}): AgentPromptReques
     projectRoot: "/project",
     configPath: "/project/.dash-bored/dash-bored.yaml",
     configDirectory: "/project/.dash-bored",
-    component: {
-      id: "yaml-todo",
-      reference: "./components/external/core/list",
-      path: "/project/.dash-bored/dash-bored.yaml#id=yaml-todo",
-      name: "Project backlog",
-    },
+    components: [backlog],
     ...overrides,
   };
 }
+
+const backlog = {
+  id: "yaml-todo",
+  reference: "./components/external/core/list",
+  path: "/project/.dash-bored/dash-bored.yaml#id=yaml-todo",
+  name: "Project backlog",
+};
+const checks = {
+  id: "checks",
+  reference: "./components/external/core/command",
+  path: "/project/.dash-bored/dash-bored.yaml#id=checks",
+  name: "Checks",
+};
 
 async function bundleWithPrompts(prompts: Record<string, string>): Promise<{ root: string; directory: string }> {
   const root = await temporaryDirectory();
@@ -65,6 +73,39 @@ describe("prompt templates", () => {
     expect(prompt).toContain("Target component path: /project/.dash-bored/dash-bored.yaml#id=yaml-todo");
     expect(prompt).not.toContain("Context:");
     expect(prompt).toEndWith("User request:\nAdd a Save button to the unsaved-changes alert.");
+  });
+
+  test("several picked components are each named, in pick order", () => {
+    const dashboard = prepareAgentPrompt(builtins, request({ template: "dashboard", components: [checks, backlog] })).prompt;
+    expect(dashboard).toContain("from several of its components.");
+    expect(dashboard).toContain([
+      "Target components:",
+      "- /project/.dash-bored/dash-bored.yaml#id=checks (id `checks`, ./components/external/core/command)",
+      "- /project/.dash-bored/dash-bored.yaml#id=yaml-todo (id `yaml-todo`, ./components/external/core/list)",
+    ].join("\n"));
+    expect(dashboard).not.toContain("Target component path:");
+
+    const project = prepareAgentPrompt(builtins, request({ components: [checks, backlog] })).prompt;
+    expect(project).toContain([
+      "Requested from these components in /project/.dash-bored/dash-bored.yaml:",
+      "- Checks (component `checks`, ./components/external/core/command)",
+      "- Project backlog (component `yaml-todo`, ./components/external/core/list)",
+    ].join("\n"));
+    expect(project).not.toContain("Requested from: ");
+
+    // A single target keeps the one-component wording.
+    expect(prepareAgentPrompt(builtins, request({ template: "dashboard" })).prompt).toContain("from one of its components.");
+    expect(() => prepareAgentPrompt(builtins, request({ components: [] }))).toThrow("needs a target component");
+  });
+
+  test("bundle templates may list every target and see the first as component", async () => {
+    const { directory } = await bundleWithPrompts({
+      "batch.md": "---\ndescription: Batch\n---\nFirst: {{component.id}}\n{{#multipleComponents}}\nAll:{{#components}} {{id}}{{/components}}\n{{/multipleComponents}}\n{{input}}",
+    });
+    const set = await loadPromptTemplates(directory);
+    expect(set.diagnostics).toEqual([]);
+    const { prompt } = prepareAgentPrompt(set, request({ template: "batch", components: [checks, backlog] }));
+    expect(prompt).toBe("First: checks\nAll: checks yaml-todo\nAdd a Save button to the unsaved-changes alert.");
   });
 
   test("renders sections, inverted sections, and removes standalone tag lines", () => {

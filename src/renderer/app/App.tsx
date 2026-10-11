@@ -136,7 +136,7 @@ export function App(): ReactNode {
     forgetDashboard: viewState.forgetDashboard,
     editNode: (node) => void composition.editNode(node),
     toggleCollapse: viewState.toggleComponentCollapse,
-    openChangeWithAgent: agent.openChangeWithAgent,
+    openChangeWithAgent: (node) => agent.openChangeWithAgent([node]),
   });
   const dashboardSettings = useDashboardSettings(notices, activeView === "settings", session.projects, snapshot?.revision);
   const settingsAgentOptions = useSettingsAgentOptions(activeView === "settings", settings.settings.dashBoredAgent);
@@ -265,7 +265,7 @@ export function App(): ReactNode {
             onComponentHeightChange: viewState.updateComponentHeight,
             onCopyPath: (node) => void navigation.copyComponentPath(node),
             onEditComponent: (node) => void composition.editNode(node),
-            onOpenAgent: agent.openChangeWithAgent,
+            onOpenAgent: (node) => agent.openChangeWithAgent([node]),
             onUpdateProps: draft.updateComponentProps,
           }}
           onFocus={focusComponent}
@@ -335,7 +335,7 @@ export function App(): ReactNode {
         <ThemeNotice />
         {workspace}
       </AppShell>
-      <ComponentPickerHighlight hover={agentPicker.hover} />
+      <ComponentPickerHighlight hover={agentPicker.hover} selection={agentPicker.selection} />
       <AgentActivity
         open={agentActivityOpen}
         tasks={session.agentTasks}

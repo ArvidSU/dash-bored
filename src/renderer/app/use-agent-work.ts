@@ -9,14 +9,19 @@ import type { AppDialog } from "./AppDialogs";
 import type { Notices } from "./use-notices";
 
 /** The composer's reviewed draft as a host request; the main process re-checks it. */
-function componentAgentRequest(node: ResolvedComponentNode, draft: AgentPromptDraft) {
+function componentAgentRequest(nodes: readonly ResolvedComponentNode[], draft: AgentPromptDraft) {
   return {
-    nodeId: node.id,
+    nodeIds: nodes.map((node) => node.id),
     prompt: draft.input,
     ...(draft.template ? { template: draft.template } : {}),
     ...(draft.vars ? { vars: draft.vars } : {}),
     ...(draft.agent ? { agent: draft.agent } : {}),
   };
+}
+
+/** The pending-action key of one component agent launch. */
+export function componentAgentAction(nodes: readonly ResolvedComponentNode[]): string {
+  return `component-agent:${nodes.map((node) => node.id).join(",")}`;
 }
 
 export interface AgentWorkOptions {
@@ -93,9 +98,10 @@ export function useAgentWork({
     return task;
   }, [applyAgentTask]);
 
-  /** Change with agent briefs the agent with the dashboard template. */
-  function openChangeWithAgent(node: ResolvedComponentNode): void {
-    setDialog({ kind: "agent", node, draft: { input: "", template: "dashboard" } });
+  /** Change with agent briefs the agent with the dashboard template, on one or more picked components. */
+  function openChangeWithAgent(nodes: readonly ResolvedComponentNode[]): void {
+    if (nodes.length === 0) return;
+    setDialog({ kind: "agent", nodes, draft: { input: "", template: "dashboard" } });
   }
 
   /** A configured `agent:prompt` invocation; without a caller it targets the focus. */
@@ -110,7 +116,7 @@ export function useAgentWork({
     // Template and vars were validated at load; the main process re-checks them.
     setDialog({
       kind: "agent",
-      node: target,
+      nodes: [target],
       draft: {
         input: prompt,
         ...(typeof args.template === "string" ? { template: args.template } : {}),
@@ -122,16 +128,17 @@ export function useAgentWork({
   }
 
   const previewComponentAgent = useCallback(
-    (node: ResolvedComponentNode, request: AgentPromptDraft) => host.previewComponentAgent(componentAgentRequest(node, request)),
+    (nodes: readonly ResolvedComponentNode[], request: AgentPromptDraft) => host.previewComponentAgent(componentAgentRequest(nodes, request)),
     [],
   );
 
-  async function runComponentAgent(node: ResolvedComponentNode, request: AgentPromptDraft): Promise<void> {
-    await perform(`component-agent:${node.id}`, async () => {
-      const launched = await host.launchAgent({ kind: "component", ...componentAgentRequest(node, request) });
+  async function runComponentAgent(nodes: readonly ResolvedComponentNode[], request: AgentPromptDraft): Promise<void> {
+    await perform(componentAgentAction(nodes), async () => {
+      const launched = await host.launchAgent({ kind: "component", ...componentAgentRequest(nodes, request) });
       setDialog(null);
       setActivityOpen(true);
-      showNotice(`Started ${launched.command} for ${launched.componentPath}.`);
+      const others = nodes.length > 1 ? ` and ${nodes.length - 1} more` : "";
+      showNotice(`Started ${launched.command} for ${launched.componentPath}${others}.`);
     });
   }
 

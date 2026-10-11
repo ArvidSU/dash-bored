@@ -332,13 +332,19 @@ the cursor is a crosshair, the innermost `.workspace [data-node-id]` under the
 pointer gets a fixed outline labelled with its name, and window capture
 listeners swallow pointer input so components never react. Clicking a component
 opens the same composer as the context menu's Change with agent for the node
-resolved from the saved tree; a click elsewhere, the context menu, Escape, or
-leaving the dashboard view cancels. Picking counts as composition UI, so native
-webviews hide and their frames stay pickable.
+resolved from the saved tree. Shift-clicks instead toggle components in a
+selection, each outlined and numbered in pick order (frames re-rendered meanwhile
+are found again by node ID); releasing Shift opens one composer for the whole
+selection. A Shift-click between components keeps the selection, and a pointer
+move or click that arrives with Shift already up (a release the window missed)
+accepts it. A plain click elsewhere, the context menu, Escape, or leaving the
+dashboard view cancels and discards any selection. Picking counts as
+composition UI, so native webviews hide and their frames stay pickable.
 
 Change with agent opens the "Ask the agent" composer on the `dashboard` prompt
 template; `agent:prompt` opens it on its configured template, vars, and text.
-The composer names the target component, offers every template the owning
+The composer names the target component, or lists every picked target in pick
+order, offers every template the owning
 bundle resolves (built-ins first, each with its scope) as a radio group, shows
 a field per declared var, and pairs a large request editor with a Full prompt
 tab above a bar with the Agent picker, the launch command it runs, and Send.
@@ -353,8 +359,13 @@ reads "No agent found" and the composer lists the known agents with their
 homepages (`panels/AgentInstallHints.tsx`); otherwise undetected known agents
 fold under "Install another agent". The app never installs agents. Vars the
 selected template does not declare are dropped, so switching templates cannot
-send a foreign var. The renderer sends only the selected node ID, the template
-name, typed vars, user text, and the optional choice. A preview request renders
+send a foreign var. The renderer sends only the selected node IDs (`nodeIds`,
+in pick order), the template name, typed vars, user text, and the optional
+choice. Main resolves each ID against its own snapshot, drops duplicates,
+refuses a missing node (`COMPONENT_NOT_FOUND`) and targets owned by different
+dashboard bundles (`COMPONENT_AGENT_TARGETS_MIXED`, since templates,
+environment, and validation are per bundle), and records the first target as
+the session's component path. A preview request renders
 the same way without launching and also lists the bundle's template summaries
 and the command options, so the composer's Full prompt is exactly what Send
 passes. How main re-resolves the node and choice, renders the prompt, and runs

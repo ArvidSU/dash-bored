@@ -19,9 +19,10 @@ import {
   buildDiagnosticsAgentPrompt,
   componentPath,
   findResolvedNode,
+  promptComponent,
   resolveDashboardInsertion,
 } from "../shared/component-agent";
-import type { ComponentAgentLaunch } from "../shared/contracts";
+import type { ComponentAgentLaunch, ResolvedComponentNode } from "../shared/contracts";
 import { assertAgentAvailable } from "./agent-preflight";
 import { agentDisplay, detectAgents } from "./agent-detection";
 import type { AgentSessions } from "./agent-sessions";
@@ -151,14 +152,32 @@ export class AgentLauncher {
     if (!snapshot.tree || !snapshot.projectRoot) {
       throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before asking an agent to work from it.");
     }
-    const node = findResolvedNode(snapshot.tree, request.nodeId);
-    if (!node) {
+    const tree = snapshot.tree;
+    const nodeIds = [...new Set(request.nodeIds)];
+    if (nodeIds.length === 0) {
+      throw new CoreError("COMPONENT_NOT_FOUND", "Choose a component for the agent to work from.");
+    }
+    const nodes = nodeIds.map((nodeId) => findResolvedNode(tree, nodeId));
+    if (nodes.some((node) => node === null)) {
       throw new CoreError(
         "COMPONENT_NOT_FOUND",
-        "That component is no longer present. Reopen its menu and try again.",
+        nodes.length > 1
+          ? "A selected component is no longer present. Pick the components again."
+          : "That component is no longer present. Reopen its menu and try again.",
       );
     }
+    const targets = nodes as ResolvedComponentNode[];
+    const [node] = targets as [ResolvedComponentNode, ...ResolvedComponentNode[]];
     const source = await runtime.getDashboardConfigSource(node.sourceConfigPath);
+    // Templates, environment, and validation belong to one bundle.
+    for (const other of targets.slice(1)) {
+      if ((await runtime.getDashboardConfigSource(other.sourceConfigPath)).configPath !== source.configPath) {
+        throw new CoreError(
+          "COMPONENT_AGENT_TARGETS_MIXED",
+          "The selected components belong to different dashboards. Pick components from one dashboard.",
+        );
+      }
+    }
     const sourceLocation = await resolveProjectLocation(source.configPath);
     const locator = componentPath(node);
     // Templates are re-read from the owning bundle so the renderer only names one.
@@ -175,12 +194,7 @@ export class AgentLauncher {
         projectRoot: sourceLocation.projectRoot,
         configPath: source.configPath,
         configDirectory: sourceLocation.configDirectory,
-        component: {
-          id: node.id,
-          reference: node.component,
-          path: locator,
-          name: node.configName?.trim() || node.manifest?.name || node.component,
-        },
+        components: targets.map(promptComponent),
       });
       return { ...prepared, templates, source, sourceLocation, locator };
     } catch (error) {

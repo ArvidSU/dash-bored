@@ -365,7 +365,7 @@ export function AppShell({
                   aria-label="Pick a component to change with agent"
                   aria-pressed={agentPickerActive}
                   title={agentPickerActive
-                    ? "Click a component to change it with the agent, Esc to cancel"
+                    ? "Click a component to change it with the agent, Shift-click to select several, Esc to cancel"
                     : "Pick a component to change with agent"}
                   disabled={!agentPickerAvailable}
                   onClick={onToggleAgentPicker}

@@ -261,7 +261,11 @@ inverted sections `{{^name}}…{{/name}}`, and includes `{{> name}}`. Values are
 inserted verbatim, and a section or include tag alone on its line removes that
 line. Templates see `input`, `vars.<name>`, `varList` (`name`/`value` entries),
 `hasVars`, `env.<KEY>`, `project.root`/`name`, `dashboard.config`/`directory`,
-and `component.id`/`reference`/`path`/`name`. A bundle template must declare
+`component.id`/`reference`/`path`/`name`, `components` (every target in pick
+order, with the same fields; one entry unless the dropper Shift-selected
+several), and `multipleComponents`. `component` is the first target, so a
+template that names only it still renders for a multi-target request; the
+shipped templates list every target when `multipleComponents` is true. A bundle template must declare
 every var it uses or accepts and every environment key it reads; shipped
 templates accept any vars and list them as context. Only declared environment
 keys are rendered, and the user sees their values in the composer preview

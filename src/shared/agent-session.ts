@@ -65,7 +65,11 @@ export interface AgentCommandOptions {
 }
 
 export interface ComponentAgentRequest {
-  nodeId: string;
+  /**
+   * Target components in pick order, never empty. All must belong to one
+   * dashboard bundle; the first is the template's `component`.
+   */
+  nodeIds: string[];
   /** The user's reviewed input; rendered into the template as `{{input}}`. */
   prompt: string;
   /** Prompt template name; Change with agent uses `dashboard`, `agent:prompt` defaults to `project`. */

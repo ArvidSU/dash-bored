@@ -88,7 +88,8 @@ there is no registry fetch and no implicit `npx`. A custom command such as
   resolution as commands, see [Project contract](./project-contract.md)), or
   for an untrusted repair the app-published environment without the bundle
   `.env`. The app adds `DASH_BORED_AGENT` (the command that runs) and
-  `DASH_BORED_COMPONENT_PATH`, and sets `ENV` and `BASH_ENV` to `/dev/null` so
+  `DASH_BORED_COMPONENT_PATH` (the first target's locator when several were
+  picked; the prompt lists every target), and sets `ENV` and `BASH_ENV` to `/dev/null` so
   shell startup hooks cannot replace the preflighted PATH. `DASH_BORED_TOOL`
   and `DASH_BORED_APP_INSTANCE` are inherited from main. The prompt travels
   over ACP, not in the environment.

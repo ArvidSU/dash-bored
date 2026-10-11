@@ -7,25 +7,35 @@ import { useLatestRef } from "./use-latest-ref";
 /** Marks the control that toggles picking; its own clicks pass through. */
 export const COMPONENT_PICKER_TOGGLE = "data-component-picker-toggle";
 
-interface PickerHover {
+const PICKABLE = ".workspace [data-node-id]";
+
+interface PickerFrame {
   node: ResolvedComponentNode;
   rect: { top: number; left: number; width: number; height: number };
+}
+
+interface PickerHit {
+  element: HTMLElement;
+  node: ResolvedComponentNode;
 }
 
 /**
  * Dropper mode for the header's agent control: hovering highlights the
  * innermost dashboard component and clicking it hands the node to `onPick`.
- * While active, window capture listeners swallow pointer input so components
- * never react to the pick; any click outside a component, the context menu,
- * or Escape cancels.
+ * Shift-clicks collect several components instead (a selected one toggles
+ * off) and releasing Shift hands over the selection in pick order. While
+ * active, window capture listeners swallow pointer input so components never
+ * react to the pick; a plain click outside a component, the context menu, or
+ * Escape cancels.
  */
 export function useComponentPicker(
   enabled: boolean,
   resolve: (nodeId: string) => ResolvedComponentNode | null,
-  onPick: (node: ResolvedComponentNode) => void,
+  onPick: (nodes: ResolvedComponentNode[]) => void,
 ) {
   const [active, setActive] = useState(false);
-  const [hover, setHover] = useState<PickerHover | null>(null);
+  const [hover, setHover] = useState<PickerFrame | null>(null);
+  const [selection, setSelection] = useState<PickerFrame[]>([]);
   const resolveRef = useLatestRef(resolve);
   const onPickRef = useLatestRef(onPick);
 
@@ -36,24 +46,39 @@ export function useComponentPicker(
   useEffect(() => {
     if (!active) {
       setHover(null);
+      setSelection([]);
       return;
     }
-    let current: { element: HTMLElement; node: ResolvedComponentNode } | null = null;
-    const hit = (target: EventTarget | null) => {
-      const element = target instanceof Element
-        ? target.closest<HTMLElement>(".workspace [data-node-id]")
-        : null;
+    let current: PickerHit | null = null;
+    let selected: PickerHit[] = [];
+    const hit = (target: EventTarget | null): PickerHit | null => {
+      const element = target instanceof Element ? target.closest<HTMLElement>(PICKABLE) : null;
       const node = element?.dataset.nodeId ? resolveRef.current(element.dataset.nodeId) : null;
       return element && node ? { element, node } : null;
     };
-    const paint = () => {
-      if (!current?.element.isConnected) {
-        setHover(null);
-        return;
-      }
-      const { top, left, width, height } = current.element.getBoundingClientRect();
-      setHover({ node: current.node, rect: { top, left, width, height } });
+    // A re-rendered component replaces its frame; selected nodes follow it by ID.
+    const locate = (picked: PickerHit): PickerHit | null => {
+      if (picked.element.isConnected) return picked;
+      const element = [...document.querySelectorAll<HTMLElement>(PICKABLE)]
+        .find((candidate) => candidate.dataset.nodeId === picked.node.id);
+      return element ? { element, node: picked.node } : null;
     };
+    const frame = ({ element, node }: PickerHit): PickerFrame => {
+      const { top, left, width, height } = element.getBoundingClientRect();
+      return { node, rect: { top, left, width, height } };
+    };
+    const paint = () => {
+      selected = selected.map((picked) => locate(picked) ?? picked);
+      setSelection(selected.filter((picked) => picked.element.isConnected).map(frame));
+      const hovered = current?.element.isConnected
+        && !selected.some((picked) => picked.node.id === current!.node.id);
+      setHover(hovered ? frame(current!) : null);
+    };
+    const finish = (nodes: ResolvedComponentNode[]) => {
+      setActive(false);
+      if (nodes.length > 0) onPickRef.current(nodes);
+    };
+    const accept = () => finish(selected.map((picked) => picked.node));
     const isToggle = (target: EventTarget | null) =>
       target instanceof Element && target.closest(`[${COMPONENT_PICKER_TOGGLE}]`) !== null;
     const swallow = (event: Event) => {
@@ -62,6 +87,11 @@ export function useComponentPicker(
       event.stopPropagation();
     };
     const move = (event: PointerEvent) => {
+      // Shift came up while the window could not see it, such as in another app.
+      if (!event.shiftKey && selected.length > 0) {
+        accept();
+        return;
+      }
       const next = isToggle(event.target) ? null : hit(event.target);
       if (next?.element === current?.element) return;
       current = next;
@@ -71,15 +101,28 @@ export function useComponentPicker(
       if (isToggle(event.target)) return;
       swallow(event);
       const picked = hit(event.target);
-      setActive(false);
-      if (picked) onPickRef.current(picked.node);
+      if (event.shiftKey) {
+        // A stray Shift-click between components keeps the selection.
+        if (!picked) return;
+        selected = selected.some((entry) => entry.node.id === picked.node.id)
+          ? selected.filter((entry) => entry.node.id !== picked.node.id)
+          : [...selected, picked];
+        paint();
+      } else if (selected.length > 0) {
+        accept();
+      } else {
+        finish(picked ? [picked.node] : []);
+      }
     };
     const cancel = (event: Event) => {
       swallow(event);
       setActive(false);
     };
-    const key = (event: KeyboardEvent) => {
+    const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") cancel(event);
+    };
+    const keyup = (event: KeyboardEvent) => {
+      if (event.key === "Shift" && selected.length > 0) accept();
     };
     const listeners: [string, (event: never) => void][] = [
       ["pointermove", move],
@@ -88,7 +131,8 @@ export function useComponentPicker(
       ["click", click],
       ["dblclick", swallow],
       ["contextmenu", cancel],
-      ["keydown", key],
+      ["keydown", keydown],
+      ["keyup", keyup],
       ["scroll", paint],
       ["resize", paint],
     ];
@@ -104,18 +148,47 @@ export function useComponentPicker(
     enabled,
     active,
     hover,
+    selection,
     toggle: () => setActive((value) => enabled && !value),
     cancel: () => setActive(false),
   };
 }
 
-/** The outline drawn over the hovered component while picking. */
-export function ComponentPickerHighlight({ hover }: { hover: PickerHover | null }): ReactNode {
-  if (!hover) return null;
-  const name = hover.node.configName?.trim() || nodeLabel(hover.node, false);
+function pickerName(node: ResolvedComponentNode): string {
+  return node.configName?.trim() || nodeLabel(node, false);
+}
+
+/**
+ * Outlines drawn while picking: each Shift-selected component, numbered in
+ * pick order, and the hovered one.
+ */
+export function ComponentPickerHighlight({
+  hover,
+  selection,
+}: {
+  hover: PickerFrame | null;
+  selection: readonly PickerFrame[];
+}): ReactNode {
   return (
-    <div className="component-picker__highlight" style={hover.rect} aria-hidden="true">
-      <span className="component-picker__label">{name}</span>
-    </div>
+    <>
+      {selection.map((selected, index) => (
+        <div
+          key={selected.node.id}
+          className="component-picker__highlight component-picker__highlight--selected"
+          style={selected.rect}
+          aria-hidden="true"
+        >
+          <span className="component-picker__label">
+            <span className="component-picker__order">{index + 1}</span>
+            {pickerName(selected.node)}
+          </span>
+        </div>
+      ))}
+      {hover ? (
+        <div className="component-picker__highlight" style={hover.rect} aria-hidden="true">
+          <span className="component-picker__label">{pickerName(hover.node)}</span>
+        </div>
+      ) : null}
+    </>
   );
 }

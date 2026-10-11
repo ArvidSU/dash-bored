@@ -1,13 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { realpath, writeFile } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { stringify } from "yaml";
 import { ProjectRuntime, TrustStore } from "../../src/core";
 import { AgentLauncher } from "../../src/main/agent-launch";
 import type { AgentSessionLaunchOptions, AgentSessions } from "../../src/main/agent-sessions";
 import type { AgentCommandChoice, DetectedAgent } from "../../src/shared/agent-session";
 import { KNOWN_AGENTS } from "../../src/shared/agent-catalog";
-import { createProject, removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
+import { createProject, installCoreFixture, removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
 
 const cleanup: string[] = [];
 const runtimes: ProjectRuntime[] = [];
@@ -118,10 +118,10 @@ test("the composer's choice selects the app, bundle, or a custom command", async
   });
   // Settings has no bundle.
   expect(await launcher.agentOptions()).toMatchObject({ project: null, effective: { source: "app" } });
-  const preview = await launcher.preview({ nodeId: "test", prompt: "" });
+  const preview = await launcher.preview({ nodeIds: ["test"], prompt: "" });
   expect(preview.agents.project).toBe("/bin/echo");
   const launch = (agent?: AgentCommandChoice) =>
-    launcher.launch({ kind: "component", nodeId: "test", prompt: "Do it.", ...(agent ? { agent } : {}) });
+    launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Do it.", ...(agent ? { agent } : {}) });
   expect((await launch()).command).toBe("/usr/bin/true");
   expect((await launch({ source: "project" })).command).toBe("/bin/echo");
   expect((await launch({ source: "custom", command: "  /bin/cat  " })).command).toBe("/bin/cat");
@@ -138,10 +138,47 @@ test("the composer's choice selects the app, bundle, or a custom command", async
 test("project work is not validated; dashboard work validates on each turn end", async () => {
   const { configPath, runtime, launcher, launches } = await setup("", { value: "/usr/bin/true" });
   await runtime.trust();
-  await launcher.launch({ kind: "component", nodeId: "test", prompt: "Implement it.", template: "project" });
+  await launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Implement it.", template: "project" });
   expect(launches[0]).toMatchObject({ purpose: "project", template: "project", configPath });
   expect(launches[0]!.onTurnEnd).toBeUndefined();
-  await launcher.launch({ kind: "component", nodeId: "test", prompt: "Retitle it.", template: "dashboard" });
+  await launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Retitle it.", template: "dashboard" });
   expect(launches[1]).toMatchObject({ purpose: "edit", template: "dashboard" });
   expect(launches[1]!.onTurnEnd).toBeFunction();
+});
+
+test("several picked components brief one agent; targets across bundles are refused", async () => {
+  const { root, configPath, runtime, launcher, launches } = await setup("", { value: "/usr/bin/true" });
+  const linked = join(root, ".dash-bored", "linked");
+  await mkdir(join(linked, "components"), { recursive: true });
+  await installCoreFixture(linked);
+  await Promise.all([
+    writeFile(join(linked, "dash-bored.yaml"), stringify({
+      schemaVersion: 4, name: "Linked", root: { id: "linked-note", component: "./components/external/core/markdown", props: { content: "Linked" } },
+    })),
+    writeFile(join(linked, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
+  ]);
+  await writeFile(configPath, stringify({ schemaVersion: 4, name: "Agents", root: {
+    component: "./components/external/core/tabs",
+    children: [
+      { node: { id: "notes", component: "./components/external/core/markdown", props: { content: "Notes" } }, metadata: { label: "Notes" } },
+      { node: { id: "status", component: "./components/external/core/status", props: { label: "Ready", state: "healthy" } }, metadata: { label: "Status" } },
+      { node: { id: "personal", component: "./linked" }, metadata: { label: "Linked" } },
+    ],
+  } }));
+  await runtime.reload();
+  await runtime.trust();
+  expect(runtime.getSnapshot().diagnostics).toEqual([]);
+
+  const preview = await launcher.preview({ nodeIds: ["status", "notes", "status"], prompt: "Align them.", template: "dashboard" });
+  expect(preview.prompt).toContain(`Target components:\n- ${configPath}#root.children[1].node (id \`status\``);
+  expect(preview.prompt).toContain(`- ${configPath}#root.children[0].node (id \`notes\``);
+  await launcher.launch({ kind: "component", nodeIds: ["status", "notes"], prompt: "Align them.", template: "dashboard" });
+  expect(launches[0]).toMatchObject({ purpose: "edit", componentPath: `${configPath}#root.children[1].node` });
+
+  await expect(launcher.preview({ nodeIds: ["notes", "personal::linked-note"], prompt: "" }))
+    .rejects.toMatchObject({ code: "COMPONENT_AGENT_TARGETS_MIXED" });
+  await expect(launcher.preview({ nodeIds: ["notes", "gone"], prompt: "" }))
+    .rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
+  await expect(launcher.preview({ nodeIds: [], prompt: "" }))
+    .rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
 });

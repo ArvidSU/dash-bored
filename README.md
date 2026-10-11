@@ -410,7 +410,9 @@ menu also offers **Move up** and **Move down** when a compatible sibling exists;
 these changes use the same dashboard draft as dragging.
 The dropper inside the header's **Agent work** button reaches the same action
 without the menu: turn it on, hover to highlight a component, and click it.
-Escape or a click outside the dashboard cancels.
+To change several components in one request, hold Shift and click each one
+(click a selected component again to drop it), then release Shift to open the
+composer for all of them. Escape or a click outside the dashboard cancels.
 Change with agent shows the resolved command before sending and enriches your request with the owning
 dashboard and exact component path. **Agent work** in the header lists each
 session with its agent, state (Starting, Working, Needs permission, Idle,

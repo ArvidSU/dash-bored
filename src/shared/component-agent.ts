@@ -8,6 +8,7 @@ import type {
   ResolvedComponentNode,
 } from "./contracts";
 import { childEdges } from "./child-edges";
+import type { PromptComponent } from "./prompt-templates";
 
 /**
  * A validated insertion target restated as the YAML edit the structural editor
@@ -81,6 +82,16 @@ export function componentPath(node: ResolvedComponentNode): string {
   const configPath = node.sourceConfigPath ?? "dash-bored.yaml";
   const sourcePath = node.sourcePath ?? `id=${encodeURIComponent(node.id)}`;
   return `${configPath}#${sourcePath}`;
+}
+
+/** One agent target as prompt templates see it. */
+export function promptComponent(node: ResolvedComponentNode): PromptComponent {
+  return {
+    id: node.id,
+    reference: node.component,
+    path: componentPath(node),
+    name: node.configName?.trim() || node.manifest?.name || node.component,
+  };
 }
 
 function dashboardParentPath(target: DashboardInsertionTarget): string {

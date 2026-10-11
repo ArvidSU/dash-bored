@@ -5,7 +5,7 @@ export const BUILTIN_PROMPT_PREFIX = "dash-bored/";
 export const DEFAULT_PROMPT_TEMPLATE = "project";
 const MAX_PARTIAL_DEPTH = 8;
 /** Context roots every template may reference; `vars` and `env` keys are checked separately. */
-const CONTEXT_ROOTS = new Set(["input", "vars", "varList", "hasVars", "env", "project", "dashboard", "component"]);
+const CONTEXT_ROOTS = new Set(["input", "vars", "varList", "hasVars", "env", "project", "dashboard", "component", "components", "multipleComponents"]);
 
 export interface PromptTemplate {
   name: string;
@@ -27,13 +27,24 @@ export interface PromptTemplateSet {
   diagnostics: Diagnostic[];
 }
 
+export interface PromptComponent {
+  id: string;
+  reference: string;
+  path: string;
+  name: string;
+}
+
 export interface PromptContext {
   input: string;
   vars: Readonly<Record<string, string | number | boolean>>;
   env: Readonly<Record<string, string>>;
   project: { root: string; name: string };
   dashboard: { config: string; directory: string };
-  component: { id: string; reference: string; path: string; name: string };
+  /** The first target; the only one unless the user picked several. */
+  component: PromptComponent;
+  /** Every target in pick order, starting with `component`. */
+  components: readonly PromptComponent[];
+  multipleComponents: boolean;
 }
 
 const BUILTIN_TEMPLATES: readonly PromptTemplate[] = [
@@ -49,7 +60,15 @@ const BUILTIN_TEMPLATES: readonly PromptTemplate[] = [
       "You were asked to do work in this project from its dash-bored dashboard.",
       "The request is about the project itself, not the dashboard configuration, unless it explicitly says otherwise. Inspect the project and follow its own instructions (for example AGENTS.md or CLAUDE.md) before changing anything, preserve unrelated changes, and verify the result the way the project expects.",
       "Project root: {{project.root}}",
+      "{{^multipleComponents}}",
       "Requested from: {{component.name}} (component `{{component.id}}`, {{component.reference}}) in {{dashboard.config}}",
+      "{{/multipleComponents}}",
+      "{{#multipleComponents}}",
+      "Requested from these components in {{dashboard.config}}:",
+      "{{#components}}",
+      "- {{name}} (component `{{id}}`, {{reference}})",
+      "{{/components}}",
+      "{{/multipleComponents}}",
       "{{#hasVars}}",
       "Context:",
       "{{/hasVars}}",
@@ -70,13 +89,21 @@ const BUILTIN_TEMPLATES: readonly PromptTemplate[] = [
     env: [],
     builtin: true,
     body: [
-      "You are changing a dash-bored dashboard from one of its components.",
+      "You are changing a dash-bored dashboard from {{^multipleComponents}}one of its components{{/multipleComponents}}{{#multipleComponents}}several of its components{{/multipleComponents}}.",
       "Interpret the request in the dash-bored product and component-tree model. Inspect the project and its instructions before editing, use the installed dash-bored skill when available, preserve unrelated changes, and validate the result.",
       "Project root: {{project.root}}",
       "Owning dashboard config: {{dashboard.config}}",
+      "{{^multipleComponents}}",
       "Target component path: {{component.path}}",
       "Target component id: {{component.id}}",
       "Target component reference: {{component.reference}}",
+      "{{/multipleComponents}}",
+      "{{#multipleComponents}}",
+      "Target components:",
+      "{{#components}}",
+      "- {{path}} (id `{{id}}`, {{reference}})",
+      "{{/components}}",
+      "{{/multipleComponents}}",
       "{{#hasVars}}",
       "Context:",
       "{{/hasVars}}",
@@ -320,7 +347,8 @@ export interface AgentPromptRequest {
   projectRoot: string;
   configPath: string;
   configDirectory: string;
-  component: PromptContext["component"];
+  /** The request's targets in pick order; never empty. */
+  components: readonly PromptComponent[];
   /** Resolved launch environment; only keys the template declares are rendered. */
   env?: Readonly<Record<string, string>>;
   /** Previews render before the user has typed a required request. */
@@ -348,6 +376,8 @@ export function prepareAgentPrompt(
   }
   const invalid = validatePromptInvocation(set.templates, { template: name, vars });
   if (invalid) throw new Error(`The ${invalid}`);
+  const [first] = request.components;
+  if (!first) throw new Error("An agent prompt needs a target component.");
   const input = request.input.trim();
   if (template.input === "required" && input === "" && request.allowEmptyInput !== true) throw new Error(`Prompt template ${name} needs a request.`);
   const prompt = renderPromptTemplate(template, set.templates, {
@@ -356,7 +386,9 @@ export function prepareAgentPrompt(
     env: request.env ?? {},
     project: { root: request.projectRoot, name: request.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) ?? request.projectRoot },
     dashboard: { config: request.configPath, directory: request.configDirectory },
-    component: request.component,
+    component: first,
+    components: request.components,
+    multipleComponents: request.components.length > 1,
   });
   return { template, prompt };
 }

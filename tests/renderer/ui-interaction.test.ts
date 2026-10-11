@@ -972,6 +972,62 @@ describe("renderer fixture interactions", () => {
     }
   }, 20_000);
 
+  test("agent work dropper Shift-selects several components and Shift release opens one composer", async () => {
+    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      const tile = proof.locator('[data-node-id="responsive-card"]');
+      const card = proof.locator('[data-node-id="renderer-proof-card"]');
+      const status = proof.locator('[data-node-id="renderer-proof-status"]');
+      await tile.waitFor();
+      const dropper = proof.getByRole("button", { name: "Pick a component to change with agent", exact: true });
+      const composer = proof.getByRole("dialog", { name: "Ask the agent" });
+      const selected = proof.locator(".component-picker__highlight--selected");
+      await dropper.click();
+      await proof.keyboard.down("Shift");
+      await tile.locator("header").first().click();
+      await status.click();
+      await card.locator("header").first().click();
+      expect(await proof.locator(".component-picker__order").allTextContents()).toEqual(["1", "2", "3"]);
+      // Clicking a selected component again unselects it; the rest keep their pick order.
+      await tile.locator("header").first().click();
+      await proof.waitForFunction(() => document.querySelectorAll(".component-picker__highlight--selected").length === 2);
+      expect(await proof.locator(".component-picker__order").allTextContents()).toEqual(["1", "2"]);
+      const statusBox = await status.boundingBox();
+      const firstBox = await selected.first().boundingBox();
+      expect(Math.abs(firstBox!.width - statusBox!.width)).toBeLessThan(1);
+      expect(await dropper.getAttribute("aria-pressed")).toBe("true");
+      expect(await composer.count()).toBe(0);
+
+      // Releasing Shift accepts the selection in pick order.
+      await proof.keyboard.up("Shift");
+      await composer.waitFor();
+      expect(await selected.count()).toBe(0);
+      expect(await dropper.getAttribute("aria-pressed")).toBe("false");
+      await composer.getByText("2 components", { exact: true }).waitFor();
+      const targets = composer.getByRole("list", { name: "Target components" }).locator("code");
+      expect((await targets.allTextContents()).map((locator) => locator.split("#").at(-1))).toEqual([
+        "root.children[0].node.children.first.node.children.first.node",
+        "root.children[0].node.children.first.node",
+      ]);
+      await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Line these up.");
+      await composer.getByRole("tab", { name: "Full prompt" }).click();
+      const preview = composer.getByLabel("Full agent prompt");
+      await preview.getByText("Target components:", { exact: false }).waitFor();
+      const rendered = (await preview.textContent())!;
+      expect(rendered).toContain("from several of its components.");
+      expect(rendered.indexOf("id `renderer-proof-status`")).toBeLessThan(rendered.indexOf("id `renderer-proof-card`"));
+      expect(rendered).not.toContain("responsive-card");
+      // Every pick swallowed its click, so no frame's own collapse gesture ran.
+      expect(await card.getAttribute("data-collapsed")).toBe("false");
+      expect(await tile.getAttribute("data-collapsed")).toBe("false");
+      await composer.getByRole("button", { name: "Send", exact: true }).click();
+      await proof.getByRole("status").getByText("children.first.node.children.first.node and 1 more.", { exact: false }).waitFor();
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("agent work shows a dispatched request as a session with its prompt and closes it", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Open agent work" }).click();
@@ -980,7 +1036,7 @@ describe("renderer fixture interactions", () => {
     const taskId = await active.evaluate(async () => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
-      return (await host.launchAgent({ kind: "component", nodeId: "status", prompt: "Show a clearer fixture state." })).taskId;
+      return (await host.launchAgent({ kind: "component", nodeIds: ["status"], prompt: "Show a clearer fixture state." })).taskId;
     });
     const task = activity.locator(`[data-task-id="${taskId}"]`);
     await task.waitFor();
@@ -2020,7 +2076,7 @@ describe("renderer fixture interactions", () => {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
       const taskId = await proof.evaluate(async () => (await window.__DASH_BORED_UI_HARNESS_HOST__!.launchAgent({ kind: "component",
-        nodeId: "status", prompt: "Interactive agent proof.",
+        nodeIds: ["status"], prompt: "Interactive agent proof.",
       })).taskId);
       const row = proof.getByRole("dialog", { name: "Agent work" }).locator(`[data-task-id="${taskId}"]`);
       await row.getByText("Working", { exact: true }).waitFor();
@@ -2069,7 +2125,7 @@ describe("renderer fixture interactions", () => {
         await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
         const taskId = await proof.evaluate(async (prompt) => {
           const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
-          const task = await host.launchAgent({ kind: "component", nodeId: "status", prompt });
+          const task = await host.launchAgent({ kind: "component", nodeIds: ["status"], prompt });
           await host.appendAgentMessage(task.taskId, Array.from({ length: 180 }, (_, i) => `Activity ${i}`).join("\n\n") + "\n\nLATEST BEFORE OPEN");
           return task.taskId;
         }, prompt);
@@ -2137,7 +2193,7 @@ describe("renderer fixture interactions", () => {
           await host.saveDashboardConfig({ schemaVersion: 4, name: "Scroll background", root: {
             id: "background", component: "./components/external/core/markdown", props: { content: "Background paragraph.\n\n".repeat(150) },
           } }, snapshot.configRevision!);
-          const task = await host.launchAgent({ kind: "component",  nodeId: "background", prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
+          const task = await host.launchAgent({ kind: "component",  nodeIds: ["background"], prompt: "Review this dashboard. " + "Keep the full prompt available. ".repeat(200) });
           await host.appendAgentMessage(task.taskId, Array.from({ length: 120 }, (_, i) => `Activity ${i}`).join("\n\n") + "\n\nLAST ACTIVITY");
           return task.taskId;
         });

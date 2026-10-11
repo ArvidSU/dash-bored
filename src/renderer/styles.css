@@ -822,6 +822,30 @@ img.sidebar__project-icon {
   white-space: nowrap;
 }
 
+.component-picker__highlight--selected {
+  border-width: 3px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: none;
+}
+
+.component-picker__highlight--selected .component-picker__label {
+  left: -3px;
+}
+
+.component-picker__order {
+  display: inline-grid;
+  min-width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  padding: 0 3px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-ink);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .agent-activity__empty,
 .agent-task-modal__request {
   margin: 0;
@@ -3437,6 +3461,44 @@ html:has(.editor-modal) {
   white-space: nowrap;
   direction: rtl;
   text-align: left;
+}
+
+.agent-prompt__target:has(.agent-prompt__target-group) {
+  align-items: flex-start;
+}
+
+.agent-prompt__target-group {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.agent-prompt__target-group > strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.agent-prompt__target-list {
+  display: grid;
+  max-height: 112px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  gap: 3px;
+  list-style: none;
+}
+
+.agent-prompt__target-text--row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+
+.agent-prompt__target-text--row strong {
+  max-width: 220px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .agent-prompt__template-list {

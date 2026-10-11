@@ -55,15 +55,25 @@ function sentVars(declared: readonly string[] | null, vars: PromptVars): PromptV
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+/** One target as the composer names it. */
+function targetSummary(node: ResolvedComponentNode) {
+  return {
+    id: node.id,
+    name: node.configName?.trim() || node.manifest?.name || nodeLabel(node, false),
+    locator: componentPath(node),
+  };
+}
+
 export function AgentPromptPanel({
-  node,
+  nodes,
   pending,
   draft,
   onDismiss,
   onPreview,
   onSend,
 }: {
-  node: ResolvedComponentNode;
+  /** Never empty; several when the dropper Shift-selected them, in pick order. */
+  nodes: readonly ResolvedComponentNode[];
   pending: boolean;
   draft: AgentPromptDraft;
   onDismiss: () => void;
@@ -90,8 +100,7 @@ export function AgentPromptPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const customRef = useRef<HTMLInputElement>(null);
   const id = useId();
-  const locator = componentPath(node);
-  const name = node.configName?.trim() || node.manifest?.name || nodeLabel(node, false);
+  const targets = nodes.map(targetSummary);
   const template = templates.find((candidate) => candidate.name === templateName)
     ?? (preview?.template.name === templateName ? preview.template : undefined);
   const dashboardWork = (template?.scope ?? (templateName === "dashboard" ? "dashboard" : "project")) === "dashboard";
@@ -175,11 +184,25 @@ export function AgentPromptPanel({
         <span className="agent-prompt__target-mark" aria-hidden="true">
           <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" /><circle cx="10" cy="10" r="1.6" /><path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3" /></svg>
         </span>
-        <span className="agent-prompt__target-text">
-          <strong>{name}</strong>
-          {/* RTL keeps the locator's tail visible; the isolate keeps its own order. */}
-          <code title={locator}><bdi>{locator}</bdi></code>
-        </span>
+        {targets.length === 1 ? (
+          <span className="agent-prompt__target-text">
+            <strong>{targets[0]!.name}</strong>
+            {/* RTL keeps the locator's tail visible; the isolate keeps its own order. */}
+            <code title={targets[0]!.locator}><bdi>{targets[0]!.locator}</bdi></code>
+          </span>
+        ) : (
+          <div className="agent-prompt__target-group">
+            <strong>{targets.length} components</strong>
+            <ol className="agent-prompt__target-list" aria-label="Target components">
+              {targets.map((target) => (
+                <li key={target.id} className="agent-prompt__target-text agent-prompt__target-text--row">
+                  <strong>{target.name}</strong>
+                  <code title={target.locator}><bdi>{target.locator}</bdi></code>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </div>
 
       <fieldset className="agent-prompt__templates" disabled={pending}>

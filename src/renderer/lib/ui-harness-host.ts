@@ -40,7 +40,7 @@ import { childEdges } from "../../shared/child-edges";
 import type { DashboardHost, HostEvent } from "./rpc-client";
 import type { UpdateState } from "../../shared/updates";
 import { envEntries, parseEnv } from "../../shared/env";
-import { componentPath, findResolvedNode } from "../../shared/component-agent";
+import { componentPath, findResolvedNode, promptComponent } from "../../shared/component-agent";
 import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, type PromptTemplate } from "../../shared/prompt-templates";
 import { createFixtureAgents, type FixtureAgentControls } from "./ui-harness-agents";
 
@@ -443,8 +443,9 @@ export function createUiHarnessHost(): UiHarnessHost {
     publish: (task) => emit({ type: "agent-task", task }),
   });
   const renderComponentPrompt = (request: ComponentAgentRequest) => {
-    const node = findResolvedNode(snapshot().tree!, request.nodeId);
-    if (!node) throw new Error("That component is no longer present.");
+    const nodes = request.nodeIds.map((nodeId) => findResolvedNode(snapshot().tree!, nodeId));
+    const [node] = nodes;
+    if (!node || nodes.some((target) => target === null)) throw new Error("That component is no longer present.");
     const templates = fixturePromptTemplates();
     const prepared = prepareAgentPrompt({ templates, diagnostics: [] }, {
       ...(request.template ? { template: request.template } : {}),
@@ -453,7 +454,7 @@ export function createUiHarnessHost(): UiHarnessHost {
       projectRoot: "/ui-harness",
       configPath: CONFIG_PATH,
       configDirectory: PROJECT_ROOT,
-      component: { id: node.id, reference: node.component, path: componentPath(node), name: node.configName?.trim() || node.manifest?.name || node.component },
+      components: (nodes as ResolvedComponentNode[]).map(promptComponent),
       allowEmptyInput: true,
     });
     return { node, templates, ...prepared };
