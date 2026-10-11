@@ -1,125 +1,205 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import type { DashboardAgentTask, ProcessSnapshot } from "../../shared/contracts";
+import type { AgentConfigOption, AgentSessionTask, AgentTaskCommand } from "../../shared/agent-session";
 import { EditorModal } from "../lib/editor-modal";
 import { RightDrawer } from "../lib/right-drawer";
-import "./agent-terminal.css";
-import { TerminalSurface } from "../render/TerminalSurface";
 import { writeClipboardText } from "../lib/clipboard";
-import { isProcessLive, isProcessRunActive, processRun, processRunOutcome } from "../../shared/process-state";
+import {
+  AGENT_STATE_LABELS,
+  agentHandoffApp,
+  agentStateTone,
+  agentTaskStartedTime,
+  agentTaskSummary,
+  agentValidationLabel,
+  agentValidationTone,
+  isAgentSessionOpen,
+} from "../lib/agent-tasks";
+import { AgentSession } from "./AgentSession";
+import { AgentStateChip, AgentValidationChip } from "./AgentStatus";
+import "./agent-work.css";
 
-type AgentModalTab = "terminal" | "diff" | "command";
-const AGENT_MODAL_TABS: readonly AgentModalTab[] = ["terminal", "diff", "command"];
+type AgentModalTab = "session" | "prompt";
+const AGENT_MODAL_TABS: readonly AgentModalTab[] = ["session", "prompt"];
 
-function taskSummary(task: DashboardAgentTask): string {
-  const request = task.request.trim().replace(/\s+/g, " ");
-  const sentence = request.match(/^.*?[.!?](?:\s|$)/)?.[0].trim() ?? request;
-  return sentence.length > 160 ? `${sentence.slice(0, 159).trimEnd()}…` : sentence || "Dashboard agent";
-}
-
-function agentCommandText(task: DashboardAgentTask): string {
-  const command = task.command.trim();
-  // Fall back to the visible request when a renderer reload meets a task
-  // created by an older still-running desktop host.
-  const prompt = task.prompt?.trim() || task.request.trim();
-  if (!prompt) return command;
-  return `${command} '${prompt.replaceAll("'", "'\\''")}'`;
-}
-
-function startedTime(task: DashboardAgentTask): string | null {
-  if (!task.startedAt) return null;
-  const date = new Date(task.startedAt);
-  return Number.isNaN(date.getTime())
-    ? null
-    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+export type AgentTaskCommandRunner = (taskId: string, command: AgentTaskCommand) => Promise<AgentSessionTask>;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function isRunning(task: DashboardAgentTask): boolean {
-  return isProcessRunActive(task.process);
+/** The row's accessible name: state and request, then validation and hand-off. */
+function agentTaskRowLabel(task: AgentSessionTask): string {
+  const validation = agentValidationLabel(task);
+  return [
+    `${AGENT_STATE_LABELS[task.state]}: ${agentTaskSummary(task)}`,
+    ...(validation ? [validation] : []),
+    ...(task.handedOff ? [`Continued in ${agentHandoffApp(task)}`] : []),
+  ].join(". ");
 }
 
-function validationLabel(task: DashboardAgentTask): string | null {
-  switch (task.validation?.status) {
-    case "checking": return "Checking dashboard";
-    case "repairing": return "Repairing dashboard";
-    case "valid": return "Dashboard validated";
-    case "failed": return "Setup needs attention";
-    case "trust-required": return "Review project trust";
-    case "cancelled": return "Follow-up cancelled";
-    default: return null;
-  }
+/**
+ * A polite announcement for each new permission request. A task's first
+ * appearance (the initial read, or a launch) only records it.
+ */
+function usePermissionAnnouncement(tasks: readonly AgentSessionTask[]): [string, () => void] {
+  const seenRef = useRef(new Map<string, string | null>());
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    const seen = seenRef.current;
+    let next: string | null = null;
+    for (const task of tasks) {
+      const known = seen.has(task.id);
+      const previous = seen.get(task.id);
+      const current = task.permission?.id ?? null;
+      seen.set(task.id, current);
+      if (known && task.permission && current !== previous) {
+        next = `${task.agent.name} needs permission: ${task.permission.title}`;
+      }
+    }
+    if (next !== null) setMessage(next);
+  }, [tasks]);
+  return [message, () => setMessage("")];
 }
 
-export function activeDashboardAgentTaskCount(tasks: readonly DashboardAgentTask[]): number {
-  return tasks.filter(isRunning).length;
+function Announcement({ message }: { message: string }): ReactNode {
+  return <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{message}</p>;
 }
 
+/** The Agent work drawer: one row per agent session, and the session modal. */
 export function AgentActivity({
   open,
   tasks,
   onClose,
-  onDiff,
-  onStop,
-  onWrite,
-  onResize,
+  onCommand,
 }: {
   open: boolean;
-  tasks: readonly DashboardAgentTask[];
+  tasks: readonly AgentSessionTask[];
   onClose(): void;
-  onDiff(taskId: string): Promise<string>;
-  onStop(taskId: string): Promise<ProcessSnapshot>;
-  onWrite(taskId: string, input: string): Promise<ProcessSnapshot>;
-  onResize(taskId: string, cols: number, rows: number): Promise<ProcessSnapshot>;
+  onCommand: AgentTaskCommandRunner;
 }): ReactNode {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [scrollToLatest, setScrollToLatest] = useState(0);
-  const [activeTab, setActiveTab] = useState<AgentModalTab>("terminal");
-  const [diffState, setDiffState] = useState<{
-    taskId: string | null;
-    loading: boolean;
-    value: string;
-    error: string | null;
-  }>({ taskId: null, loading: false, value: "", error: null });
-  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const diffRequestRef = useRef(0);
-  const tabsId = useId().replaceAll(":", "");
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
-  const selectedRun = processRun(selectedTask?.process);
+  // Unsent follow-ups per session; they outlive tab switches and the modal.
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+  const [announcement, clearAnnouncement] = usePermissionAnnouncement(tasks);
+  const modalOpen = open && selectedTask !== null;
 
-  useEffect(() => {
-    if (!open) {
-      setSelectedTaskId(null);
-      setActiveTab("terminal");
-    }
-  }, [open]);
-
-  function selectTask(taskId: string): void {
+  // The live region moves into the modal while it is open (outside content is
+  // hidden from assistive tech then); it starts empty so nothing repeats.
+  function selectTask(taskId: string | null): void {
     setSelectedTaskId(taskId);
-    setActiveTab("terminal");
-    setDiffState({ taskId: null, loading: false, value: "", error: null });
-    setCopiedTaskId(null);
-    setCopyError(null);
+    clearAnnouncement();
   }
 
-  function selectTab(tab: AgentModalTab): void {
-    setActiveTab(tab);
-    if (tab !== "diff" || !selectedTask) return;
-    const taskId = selectedTask.id;
-    const requestId = diffRequestRef.current + 1;
-    diffRequestRef.current = requestId;
-    setDiffState({ taskId, loading: true, value: "", error: null });
-    void onDiff(taskId).then((value) => {
-      if (diffRequestRef.current !== requestId) return;
-      setDiffState({ taskId, loading: false, value, error: null });
-    }).catch((error: unknown) => {
-      if (diffRequestRef.current !== requestId) return;
-      setDiffState({ taskId, loading: false, value: "", error: errorMessage(error) });
+  useEffect(() => {
+    if (!open) setSelectedTaskId(null);
+  }, [open]);
+
+  function setDraft(taskId: string, text: string): void {
+    setDrafts((current) => {
+      if ((current[taskId] ?? "") === text) return current;
+      const next = { ...current };
+      if (text) next[taskId] = text;
+      else delete next[taskId];
+      return next;
     });
+  }
+
+  return (
+    <>
+      <RightDrawer
+        open={open}
+        onClose={onClose}
+        title="Agent work"
+        eyebrow="Agent sessions"
+        description="Sessions with your ACP agent. Answer its requests, send follow-ups, or resume a session in the agent's own app."
+        closeLabel="Close"
+        restoreFocusSelector=".agent-activity-trigger"
+      >
+        {tasks.length === 0 ? (
+          <p className="agent-activity__empty">Agent requests you send from the dashboard appear here.</p>
+        ) : (
+          <ol className="agent-activity__list">
+            {tasks.map((task) => {
+              const started = agentTaskStartedTime(task);
+              return (
+                <li key={task.id}>
+                  <button
+                    className={`agent-task agent-task--${agentStateTone(task.state)}`}
+                    type="button"
+                    data-task-id={task.id}
+                    aria-label={agentTaskRowLabel(task)}
+                    onClick={() => selectTask(task.id)}
+                  >
+                    <span className="agent-task__heading">
+                      <strong>{agentTaskSummary(task)}</strong>
+                      <span className="agent-task__meta">
+                        <span className="agent-task__agent">{task.agent.name}</span>
+                        {started ? <time dateTime={task.startedAt}>{started}</time> : null}
+                      </span>
+                    </span>
+                    <span className="agent-task__status">
+                      <AgentStateChip state={task.state} />
+                      <AgentValidationChip task={task} />
+                      {task.handedOff ? <span className="agent-task__handoff">Continued in {agentHandoffApp(task)}</span> : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </RightDrawer>
+      {modalOpen ? null : <Announcement message={announcement} />}
+      {modalOpen ? (
+        <EditorModal title="Agent session" className="editor-modal__panel--wide agent-task-dialog" onDismiss={() => selectTask(null)}>
+          <Announcement message={announcement} />
+          <AgentTaskDetails
+            key={selectedTask.id}
+            task={selectedTask}
+            draft={drafts[selectedTask.id] ?? ""}
+            onDraftChange={(text) => setDraft(selectedTask.id, text)}
+            onCommand={(command) => onCommand(selectedTask.id, command)}
+          />
+        </EditorModal>
+      ) : null}
+    </>
+  );
+}
+
+function AgentTaskDetails({
+  task,
+  draft,
+  onDraftChange,
+  onCommand,
+}: {
+  task: AgentSessionTask;
+  draft: string;
+  onDraftChange(text: string): void;
+  onCommand(command: AgentTaskCommand): Promise<AgentSessionTask>;
+}): ReactNode {
+  const [activeTab, setActiveTab] = useState<AgentModalTab>("session");
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const tabsId = useId().replaceAll(":", "");
+  const live = isAgentSessionOpen(task.state);
+  const started = agentTaskStartedTime(task);
+  const validationLabel = agentValidationLabel(task);
+
+  // A pending key disables the controls it covers until the host answers; the
+  // answer is in the task list by the time the controls enable again.
+  async function send(key: string, command: AgentTaskCommand): Promise<boolean> {
+    setPending(key);
+    setError(null);
+    try {
+      await onCommand(command);
+      return true;
+    } catch (commandError) {
+      setError(errorMessage(commandError));
+      return false;
+    } finally {
+      setPending((current) => (current === key ? null : current));
+    }
   }
 
   function selectTabFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, tab: AgentModalTab): void {
@@ -137,19 +217,8 @@ export function AgentActivity({
     event.preventDefault();
     const nextTab = AGENT_MODAL_TABS[nextIndex];
     if (!nextTab) return;
-    selectTab(nextTab);
+    setActiveTab(nextTab);
     document.getElementById(`${tabsId}-${nextTab}-tab`)?.focus();
-  }
-
-  async function copyCommand(): Promise<void> {
-    if (!selectedTask) return;
-    setCopyError(null);
-    try {
-      await writeClipboardText(agentCommandText(selectedTask));
-      setCopiedTaskId(selectedTask.id);
-    } catch (error) {
-      setCopyError(errorMessage(error));
-    }
   }
 
   function tabButton(tab: AgentModalTab, label: string): ReactNode {
@@ -163,7 +232,7 @@ export function AgentActivity({
         aria-selected={selected}
         aria-controls={`${tabsId}-${tab}-panel`}
         tabIndex={selected ? 0 : -1}
-        onClick={() => selectTab(tab)}
+        onClick={() => setActiveTab(tab)}
         onKeyDown={(event) => selectTabFromKeyboard(event, tab)}
       >
         {label}
@@ -172,125 +241,285 @@ export function AgentActivity({
   }
 
   return (
-    <>
-      <RightDrawer
-        open={open}
-        onClose={onClose}
-        title="Agent work"
-        eyebrow="Dashboard agent activity"
-        description="Tracks configured dashboard-agent CLI work. It does not host or direct the agent."
-        closeLabel="Close"
-        restoreFocusSelector=".agent-activity-trigger"
-      >
-        {tasks.length === 0 ? (
-          <p className="agent-activity__empty">Agent requests you send from the dashboard appear here.</p>
-        ) : (
-          <ol className="agent-activity__list">
-            {tasks.map((task) => {
-              const working = isRunning(task);
-              return (
-                <li key={task.id}>
-                  <button
-                    className="agent-task"
-                    type="button"
-                    aria-label={`${working ? "Working" : "Not working"}: ${taskSummary(task)}`}
-                    onClick={() => selectTask(task.id)}
-                  >
-                    <span className="agent-task__heading">
-                      <strong>{taskSummary(task)}</strong>
-                      {startedTime(task) ? <time dateTime={task.startedAt}>{startedTime(task)}</time> : null}
-                    </span>
-                    <span className="agent-task__status">
-                      <span className={`phase phase--${working ? "running" : "exited"}`}>
-                        {working ? "Working" : "Not working"}
-                      </span>
-                      {validationLabel(task) ? <span>{validationLabel(task)}</span> : null}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </RightDrawer>
-      {open && selectedTask ? (
-        <EditorModal title="Agent command" className="editor-modal__panel--wide agent-task-dialog" onDismiss={() => setSelectedTaskId(null)}>
-          <div className="agent-task-modal">
-            <p className="agent-task-modal__request" title="The Command tab contains the full command and prompt.">{taskSummary(selectedTask)}</p>
-            <code className="agent-task-modal__path" title={selectedTask.componentPath}>{selectedTask.componentPath}</code>
-            {selectedTask.validation ? (
-              <div className="agent-task-modal__feedback" role="status">
-                <strong>{validationLabel(selectedTask)}</strong>
-                {selectedTask.validation.message ? <p>{selectedTask.validation.message}</p> : null}
-                {selectedTask.validation.status === "checking" && !selectedTask.cancelled ? (
-                  <button className="button button--quiet" type="button" onClick={() => void onStop(selectedTask.id)}>
-                    Cancel automatic follow-up
-                  </button>
-                ) : null}
-                {selectedTask.validation.diagnostics.length > 0 ? (
-                  <ul>{selectedTask.validation.diagnostics.map((item, index) => <li key={`${item.code}-${index}`}>{item.code}: {item.message}</li>)}</ul>
-                ) : null}
-              </div>
+    <div className="agent-task-modal">
+      <div className="agent-task-modal__summary">
+        <p className="agent-task-modal__request" title="The Prompt tab contains the full first prompt.">{agentTaskSummary(task)}</p>
+        <div className="agent-task-modal__meta">
+          <AgentStateChip state={task.state} />
+          <span className="agent-task-modal__agent">{task.agent.name}</span>
+          {started ? <time dateTime={task.startedAt}>{started}</time> : null}
+          <code className="agent-task-modal__path" title={task.componentPath}>{task.componentPath}</code>
+        </div>
+      </div>
+
+      {task.handedOff ? (
+        <p className="agent-task-modal__handed-off" role="status">
+          Continued in {agentHandoffApp(task)}. dash-bored no longer drives this session.
+        </p>
+      ) : task.state !== "closed" && task.state !== "failed" ? (
+        <div className="agent-task-modal__controls" role="group" aria-label="Session controls">
+          {task.configOptions.length > 0 ? (
+            <div className="agent-task-modal__config">
+              {task.configOptions.map((option) => (
+                <AgentConfigControl
+                  key={option.id}
+                  option={option}
+                  disabled={!live || pending !== null}
+                  onChange={(value) => void send(`config:${option.id}`, { type: "config", configId: option.id, value })}
+                />
+              ))}
+            </div>
+          ) : null}
+          <div className="agent-task-modal__actions">
+            {task.state === "working" || task.state === "waiting" ? (
+              <button
+                className="button button--quiet button--small"
+                type="button"
+                title="Cancel the agent's current turn; the session stays open"
+                disabled={pending !== null}
+                onClick={() => void send("cancel", { type: "cancel" })}
+              >
+                {pending === "cancel" ? "Stopping…" : "Stop"}
+              </button>
             ) : null}
-            <div className="agent-task-modal__tabs" role="tablist" aria-label="Agent task details">
-              {tabButton("terminal", "Terminal")}
-              {tabButton("diff", "Diff")}
-              {tabButton("command", "Command")}
-            </div>
-            <div
-              className="agent-task-modal__panel"
-              id={`${tabsId}-terminal-panel`}
-              role="tabpanel"
-              aria-labelledby={`${tabsId}-terminal-tab`}
-              hidden={activeTab !== "terminal"}
+            {task.handoff ? (
+              <AgentHandoffControl
+                task={task}
+                handoff={task.handoff}
+                pending={pending === "handoff"}
+                disabled={pending !== null}
+                onHandoff={() => void send("handoff", { type: "handoff" })}
+              />
+            ) : null}
+            <button
+              className="button button--quiet button--small agent-task-modal__close-session"
+              type="button"
+              title="End this session and stop the agent process"
+              disabled={pending !== null}
+              onClick={() => void send("close", { type: "close" })}
             >
-              {selectedTask ? (
-                <div className="command">
-                <div className="command__content"><strong>Agent output</strong><code>{selectedTask.command}</code>
-                  {selectedRun ? <span className="phase" title="Result of the latest run.">{processRunOutcome(selectedRun)}</span> : null}
-                </div><div className="command__actions">
-                <button className="button button--quiet" type="button" onClick={() => setScrollToLatest(value => value + 1)}>Latest output</button>
-                {isProcessLive(selectedTask.process) ? <button className="button button--quiet" type="button" onClick={() => void onStop(selectedTask.id)}>Close terminal</button> : null}
-                </div>
-                <TerminalSurface key={selectedTask.id} process={selectedTask.process} scrollToLatest={scrollToLatest}
-                  onWrite={isProcessLive(selectedTask.process) ? (input) => onWrite(selectedTask.id, input) : undefined}
-                  onResize={isProcessLive(selectedTask.process) ? (cols, rows) => onResize(selectedTask.id, cols, rows) : undefined}
-                  label="Interactive terminal for Agent output" />
-              </div>
-              ) : null}
-            </div>
-            <div
-              className="agent-task-modal__panel"
-              id={`${tabsId}-diff-panel`}
-              role="tabpanel"
-              aria-labelledby={`${tabsId}-diff-tab`}
-              hidden={activeTab !== "diff"}
-            >
-              {diffState.loading ? <p className="editor-muted">{selectedTask?.purpose === "project" ? "Loading project diff…" : "Loading dash-bored diff…"}</p> : null}
-              {diffState.error ? <p className="inline-error" role="alert">{diffState.error}</p> : null}
-              {!diffState.loading && !diffState.error ? (
-                diffState.value ? <pre className="agent-task-modal__diff">{diffState.value}</pre> : <p className="editor-muted">{selectedTask?.purpose === "project" ? "No changes in the project." : "No changes in the dash-bored folder."}</p>
-              ) : null}
-            </div>
-            <div
-              className="agent-task-modal__panel"
-              id={`${tabsId}-command-panel`}
-              role="tabpanel"
-              aria-labelledby={`${tabsId}-command-tab`}
-              hidden={activeTab !== "command"}
-            >
-              <div className="agent-task-modal__command-header">
-                <strong>Command sent to agent</strong>
-                <button className="button button--quiet button--small" type="button" onClick={() => void copyCommand()}>
-                  {copiedTaskId === selectedTask.id ? "Copied" : "Copy command"}
-                </button>
-              </div>
-              <pre className="agent-task-modal__command">{agentCommandText(selectedTask)}</pre>
-              {copyError ? <p className="inline-error" role="alert">{copyError}</p> : null}
-            </div>
+              {pending === "close" ? "Closing…" : "Close session"}
+            </button>
           </div>
-        </EditorModal>
+        </div>
       ) : null}
-    </>
+
+      {task.validation ? (
+        <div className={`agent-task-modal__feedback agent-task-modal__feedback--${agentValidationTone(task)}`} role="status">
+          <strong>{validationLabel}</strong>
+          {task.validation.message ? <p>{task.validation.message}</p> : null}
+          {task.validation.status === "checking" && !task.cancelled ? (
+            <button className="button button--quiet button--small" type="button" disabled={pending !== null} onClick={() => void send("cancel", { type: "cancel" })}>
+              Cancel automatic follow-up
+            </button>
+          ) : null}
+          {task.validation.diagnostics.length > 0 ? (
+            <ul>{task.validation.diagnostics.map((item, index) => <li key={`${item.code}-${index}`}>{item.code}: {item.message}</li>)}</ul>
+          ) : null}
+        </div>
+      ) : null}
+      {error ? <p className="inline-error agent-task-modal__error" role="alert">{error}</p> : null}
+
+      <div className="agent-task-modal__tabs" role="tablist" aria-label="Agent session details">
+        {tabButton("session", "Session")}
+        {tabButton("prompt", "Prompt")}
+      </div>
+      <div
+        className="agent-task-modal__panel"
+        id={`${tabsId}-session-panel`}
+        role="tabpanel"
+        aria-labelledby={`${tabsId}-session-tab`}
+        hidden={activeTab !== "session"}
+      >
+        {activeTab === "session" ? (
+          <AgentSession task={task} pending={pending} draft={draft} onDraftChange={onDraftChange} onSend={send} />
+        ) : null}
+      </div>
+      <div
+        className="agent-task-modal__panel"
+        id={`${tabsId}-prompt-panel`}
+        role="tabpanel"
+        aria-labelledby={`${tabsId}-prompt-tab`}
+        hidden={activeTab !== "prompt"}
+      >
+        {activeTab === "prompt" ? <AgentPromptDetails task={task} /> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Consecutive options that share a group render as one <optgroup>, in agent order. */
+function optionSegments(options: NonNullable<AgentConfigOption["options"]>) {
+  const segments: Array<{ group?: string; options: typeof options }> = [];
+  for (const option of options) {
+    const last = segments.at(-1);
+    if (last && last.group === option.group) last.options.push(option);
+    else segments.push({ ...(option.group ? { group: option.group } : {}), options: [option] });
+  }
+  return segments;
+}
+
+function AgentConfigControl({
+  option,
+  disabled,
+  onChange,
+}: {
+  option: AgentConfigOption;
+  disabled: boolean;
+  onChange(value: string | boolean): void;
+}): ReactNode {
+  if (option.type === "boolean") {
+    return (
+      <label className="agent-config agent-config--boolean" title={option.description}>
+        <input type="checkbox" checked={option.currentValue === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+        <span>{option.name}</span>
+      </label>
+    );
+  }
+  const choices = option.options ?? [];
+  const current = String(option.currentValue);
+  const known = choices.some((choice) => choice.value === current);
+  return (
+    <label className="agent-config" title={option.description}>
+      <span>{option.name}</span>
+      <select value={current} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+        {known ? null : <option value={current} disabled>{current}</option>}
+        {optionSegments(choices).map((segment, index) => {
+          // Agents may repeat a value across groups; the key stays unique anyway.
+          const items = segment.options.map((choice, choiceIndex) => (
+            <option key={`${segment.group ?? ""}:${choiceIndex}:${choice.value}`} value={choice.value} title={choice.description}>{choice.name}</option>
+          ));
+          return segment.group ? <optgroup key={`${segment.group}-${index}`} label={segment.group}>{items}</optgroup> : items;
+        })}
+      </select>
+    </label>
+  );
+}
+
+function useCopy(): { copied: string | null; error: string | null; copy(key: string, text: string): Promise<void> } {
+  const [copied, setCopied] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  return {
+    copied,
+    error,
+    async copy(key, text) {
+      setError(null);
+      try {
+        await writeClipboardText(text);
+        setCopied(key);
+      } catch (copyError) {
+        setCopied(null);
+        setError(errorMessage(copyError));
+      }
+    },
+  };
+}
+
+function AgentHandoffControl({
+  task,
+  handoff,
+  pending,
+  disabled,
+  onHandoff,
+}: {
+  task: AgentSessionTask;
+  handoff: NonNullable<AgentSessionTask["handoff"]>;
+  pending: boolean;
+  disabled: boolean;
+  onHandoff(): void;
+}): ReactNode {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const popoverId = useId();
+  const { copied, error, copy } = useCopy();
+  const app = agentHandoffApp(task);
+  const available = task.state === "idle";
+
+  // The resume command is only offered while hand-off is possible.
+  useEffect(() => {
+    if (!available) setOpen(false);
+  }, [available]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent): void => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [open]);
+
+  return (
+    <div
+      className="agent-handoff"
+      ref={containerRef}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !open) return;
+        // Close the popover only; the session modal stays open.
+        event.preventDefault();
+        setOpen(false);
+        toggleRef.current?.focus();
+      }}
+    >
+      <button
+        className="button button--secondary button--small agent-handoff__resume"
+        type="button"
+        title={available
+          ? `Open this session in ${app} in your terminal; dash-bored then lets go of it`
+          : `Available when the agent finishes its turn`}
+        disabled={disabled || !available}
+        onClick={onHandoff}
+      >
+        {pending ? "Opening…" : `Resume in ${app}`}
+      </button>
+      {available ? (
+        <button
+          ref={toggleRef}
+          className="button button--quiet button--small agent-handoff__toggle"
+          type="button"
+          aria-label="Show resume command"
+          aria-expanded={open}
+          aria-controls={popoverId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg>
+        </button>
+      ) : null}
+      {open && available ? (
+        <div className="agent-handoff__popover" id={popoverId} role="group" aria-label="Resume command">
+          <p>Runs from the project root in your terminal:</p>
+          <code>{handoff.command}</code>
+          <button className="button button--quiet button--small" type="button" onClick={() => void copy("handoff", handoff.command)}>
+            {copied === "handoff" ? "Copied" : "Copy command"}
+          </button>
+          <p className="agent-handoff__hint">dash-bored closes its session when you resume in {app}.</p>
+          {error ? <p className="inline-error" role="alert">{error}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentPromptDetails({ task }: { task: AgentSessionTask }): ReactNode {
+  const { copied, error, copy } = useCopy();
+  return (
+    <div className="agent-task-modal__prompt">
+      <div className="agent-task-modal__copy-row">
+        <strong>Launch command</strong>
+        <button className="button button--quiet button--small" type="button" onClick={() => void copy("command", task.agent.command)}>
+          {copied === "command" ? "Copied" : "Copy command"}
+        </button>
+      </div>
+      <code className="agent-task-modal__launch" aria-label="Agent launch command">{task.agent.command}</code>
+      <div className="agent-task-modal__copy-row">
+        <strong>First prompt</strong>
+        <button className="button button--quiet button--small" type="button" onClick={() => void copy("prompt", task.prompt)}>
+          {copied === "prompt" ? "Copied" : "Copy prompt"}
+        </button>
+      </div>
+      <pre className="agent-task-modal__prompt-text" aria-label="First prompt" tabIndex={0}>{task.prompt}</pre>
+      {error ? <p className="inline-error" role="alert">{error}</p> : null}
+    </div>
   );
 }

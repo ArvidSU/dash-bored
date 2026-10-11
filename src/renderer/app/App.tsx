@@ -6,7 +6,8 @@ import { summarizeAgentDiagnostics } from "../../shared/agent-control";
 import type { AppView } from "../lib/action-providers";
 import { CommandPalette } from "../panels/CommandPalette";
 import { AppShell, BootScreen } from "./app-shell";
-import { AgentActivity, activeDashboardAgentTaskCount } from "../panels/AgentActivity";
+import { AgentActivity } from "../panels/AgentActivity";
+import { busyAgentTaskCount, waitingAgentTaskCount } from "../lib/agent-tasks";
 import { DashboardEditorToolbar } from "./DashboardEditorToolbar";
 import { CompositionFlyout } from "../composition/CompositionFlyout";
 import { useCompositionInteractionController } from "../composition/composition-interaction-controller";
@@ -24,7 +25,7 @@ import { AppDialogs, type AppDialog } from "./AppDialogs";
 import { DashboardWorkspace } from "./DashboardWorkspace";
 import { useNotices } from "./use-notices";
 import { useHostSession } from "./use-host-session";
-import { useAppSettings, useDashboardSettings } from "./use-app-settings";
+import { useAppSettings, useDashboardSettings, useSettingsAgentOptions } from "./use-app-settings";
 import { useAppTheme } from "./use-app-theme";
 import { useDashboardDraft } from "./use-dashboard-draft";
 import { useCompositionSession } from "./use-composition-session";
@@ -95,6 +96,7 @@ export function App(): ReactNode {
     notices,
     activityOpen: agentActivityOpen,
     setActivityOpen: setAgentActivityOpen,
+    applyAgentTask: session.applyAgentTask,
     snapshot,
     appAgentCommand: settings.settings.dashBoredAgent,
     focusedNodeId: virtualRoot?.target.id,
@@ -137,6 +139,7 @@ export function App(): ReactNode {
     openChangeWithAgent: agent.openChangeWithAgent,
   });
   const dashboardSettings = useDashboardSettings(notices, activeView === "settings", session.projects, snapshot?.revision);
+  const settingsAgentOptions = useSettingsAgentOptions(activeView === "settings", settings.settings.dashBoredAgent);
 
   function toggleCompositionLibrary(): void {
     setAgentActivityOpen(false);
@@ -210,7 +213,6 @@ export function App(): ReactNode {
     settings.settings.commandPaletteShortcut,
     typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform),
   );
-  const effectiveAgentCommand = agent.commandForNode(snapshot?.tree?.id);
   const visibleVirtualRoot = composition.editing ? composition.previewVirtualRoot : virtualRoot;
   const workspace = (
     <>
@@ -221,6 +223,7 @@ export function App(): ReactNode {
             dashboardSettings={dashboardSettings.items}
             actions={allActions}
             pendingAction={pendingAction}
+            agentOptions={settingsAgentOptions}
             onSaveAgent={settings.saveAgent}
             onUpdateSettings={settings.update}
             onUpdateDashboardAppearance={dashboardSettings.updateAppearance}
@@ -292,7 +295,8 @@ export function App(): ReactNode {
         editing={draft.blocksNavigation}
         componentLibraryOpen={interaction.libraryOpen}
         agentActivityOpen={agentActivityOpen}
-        activeAgentTaskCount={activeDashboardAgentTaskCount(session.agentTasks)}
+        activeAgentTaskCount={busyAgentTaskCount(session.agentTasks)}
+        waitingAgentTaskCount={waitingAgentTaskCount(session.agentTasks)}
         agentPickerAvailable={agentPicker.enabled}
         agentPickerActive={agentPicker.active}
         editorToolbar={
@@ -336,10 +340,7 @@ export function App(): ReactNode {
         open={agentActivityOpen}
         tasks={session.agentTasks}
         onClose={() => setAgentActivityOpen(false)}
-        onDiff={host.getDashboardAgentDiff}
-        onStop={agent.stopTask}
-        onWrite={agent.writeTerminal}
-        onResize={agent.resizeTerminal}
+        onCommand={agent.taskCommand}
       />
       <CommandPalette
         open={actions.palette.open}
@@ -391,8 +392,7 @@ export function App(): ReactNode {
         editingActiveProject={draft.editingActiveProject}
         dialog={dialog}
         pendingAction={pendingAction}
-        agentCommand={effectiveAgentCommand}
-        agentCommandForNode={(node) => agent.commandForNode(node.id)}
+        agentCommand={agent.effectiveAgentCommand}
         agentCreatePending={pendingAction === "component-agent:create"}
         onApplyCompositionDraft={composition.applyDraft}
         onDismissCompositionDialog={interaction.dismissDialog}

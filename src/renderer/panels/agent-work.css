@@ -1,0 +1,1068 @@
+/*
+ * Agent work: session state grammar, the Session and Prompt tabs, agent
+ * pickers, and the safe Markdown subset. The drawer and modal shells live in
+ * styles.css with the other shared drawer/modal geometry.
+ */
+
+/* State glyphs: shape plus color plus text; only in-progress shapes move. */
+.agent-glyph {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .agent-glyph--spin {
+    animation: agent-glyph-spin 1.4s linear infinite;
+  }
+}
+
+@keyframes agent-glyph-spin {
+  to { transform: rotate(1turn); }
+}
+
+.agent-chip {
+  --chip-color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--chip-color) 34%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--chip-color) 78%, var(--text));
+  background: color-mix(in srgb, var(--chip-color) 10%, transparent);
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.agent-chip--progress { --chip-color: var(--accent); }
+.agent-chip--attention { --chip-color: var(--warning); }
+.agent-chip--ready,
+.agent-chip--positive { --chip-color: var(--positive); }
+.agent-chip--negative { --chip-color: var(--negative); }
+.agent-chip--quiet { --chip-color: var(--muted); }
+
+.agent-chip--quiet {
+  color: var(--muted);
+  background: transparent;
+}
+
+.agent-chip--validation {
+  font-weight: 600;
+}
+
+/* Drawer rows: the tone rail marks sessions that move or need the user. */
+.agent-task {
+  align-items: flex-start;
+}
+
+.agent-task--progress { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 70%, transparent); }
+.agent-task--attention { box-shadow: inset 3px 0 0 var(--warning); }
+.agent-task--negative { box-shadow: inset 3px 0 0 var(--negative); }
+
+.agent-task__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.agent-task__agent {
+  font-weight: 600;
+}
+
+.agent-task__handoff {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.agent-activity-trigger__count--attention,
+.agent-activity-trigger strong.agent-activity-trigger__count--attention {
+  color: var(--text);
+  background: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 28%, transparent);
+}
+
+/* Modal header: summary, state, agent, controls. */
+.agent-task-modal__summary {
+  display: grid;
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: 6px;
+}
+
+.agent-task-modal__meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-task-modal__agent {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.agent-task-modal__meta .agent-task-modal__path {
+  min-width: 0;
+  flex: 1 1 12rem;
+  color: var(--muted);
+}
+
+.agent-task-modal__controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-bottom: 2px;
+}
+
+.agent-task-modal__config {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.agent-config {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.agent-config select {
+  height: 28px;
+  max-width: 15rem;
+  padding: 0 24px 0 9px;
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  appearance: none;
+  color: var(--text);
+  cursor: pointer;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%) right 12px center / 4px 4px no-repeat,
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%) right 8px center / 4px 4px no-repeat,
+    var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.agent-config select:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.agent-config--boolean {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.agent-task-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.agent-task-modal__close-session {
+  color: color-mix(in srgb, var(--negative) 70%, var(--text));
+}
+
+.agent-handoff {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Joined to the command toggle, which shows only while hand-off is possible. */
+.agent-handoff__resume:not(:only-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.agent-handoff__toggle {
+  margin-left: -1px;
+  padding-inline: 7px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.agent-handoff__toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.agent-handoff__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.agent-handoff__popover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  width: min(26rem, calc(100vw - 48px));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-raised);
+}
+
+.agent-handoff__popover p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-handoff__popover code {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--terminal-foreground);
+  background: var(--terminal-background);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.agent-handoff__popover .button {
+  justify-self: end;
+}
+
+.agent-task-modal__handed-off {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px dashed var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-task-modal__feedback {
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.agent-task-modal__feedback p,
+.agent-task-modal__feedback ul {
+  margin: 4px 0 0;
+}
+
+.agent-task-modal__feedback .button {
+  margin-top: 6px;
+}
+
+.agent-task-modal__feedback--positive { border-color: color-mix(in srgb, var(--positive) 35%, var(--border)); }
+.agent-task-modal__feedback--negative { border-color: color-mix(in srgb, var(--negative) 40%, var(--border)); }
+.agent-task-modal__feedback--attention { border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); }
+
+.agent-task-modal__error {
+  flex: 0 0 auto;
+}
+
+/* Session tab: plan, transcript, then whatever needs the user. */
+.agent-session {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+}
+
+.agent-plan {
+  flex: 0 0 auto;
+  max-height: 32%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.agent-plan summary {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  cursor: pointer;
+  background: var(--surface-raised);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.agent-plan__progress {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.agent-plan__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 10px 8px;
+  list-style: none;
+}
+
+.agent-plan__entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.agent-plan__entry .agent-glyph {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.agent-plan__entry--completed {
+  color: var(--muted);
+}
+
+.agent-plan__entry--completed .agent-glyph {
+  color: var(--positive);
+}
+
+.agent-plan__entry--in_progress {
+  font-weight: 650;
+}
+
+.agent-plan__entry--in_progress .agent-glyph {
+  color: var(--accent);
+}
+
+.agent-plan__content {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.agent-plan__priority {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.agent-transcript-frame {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-height: 6rem;
+}
+
+.agent-transcript {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 10px;
+  padding: 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.agent-transcript:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.agent-transcript__latest {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  box-shadow: var(--shadow-raised);
+}
+
+.agent-transcript__truncated,
+.agent-transcript__empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.agent-entry {
+  min-width: 0;
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.agent-entry__who {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.agent-entry__text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agent-entry--user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 7px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.agent-entry--thought {
+  padding-left: 9px;
+  border-left: 2px solid var(--border-bright);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.agent-entry--thought summary {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.agent-entry--thought summary .agent-entry__who {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.agent-entry__preview {
+  min-width: 0;
+  overflow: hidden;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-entry--thought[open] .agent-entry__preview {
+  display: none;
+}
+
+.agent-entry--thought .agent-entry__text {
+  margin-top: 4px;
+}
+
+.agent-entry--notice {
+  --notice: var(--info);
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  color: color-mix(in srgb, var(--notice) 72%, var(--text));
+  background: color-mix(in srgb, var(--notice) 9%, transparent);
+  font-size: 11.5px;
+}
+
+.agent-entry--notice .agent-glyph {
+  margin-top: 2px;
+}
+
+.agent-entry--notice[data-level="warning"] { --notice: var(--warning); }
+.agent-entry--notice[data-level="error"] { --notice: var(--negative); }
+
+.agent-tool {
+  display: grid;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  font-size: 12px;
+}
+
+.agent-tool__head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-tool__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool__kind {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font: 600 9.5px/1.4 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.agent-tool-status {
+  --tool-tone: var(--muted);
+  display: inline-flex;
+  min-width: 4.6rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: color-mix(in srgb, var(--tool-tone) 78%, var(--text));
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.agent-tool-status--pending { color: var(--muted); }
+.agent-tool-status--in_progress { --tool-tone: var(--accent); }
+.agent-tool-status--completed { --tool-tone: var(--positive); }
+.agent-tool-status--failed { --tool-tone: var(--negative); }
+
+.agent-tool__paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  padding: 0 0 0 calc(4.6rem + 8px);
+  list-style: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-tool__paths code {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.agent-tool__added,
+.agent-tool__removed {
+  font-family: var(--font-mono);
+  font-weight: 650;
+}
+
+.agent-tool__added { color: color-mix(in srgb, var(--positive) 80%, var(--text)); }
+.agent-tool__removed { color: color-mix(in srgb, var(--negative) 80%, var(--text)); }
+
+.agent-tool__output {
+  padding-left: calc(4.6rem + 8px);
+  font-size: 11px;
+}
+
+.agent-tool__output summary {
+  width: fit-content;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.agent-tool__output pre {
+  max-height: 14rem;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-sm);
+  color: var(--terminal-foreground);
+  background: var(--terminal-background);
+  font: 11px/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* What needs the user: permission requests and sign-in. */
+.agent-permission,
+.agent-signin {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 48%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  box-shadow: var(--shadow-panel);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .agent-permission,
+  .agent-signin {
+    animation: agent-attention-arrive 180ms ease-out;
+  }
+}
+
+@keyframes agent-attention-arrive {
+  from { opacity: 0.4; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.agent-permission__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.agent-permission__mark {
+  display: inline-flex;
+  padding-top: 1px;
+  color: color-mix(in srgb, var(--warning) 80%, var(--text));
+}
+
+.agent-permission__mark .agent-glyph {
+  width: 18px;
+  height: 18px;
+}
+
+.agent-permission__heading {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.agent-permission__eyebrow {
+  color: color-mix(in srgb, var(--warning) 72%, var(--text));
+  font: 700 9.5px/1.3 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.agent-permission h3,
+.agent-signin h3 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.agent-permission__locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0 0 0 27px;
+  list-style: none;
+  font-size: 11px;
+}
+
+.agent-permission__note,
+.agent-signin > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.agent-permission__note {
+  padding-left: 27px;
+}
+
+.agent-permission__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 27px;
+}
+
+/*
+ * Disabled options let clicks through to the row, which keeps focus where it
+ * is; a disabled button would swallow the click and still drop focus to body.
+ */
+.agent-permission__options .button:disabled {
+  pointer-events: none;
+}
+
+.agent-permission__option--allow.button--secondary {
+  border-color: color-mix(in srgb, var(--positive) 45%, var(--border));
+  color: color-mix(in srgb, var(--positive) 70%, var(--text));
+}
+
+.agent-permission__option--reject {
+  color: color-mix(in srgb, var(--negative) 72%, var(--text));
+}
+
+.agent-permission__option--always {
+  border-color: color-mix(in srgb, var(--negative) 38%, var(--border));
+}
+
+.agent-permission__dismiss {
+  margin-left: auto;
+}
+
+.agent-signin__methods {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-signin__methods li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.agent-signin__methods span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-failure {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--negative) 42%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--negative) 6%, var(--surface));
+}
+
+.agent-failure strong {
+  color: color-mix(in srgb, var(--negative) 80%, var(--text));
+  font-size: 12.5px;
+}
+
+.agent-failure p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.agent-failure__label {
+  color: var(--muted);
+  font: 650 9.5px/1.3 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-failure__log {
+  max-height: 11rem;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-sm);
+  color: var(--terminal-foreground);
+  background: var(--terminal-background);
+  font: 11px/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agent-follow-up {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+}
+
+.agent-follow-up:focus-within {
+  border-color: var(--accent-strong);
+  box-shadow: var(--focus-ring);
+}
+
+.agent-follow-up textarea,
+.agent-follow-up textarea:focus {
+  min-width: 0;
+  min-height: 2.7rem;
+  max-height: 9rem;
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  color: var(--text);
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.agent-follow-up textarea:disabled {
+  cursor: not-allowed;
+}
+
+.agent-follow-up textarea::placeholder {
+  color: var(--faint);
+}
+
+/* Prompt tab. */
+.agent-task-modal__prompt {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.agent-task-modal__copy-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.agent-task-modal__launch {
+  display: block;
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  color: var(--terminal-foreground);
+  background: var(--terminal-background);
+  font-size: 11.5px;
+}
+
+/* Agent pickers: install hints and the nothing-detected state. */
+.agent-install-hints {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-install-hints summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.agent-install-hints p {
+  margin: 6px 0 0;
+}
+
+.agent-install-hints__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-install-hints__list li {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.agent-install-hints__list a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-bright);
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.agent-install-hints__list a:hover {
+  text-decoration-color: currentColor;
+}
+
+.agent-install-hints__list code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-prompt__no-agent,
+.settings-agent__none {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  font-size: 12px;
+}
+
+.agent-prompt__no-agent p,
+.settings-agent__none p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.agent-install-hints--prominent .agent-install-hints__list {
+  margin-top: 2px;
+}
+
+.settings-card--agent {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 440px);
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px 24px;
+}
+
+.settings-card--agent > .agent-install-hints,
+.settings-card--agent > .settings-agent__none {
+  grid-column: 2;
+}
+
+.settings-agent select {
+  min-width: 0;
+  min-height: var(--control-height);
+  flex: 1 1 auto;
+  padding: 0 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--control-bg);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .settings-card--agent {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-card--agent > .agent-install-hints,
+  .settings-card--agent > .settings-agent__none {
+    grid-column: 1;
+  }
+
+  .agent-tool__paths,
+  .agent-tool__output {
+    padding-left: 0;
+  }
+
+  .agent-entry--user {
+    max-width: 100%;
+  }
+}
+
+/* Safe Markdown subset for agent messages. */
+.markdown-lite {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.markdown-lite p,
+.markdown-lite ul,
+.markdown-lite ol,
+.markdown-lite pre,
+.markdown-lite blockquote,
+.markdown-lite hr {
+  margin: 0;
+}
+
+.markdown-lite ul,
+.markdown-lite ol {
+  display: grid;
+  gap: 3px;
+  padding-left: 1.3rem;
+}
+
+.markdown-lite li > ul,
+.markdown-lite li > ol,
+.markdown-lite li > pre,
+.markdown-lite li > p {
+  margin-top: 3px;
+}
+
+.markdown-lite__code-span {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 0.92em;
+}
+
+.markdown-lite__code,
+.markdown-lite__table {
+  max-height: 24rem;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-sm);
+  color: var(--terminal-foreground);
+  background: var(--terminal-background);
+  font: 11.5px/1.5 var(--font-mono);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.markdown-lite blockquote {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-bright);
+  color: var(--muted);
+}
+
+.markdown-lite hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.markdown-lite__link {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.markdown-lite__url {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 0.92em;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}

@@ -94,7 +94,10 @@ export interface AppShellProps {
   editing: boolean;
   componentLibraryOpen: boolean;
   agentActivityOpen: boolean;
+  /** Agent sessions that are working or waiting on the user (permission or sign-in). */
   activeAgentTaskCount: number;
+  /** Agent sessions blocked on the user (a permission request or sign-in). */
+  waitingAgentTaskCount: number;
   /** Whether the header dropper can pick a dashboard component for the agent. */
   agentPickerAvailable: boolean;
   agentPickerActive: boolean;
@@ -125,6 +128,15 @@ export interface AppShellProps {
 }
 
 /** Window chrome, navigation, and header only. Dashboard state stays with its workspace. */
+/** The Agent work trigger's name: its action, then the counts its badge shows. */
+function agentActivityTriggerLabel(open: boolean, active: number, waiting: number): string {
+  const counts = [
+    ...(active > 0 ? [`${active} active`] : []),
+    ...(waiting > 0 ? [`${waiting} ${waiting === 1 ? "needs" : "need"} you`] : []),
+  ];
+  return [open ? "Close agent work" : "Open agent work", ...counts].join(", ");
+}
+
 export function AppShell({
   snapshot,
   projects,
@@ -140,6 +152,7 @@ export function AppShell({
   componentLibraryOpen,
   agentActivityOpen,
   activeAgentTaskCount,
+  waitingAgentTaskCount,
   agentPickerAvailable,
   agentPickerActive,
   editorToolbar,
@@ -325,12 +338,24 @@ export function AppShell({
                 <button
                   className={`button button--quiet agent-activity-trigger${agentActivityOpen ? " agent-activity-trigger--active" : ""}`}
                   type="button"
-                  aria-label={agentActivityOpen ? "Close agent work" : "Open agent work"}
+                  aria-label={agentActivityTriggerLabel(agentActivityOpen, activeAgentTaskCount, waitingAgentTaskCount)}
                   aria-expanded={agentActivityOpen}
+                  title={waitingAgentTaskCount > 0
+                    ? `${waitingAgentTaskCount} agent ${waitingAgentTaskCount === 1 ? "session needs" : "sessions need"} you`
+                    : activeAgentTaskCount > 0
+                      ? `${activeAgentTaskCount} agent ${activeAgentTaskCount === 1 ? "session is" : "sessions are"} working`
+                      : undefined}
                   onClick={onToggleAgentActivity}
                 >
                   <span>Agent work</span>
-                  {activeAgentTaskCount > 0 ? <strong>{activeAgentTaskCount}</strong> : null}
+                  {activeAgentTaskCount > 0 ? (
+                    <strong
+                      className={waitingAgentTaskCount > 0 ? "agent-activity-trigger__count agent-activity-trigger__count--attention" : "agent-activity-trigger__count"}
+                      data-waiting={waitingAgentTaskCount > 0 ? "true" : undefined}
+                    >
+                      {activeAgentTaskCount}
+                    </strong>
+                  ) : null}
                 </button>
                 {/* A sibling, not a child: buttons cannot nest. CSS seats it inside the trigger. */}
                 <button

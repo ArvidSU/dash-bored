@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings, DashboardConfig, DashboardSettingsItem, ProjectListItem } from "../../shared/contracts";
+import type { AgentCommandOptions } from "../../shared/agent-session";
 import { cloneDefaultAppSettings } from "../../shared/app-settings";
 import { host } from "../lib/rpc-client";
 import { errorMessage, patchDashboardAppearance } from "./app-utils";
@@ -60,8 +61,8 @@ export function useAppSettings(notices: Notices) {
     update(
       { ...settings, dashBoredAgent: command },
       command === null
-        ? "App-wide DASH_BORED_AGENT cleared; the project .env will be used when available."
-        : `DASH_BORED_AGENT is now ${command}.`,
+        ? "App-wide agent cleared; each dashboard's .env, then a detected agent, is used."
+        : `The app-wide agent is now ${command}.`,
     );
   }
 
@@ -136,6 +137,23 @@ export function useDashboardSettings(
   }
 
   return { items, updateAppearance };
+}
+
+/**
+ * The agents Settings can pick from (detected on PATH, plus the known table
+ * for install hints), read while Settings is open and after the setting changes.
+ */
+export function useSettingsAgentOptions(open: boolean, appSetting: string | null): AgentCommandOptions | null {
+  const [options, setOptions] = useState<AgentCommandOptions | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void host.getAgentOptions()
+      .then((next) => { if (active) setOptions(next); })
+      .catch(() => { if (active) setOptions(null); });
+    return () => { active = false; };
+  }, [open, appSetting]);
+  return options;
 }
 
 export type AppSettingsState = ReturnType<typeof useAppSettings>;
