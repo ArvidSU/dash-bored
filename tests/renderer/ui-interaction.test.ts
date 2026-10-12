@@ -17,6 +17,17 @@ async function unusedPort(): Promise<number> {
   return port;
 }
 
+// Keep each Playwright wait inside its test's budget. A wait that outlives
+// the test makes Bun kill the shared Chrome as a dangling process, so every
+// later test fails with "browser has been closed" instead of the real error.
+const PAGE_TIMEOUT_MS = 10_000;
+
+async function openPage(options?: Parameters<Browser["newPage"]>[0]): Promise<Page> {
+  const opened = await browser!.newPage(options);
+  opened.setDefaultTimeout(PAGE_TIMEOUT_MS);
+  return opened;
+}
+
 function currentPage(): Page {
   if (!page) throw new Error("Renderer interaction page is unavailable.");
   return page;
@@ -112,7 +123,7 @@ beforeAll(async () => {
   });
   await fixtureServer.ready;
   browser = await chromium.launch({ executablePath, headless: true });
-  page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  page = await openPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(fixtureUrl);
   await page.getByRole("button", { name: "Open component library" }).waitFor();
 }, 30_000);
@@ -124,7 +135,7 @@ afterAll(async () => {
 
 describe("renderer fixture interactions", () => {
   test("Bring app to front reaches the native host without discarding a dashboard draft", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -150,7 +161,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("package recovery keeps configuration visible to the host and wires Retry and Sync", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
@@ -182,7 +193,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("all 17 pinned core outputs export ordinary components through the actual compiler", async () => {
-    const proof = await browser!.newPage();
+    const proof = await openPage();
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
@@ -295,7 +306,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("repeating the same app-control palette query resets edited search text", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.waitForFunction(() => window.__DASH_BORED_UI_HARNESS_RUN_ACTION__ !== undefined);
@@ -320,7 +331,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("palette search keeps the top result selected until the pointer moves", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: /Open command palette/ }).click();
@@ -371,7 +382,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("focus targets are choices under one main palette action", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: /Open command palette/ }).click();
@@ -406,7 +417,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("palette search reaches a chooser option directly by node ID", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: /Open command palette/ }).click();
@@ -426,7 +437,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("recent palette runs lead the results, follow the search, and replay their options", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -496,7 +507,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("reveal targets are choices under one main palette action", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       const frame = proof.locator('[data-node-id="responsive-card"]');
@@ -528,7 +539,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("Command execution keeps the palette open and clears search by default for repeated actions", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: /Open command palette/ }).click();
@@ -570,7 +581,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("General setting preserves search for keep-open execution and persists through reopening Settings", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Settings", exact: true }).click();
@@ -608,7 +619,7 @@ describe("renderer fixture interactions", () => {
       // Recent orders by relevance while searching: the label match leads the description match.
       const recentRows = (await palette.getByRole("option").allInnerTexts()).slice(0, 2);
       expect(recentRows.map((text) => text.split("\n")[0])).toEqual(["Show dashboard", "Collapse sidebar"]);
-      expect(await palette.getByRole("option").nth(1).getAttribute("aria-selected")).toBe("true");
+      await palette.getByRole("option").nth(1).and(palette.locator('[aria-selected="true"]')).waitFor();
       await input.press("Meta+Enter");
       await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
       await proof.keyboard.press("Escape");
@@ -622,7 +633,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("keep-open intent crosses confirmation and multiple choice steps without bypassing them", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: /Open command palette/ }).click();
@@ -653,7 +664,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("active dashboard clicks and Command numbers toggle the sidebar while Settings returns to the dashboard", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       const activeDashboard = proof.locator(".sidebar__project-link[aria-current=page]");
@@ -677,7 +688,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("default action shortcuts run actions and appear in the palette", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
@@ -700,7 +711,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("Command numbers follow draggable sidebar order and yield to the palette", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.addInitScript(() => {
         let host: typeof window.__DASH_BORED_UI_HARNESS_HOST__;
@@ -765,7 +776,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("Switch dashboard opens its chooser and supports keep-open navigation", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       await proof.getByRole("button", { name: "Settings", exact: true }).click();
@@ -997,7 +1008,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("Change with agent previews the dashboard template before sending", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       const frame = proof.locator('[data-node-id="responsive-card"]');
@@ -1007,7 +1018,8 @@ describe("renderer fixture interactions", () => {
       const composer = proof.getByRole("dialog", { name: "Ask the agent" });
       await composer.waitFor();
       expect(await composer.getByRole("radio", { name: "Dashboard change" }).isChecked()).toBe(true);
-      expect(await composer.getByRole("textbox", { name: "Agent prompt" }).evaluate((element) => element === document.activeElement)).toBe(true);
+      // The composer moves focus to the prompt after it opens.
+      await composer.getByRole("textbox", { name: "Agent prompt" }).and(proof.locator(":focus")).waitFor();
       expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
       await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Add a status beside this tile.");
       await composer.getByRole("tab", { name: "Full prompt" }).click();
@@ -1034,7 +1046,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("agent work dropper picks a component for the change composer", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       const frame = proof.locator('[data-node-id="responsive-card"]');
@@ -1059,7 +1071,8 @@ describe("renderer fixture interactions", () => {
       await composer.waitFor();
       expect(await composer.getByRole("radio", { name: "Dashboard change" }).isChecked()).toBe(true);
       expect(await composer.locator(".agent-prompt__target code").textContent()).toContain("#");
-      expect(await highlight.count()).toBe(0);
+      // The picker unmounts its highlight after the composer opens; wait for it.
+      await highlight.waitFor({ state: "detached" });
       await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Tighten this tile.");
       await composer.getByRole("tab", { name: "Full prompt" }).click();
       await composer.getByLabel("Full agent prompt").getByText("Target component id: responsive-card", { exact: false }).waitFor();
@@ -1086,7 +1099,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("agent work dropper Shift-selects several components and Shift release opens one composer", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     try {
       await proof.goto(fixtureUrl);
       const tile = proof.locator('[data-node-id="responsive-card"]');
@@ -1399,7 +1412,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("clean component settings allow focus and follow external YAML changes", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -1449,7 +1462,7 @@ describe("renderer fixture interactions", () => {
   }, 30_000);
 
   test("reverting a dashboard edit removes Save and Cancel without a disk write", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -1505,7 +1518,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("frame menu sibling moves preview immediately and use dashboard Save and Cancel", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -1541,7 +1554,7 @@ describe("renderer fixture interactions", () => {
   }, 30_000);
 
   test("invalid composition draft shows host diagnostics in place and disables Save", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -1564,7 +1577,7 @@ describe("renderer fixture interactions", () => {
   }, 30_000);
 
   test("the first todo prop update from a fresh page opens and updates its owner draft", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -1590,7 +1603,7 @@ describe("renderer fixture interactions", () => {
   test("discard confirmation can save the draft before continuing", async () => {
     // A fresh page has its own fixture host, so this save does not shift the
     // revisions and group counts the shared-page tests below depend on.
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -1900,7 +1913,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("loads the external command and its CSS when a fresh snapshot needs it", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -2025,7 +2038,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("source filters retain valid tags and permanently clear removed tags", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     const publish = async (phase: number): Promise<void> => {
       await proof.evaluate(async (phase) => {
@@ -2068,7 +2081,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("todo tag updates preserve the active edit buffer and keyboard focus", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     const publish = async (phase: number): Promise<void> => {
       await proof.evaluate(async (phase) => {
@@ -2133,7 +2146,7 @@ describe("renderer fixture interactions", () => {
   }, 20_000);
 
   test("setup agent inserts lazily, survives starter replacement, and shows validation truthfully", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 390, height: 844 } });
+    const proof = await openPage({ viewport: { width: 390, height: 844 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -2183,7 +2196,7 @@ describe("renderer fixture interactions", () => {
   }, 30_000);
 
   test("the follow-up composer opens when a turn ends, sends on Enter, and keeps Shift+Enter for new lines", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -2231,7 +2244,7 @@ describe("renderer fixture interactions", () => {
   test("long transcripts follow the tail, keep the reading position when scrolled up, and fit desktop and narrow widths", async () => {
     const prompt = "Set up the dash-bored dashboard for this project. " + "Inspect the project, preserve unrelated changes, and validate the cockpit. ".repeat(45);
     for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
-      const proof = await browser!.newPage({ viewport });
+      const proof = await openPage({ viewport });
       proof.setDefaultTimeout(5_000);
       try {
         await proof.goto(fixtureUrl);
@@ -2295,7 +2308,7 @@ describe("renderer fixture interactions", () => {
 
   test("modal scroll boundaries keep the background fixed and release it on dismissal", async () => {
     for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
-      const proof = await browser!.newPage({ viewport });
+      const proof = await openPage({ viewport });
       proof.setDefaultTimeout(5_000);
       try {
         await proof.goto(fixtureUrl);
@@ -2348,7 +2361,7 @@ describe("renderer fixture interactions", () => {
   }, 30_000);
 
   test("environment panel shows the winning app setting while preserving bundle defaults", async () => {
-    const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);
     try {
       await proof.goto(fixtureUrl);
@@ -2383,7 +2396,7 @@ describe("renderer fixture interactions", () => {
 });
 
 test('themes select personal and dashboard variants, preview/cancel, and preserve mounted terminals', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
+  const proof = await openPage({ viewport: { width: 1280, height: 900 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2467,7 +2480,7 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
 
 
 test('theme package manager runs scoped operations in the app without changing selection', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
+  const proof = await openPage({ viewport: { width: 1100, height: 900 } });
   try {
     await proof.goto(fixtureUrl);
     await proof.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -2504,7 +2517,7 @@ test('theme package manager runs scoped operations in the app without changing s
 });
 
 test('updates say up to date plainly and show migrations only when dashboards need them', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1100, height: 900 } });
+  const proof = await openPage({ viewport: { width: 1100, height: 900 } });
   try {
     await proof.goto(fixtureUrl);
     await proof.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -2546,7 +2559,7 @@ test('updates say up to date plainly and show migrations only when dashboards ne
 }, 30_000);
 
 test('focus timer pauses, resumes, completes and starts breaks explicitly', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1100, height: 850 } });
+  const proof = await openPage({ viewport: { width: 1100, height: 850 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2588,7 +2601,7 @@ test('focus timer pauses, resumes, completes and starts breaks explicitly', asyn
 }, 20_000);
 
 test('action buttons compose persistent tab and sidebar navigation at narrow widths', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  const proof = await openPage({ viewport: { width: 1440, height: 850 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2650,7 +2663,7 @@ test('action buttons compose persistent tab and sidebar navigation at narrow wid
 }, 30_000);
 
 test('built-in timer and Markdown actions share button invocation and availability', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  const proof = await openPage({ viewport: { width: 1440, height: 850 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2696,7 +2709,7 @@ test('built-in timer and Markdown actions share button invocation and availabili
 });
 
 test('stable-ID tab and todo actions select locally and change only the draft', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  const proof = await openPage({ viewport: { width: 1440, height: 850 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2742,7 +2755,7 @@ test('stable-ID tab and todo actions select locally and change only the draft', 
 });
 
 test('source lists leave todo mutations unavailable while preserving filter actions', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1440, height: 850 } });
+  const proof = await openPage({ viewport: { width: 1440, height: 850 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2782,7 +2795,7 @@ test('source lists leave todo mutations unavailable while preserving filter acti
 
 
 test('list states and item process feedback use semantic colors and keep runs with their invoking item', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+  const proof = await openPage({ viewport: { width: 1280, height: 800 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2851,7 +2864,7 @@ test('list states and item process feedback use semantic colors and keep runs wi
 }, 20_000);
 
 test('visual overview preserves refresh geometry, state shapes, and reduced motion', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+  const proof = await openPage({ viewport: { width: 1280, height: 800 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);
@@ -2908,7 +2921,7 @@ test('visual overview preserves refresh geometry, state shapes, and reduced moti
 }, 20_000);
 
 test('glance atoms show trend, proportion, changes, item reveal, and chart refresh without moving layout', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
+  const proof = await openPage({ viewport: { width: 1280, height: 900 } });
   proof.setDefaultTimeout(5_000);
   type GlanceWindow = Window & { glance?: { status: unknown; list: unknown; hold: boolean; release: Array<() => void> } };
   try {
@@ -3021,7 +3034,7 @@ test('glance atoms show trend, proportion, changes, item reveal, and chart refre
 }, 30_000);
 
 test('list items keep a readable title beside many tags and actions in a half-width pane', async () => {
-  const proof = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
+  const proof = await openPage({ viewport: { width: 1280, height: 900 } });
   proof.setDefaultTimeout(5_000);
   try {
     await proof.goto(fixtureUrl);

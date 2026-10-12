@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { closeSync, openSync } from "node:fs";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser } from "playwright-core";
@@ -12,48 +13,73 @@ let server: FixtureServer | undefined;
 let browser: Browser | undefined;
 let fixtureUrl = "";
 
+/**
+ * Builds the fixture renderer with production transforms. Output goes to a
+ * log file, not a pipe: in the full CI suite (`--parallel=1`, which isolates
+ * each file) Bun stopped delivering this child's piped stdout and stderr, so
+ * the build exited in about 3 s while the test waited for pipe EOF until the
+ * hook timed out.
+ */
+async function buildProductionRenderer(outDir: string, logPath: string): Promise<void> {
+  const log = openSync(logPath, "w");
+  let build: Bun.Subprocess;
+  try {
+    build = Bun.spawn(["bun", "--eval", `
+      import { build, mergeConfig } from "vite";
+      import config from "./vite.config";
+      await build(mergeConfig(config, {
+        // Enable the inert fixture host only in this test build. React and JSX
+        // still use production transforms and NODE_ENV=production.
+        plugins: [{ name: "production-component-proof-host", enforce: "pre",
+          transform(source, id) {
+            if (id.endsWith("/src/renderer/lib/rpc-client.ts")) {
+              return source.replace("if (import.meta.env.PROD) return Promise.resolve();", "");
+            }
+          },
+        }],
+        build: {
+          outDir: process.env.DASH_BORED_PRODUCTION_TEST_OUT_DIR,
+          rollupOptions: { input: "src/renderer/ui-harness.html" },
+        },
+      }));
+    `], {
+      stdin: "ignore", stdout: log, stderr: log,
+      env: { ...process.env, NODE_ENV: "production", DASH_BORED_PRODUCTION_TEST_OUT_DIR: outDir },
+    });
+  } finally {
+    closeSync(log);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const code = await Promise.race([
+    build.exited,
+    new Promise<"timeout">((resolve) => { timer = setTimeout(() => resolve("timeout"), 20_000); }),
+  ]).finally(() => clearTimeout(timer));
+  if (code === "timeout") build.kill("SIGKILL");
+  if (code !== 0) {
+    const output = await readFile(logPath, "utf8").catch(() => "(no build log)");
+    const reason = code === "timeout" ? "did not finish within 20 s" : `failed (${code})`;
+    throw new Error(`Production renderer build ${reason}.\n${output}`);
+  }
+}
+
 beforeAll(async () => {
   const executablePath = process.env.DASH_BORED_BROWSER_EXECUTABLE
     ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   await access(executablePath);
   outputDirectory = await mkdtemp(join(tmpdir(), "dash-bored-production-"));
-  const build = Bun.spawn(["bun", "--eval", `
-    import { build, mergeConfig } from "vite";
-    import config from "./vite.config";
-    await build(mergeConfig(config, {
-      // Enable the inert fixture host only in this test build. React and JSX
-      // still use production transforms and NODE_ENV=production.
-      plugins: [{ name: "production-component-proof-host", enforce: "pre",
-        transform(source, id) {
-          if (id.endsWith("/src/renderer/lib/rpc-client.ts")) {
-            return source.replace("if (import.meta.env.PROD) return Promise.resolve();", "");
-          }
-        },
-      }],
-      build: {
-        outDir: process.env.DASH_BORED_PRODUCTION_TEST_OUT_DIR,
-        rollupOptions: { input: "src/renderer/ui-harness.html" },
-      },
-    }));
-  `], {
-    stdout: "pipe", stderr: "pipe",
-    env: { ...process.env, NODE_ENV: "production", DASH_BORED_PRODUCTION_TEST_OUT_DIR: outputDirectory },
-  });
-  const [code, stdout, stderr] = await Promise.all([
-    build.exited, new Response(build.stdout).text(), new Response(build.stderr).text(),
-  ]);
-  if (code !== 0) throw new Error(`Production renderer build failed (${code}).\n${stdout}\n${stderr}`);
+  const distDirectory = join(outputDirectory, "dist");
+  await buildProductionRenderer(distDirectory, join(outputDirectory, "build.log"));
   const reservation = Bun.serve({ port: 0, fetch: () => new Response("reserved") });
   const port = reservation.port!;
   reservation.stop(true);
   fixtureUrl = `http://127.0.0.1:${port}/ui-harness.html`;
   server = startFixtureServer({
-    cmd: ["bun", "./node_modules/vite/bin/vite.js", "preview", "--outDir", outputDirectory,
+    cmd: ["bun", "./node_modules/vite/bin/vite.js", "preview", "--outDir", distDirectory,
       "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     url: fixtureUrl,
   });
   await server.ready;
-  browser = await chromium.launch({ executablePath, headless: true });
+  browser = await chromium.launch({ executablePath, headless: true, timeout: 15_000 });
 }, 30_000);
 
 afterAll(async () => {

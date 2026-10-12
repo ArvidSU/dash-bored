@@ -166,8 +166,14 @@ Run the smallest check that proves the change while iterating, and
 - The browser interaction suite shares one page, so one timeout can fail many
   later tests. Rerun the first failure alone with `-t` before investigating
   the rest.
-- CI runs test files serially. When a hosted run fails but local QA passes,
-  reproduce with `CI=true bun run test`.
+- CI runs test files serially in one isolated worker (`--parallel=1`), which
+  also kills each file's leftover child processes. When a hosted run fails but
+  local QA passes, reproduce with `CI=true bun run test`. Some hosted failures
+  only appear on the slower runner: a Playwright wait must end before its
+  test's timeout, or Bun kills the shared Chrome and later tests fail with
+  "browser has been closed". A test that only needs a child process to finish
+  should await its exit and send its output to a file, not wait for pipe EOF;
+  in the hosted suite Bun has stopped delivering a child's piped output.
 - On macOS, run unattended checks as `caffeinate -is bun run qa:fast`. System
   sleep during a run breaks the tests' wall-clock timeouts.
 - Check `git diff --check` before handing off changes.

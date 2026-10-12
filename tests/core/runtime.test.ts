@@ -257,8 +257,15 @@ describe("ProcessManager", () => {
 
     await manager.start("slow");
     await waitFor(() => outputText(manager.get("slow")).includes("waiting"), 15_000);
-    await manager.write("slow", "\x03");
-    await waitFor(() => manager.get("slow")?.run?.phase === "exited", 15_000);
+    // An interrupt that lands after `printf` but before `sleep` owns the
+    // terminal reaches the interactive shell, which ignores it. Press Ctrl-C
+    // again, as a person would, until the run ends.
+    const interruptedRun = () => manager.get("slow")?.run?.phase === "exited";
+    for (let attempt = 0; attempt < 15 && !interruptedRun(); attempt += 1) {
+      await manager.write("slow", "\x03");
+      await waitFor(interruptedRun, 1_000).catch(() => undefined);
+    }
+    expect(interruptedRun()).toBeTrue();
     const interrupted = manager.get("slow")!;
     expect(interrupted.phase).toBe("running");
     expect(interrupted.run?.signal === "SIGINT" || interrupted.run?.exitCode === 130).toBeTrue();
@@ -543,9 +550,15 @@ describe("ProjectRuntime", () => {
         name: "Changed",
         root: { component: "./components/external/core/markdown", props: { content: "updated" } }
     } as const;
-    await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(changed));
-
-    await waitFor(() => snapshots.some((snapshot) => snapshot.dashboardName === "Changed"), 20_000);
+    const reloaded = () => snapshots.some((snapshot) => snapshot.dashboardName === "Changed");
+    // macOS FSEvents starts its stream asynchronously and can drop a write
+    // made right after watch() returns. Save again, as an editor would, until
+    // the watcher reports it; one missed early event must not fail the check.
+    for (let attempt = 0; attempt < 20 && !reloaded(); attempt += 1) {
+      await writeFile(join(root, ".dash-bored", "dash-bored.yaml"), stringify(changed));
+      await waitFor(reloaded, 1_000).catch(() => undefined);
+    }
+    expect(reloaded()).toBeTrue();
     expect(runtime.getSnapshot().dashboardName).toBe("Changed");
   }, 30_000);
 

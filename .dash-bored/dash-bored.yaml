@@ -633,24 +633,24 @@ root:
                             tags:
                               - acp
                               - agent
-                          - id: todo-flaky-dropper-test
-                            description: "Investigate the historical intermittent ui-interaction 'agent work dropper' failure (about 2 in 13 runs). On 2026-10-11, isolated runs passed 13/13 before and after moving capture listeners to a layout effect, closing the pre-paint input gap. The reported full-suite/load intermittency remains unproven."
-                            done: false
-                            tags:
-                              - test
                           - id: todo-palette-recents-clear
                             description: "Let users clear the command palette's Recent history or remove one recent run (from the palette row or Settings → Actions). Recent runs are stored per dashboard in renderer localStorage today and only drop out at the 25-run cap or when the dashboard is removed."
                             done: false
                             tags:
                               - renderer
-                          - id: todo-ci-main-green
-                            description: "Make main's CI green again; it has failed on every push since 2026-10-07. The latest runs fail in tests/renderer/production-components.test.ts, whose 30 s beforeAll (production Vite build, vite preview, Chrome launch) times out on the macos-15 runner although it takes ~4 s locally; earlier runs also failed in tests/cli/component-authoring.test.ts. Reproduce the serial order with `CI=true bun run test`, then fix the cause or give the build hook a CI-sized budget."
+                          - id: todo-ci-pipe-stall
+                            description: "Find why Bun stops delivering a child's piped stdout/stderr in the hosted CI suite (`bun test --parallel=1`). In CI run 38245113350 the production renderer build exited 0 after 2.9 s, but neither pipe produced data or closed. production-components now writes the build to a log file; other test helpers (component-authoring and CLI `run()`) still wait for pipe EOF. Reduce it to a Bun repro and report it, or move those helpers to file output."
                             done: false
                             tags:
                               - qa
                               - tests
+                          - id: todo-ci-cache-hutch
+                            description: "Cache the Hutch/Electrobun downloads in CI and release workflows. CI run 38246330604 (attempt 1) failed before any test because GitHub returned HTTP 504 for electrobun-artifacts.json during `electrobun prepare`."
+                            done: false
+                            tags:
+                              - qa
                           - id: todo-ui-suite-fresh-pages
-                            description: "Stop one ui-interaction timeout from cascading: the suite shares one page across 77 tests, and past QA runs turned a single timeout into 36-58 follow-on failures. Give mutating tests a fresh page or reset shared state in afterEach."
+                            description: "Stop one ui-interaction failure from cascading: the suite shares one page across 77 tests. Page waits now end inside each test's budget, so a stuck wait no longer lets Bun kill Chrome (the old 36-58 'browser has been closed' failures), but a failed shared-page test can still leave state for later ones. Give mutating tests a fresh page or reset shared state in afterEach."
                             done: false
                             tags:
                               - tests

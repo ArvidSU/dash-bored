@@ -13,9 +13,11 @@ maintainer action.
    `bun run packages:verify-published`: a pin that is only local or was
    rewritten cannot be fetched by a fresh clone and fails the release.
 4. Run `caffeinate -is bun run qa:fast`, then `CI=true bun run test`. The hosted
-   runner sets `CI`, which runs test files serially (`scripts/test.ts`) and
-   exposes timing races that the parallel local run hides. Validate both
-   dashboards (`validate .` and `validate .dash-bored/dogfood`).
+   runner sets `CI`, which runs each test file isolated in one worker
+   (`scripts/test.ts`); the slower 3-CPU runner exposes timing races that a
+   local run hides. Both workflows turn off Spotlight indexing first, because
+   indexing test output saturated the runner. Validate both dashboards
+   (`validate .` and `validate .dash-bored/dogfood`).
 5. Commit, push `main`, and wait for CI (`gh run watch --exit-status`).
 6. Push an annotated tag `v<version>` on that commit. `release.yml` repeats the
    QA, builds and verifies the unsigned DMG, and creates a draft prerelease;

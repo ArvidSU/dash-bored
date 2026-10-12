@@ -6,6 +6,11 @@ import { checkComponentDirectory, setupComponentAuthoring } from "../../src/core
 
 const cli = resolve(import.meta.dirname, "../../src/cli/index.ts");
 const temporaryDirectories: string[] = [];
+// Each test spawns cold CLI processes and most run the TypeScript checker.
+// Hosted macOS runners take about three times longer than a local machine
+// (CI run 38169238488: 888 ms for one `component api` spawn), which pushes
+// the type-checking cases past Bun's 5 s default.
+const CLI_TEST_TIMEOUT_MS = 30_000;
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
@@ -35,7 +40,7 @@ describe("component authoring CLI", () => {
     expect(metadata.modules).toHaveProperty("@dash-bored/component");
     expect(metadata.modules).toHaveProperty("react");
     expect(metadata.sdkDigest).toMatch(/^[a-f0-9]{64}$/);
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   test("init creates a permission-free schema-v3 starter that setup and check accept", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-component-init-"));
@@ -61,7 +66,7 @@ describe("component authoring CLI", () => {
     expect(checked.apiVersion).toBe("1.0.0");
     expect(checked.stages.length).toBeGreaterThan(0);
     expect(checked.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   test("init refuses to overwrite starter files and check failures use a nonzero status", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-component-existing-"));
@@ -80,7 +85,7 @@ describe("component authoring CLI", () => {
     expect(checked.exitCode).not.toBe(0);
     const result = JSON.parse(checked.stdout || checked.stderr);
     expect(result.ok).toBeFalse();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   test("the scaffold launcher bootstraps from an app tool or installed skill without PATH", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-component-launcher-"));
@@ -106,7 +111,7 @@ describe("component authoring CLI", () => {
     expect(readme).toContain("standalone-component-authoring");
     expect(readme).toContain("sh ./dash-bored.sh component setup .");
     expect(await Bun.file(join(component, ".dash-bored/dash-bored.yaml")).exists()).toBeFalse();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   test("check reports a semantic TypeScript error with source location in JSON", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-component-type-error-"));
@@ -131,7 +136,7 @@ describe("component authoring CLI", () => {
     expect(report.ok).toBeFalse();
     expect(error).toBeDefined();
     expect(error.line).toBe(invalidSource.split("\n").length - 1);
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   test("rejects unsupported API targets and invalid option combinations", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-component-options-"));
@@ -150,5 +155,5 @@ describe("component authoring CLI", () => {
     const duplicate = await run(cwd, "component", "api", "--api-version", "1.0.0", "--api-version", "1.0.0");
     expect(duplicate.exitCode).toBe(2);
     expect(duplicate.stderr).toContain("may be specified only once");
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 });
