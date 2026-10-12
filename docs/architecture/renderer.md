@@ -367,7 +367,7 @@ reads "No agent found" and the composer links to the Settings checklist.
 Settings lists every known agent with an immediately persisted checkbox,
 installed/download/manual-setup status, the launch command, and setup link.
 Refresh rechecks availability; supported package commands require explicit
-enablement before first-use download (see [Agents](./agents.md#detection-catalog)).
+enablement before first-use download (see [Agents](./acp-client.md#detection-catalog)).
 The default selector still accepts a custom command or returns selection to
 individual dashboards. Vars the
 selected template does not declare are dropped, so switching templates cannot
@@ -381,7 +381,7 @@ the session's component path. A preview request renders
 the same way without launching and also lists the bundle's template summaries
 and the command options, so the composer's Full prompt is exactly what Send
 passes. How main re-resolves the node and choice, renders the prompt, and runs
-the ACP session is in [Agents](./agents.md). This app-owned, explicit user
+the ACP session is in [Agents](./acp-client.md). This app-owned, explicit user
 action does not grant project component code a capability or embed an AI
 provider; dashboard file watching remains responsible for showing accepted
 agent edits.
@@ -481,7 +481,7 @@ action passes the node ID to the main process, which revalidates the active
 trusted owning config and starts an agent session; Agent work keeps validation
 and repair status visible after the agent removes the starter node. Setup
 completion, post-turn validation, and the single automatic repair are main
-contracts ([Agents](./agents.md)). Added permissions require review even when
+contracts ([Agents](./acp-client.md)). Added permissions require review even when
 the configuration validates. The main process checks generic `process:execute`
 permission for the calling node; it never dispatches by a component ID.
 
@@ -539,7 +539,7 @@ string or clears the setting, and is disabled while unchanged or empty. With no
 setting and nothing detected it lists the known agents openly; otherwise
 undetected ones fold under "Install another agent". Updating it affects later
 agent launches without rewriting project files; resolution order is in
-[Agents](./agents.md).
+[Agents](./acp-client.md).
 
 The trash affordance is rendered as a separate keyboard-accessible button on
 expanded sidebar rows and is revealed on row hover or focus. The renderer asks

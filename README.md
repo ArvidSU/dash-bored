@@ -6,19 +6,22 @@ component runtime and controlled host capabilities; each project supplies the
 workflow and domain knowledge.
 
 The repository is an early developer build. It uses Electrobun 2.0.1 with a Bun
-main process and a Vite/React renderer. Read [product vision](./docs/IDEA.md)
-for product principles and [ARCHITECTURE.md](./ARCHITECTURE.md) for the
-architecture index and complete runtime and security contracts.
+main process and a Vite/React renderer.
 
-## License
-
-[MIT](./LICENSE)
+| You want to | Read |
+| --- | --- |
+| Install and use the app | [Install on macOS](#install-on-macos), then [Start a project dashboard](#start-a-project-dashboard) |
+| Work on this repository (people and coding agents) | [AGENTS.md](./AGENTS.md), [Developer setup](#developer-setup), [Choosing verification](#choosing-verification) |
+| Understand product intent | [docs/IDEA.md](./docs/IDEA.md) |
+| Find a runtime, security, or file contract | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| Build dashboards or components as an agent | the shipped skill, [skills/dash-bored/SKILL.md](./skills/dash-bored/SKILL.md) |
+| Cut or evaluate a release | [docs/release-qa.md](./docs/release-qa.md) |
 
 ## Install on macOS
 
 Unsigned prereleases support **Apple Silicon** Macs running **macOS 14 or
-newer**. Linux, Windows, Intel Macs, signing, notarization, and automatic
-updates are intentionally deferred.
+newer**. Linux, Windows, Intel Macs, signing, and notarization are
+intentionally deferred.
 
 1. Download the macOS DMG and `SHA256SUMS.txt` from the latest
    [GitHub Release](https://github.com/ArvidSU/dash-bored/releases).
@@ -43,9 +46,6 @@ Bun is not required. You work in the app; your coding agent works through the
 tools that ship with the dash-bored skill (see [Agent tools](#agent-tools)).
 Nothing is installed on your `PATH`.
 
-The installed application includes a custom dash-bored icon for Finder, the
-Applications folder, and the Dock.
-
 ## Developer setup
 
 Install [Bun](https://bun.sh/) and clone the repository. The project pins its Bun
@@ -57,13 +57,12 @@ bun run packages:restore
 bun run setup
 ```
 
-When changing the default core-component pin, publish the component commit
-before other checkouts or new projects use it. Run
-`bun run packages:verify-published` to check a fresh download and the component
-API contracts. Release builds and release preparation require this check;
-development builds may use local commits while authoring components.
+`setup` runs `electrobun prepare`, which installs the pinned Electrobun
+toolchain through Hutch (Electrobun's toolchain manager) into this checkout's
+ignored `.hutch/` directory. The `:fast` checks reuse those prepared files.
 
-For a new Git worktree, use the one-step setup instead:
+For a new Git worktree, including worktrees a coding agent creates (for example
+under `.claude/worktrees/`), use the one-step setup instead:
 
 ```sh
 bun run worktree:setup
@@ -71,40 +70,34 @@ bun run worktree:setup
 
 It installs locked dependencies, creates an ignored `.env.worktree` with a
 checkout-specific port and application identity, seeds an isolated Hutch home,
-restores the pinned dashboard packages, prepares Hutch, and validates both bundles. `bun run dev` also creates this
-environment automatically. Separate worktrees can run native dev apps together.
+restores the pinned packages of both repository dashboards, prepares Hutch, and
+validates both dashboards. `bun run dev` also creates this environment
+automatically. Separate worktrees can run native dev apps together.
 
-Dev builds are agent-owned: agents may restart this checkout's app without
-asking. They automatically trust declared dashboard capabilities, including
-new permissions, and do not update your global skill installation. This applies
-only to the actual `dev` channel; installed releases retain normal trust.
-Revoking trust still disables a project until the dev app is restarted.
+When changing the default core-component pin, publish the component commit
+before other checkouts or new projects use it, and follow the pin steps in
+[Cut a release](./docs/release-qa.md#cut-a-release). Run
+`bun run packages:verify-published` to check a fresh download and the component
+API contracts. Release builds and release preparation require this check;
+development builds may use local commits while authoring components.
 
-Installed apps remember approved project capabilities across restarts. Nonfatal
-validation errors still allow **Trust project** when all requested capabilities
-can be inspected; you can then use **Fix with agent**. A wrong schema marker,
-invalid props or action references, or a compile failure does not erase trust.
-The dashboard loads after the errors are fixed. Unreadable YAML, unsafe paths,
-or missing capability declarations block approval; new permissions require a
-fresh review. Blocking approval does not block repair: **Fix with agent** also
-works on an untrusted project as a capability-free repair run. It uses your
-app-selected agent without the project's `.env`, treats the project's files as
-data, refuses the agent's requests to run commands, fetch, switch modes, or
-touch files outside the dashboard bundle, offers only one-time approvals, and
-leaves the project untrusted so the normal review follows after the fix. Those
-refusals narrow the agent but do not sandbox it: an agent that acts without
-asking is not stopped, and the agent's own settings in that project (such as
-hooks or MCP servers) still apply.
+### The dev app
+
+Dev builds are agent-owned: agents may start, restart, and stop this checkout's
+app without asking. They automatically trust declared dashboard capabilities,
+including new permissions, and do not update your global skill installation.
+This applies only to the actual `dev` channel; installed releases retain normal
+trust. Revoking trust still disables a project until the dev app is restarted.
 
 For an agent-managed background instance, use `bun run dev:start`. Use
 `dev:status` to get its identity, PID and log path, `dev:restart` to rebuild and
-restart it, and `dev:stop` to stop this checkout's dev processes. Restart returns
-immediately so it can also be run from the app being restarted; use `dev:status`
-to check the new PID. Background
-output is in `.hutch/dev.log`. In the checkout, `bun run dash-bored -- app ...`
-automatically targets its own instance. Use `--instance` to target another one.
-
-In a source checkout, run the agent tool with `bun run dash-bored -- <command>`.
+restart it (needed after main-process or agent-tool changes), and `dev:stop` to
+stop this checkout's dev processes. Restart returns immediately so it can also
+be run from the app being restarted; use `dev:status` to check the new PID.
+Background output is in `.hutch/dev.log`. In the checkout,
+`bun run dash-bored -- <command>` runs the agent tool, and
+`bun run dash-bored -- app ...` automatically targets this checkout's instance.
+Use `--instance` to target another one.
 
 Useful repository commands:
 
@@ -115,7 +108,7 @@ bun run dev:restart     # rebuild/restart this checkout's app
 bun run dev:status      # identity, PID, URL and background log
 bun run dev:stop        # stop only this checkout's dev processes
 bun run dev:desktop     # built renderer + watched Electrobun main process
-bun run build:cli       # standalone agent tool embedded in desktop builds
+bun run build:cli       # standalone agent tool embedded in desktop builds (regenerates the component SDK)
 bun run styles:dead     # report app CSS class/ID hooks without source references
 bun run typecheck
 bun run test            # repository tests only; excludes saved release artifacts
@@ -132,90 +125,85 @@ bun run native:probe    # isolated manual Electrobun webview visibility/dimensio
 ```
 
 `styles:dead` scans `src/renderer/styles.css` against runtime source under
-`src/renderer`. Core component styles live in the component repository. It reports class and ID
-hooks with no static reference, while listing state/value-prefixed hooks
-assembled dynamically for manual review. Add `--check` when a non-zero exit
-code is wanted for definitely dead hooks.
+`src/renderer`. Core component styles live in the component repository. It
+reports class and ID hooks with no static reference, while listing
+state/value-prefixed hooks assembled dynamically for manual review. Add
+`--check` when a non-zero exit code is wanted for definitely dead hooks.
 
 ### Choosing verification
 
-For an already prepared checkout, default to `bun run qa:fast`. `qa`,
-`typecheck`, and `build:renderer` invoke `electrobun prepare`, which can wait
-behind this checkout's running desktop watcher. Agents may restart their own
-dev app when preparation is needed; other checkouts and installed apps are
-separate. The fast commands never prepare; they fail immediately
-with setup guidance if the required Hutch files are missing. After changing
-the Electrobun dependency, regenerate Hutch with `bun run setup` when the
-watcher is stopped before relying on fast checks.
+Run the smallest check that proves the change while iterating, and
+`bun run qa:fast` once the change is ready.
 
-| Change or question | Smallest useful check |
+| Change or question | Check |
 | --- | --- |
-| Focused logic regression | `bun test tests/<area>/<file>.test.ts` |
+| Focused logic regression | `bun test tests/<area>/<file>.test.ts` (add `-t "<test name>"` for one test) |
 | TypeScript across the repo | `bun run typecheck:fast` |
 | Renderer bundling or CSS | `bun run build:renderer:fast` |
-| Component rendering in packaged apps | `bun test tests/renderer/production-components.test.ts` (production React and JSX, pinned core navigation, local TSX) |
-| Completed code change | `bun run qa:fast` (includes the browser interaction suite and agent-tool build) |
+| Component rendering in packaged apps | `bun test tests/renderer/production-components.test.ts` |
+| Completed code change | `bun run qa:fast` |
 | Dashboard YAML | `bun run dash-bored -- validate .` |
+| Local component sources | `bun run dash-bored -- component check <directory>` |
+| Change visible in the app | The [agent UI proof](./AGENTS.md#agent-only-ui-verification): `app status`, `app screenshot --focus <node-id> --output <file>.png`, then view the PNG |
+| Renderer-only proof with no dev app running | `bun run ui:fixture`, or `bun run test:renderer-ui` |
+| Agent skill text | `bun test tests/core/component-authoring.test.ts`; for behavior changes, the work-in-progress [skill A/B eval](./scripts/eval/README.md) |
 | Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
-| Agent skill guidance | `bun test tests/core/component-authoring.test.ts`; for behavior changes, the work-in-progress [skill A/B eval](./scripts/eval/README.md) |
-| Renderer, CSS, or dashboard change visible in the running dev app | `bun run dash-bored -- app screenshot [--focus <node-id>]`, then view the PNG; drive it with `app actions <filter>` and `app run <action>` (see [Agent tools](#agent-tools)) |
-| Documentation only | Check links and `git diff --check`; no full build needed |
+| Documentation only | `git diff --check` |
 
-Run focused checks while iterating and the relevant full check once the change
-is ready. Do not rerun `test:renderer-ui` or `build:cli` after a successful
-`qa:fast` unless new edits or a specific investigation require it. Dashboard
-validation and the Python release-harness tests are separate from `qa:fast`.
-Use `bun run test` for the complete repository suite: it scopes discovery to
-`./tests`. Bare `bun test` also discovers copied tests in saved release-QA
-artifacts and the standalone release fixture, making its totals depend on
-local evidence directories.
-The production component regression is included in `bun run test`; it builds
-the renderer with production React and exercises existing compiled components
-as well as local TSX. The normal Vite fixture uses development React and cannot
-by itself prove this packaged-runtime compatibility.
-Check `git diff --check` before handing off changes.
-
-On macOS, use `caffeinate -is bun run qa:fast` when an unattended run could
-span system sleep. The keep-awake assertion ends with the command; sleeping
-during a run can invalidate the tests' wall-clock timeouts.
+- `qa:fast` runs the typecheck, `bun run test` (which includes the browser
+  interaction suite and the production component regression), the renderer
+  build, and the agent-tool build. Do not rerun its parts after it passes
+  unless you changed something. Dashboard validation and the Python
+  release-harness tests are separate.
+- The `:fast` commands never prepare. `qa`, `typecheck`, and `build:renderer`
+  run `electrobun prepare`, which can wait behind this checkout's running dev
+  app. If a fast check reports missing Hutch files, run `bun run
+  worktree:setup` in a new worktree, or `bun run setup` with this checkout's
+  dev app stopped. Rerun `setup` after changing the Electrobun dependency.
+- Use `bun run test`, not bare `bun test`: it scopes discovery to `./tests`,
+  while bare `bun test` also picks up copied tests in saved release-QA
+  evidence.
+- The browser interaction suite shares one page, so one timeout can fail many
+  later tests. Rerun the first failure alone with `-t` before investigating
+  the rest.
+- CI runs test files serially. When a hosted run fails but local QA passes,
+  reproduce with `CI=true bun run test`.
+- On macOS, run unattended checks as `caffeinate -is bun run qa:fast`. System
+  sleep during a run breaks the tests' wall-clock timeouts.
+- Check `git diff --check` before handing off changes.
 
 ### Visual UI verification
 
+The running dev app is the primary proof surface; [AGENTS.md](./AGENTS.md)
+describes the agent workflow through the app control channel. The header shows
+the open config path; confirm it matches the checkout before recording a
+screenshot or accessibility state.
+
 `ui:fixture` runs the actual React application, CSS, component compositor, and
 dashboard chrome against a deterministic in-memory host. It needs no
-Electrobun process, does not use the worktree's Vite port, and is therefore a
-fast visual proof surface for coding agents when a desktop dev process is busy
-or inaccessible. Review it at a normal desktop viewport and at `390×844`; it
-supports sidebar, tabs, component-library, and composition interactions.
+Electrobun process and does not use the worktree's Vite port. Review it at a
+normal desktop viewport and at `390×844`; it supports sidebar, tabs,
+component-library, and composition interactions. Open `/ui-harness.html`; the
+normal `/` page requires the native host bridge. If the port is busy, use
+`DASH_BORED_UI_PORT=5489 bun run ui:fixture`.
 
 `test:renderer-ui` starts and tears down its own Vite process and drives Chrome
 against the fixture. It verifies renderer interactions and the in-memory host
 contract (draft, Save, Cancel, rejected drop, and revision conflict), but it is
 still **renderer-only** evidence. It uses `/Applications/Google Chrome.app` by
 default; set `DASH_BORED_BROWSER_EXECUTABLE` when Chrome lives elsewhere.
-If Vite exits early or does not answer before the eight-second startup deadline,
-the test reports the child exit status, bounded stdout/stderr, and the last HTTP
-probe instead of only reporting a fixture timeout. It is also included in `bun run test` and therefore both QA commands. No manually
-started fixture server is needed for this test. For manual browser inspection,
-open `/ui-harness.html`; the normal `/` page requires the native host bridge.
-If the manual fixture port is busy, use `DASH_BORED_UI_PORT=5489 bun run ui:fixture`.
 
-`native:probe` first checks the source-level visibility/dimension contract, then
+`native:probe` checks the source-level visibility/dimension contract, then
 opens a separate Electrobun app and Vite server on port `5499` (or
-`DASH_BORED_NATIVE_PROBE_PORT`). It refuses a busy port and never attaches to,
-reuses, or terminates another developer's watcher. Toggle its native webview
-manually and confirm it hides and returns at the right dimensions. This is a
-native smoke aid, not OS-input automation; it does not establish general
-desktop interaction coverage. The repository has no native desktop-input test
-driver, and this command intentionally does not fake one. When recording other
-native evidence, confirm
-the header config path matches the checkout before recording a screenshot or
-accessibility state.
+`DASH_BORED_NATIVE_PROBE_PORT`) for a manual webview toggle check. It is a
+native smoke aid, not OS-input automation, and never touches another
+developer's watcher.
 
 GitHub Actions runs QA on an Apple Silicon macOS runner. Pushing a tag that
-exactly matches `v<package.json version>` builds and verifies the unsigned DMG,
-generates its checksum and install notes, and creates a draft GitHub prerelease.
-Publishing that draft remains an explicit maintainer action.
+exactly matches `v<package.json version>` builds and verifies the unsigned DMG
+and creates a draft GitHub prerelease; see [Cut a
+release](./docs/release-qa.md#cut-a-release). Publishing that draft remains an
+explicit maintainer action.
 
 ## Agent tools
 
@@ -231,56 +219,38 @@ receipt shows dash-bored created it.
 With those tools an agent can:
 
 - create dashboard bundles (`init`), inspect the component catalog and
-  contracts (`inspect --summary`, `inspect --component <reference>`), and
+  contracts (`inspect --summary`, then `inspect --component <reference>`), and
   validate its edits (`validate`);
-- check whether a dashboard needs migration and get the recipes
-  (`migrate inspect <dashboard>`);
+- check whether a dashboard needs migration (`migrate inspect <dashboard>`);
 - manage external component and theme pins when you ask it to (`component`,
   `theme`);
-- work with the running app through a private, per-instance control socket:
-  read its state (`app status`), list and run the same command-palette actions
-  you can (`app actions [<filter>]`, `app run <action>`), open a dashboard
-  (`app open <dashboard>`), and capture the app window to check the result
-  visually (`app screenshot [--node <node-id>]`). `--node` crops to one node,
-  restoring any view change it made, and `--focus <node-id>` restores your
-  previous focus afterwards unless `--keep-focus` is given. The **Show whole
-  dashboard** action (`app run project:clear-focus`) clears component focus.
-  `app run app:open-palette --query "Send prompt to agent"` opens a fresh
-  palette search (at most 200 characters); capture it with `app screenshot`.
-  `app actions` lists choices by option count; `--choices` includes their options. `app run` and `app screenshot`
-  wait up to ten seconds for views to finish loading their sources, so a
-  refresh is complete when the command returns; `--timeout <ms>` changes the
-  bound and `app run --no-wait` skips the wait. Started commands keep running.
-- read results instead of guessing from pixels: visible diagnostics and trust
-  state in `app status`, command process states and exit codes
-  (`app processes`), and recent, ANSI-stripped command output
-  (`app logs <command-id> [--tail <n>]`), a command's result in one call
-  (`app run process:<id> --until-exit`, or `app wait <id>` for a run in
-  progress), and a panel's full text (`app read <node-id>`). These are read-only; starting or
-  stopping a process stays an `app run process:*` action.
+- drive the running app through a private, per-instance control socket: read
+  its state (`app status`), list and run the same command-palette actions you
+  can (`app actions [<filter>]`, `app run <action>`), open a dashboard
+  (`app open <dashboard>`), capture the window (`app screenshot`), and read
+  results instead of guessing from pixels (`app processes`, `app logs`,
+  `app wait`, `app read <node-id>`).
 
-An agent can bring dash-bored to the foreground with
-`app run app:focus-window --no-wait` (**Bring app to front** in the palette).
-It restores a minimized window and gives it keyboard focus without changing
-your dashboard, selected panels, or draft. Agents use it sparingly when work is
-done or blocked and your attention is needed.
+The full command reference is in [Lifecycle and agent
+tools](./docs/architecture/lifecycle-cli.md#agent-tool-surface); the skill
+teaches the workflow.
 
 The control channel never widens what an action can do. Trust, starting,
 saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
 action that asks for confirmation are refused and left to you. Opening a
 dashboard is refused while you have unsaved dashboard changes or a save in
-progress. A clean settings session does not block agents or require Cancel.
-Screenshots use macOS Screen
-Recording permission; the first capture asks for it. The app keeps rendering
-while other windows cover it, so agents can drive and capture it without you
-switching to it; a minimized or hidden window cannot be captured.
+progress. Screenshots use macOS Screen Recording permission; the first capture
+asks for it. The app keeps rendering while other windows cover it, so agents
+can drive and capture it without you switching to it; a minimized or hidden
+window cannot be captured. Agents bring the app to the front with
+`app run app:focus-window --no-wait` (**Bring app to front**) only when work is
+done or blocked and your attention is needed.
 
 Later app launches refresh installer-owned skill files. Modified files are
-preserved, with a notice explaining the conflict; successful refreshes do not
-remain in the diagnostics panel. The Installed tools warning also offers
-**Remove old and reinstall**. This explicit action moves the conflicting
-managed skill directory and its alias to the OS Trash before installing the
-current payload.
+preserved, with a notice explaining the conflict. The Installed tools warning
+also offers **Remove old and reinstall**, which moves the conflicting managed
+skill directory and its alias to the OS Trash before installing the current
+payload.
 
 ## Start a project dashboard
 
@@ -299,6 +269,15 @@ project/
     └── components/
 ```
 
+The generated dashboard is immediately valid. Its first screen is a
+**Get started** checklist: trust the project, choose your coding agent, install
+the dash-bored skill, and run the setup agent. Each step explains what its
+button does and what to expect, and shows a live status for the result, so
+installed skills and a missing agent stay visible rather than disappearing.
+Below it, a tabbed component tour explains each component and shows it working
+on the project's own files. The setup action asks your coding agent to replace
+the starter with a project-specific cockpit.
+
 Each bundle's `README.md` explains the app, its files, and setup for teammates
 who have never used dash-bored. From the project root, run
 `sh .dash-bored/install-app.sh` to download, verify, and open the newest
@@ -307,45 +286,23 @@ into Applications. The helper uses built-in macOS tools and requires Apple
 Silicon with macOS 14 or newer; it does not migrate YAML or replace an installed
 app. Existing README and helper files are preserved when opening a project.
 
-### Show output from a project source
-
-The Markdown view can display JSON or text from a bounded project source. A
-small project script owns any domain-specific processing:
-
-```yaml
-component: "./components/external/core/markdown"
-props:
-  title: Project summary
-  source:
-    shell: bun run scripts/dashboard-summary.ts
-    cwd: .
-    timeoutMs: 5000
-    every: 30000
-```
-
-Use one of `shell`, `file`, `http`, `process`, or `inline` in `source`. HTTP
-sources use absolute HTTP(S) URLs. Process sources name a supervised command
-node by ID. Omitting `every` runs the source on mount and on manual refresh;
-process snapshots update when the supervised process changes. Polling pauses
-while the view is hidden. Each source kind requests only its needed capability:
-shell execution, file read, HTTP, or process observation. The app bounds source
-timeouts and output, and shows a stale last value when a refresh fails.
-
-The generated dashboard is immediately valid. Its first screen is a
-**Get started** checklist: trust the project, choose your coding agent, install
-the dash-bored skill, and run the setup agent. Each step explains what its
-button does and what to expect, and shows a live status for the result, so
-installed skills and a missing agent stay visible rather than disappearing.
-Below it, a tabbed component tour explains each component and shows it working
-on the project's own files. The setup action asks your coding agent to replace
-the starter with a project-specific cockpit. Command variables load from each
-component's owning bundle `.env`, with explicit command overrides taking
-precedence. Saving `.env` affects new launches and leaves existing terminals
-running.
+Command variables load from each component's owning bundle `.env`, with
+explicit command overrides taking precedence. Saving `.env` affects new
+launches and leaves existing terminals running.
 
 In **Settings → General → Dashboard sidebar**, enable **Start expanded** when
 you want configured dashboard names visible as soon as dash-bored opens. The
 sidebar can still be expanded or collapsed independently from its toggle.
+
+Running the desktop app without a project presents a project chooser; selecting
+an uninitialized project creates the same root-level `.dash-bored/` structure
+before loading it. A selected folder containing a nested `.dash-bored/` is the
+project root, even when that folder is itself named `.dash-bored`. The same
+**Add dashboard** chooser also opens standalone bundles: select a directory
+containing `dash-bored.yaml`, and that bundle is rendered directly without
+merging it into the canonical dashboard. Each selected config is remembered as
+its own sidebar entry, so the canonical dashboard and named bundles from the
+same project can be switched independently.
 
 ### Work with your coding agent
 
@@ -363,9 +320,8 @@ Checkbox changes save automatically; unchecking removes a picker choice and
 leaves installed software and existing sessions alone. Existing configurations
 keep detecting PATH agents until you first change the checklist. Custom commands
 and dashboard `.env` choices remain available. dash-bored holds no API keys.
-When an agent asks for sign-in, Agent
-work offers the agent's own sign-in methods; otherwise sign in with the
-agent's CLI first.
+When an agent asks for sign-in, Agent work offers the agent's own sign-in
+methods; otherwise sign in with the agent's CLI first.
 
 The agent that runs is, in order: **Settings → General → Dashboard agent**
 when set; otherwise `DASH_BORED_AGENT` in the dashboard's `.env`; otherwise the
@@ -387,13 +343,26 @@ dashboard that adds permissions still requires trust before becoming live.
 Validation establishes configuration correctness; review the workflows the
 agent created to decide whether they meet your needs.
 
+When configuration diagnostics are present, **Fix with agent** asks your agent
+to repair the owning dashboard and includes the current reported issues, even
+when the tree cannot render. Installed apps remember approved project
+capabilities across restarts. Nonfatal validation errors still allow **Trust
+project** when all requested capabilities can be inspected; a wrong schema
+marker, invalid props or action references, or a compile failure does not
+erase trust, and the dashboard loads after the errors are fixed. Unreadable
+YAML, unsafe paths, or missing capability declarations block approval, but not
+repair: **Fix with agent** then runs a capability-free repair session that
+leaves the project untrusted. Its refusals narrow the agent but do not sandbox
+it; see the [untrusted repair
+policy](./docs/architecture/acp-client.md#untrusted-repair-policy).
+
 A button can invoke an action with typed YAML arguments, for example
 `action: { run: "agent:prompt", with: { prompt: "Review the failing checks." } }`.
 The app validates those arguments when it loads the dashboard. Agent prompts show
 the resolved agent command, the prompt template, and the full prompt for
 review, then wait for the user's Send. Before sending, you can switch to any
 template the dashboard bundle offers, fill in the values it declares, and
-choose which agent runs it: the app default, the dashboard's `.env` command, a
+choose which agent runs it: the app default, the dashboard's `.env` command, an
 enabled agent, or a custom ACP command for this request.
 
 Agents are briefed with prompt templates. `agent:prompt` uses the built-in
@@ -412,7 +381,9 @@ itemActions:
 
 A file named `project.md` or `dashboard.md` replaces the built-in briefing for
 that bundle. The [project contract](./docs/architecture/project-contract.md#prompt-templates)
-documents the template syntax and the values available to it.
+documents the template syntax and the values available to it. The palette's
+**Send prompt to agent** lets you choose a template from the focused panel's
+owning bundle before reviewing the request and its variables in the composer.
 
 Every rendered component has a context menu
 with Focus, Edit component, Copy component path, and Change with agent. The
@@ -442,125 +413,32 @@ the app; they are not kept across restarts. To continue in the agent's own
 app, use **Resume in Codex** (named for your agent) once it is idle after its
 first turn: dash-bored closes its side of the session and opens your default
 terminal app in the project with the agent's resume command, which you can
-also copy.
-Hand-off needs a known agent that can resume sessions. With Claude Code, a
-plan-mode "clear context" starts a new native session, so hand-off resumes the
-conversation from before the clear.
+also copy. Hand-off needs a known agent that can resume sessions. With Claude
+Code, a plan-mode "clear context" starts a new native session, so hand-off
+resumes the conversation from before the clear.
 
-When configuration diagnostics are present, **Fix with
-agent** asks your agent to repair the
-owning dashboard and includes the current reported issues, even when the tree
-cannot render. The starter's skill step installs the skill globally or for
-this project and reports each scope's `install-skill --check` result. The global form writes the portable guidance and
-component-authoring reference to `~/.agents/skills/dash-bored/`; the project
-form writes to `.agents/skills/dash-bored/`. Both create
-`.claude/skills/dash-bored` as a link to the same canonical payload. Repeated
-installs are safe. The app refreshes previously installed global skills at
-startup and project skills for registered or newly opened dashboards, using
-file hashes to preserve local edits. An older installation without ownership
-metadata can be adopted when its contents match; otherwise the Installed tools
-warning offers an explicit Trash-and-reinstall action. Install globally for
-convenience when you use dashboards in several projects. The shipped reference
-includes the live catalog, host response types, theme guidance, and a complete
-local-component example; agents do not need the app source to author a dashboard.
-You can also create these files without
-opening the app by running
-`dash-bored init .`; unlike `open`, explicit initialization fails if a
-configuration, lock, or dashboard environment file already exists.
+The starter's skill step installs the skill globally or for this project and
+reports each scope's `install-skill --check` result. The global form writes the
+portable guidance and component-authoring reference to
+`~/.agents/skills/dash-bored/`; the project form writes to
+`.agents/skills/dash-bored/`. Both create `.claude/skills/dash-bored` as a link
+to the same canonical payload. Repeated installs are safe. The app refreshes
+previously installed global skills at startup and project skills for registered
+or newly opened dashboards, using file hashes to preserve local edits. An older
+installation without ownership metadata can be adopted when its contents match;
+otherwise the Installed tools warning offers an explicit Trash-and-reinstall
+action. The shipped reference includes the live catalog, host response types,
+theme guidance, and a complete local-component example; agents do not need the
+app source to author a dashboard.
 
-Set a dashboard-specific sidebar icon directly in its `dash-bored.yaml`:
-
-```yaml
-schemaVersion: 4
-name: Example project
-icon: ../assets/icon.svg
-root:
-  component: "./components/external/core/markdown"
-  props:
-    content: Ready
-```
-
-The icon may be a relative or absolute image path, or an HTTP(S) URL. It is
-loaded after the project is trusted; missing or unsupported artwork falls back
-to the generic dashboard glyph. You can edit the dashboard name and this icon
-from the app's dashboard editor; clearing the icon field restores the generic
-glyph. Changes are written when you save the dashboard draft.
-
-Ask your agent to create a standalone named dashboard for a person or workflow;
-it runs the agent tool (shown here as `dash-bored`, which is the skill's
-`scripts/dash-bored` launcher):
-
-```sh
-dash-bored init arvid
-# or initialize it in another project
-dash-bored init arvid --project /path/to/project
-```
-
-This creates a complete bundle independently of the main dashboard:
-
-```text
-project/.dash-bored/arvid/
-├── dash-bored.yaml
-├── dash-bored-lock.yaml
-├── README.md
-├── install-app.sh
-├── .env
-└── components/
-```
-
-The command does not edit `project/.dash-bored/dash-bored.yaml` or automatically
-link the new dashboard into it. Each positional name adds another directory
-level, so `dash-bored init arvid cicd` creates `.dash-bored/arvid/cicd/`.
-Safe slash-separated names such as `dash-bored init people/arvid` remain
-supported; every leaf is a complete bundle.
-
-Agents check or inspect a dashboard with:
-
-```sh
-dash-bored validate .
-dash-bored validate . --json
-dash-bored inspect .
-```
-
-`validate` exits non-zero when it finds errors. Its text diagnostics include the
-file, configuration path, code, and message; `--json` retains the structured fields.
-`inspect` emits JSON containing
-the resolved tree, requested permissions, diagnostics, and a `componentCatalog`
-for every core component and discovered local component. Each catalog manifest is the
-machine-readable contract for its rendering mode, JSON Schema props, children
-contract, and required permissions. Agents use this version-matched catalog instead of guessing from
-examples; invalid local components remain in the catalog with diagnostics.
-`inspect --summary` also lists effective `promptTemplates`, including their
-description, scope, input policy, variable declarations, and built-in status.
-The palette's **Send prompt to agent** lets you choose one from the focused
-panel's owning bundle before reviewing the request and its variables in the
-composer. Sending still requires an explicit **Send**.
-
-`validate` and `inspect` accept a project root, a standalone bundle directory,
-or the path to its `dash-bored.yaml`. `app open` accepts the same three forms
-and asks the running app to render exactly the bundle selected by the path:
-
-```sh
-dash-bored app open ./.dash-bored/arvid
-# equivalent:
-dash-bored app open ./.dash-bored/arvid/dash-bored.yaml
-```
-
-The app receives the selected config path separately from the project root, so
-opening a named bundle does not fall back to the canonical dashboard. `init`
-uses `--project <path>` to select another project root because its positional
-argument is the optional bundle name.
-Running the desktop app without a project presents a project chooser; selecting
-an uninitialized project creates the same root-level `.dash-bored/` structure
-before loading it. A selected folder containing a nested `.dash-bored/` is the
-project root, even when that folder is itself named `.dash-bored`. The same
-**Add dashboard** chooser
-also opens standalone bundles: select a directory containing
-`dash-bored.yaml`, and that bundle is rendered directly without merging it into
-the canonical dashboard. A selected directory containing a nested
-`.dash-bored/` directory continues to open as a project root. Each selected
-config is remembered as its own sidebar entry, so the canonical dashboard and
-named bundles from the same project can be switched independently.
+Ask your agent to create a standalone named dashboard for a person or workflow
+with `dash-bored init <name>` (or `--project <path>` for another project). It
+creates a complete bundle such as `project/.dash-bored/arvid/` without editing
+or linking the main dashboard; each positional name adds a directory level, and
+explicit initialization fails if a configuration, lock, or dashboard environment
+file already exists. `validate`, `inspect`, and `app open` accept a project root,
+a standalone bundle directory, or the path to its `dash-bored.yaml`; `app open`
+renders exactly the selected bundle.
 
 ## Configure a dashboard
 
@@ -569,6 +447,7 @@ named bundles from the same project can be switched independently.
 ```yaml
 schemaVersion: 4
 name: Example project
+icon: ../assets/icon.svg   # optional sidebar icon: relative/absolute path or HTTP(S) URL
 root:
   component: "./components/external/core/group"
   children:
@@ -611,6 +490,14 @@ breadcrumbs still follow the original configured path. The selected focus
 target is local presentation state; only the optional persistence markers live
 in YAML.
 
+The sidebar icon is loaded after the project is trusted; missing or unsupported
+artwork falls back to the generic dashboard glyph. You can edit the dashboard
+name and icon from the app's dashboard editor; changes are written when you
+save the dashboard draft. The accepted configuration is written back as
+canonical YAML, so comments and hand formatting are not preserved. Adding a
+component that requests a new capability saves the configuration but returns
+the project to restricted mode until the expanded permission set is trusted.
+
 The pinned core components are:
 
 - Composition: `./components/external/core/group` for transparent tiled children and
@@ -628,7 +515,37 @@ The pinned core components are:
 
 These shipped components are examples of the public component contracts, not
 privileged types. Local components can declare the same child contracts,
-process resources, references, and permissions.
+process resources, references, and permissions. Agents read each component's
+props schema from `inspect --component <reference>`; the skill's
+[builtins reference](./skills/dash-bored/references/builtins.md) is generated
+from the same manifests.
+
+### Show output from a project source
+
+Views such as Markdown, status, list, and chart can display JSON or text from a
+bounded project source. A small project script owns any domain-specific
+processing:
+
+```yaml
+component: "./components/external/core/markdown"
+props:
+  title: Project summary
+  source:
+    shell: bun run scripts/dashboard-summary.ts   # your project's script
+    cwd: .
+    timeoutMs: 5000
+    every: 30000
+```
+
+Use one of `shell`, `file`, `http`, `process`, or `inline` in `source`. HTTP
+sources use absolute HTTP(S) URLs. Process sources name a supervised command
+node by ID. Omitting `every` runs the source on mount and on manual refresh;
+process snapshots update when the supervised process changes. Polling pauses
+while the view is hidden. Each source kind requests only its needed capability:
+shell execution, file read, HTTP, or process observation. The app bounds source
+timeouts and output, and shows a stale last value when a refresh fails.
+
+### Core component behavior
 
 `./components/external/core/button` accepts one `name`/`action` pair or a compact `items`
 array. Item actions use the same executor as the command palette, including
@@ -657,11 +574,10 @@ validation remain separate outcomes.
 Action references name nodes by their explicit stable ID, so moving a node does
 not change the button. The editor's target picker assigns an ID when needed.
 Stable forms include `app:reload`, `focus:<node-id>`, `process:<node-id>`, and
-`component:<node-id>:<local-action-id>`. Schema-v3 dashboards still resolve
-legacy positional references and show a deprecation warning; the v4 migration
-will replace that transitional support with ID-only validation. A valid action
-that is currently unmounted remains valid and renders as a disabled button with
-its reason.
+`component:<node-id>:<local-action-id>`. Legacy positional references still
+load: the app rewrites them to node IDs and shows a deprecation warning. A
+valid action that is currently unmounted remains valid and renders as a
+disabled button with its reason.
 
 `./components/external/core/markdown` accepts either inline `content` or a project-relative
 `path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes
@@ -703,8 +619,23 @@ without being closed first.
 For editable YAML todos, set `todos` instead of `source` on the same list atom.
 Each todo needs a stable `id`, `description`, `done`, and `tags`; the editor
 keeps add, remove, toggle, and inline edits within the dashboard draft's
-Save/Cancel boundary. `itemActions` work in either mode. The older
-`./components/external/core/todo-list` reference remains available for schema-v3 dashboards.
+Save/Cancel boundary. `itemActions` work in either mode, and an agent action
+can use `prompt: "${item.description}"` without changing todo completion
+state. The older `./components/external/core/todo-list` reference stores the
+same `todos` array and remains available for existing dashboards.
+
+`./components/external/core/command` is a user-controlled terminal. It never starts
+automatically: **Open terminal** creates its persistent PTY-backed shell and
+the configured YAML `command` is its remembered quick action. Use the command
+button to run that action again, or type directly into the terminal to run
+consecutive commands; **Close terminal** ends the shell and its process tree.
+Each quick-action run reports its own result: the command shows `running`
+and then its exit code, and a status view or button bound to the command
+follows that run rather than the open terminal. When a run finishes, the
+terminal returns to a fresh interactive shell, and the command, its palette
+action, and item actions can run again without closing it. Commands you type
+into that shell are not runs. While one of them is still running, starting a
+run is refused so that your work is not ended.
 
 `./components/external/core/group` is an ordinary transparent component boundary with
 `renderMode: layout`: it accepts the core-tiled child surface and projects
@@ -720,26 +651,13 @@ and selection for nested panels. The component library's **Switchable panels**
 pattern inserts two starter panels and a tab bar with stable ID references.
 
 Core-owned horizontal split branches use a drag and keyboard separator while
-retaining a checked-in default:
-
-```yaml
-children:
-  axis: horizontal
-  first:
-    node: ...
-  second:
-    node: ...
-  ratio: 0.4
-```
-
-Normal horizontal split drags are a resettable per-user override. Opening the
-component-library flyout is read-only; the first composition change starts a
-draft. The same separator then changes the draft `ratio`, which becomes the
-project default only after Save. Arrow keys resize by small steps, Shift-arrow
-uses a larger step, Home/End move to the allowed extremes, and Enter or
-double-click resets. Narrow horizontal split containers stack automatically.
-Vertical branches remain intrinsic-height document flow and never add a nested
-pane scrollbar.
+retaining a checked-in default `ratio`. Normal drags are a resettable per-user
+override; once a composition draft is open, the same separator changes the
+draft `ratio`, which becomes the project default only after Save. Arrow keys
+resize by small steps, Shift-arrow uses a larger step, Home/End move to the
+allowed extremes, and Enter or double-click resets. Narrow horizontal split
+containers stack automatically. Vertical branches remain intrinsic-height
+document flow and never add a nested pane scrollbar.
 
 Visible component surfaces start at their full intrinsic height. Their bottom
 edge can be dragged upward, or adjusted with Arrow Up/Down, to set a smaller
@@ -755,24 +673,14 @@ project trust because the component requests both `filesystem:read` and
 `filesystem:write`; comments, blank lines, and unrecognized lines remain in
 place when editing through the key-value view.
 
-A status can continue to use a hand-written `state`, or read a bounded source
-that emits `{ state: unknown | healthy | warning | error, detail? }`. A source
-that observes a supervised process derives the state from its phase and exit
-code. Both forms keep schema-v3 dashboards readable while migration is in
-progress.
-
-`./components/external/core/todo-list` stores its `todos` array directly in the component's
-dashboard YAML props. Items have stable `id` strings, descriptions, boolean
-completion state, and tags. Legacy items receive IDs when the user next edits
-the list; add, remove, toggle, and inline edits use the normal dashboard draft
-Save/Cancel boundary. `itemActions` use the same whole-value item templates and
-per-item feedback as source lists; an agent action can use
-`prompt: "${item.description}"` without changing todo completion state.
+A status can use a hand-written `state`, or read a bounded source that emits
+`{ state: unknown | healthy | warning | error, detail? }`. A source that
+observes a supervised process derives the state from its phase and exit code.
 
 Charts use a shared `{ labels, series }` model. `./components/external/core/chart` renders
 static line or bar data from YAML or reads the same shape from a bounded source
 (shell, file, HTTP, supervised process, or inline). Source shape errors are
-shown on the chart. The schema-v3 `./components/external/core/live-chart` form remains
+shown on the chart. The older `./components/external/core/live-chart` form remains
 compatible with HTTP endpoint dashboards and delegates polling and rendering to
 the shared chart source view. Its endpoint may be absolute HTTP(S) or an
 app-relative path such as `/metrics/chart.json`; it also supports an optional
@@ -789,8 +697,8 @@ the starter's agent-skill installers.
 
 Named and main configs are standalone bundles. They do not inherit from one
 another or share their lock file, environment file, or local `components/`
-directory. To present
-one inside another, use the target bundle path as a component reference:
+directory. To present one inside another, use the target bundle path as a
+component reference:
 
 ```yaml
 id: arvid-dashboard
@@ -914,10 +822,7 @@ Trash. Source files elsewhere in the project are never removed. Removing the
 active dashboard unloads its watcher, supervised processes, and trust state;
 the next remembered dashboard is selected automatically when one exists.
 
-The accepted configuration is written back as canonical YAML, so comments and
-hand formatting are not preserved. Adding a component that requests a new
-capability saves the configuration but returns the project to restricted mode
-until the expanded permission set is trusted.
+## Command palette, settings, and shortcuts
 
 Press <kbd>Command-K</kbd> on macOS or <kbd>Ctrl-K</kbd> elsewhere to open the
 command palette. It searches application controls, component navigation in the
@@ -930,6 +835,7 @@ press <kbd>Esc</kbd> or <kbd>Backspace</kbd> in the empty box to step back.
 Manifest-declared actions also stay searchable in the palette and listed in
 Settings while their component is collapsed or hidden; they show why they cannot
 run until mounted.
+
 Choose **Switch dashboard** in the palette to open another registered dashboard;
 searching its name lists it as a **Switch dashboard** option. Other dashboards remain reachable
 from the sidebar. With the palette closed, hold <kbd>Command</kbd> to show
@@ -941,12 +847,12 @@ sidebar expansion. From Settings, that gesture returns to the dashboard.
 Switching with an unsaved dashboard draft offers **Keep editing**, **Save dashboard**,
 and **Discard changes**. Saving writes the validated draft first, then completes
 the requested navigation; a rejected save keeps the draft open.
-Hold <kbd>Command</kbd>
-while pressing <kbd>Enter</kbd> or clicking an action to run it and keep the
-palette open. This also works through component choices and confirmations.
-Search clears by default; turn off **Clear search when keeping the palette
-open** in **Settings → General** to keep it. Plain Enter or a click closes the
-palette after running the action.
+
+Hold <kbd>Command</kbd> while pressing <kbd>Enter</kbd> or clicking an action
+to run it and keep the palette open. This also works through component choices
+and confirmations. Search clears by default; turn off **Clear search when
+keeping the palette open** in **Settings → General** to keep it. Plain Enter or
+a click closes the palette after running the action.
 Actions you run from the palette appear under **Recent** at the top, newest
 first, together with the option you picked (for example **Focus component ›
 Backlog**), so pressing <kbd>Enter</kbd> right after opening the palette repeats
@@ -954,7 +860,10 @@ the last action. Searching filters the Recent section with the same matching as
 the other results and keeps matches above them. Each dashboard keeps its own
 history on this machine; an action or option that is not available right now
 waits until it is.
-Settings is split into **General**, **Themes**, and **Actions**. Themes contains app appearance defaults, a per-dashboard list of theme and appearance selections, and theme package management. General lets you change the
+
+Settings is split into **General**, **Themes**, and **Actions**. Themes
+contains app appearance defaults, a per-dashboard list of theme and appearance
+selections, and theme package management. General lets you change the
 palette shortcut and app behavior. Actions lists the same currently available
 palette actions: search them, assign an app-local keyboard shortcut, or mark an
 action as a favorite. You can also toggle its star directly in the palette.
@@ -980,17 +889,17 @@ Defaults (<kbd>Command</kbd> on macOS, <kbd>Ctrl</kbd> elsewhere):
 Action shortcuts do not fire while you type in a text field. Rebind or clear
 any of them under **Settings → Actions**; existing settings gain new defaults
 only where you have not bound that action or combination yourself.
-Choose <strong>Reload app</strong> there, or press <kbd>Command-Shift-R</kbd> on
-macOS (<kbd>Ctrl-Shift-R</kbd> elsewhere), to reload the app window when the
-renderer needs a fresh start. This is separate from <strong>Reload dashboard</strong>,
-which only rereads the active project's configuration.
+**Reload app** reloads the app window when the renderer needs a fresh start.
+This is separate from **Reload dashboard**, which only rereads the active
+project's configuration.
 
 ## Author a project component
 
-Create a directory below the project's component root:
+Prefer a core view fed by a small source script; write a component only when
+no core view fits. Create a directory below the project's component root:
 
 ```text
-project/..dash-bored/components/service-health/
+project/.dash-bored/components/service-health/
 ├── component.yaml
 ├── index.tsx
 └── styles.css                 # optional
@@ -1039,9 +948,9 @@ older local components that discover actions at runtime.
 organizational boundary whose height follows its descendants rather than an
 independently resizable surface.
 
-The app ships its offline authoring SDK and checker in `.dash-bored-sdk/`; no
-separate React installation is needed. Inspect the API, scaffold an authoring
-directory, set up editor types, and check sources with:
+The app ships its offline authoring SDK and checker; no separate React
+installation is needed. Inspect the API, scaffold an authoring directory, set up
+editor types, and check sources with:
 
 ```sh
 dash-bored component api [--api-version 1.0.0] [--json]
@@ -1050,39 +959,24 @@ dash-bored component setup <directory> [--tsconfig <file>]
 dash-bored component check <directory> [--source-project <tsconfig>] [--json]
 ```
 
-`component api` reports supported API targets and includes an SDK digest for
-the exact shipped SDK declaration set. `setup` installs those
-SDK files beside the chosen tsconfig, includes ambient public-module and CSS
-declarations, and maps only private SDK type aliases. Runtime imports keep their
-ordinary resolution, including Bun tests and build scripts. Setup preserves
-unrelated settings and removes earlier SDK runtime aliases only when a receipt
-identifies the installation and the alias still points at its managed file.
-`component api` points agents to the installed dash-bored skill's standalone
-authoring workflow; scaffold READMEs and their `dash-bored.sh` launcher make the
-same workflow usable without a command on PATH. `check` semantically checks
+`setup` installs the SDK declarations under `.dash-bored-sdk/` beside the
+chosen tsconfig and preserves unrelated settings. `check` semantically checks
 local TypeScript/TSX entries against the selected SDK and checks the production
-bundle. For a published JavaScript entry, it checks the declared `.d.ts` file
-against the component render interface and bundles the JavaScript artifact;
-pass `--source-project <tsconfig>` to semantically check the original TS/TSX
-publication sources too. Runtime imports may use contained relative `.ts`,
-`.tsx`, `.js`, and `.css` files. JavaScript entries must set
-`types: ./types.d.ts`. Published components include generated JavaScript
-runtime output and declarations, so source, declaration interface, and shipped
-artifact checks have distinct roles. These checks do not execute or preview the
-component. Add it to a dashboard and use the app's normal live reload and
-`app screenshot --focus <node-id>` to see it in context; there is no separate
-component preview host or command.
+bundle; for a published JavaScript entry (which must set `types: ./types.d.ts`)
+it checks the declaration against the render interface, and
+`--source-project` also checks the original TS/TSX sources. These checks do
+not execute or preview the component: add it to a dashboard and use the app's
+live reload and `app screenshot --focus <node-id>` to see it in context. The
+[component authoring reference](./skills/dash-bored/references/components.md)
+covers the SDK in depth.
 
 A manifest must declare a supported exact stable-semver `apiVersion`. Missing
 and unsupported versions fail with migration guidance before any component
-executes.
-
-The component API version is independent of dashboard `schemaVersion`. API
-1.0.0 uses SemVer: additive optional methods and types may ship in a minor
-release, with deprecation notes before removal; breaking changes require a
-major release and migration guidance.
-Capabilities can be absent: authors handle optional host members and runtime
-denials. Every privileged call checks trust and the declaring node's permissions. Component
+executes. The component API version is independent of dashboard
+`schemaVersion`. API 1.0.0 uses SemVer: additive optional methods and types may
+ship in a minor release, with deprecation notes before removal; breaking
+changes require a major release and migration guidance. Capabilities can be
+absent: authors handle optional host members and runtime denials. Component
 schema-v2 manifests require explicit migration; the app never changes pins to
 make older external components appear compatible.
 
@@ -1188,58 +1082,11 @@ and its declared capability on every host request. A reload that adds a
 requested permission requires a new trust decision; the same or a smaller
 permission set preserves the existing decision.
 
-The repository's dogfood dashboard uses `.dash-bored/scripts/package-scripts.ts`
-as a source for `./components/external/core/list`. The script reads `package.json`, detects
-its `packageManager`, and emits one stable-ID item per string-valued script.
-The list's declared Run action passes the selected name and runner to a
-`./components/external/core/command` through bounded `DASH_ITEM_*` environment variables.
-The command surface and item button show process and invocation results.
-
 Local components are trusted project code running together in one renderer,
 not a hostile-code sandbox. Their per-node permissions shape the provided API
 and prevent accidental capability use, but do not isolate local components from
 one another; sufficiently adversarial trusted code could forge another node's
 ID at the internal RPC layer. Project trust is the security boundary.
-
-Use `./components/external/core/command` for a user-controlled terminal. It never starts
-automatically: **Open terminal** creates its persistent PTY-backed shell and
-the configured YAML `command` is its remembered quick action. Use the command
-button to run that action again, or type directly into the terminal to run
-consecutive commands; **Close terminal** ends the shell and its process tree.
-Each quick-action run reports its own result: the command shows `running`
-and then its exit code, and a status view or button bound to the command
-follows that run rather than the open terminal. When a run finishes, the
-terminal returns to a fresh interactive shell, and the command, its palette
-action, and item actions can run again without closing it. Commands you type
-into that shell are not runs. While one of them is still running, starting a
-run is refused so that your work is not ended.
-
-## Current boundaries
-
-The developer build supports one project per window and local components only.
-It does not yet include external package resolution, a component marketplace,
-file editing, multi-project windows, or custom AI infrastructure. Those
-omissions are intentional until the core runtime is proven.
-
-## Release onboarding evaluation
-
-Use the opt-in [Docker release QA and macOS checklist](docs/release-qa.md)
-to check fresh installation, existing-user tool updates, and repeated
-Codex/luna dashboard-building runs with saved logs and review evidence.
-Run `bun run qa:release --help` for options; this is separate from ordinary QA.
-
-Pristine v0.2.2 and v0.2.3 agent skills are recognized by the complete historical file-hash
-set and upgraded automatically. Customized or unrecognized legacy skills still
-require moving the old skill directory aside and reinstalling; preserve those
-files for comparison. This does not migrate schema-v1 dashboards. Keep their
-`dash-bored/` directory intact, initialize a new schema-v3 bundle with
-`dash-bored init .`, and ask your agent to recreate the required workflows in
-`.dash-bored/` using the old dashboard as read-only reference. Review and validate
-the new bundle before retiring the original.
-
-For bounded agent discovery, use `dash-bored inspect . --summary` followed by
-`dash-bored inspect . --component ./components/external/core/command` (or another exact catalog
-reference). Full `inspect` output remains available when the entire tree is needed.
 
 ## UI themes
 
@@ -1252,13 +1099,12 @@ change the active dashboard, or enter the dashboard editor. **Set default theme*
 and **Set dashboard theme** in the command palette guide the same selections.
 Linked dashboards and component focus do not change the window theme.
 
-The development dashboard uses `Ocean`, with calm blue navigation accents and
-separate semantic health colors. Its Overview shows live health, backlog
-completion as a meter, a 14-day commit trend, and the first five open work
-items (bugs first); **Show in backlog** opens Work and focuses that todo. Work
-contains the full editable backlog and check terminals. `Retro Industrial` remains available
-as an optional warm theme. Both are regular data-only theme packages that can
-be copied as a starting point for another project.
+Two themes ship with the app and need no installation: `builtin:default`
+(calm blue) and `builtin:neon-dusk` (synthwave plum with a hot-magenta accent).
+Missing themes show a diagnostic and fall back to your app default, then
+`builtin:default`. Existing settings keep Dark until you choose another mode.
+This repository's `.dash-bored/themes/` holds two example packages, `ocean` and
+`retro-industrial`, that can be copied as a starting point.
 
 Ask your agent to create a local theme; it runs:
 
@@ -1293,18 +1139,15 @@ to that exact dashboard bundle (or the personal store). Local authored themes
 remain editable files. A theme repository has `theme.yaml` at its root. Agents
 can run the same operations with the agent tool's `theme` command.
 
-The project installation becomes `./themes/external/ocean`; commit its gitlink,
-`.gitmodules`, and `dash-bored-lock.yaml`. A fresh clone uses Sync to
-restore the exact pinned revision. Personal installation becomes `global:ocean`
-and lives under `~/.config/dash-bored/themes`. Git is required for installations; project installs work in Git projects and
-plain directories. Updates are always
+A project installation becomes `./themes/external/ocean`, a checkout that
+dash-bored owns; commit the bundle's `dash-bored-lock.yaml`, and a fresh clone
+restores the exact pin when the bundle opens (or with Sync). Personal
+installation becomes `global:ocean` and lives under
+`~/.config/dash-bored/themes`. Git is required for installations; project
+installs work in Git projects and plain directories. Updates are always
 explicit and refuse local changes. Installation does not select a theme.
-Two themes ship with the app and need no installation: `builtin:default`
-(calm blue) and `builtin:neon-dusk` (synthwave plum with a hot-magenta accent).
-Missing themes show a diagnostic and fall back to your app default, then
-`builtin:default`. Existing settings keep Dark until you choose another mode.
 
-### App updates and dashboard migrations
+## App updates and dashboard migrations
 
 Open **Application Settings → Updates**. The surface remains available when a
 dashboard cannot load. It shows one state at a time: you're up to date, an
@@ -1325,27 +1168,48 @@ The app offers **Restart and install** using verified native update artifacts,
 plus **Use the installer instead** (or **Open installer** where native
 updates are unavailable) as the DMG fallback. Save or cancel drafts and
 finish running terminals/agents first. With the DMG fallback, quit the
-app, replace it, then restart. The
-first updater-capable release requires manual installation. Unsigned macOS
-builds retain the normal Privacy & Security → Open Anyway flow. Native replacement and relaunch passed an isolated two-version macOS test;
-downloaded-DMG Gatekeeper approval remains a separate manual check.
+app, replace it, then restart. The first updater-capable release requires
+manual installation. Unsigned macOS builds retain the normal Privacy &
+Security → Open Anyway flow.
 
 Agents read applicable bundled guidance with the agent tool's
-`migrate inspect <dashboard>`.
-The bundled v2-to-v3 recipe removes redundant topology wrappers and vertical
-ratios while preserving component content, edge metadata, and binary grouping.
-Component manifests use schema version 3 and a supported `apiVersion`. Schema
-version 1, version 2 without explicit migration, and unknown schemas are
-unsupported.
-App-driven migration agents receive the target agent tool, diagnostics,
-cumulative recipes, and a read-only skill handoff. Existing customized skills are preserved. Migration requires the
+`migrate inspect <dashboard>`. The bundled recipes take a dashboard from
+contract 2 to the current contract 4: v2-to-v3 removes redundant topology
+wrappers and vertical ratios, and v3-to-v4 points the standard components at
+the pinned core package. Component manifests use schema version 3 and a
+supported `apiVersion`. Schema version 1, manifest version 2 without explicit
+migration, and unknown schemas are unsupported. App-driven migration agents
+receive the target agent tool, diagnostics, cumulative recipes, and a read-only
+skill handoff. Existing customized skills are preserved. Migration requires the
 existing project trust decision; new permissions require review in the app.
 
 **Cancel continuation** cancels pending migrations. If an operation was
 interrupted, the Updates surface's recovery action releases its lock only after
-the owner exits. Review
-reported snapshots and edits before explicitly retrying migrations; interrupted
-work never runs again just because the app restarted. Snapshot and receipt paths
-are under `~/.config/dash-bored/updates/`. To restore, first preserve current
-edits, then copy the desired files from the reported snapshot. Failed dashboard
-migrations are reported separately from a successful app installation.
+the owner exits. Review reported snapshots and edits before explicitly retrying
+migrations; interrupted work never runs again just because the app restarted.
+Snapshot and receipt paths are under `~/.config/dash-bored/updates/`. To
+restore, first preserve current edits, then copy the desired files from the
+reported snapshot. Failed dashboard migrations are reported separately from a
+successful app installation.
+
+Pristine v0.2.2 and v0.2.3 agent skills are recognized by their complete
+historical file-hash set and upgraded automatically. Customized or unrecognized
+legacy skills still require moving the old skill directory aside and
+reinstalling. This does not migrate schema-v1 dashboards: keep their
+`dash-bored/` directory intact, initialize a new bundle with
+`dash-bored init .`, and ask your agent to recreate the required workflows in
+`.dash-bored/` using the old dashboard as read-only reference.
+
+## Current boundaries
+
+The app shows one active project per window. It deliberately does not include
+npm, registry, or marketplace component resolution; general project-file
+editing or a general process viewer; signing, notarization, or Linux, Windows,
+and Intel Mac builds; model-provider keys or custom AI infrastructure; or
+isolation claims for trusted local components. [Distribution and
+exclusions](./docs/architecture/distribution.md#deliberate-exclusions) keeps the
+authoritative list.
+
+## License
+
+[MIT](./LICENSE)

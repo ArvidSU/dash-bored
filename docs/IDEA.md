@@ -51,7 +51,10 @@ trust; the application does not carry a second core component registry.
 dash-bored sits deliberately between two failure modes. It must not reinvent
 the browser: no general layout engine, styling system, expression language, or
 application framework. It must not become a use-case-specific dashboard either:
-no Docker, git, npm, or CI knowledge in the app. Diversity comes from a small
+no Docker, git, npm, or CI knowledge in the app's panels; a project brings
+those through its own scripts and sources. The app's own plumbing (Git-pinned
+component and theme packages, package-runner agent installs) is
+infrastructure, not a dashboard feature. Diversity comes from a small
 set of well-executed atoms that an agent can combine with a little YAML through
 the app's contracts.
 

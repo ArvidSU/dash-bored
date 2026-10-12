@@ -69,7 +69,7 @@ ask before acting, and because it runs with the untrusted project as its
 working directory, the agent's own configuration there (for example
 `.claude/settings.json` hooks or `.gemini/settings.json` MCP servers) may run
 code before any permission request (see
-[Agents](./agents.md#untrusted-repair-policy)). Validation when the turn ends
+[Agents](./acp-client.md#untrusted-repair-policy)). Validation when the turn ends
 reports the trust review the fix now needs and never launches the automatic
 repair while the project is untrusted. The repair grants nothing: component
 code, commands, and configured processes stay withheld, and the ordinary trust
@@ -204,7 +204,7 @@ Capability behavior is bounded:
   process secrets.
 - Agent work reads no Git state and shows no file diffs. ACP diff content is
   reduced to touched paths with added/removed line counts, and its text is
-  discarded (see [Agents](./agents.md#no-diffs)).
+  discarded (see [Agents](./acp-client.md#no-diffs)).
 - Capability requests from untrusted projects, undeclared components, unknown
   nodes, or escaped paths fail with a permission or validation diagnostic.
 
@@ -343,7 +343,7 @@ terminals. Each ACP agent runs in its own process group through `/bin/sh -c`
 the whole group is stopped on close, trust revocation, project removal, and app
 exit. Everything the agent supplies is bounded before it reaches the renderer:
 1 MiB of transcript text, capped lists, and cut paths and labels (see
-[Agents](./agents.md#transcript-reduction)). Unchanged
+[Agents](./acp-client.md#transcript-reduction)). Unchanged
 command nodes keep their terminal across a hot reload, while removed or
 materially changed command nodes are stopped. Trust revocation and application
 exit terminate the terminal and its process tree.

@@ -82,7 +82,7 @@ The starter `.env` is created with owner-only permissions for project-local
 component and command variables. It documents the optional `DASH_BORED_AGENT`
 (an ACP agent launch command) as a commented example; when neither it nor the
 app setting is set, agent work uses the first detected known agent (see
-[Agents](./agents.md#choosing-the-agent)). Prompts reach the agent over ACP,
+[Agents](./acp-client.md#choosing-the-agent)). Prompts reach the agent over ACP,
 never through the environment. `DASH_BORED_AGENT`
 is also app-wide: the main process persists its application setting in the
 Electrobun user-data directory, publishes it to dashboard command environments,
@@ -197,7 +197,8 @@ with `axis`, `first`, and `second`. Horizontal `ratio` is optional and defaults
 to `0.5`; vertical topology uses document flow and rejects `ratio`. A managed
 child boundary contains an array of child edges. The manifest still declares
 which presentation it accepts, and validation checks the configured shape
-against that declaration. Component manifests keep schema version 2.
+against that declaration. Component manifests use schema version 3 (see
+[Component system](./components.md)).
 Manifest reference declarations accept `resource: process` for provider-node
 IDs and `resource: action` for stable action references. A declaration's key
 is a prop path where `*` matches every array item: `items.*.action` names the
@@ -205,10 +206,9 @@ is a prop path where `*` matches every array item: `items.*.action` names the
 itself a reference. Validation, linked-tree remapping, and legacy migration all
 walk these paths through `referenceLocations` in `src/core/tree-links.ts`. Action references use
 explicit node IDs (`focus:<node-id>`, `process:<node-id>`, or
-`component:<node-id>:<action-id>`), never a tree position. Schema-v3 dashboards
-temporarily resolve legacy `${root...}` references and report a deprecation
-warning (see [Legacy migrations](#legacy-migrations)); the v4 migration will
-rewrite them and remove that compatibility.
+`component:<node-id>:<action-id>`), never a tree position. Legacy positional
+`${root...}` references still load: every load rewrites them to node IDs and
+reports a deprecation warning (see [Legacy migrations](#legacy-migrations)).
 Resolution is scoped to the owning YAML bundle, then linked-tree namespacing
 remaps the node-bearing segment of focus, process, and component-action IDs.
 
@@ -497,8 +497,8 @@ Bundle-local packages and the optional `themes` lock section follow the [theme c
 ### Legacy migrations
 
 Every rewrite of state written by an earlier release lives in
-`src/migrations/`, one file per legacy form, and each file is scheduled for
-deletion at dashboard schema v4. The directory is layer-neutral: files depend
+`src/migrations/`, one file per legacy form. Contract 4 shipped without
+retiring them; their removal is tracked by yaml-todo `todo-retire-legacy-migrations`. The directory is layer-neutral: files depend
 only on `shared/`, `core/`, and Node, so core, main, the agent tool, and the
 renderer call the same owner instead of carrying their own copies.
 

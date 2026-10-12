@@ -68,7 +68,7 @@ The following are not part of this architecture yet:
 - simultaneously active multi-project views or windows
 - global or binary-archive agent installation, ACP registry downloads, model-provider keys or
   infrastructure, MCP-server injection into agent sessions, and agent-specific
-  code paths. The app is an ACP client (see [Agents](./agents.md)); the agent
+  code paths. The app is an ACP client (see [Agents](./acp-client.md)); the agent
   setup may configure an explicitly enabled package runner to download on first use.
 - claims of hostile-code or per-component isolation for trusted local components
 
@@ -134,11 +134,13 @@ available if native preparation or replacement fails.
 
 ## Migration and agent verification
 
-The current dashboard contract is 3, with minimum migratable contract 2.
-The embedded v2-to-v3 recipe removes topology wrappers and redundant ratios,
-preserving component nodes, edge metadata, binary grouping, and explicit
-horizontal widths. Component manifests remain at version 2. Subsequent
-contract changes must update the embedded cumulative recipes and minimum
+The current dashboard contract is 4, with minimum migratable contract 2
+(`src/updates/releases.ts`). The embedded v2-to-v3 recipe removes topology
+wrappers and redundant ratios, preserving component nodes, edge metadata,
+binary grouping, and explicit horizontal widths. The v3-to-v4 recipe points
+the standard components at the pinned core package and adds its lock pin.
+Dashboard recipes never convert component manifests (now schema version 3).
+Subsequent contract changes must update the embedded cumulative recipes and minimum
 supported contract together with the actual schema implementation.
 Unknown/older unsupported schemas stay diagnosable even when the dashboard
 cannot load. Migration dispatch requires the target executable and its exact
@@ -154,7 +156,7 @@ with local compilation when an agent turn ends, permits at most one corrective
 follow-up in the same ACP session after a turn that ended cleanly with
 repairable errors, and stops for cancellation, other stop reasons, failed
 sessions, missing tools, session changes or new permissions (see
-[Agents](./agents.md#validation-and-repair)). Migrations
+[Agents](./acp-client.md#validation-and-repair)). Migrations
 preserve snapshot paths even if execution fails. Restoration is an explicit
 review-and-copy workflow; the application never overwrites a user's current
 bundle automatically.

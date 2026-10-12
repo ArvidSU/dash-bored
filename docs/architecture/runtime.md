@@ -21,6 +21,10 @@ The implementation deliberately has three boundaries:
 3. The React renderer owns presentation and can reach privileged behavior only
    through typed Electrobun RPC.
 
+Renderer code stays Node-free. Helpers shared with the main process or the
+agent tool live in `src/shared/`, and any migration leaf the renderer imports
+(such as `src/migrations/action-target.ts`) must be Node-free too.
+
 `ProjectRuntime` owns dashboard source reachability, draft resolution and
 validation, revision checks, and atomic saving within its operation queue.
 `validateDashboardDraft` returns the resolved draft tree and trusted compiled
@@ -58,7 +62,7 @@ pnpm, and npm locations). It does not read or evaluate login-shell files. A
 nonstandard agent installation remains an explicit absolute command in
 application settings. Agent processes start through `/bin/sh` with `ENV` and
 `BASH_ENV` cleared so shell startup hooks cannot replace the preflighted
-environment between validation and execution (see [Agents](./agents.md)).
+environment between validation and execution (see [Agents](./acp-client.md)).
 The tool is not added to PATH. Main sets `DASH_BORED_TOOL` to the absolute
 bundled tool path and `DASH_BORED_APP_INSTANCE` to the app identifier, so
 dashboard commands and launched agents inherit both. The canary release instance also
@@ -101,7 +105,7 @@ Electrobun Bun main process
   - compile trusted local TSX with Bun.build()
   - enforce trust and component permissions
   - own subprocesses, file access, and HTTP requests
-  - persist app settings and run ACP agent sessions (see agents.md)
+  - persist app settings and run ACP agent sessions (see acp-client.md)
   - serve the per-instance agent-control channel
           |
           | typed request/response and snapshot RPC
@@ -201,7 +205,7 @@ creation, diagnostics, setup), and `setTrust`.
 
 - `dashboard-rpc.ts`: the renderer's request handlers.
 - `agent-launch.ts` and `agent-sessions.ts`: every agent start and the ACP
-  sessions behind Agent work (see [Agents](./agents.md)).
+  sessions behind Agent work (see [Agents](./acp-client.md)).
 - `update-wiring.ts`: the update coordinator, the busy-work guard, and the
   release-only continuation.
 - `app-themes.ts`: the app-level theme catalog and the personal theme watcher.

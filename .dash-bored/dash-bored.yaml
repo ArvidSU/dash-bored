@@ -569,7 +569,7 @@ root:
                             tags:
                               - feature
                           - id: todo-acp-plan-capability
-                            description: "Show ACP markdown and file plans (plan_update), then advertise the unstable ACP `plan` client capability; today only item plans are shown, so the capability stays off (docs/architecture/agents.md#handshake-and-sign-in)."
+                            description: "Show ACP markdown and file plans (plan_update), then advertise the unstable ACP `plan` client capability; today only item plans are shown, so the capability stays off (docs/architecture/acp-client.md#handshake-and-sign-in)."
                             done: false
                             tags:
                               - acp
@@ -643,6 +643,61 @@ root:
                             done: false
                             tags:
                               - renderer
+                          - id: todo-ci-main-green
+                            description: "Make main's CI green again; it has failed on every push since 2026-10-07. The latest runs fail in tests/renderer/production-components.test.ts, whose 30 s beforeAll (production Vite build, vite preview, Chrome launch) times out on the macos-15 runner although it takes ~4 s locally; earlier runs also failed in tests/cli/component-authoring.test.ts. Reproduce the serial order with `CI=true bun run test`, then fix the cause or give the build hook a CI-sized budget."
+                            done: false
+                            tags:
+                              - qa
+                              - tests
+                          - id: todo-ui-suite-fresh-pages
+                            description: "Stop one ui-interaction timeout from cascading: the suite shares one page across 77 tests, and past QA runs turned a single timeout into 36-58 follow-on failures. Give mutating tests a fresh page or reset shared state in afterEach."
+                            done: false
+                            tags:
+                              - tests
+                              - qa
+                          - id: todo-retire-legacy-migrations
+                            description: "Decide when to delete the legacy migrations in src/migrations/ (action-references, app-theme-reference, skill-payloads, cli-link). Their headers said 'delete at dashboard schema v4', but contract 4 shipped without retiring them; positional action references also need the contract migration planned in atoms WP9."
+                            done: false
+                            tags:
+                              - chore
+                              - migrations
+                          - id: todo-app-run-noop-focus
+                            description: "`app run focus:<id>` exits 1 when the node is already focused (the action is disabled), which breaks `&&` chains in agent scripts. Report a no-op focus as success, or return a distinct documented result."
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-app-run-raw-ids
+                            description: "`app run` action references need percent-encoded node IDs (for example `%3A%3A` for linked-tree `::` segments), while `app screenshot --focus` encodes raw IDs itself. Accept raw node IDs in `app run` references too, or say so in `app actions` output."
+                            done: false
+                            tags:
+                              - agent-tools
+                          - id: todo-dev-ready-wait
+                            description: "Add a readiness signal for the dev app, such as `dev:start --wait` and `dev:restart --wait` that return once the control socket answers, so agents stop hand-rolling wait loops and misreading the starting state as a failure."
+                            done: false
+                            tags:
+                              - agent-tools
+                              - tooling
+                          - id: todo-validate-speed
+                            description: "Profile `dash-bored validate .` on the project dashboard: it takes ~9 s wall and ~19 s CPU, against under 1 s for the dogfood bundle, presumably compiling local components."
+                            done: false
+                            tags:
+                              - tooling
+                          - id: todo-reload-drops-component-css
+                            description: "Core component styles disappeared from the whole dev dashboard (tab bars and Markdown headers rendered as unstyled stacked buttons) after watcher reloads caused by editing dash-bored-lock.yaml and dash-bored.yaml on 2026-10-12; Reload app restored them. Reproduce with a lock-file edit and check whether package reloads drop injected component CSS."
+                            done: false
+                            tags:
+                              - bug
+                              - renderer
+                          - id: todo-split-renderer-doc
+                            description: "Split docs/architecture/renderer.md (~960 lines, grep-only in practice) into module map, shell/palette/visuals, and agent UI pages, and move per-component behavior to the component repository's docs."
+                            done: false
+                            tags:
+                              - docs
+                          - id: todo-idea-mechanism-trim
+                            description: "Move implementation mechanism out of docs/IDEA.md (palette recents and shortcuts, flyout drafts, package and lock mechanics, update receipts, theme pins) into the architecture pages that already own it, keeping IDEA.md to product intent."
+                            done: false
+                            tags:
+                              - docs
                   second:
                     node:
                       id: checks
@@ -1386,6 +1441,8 @@ root:
                       items:
                         - name: README
                           action: select:documentation-panels/readme-markdown
+                        - name: Agent guide
+                          action: select:documentation-panels/agents-markdown
                         - name: Dashboard setup
                           action: select:documentation-panels/dashboard-readme
                         - name: Product vision
@@ -1402,7 +1459,7 @@ root:
                           action: select:documentation-panels/runtime-markdown
                         - name: Security
                           action: select:documentation-panels/security-markdown
-                        - name: Release QA
+                        - name: Releases
                           action: select:documentation-panels/onboarding-qa-guide
                 second:
                   node:
@@ -1418,6 +1475,13 @@ root:
                           component: "./components/external/core/markdown"
                           props:
                             path: README.md
+                      - metadata:
+                          label: Agent guide
+                        node:
+                          id: agents-markdown
+                          component: "./components/external/core/markdown"
+                          props:
+                            path: AGENTS.md
                       - metadata:
                           label: Dashboard setup
                         node:
@@ -1475,7 +1539,7 @@ root:
                           props:
                             path: docs/architecture/security.md
                       - metadata:
-                          label: Release QA
+                          label: Releases
                         node:
                           id: onboarding-qa-guide
                           component: "./components/external/core/markdown"

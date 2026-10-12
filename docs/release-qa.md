@@ -1,4 +1,32 @@
-# Release onboarding QA
+# Releases and release QA
+
+## Cut a release
+
+Agents prepare and verify a draft prerelease; publishing it stays an explicit
+maintainer action.
+
+1. Start from a clean `main` that matches `origin/main`.
+2. Bump `version` in `package.json`, the only shipped version source.
+3. If the core component pin changes, update all three copies together:
+   `src/shared/core-package.ts`, `.dash-bored/dash-bored-lock.yaml`, and
+   `.dash-bored/dogfood/dash-bored-lock.yaml`. Then run
+   `bun run packages:verify-published`: a pin that is only local or was
+   rewritten cannot be fetched by a fresh clone and fails the release.
+4. Run `caffeinate -is bun run qa:fast`, then `CI=true bun run test`. The hosted
+   runner sets `CI`, which runs test files serially (`scripts/test.ts`) and
+   exposes timing races that the parallel local run hides. Validate both
+   dashboards (`validate .` and `validate .dash-bored/dogfood`).
+5. Commit, push `main`, and wait for CI (`gh run watch --exit-status`).
+6. Push an annotated tag `v<version>` on that commit. `release.yml` repeats the
+   QA, builds and verifies the unsigned DMG, and creates a draft prerelease;
+   `release:prepare` refuses a tag that does not exactly match `package.json`.
+7. When a hosted run fails, read `gh run view <run> --log-failed`, reproduce the
+   failure locally, and fix it on `main` before moving the tag. Never retry
+   blind, and only move a tag while no GitHub Release exists for it.
+8. Check that the draft has the DMG, app archive, update metadata,
+   `MIGRATIONS.md`, and `SHA256SUMS.txt`, and leave it as a draft.
+
+## Release onboarding QA
 
 Run this suite for a release candidate, separately from per-change QA. It uses
 Docker to test the Linux build of the version-matched embedded agent tool and
@@ -6,21 +34,21 @@ skill,
 then evaluates an external agent against a small, fixed service project.
 It does not install the macOS application or prove native onboarding behavior.
 
-## Run
+### Run
 
 Requires Docker, Python 3, Git, and committed candidate/baseline revisions.
 The host checkout and home are never mounted into the test containers.
 
 ```sh
 # Install/update correctness without model calls
-bun run qa:release --previous v0.2.2 --candidate HEAD
+bun run qa:release --previous <previous-tag> --candidate HEAD
 
 # Live Codex benchmark: CLI 0.153.3, gpt-5.6-luna, JSONL events
 # Supply CODEX_API_KEY (or OPENAI_API_KEY) in the invoking environment.
-bun run qa:release --previous v0.2.2 --candidate HEAD --live-codex --repeats 3
+bun run qa:release --previous <previous-tag> --candidate HEAD --live-codex --repeats 3
 
 # Or reuse an existing ChatGPT Codex login (single read-only auth file)
-bun run qa:release --previous v0.2.2 --live-codex --codex-auth-file ~/.codex/auth.json
+bun run qa:release --previous <previous-tag> --live-codex --codex-auth-file ~/.codex/auth.json
 
 # Harness-only smoke, explicitly not a version-upgrade result
 bun run qa:release --previous HEAD --candidate HEAD --allow-same-version
@@ -58,13 +86,14 @@ that existing project data was preserved, records old-dashboard compatibility se
 refreshed tools, then initializes a separate new project and runs the same agent.
 It exercises app-startup tool refresh, not the app replacement itself.
 
-The agent receives the candidate's actual `starterAgentPrompt` in
-`DASH_BORED_AGENT_PROMPT` and runs directly as
-`/bin/sh -lc '<agent> "$DASH_BORED_AGENT_PROMPT"'`. This is a headless
-benchmark of the initial attempt: the desktop ACP session, trust prompts, reload,
-and the setup supervisor's bounded repair remain native checklist items.
+The harness (not the app) passes the candidate's actual `starterAgentPrompt`
+to the agent in `DASH_BORED_AGENT_PROMPT` and runs it directly as
+`/bin/sh -lc '<agent> "$DASH_BORED_AGENT_PROMPT"'`. The app itself only talks
+to agents over ACP, which this headless benchmark of the initial attempt does
+not exercise: the desktop ACP session, trust prompts, reload, and the setup
+supervisor's bounded repair remain native checklist items.
 
-## Agents and evidence
+### Agents and evidence
 
 `--live-codex` authorizes paid calls on each scenario that passes installation.
 It installs a pinned provider CLI into the image and passes only the API key
@@ -103,7 +132,7 @@ and unnecessary work. Record concrete issues and reproduction steps. Compare
 like-for-like repeated runs; a single tiny fixture is not representative of all
 projects, and timing includes model/network variability.
 
-## macOS release checklist
+### macOS release checklist
 
 Use disposable macOS accounts or VM snapshots on supported Apple Silicon hardware.
 Record the release tag, DMG checksum, OS version, screenshots and command logs.
@@ -128,22 +157,23 @@ Record the release tag, DMG checksum, OS version, screenshots and command logs.
 7. Initialize a new fixture project after updating and repeat the agent workflow.
    Record visual usefulness and failures independently from Docker results.
 
-App auto-update is currently disabled. Manual replacement is the supported update
-cycle; a green Docker run cannot establish DMG, Gatekeeper or native UI success.
+The checklist uses manual replacement; the in-app updater is covered by the
+native update acceptance below. A green Docker run cannot establish DMG,
+Gatekeeper or native UI success.
 
-### Legacy dashboard compatibility
+#### Legacy dashboard compatibility
 
 A v0.2.2 project uses schema v1 in `dash-bored/`; refreshing its tool and skills
-does not migrate that dashboard to schema v3. The compatibility check remains a
+does not migrate that dashboard to the current contract. The compatibility check remains a
 failed release gate, but the suite continues through new-project initialization
 and the agent benchmark so that old-format incompatibility cannot mask those
 results. Preserve the legacy bundle and use the README recovery workflow to
-rebuild a separate schema-v3 dashboard. Do not change the old config's version
+rebuild a separate current-schema dashboard. Do not change the old config's version
 number alone: its component and composition contracts also differ.
 
 ## Native two-version update acceptance
 
-Run `bun scripts/native-update-acceptance.ts` on Apple Silicon macOS. The opt-in
+Run `bun run qa:update:native` on Apple Silicon macOS. The opt-in
 harness copies the current source and a separate Hutch cache into a temporary
 directory, builds unsigned `99.0.1` and `99.0.2` applications with a unique test
 bundle identifier, and invokes the production native updater adapter. The old
