@@ -34,7 +34,9 @@ jobs:
         run: bun ci
 
       - name: Restore pinned dashboard packages
-        run: bun run packages:restore
+        run: |
+          bun run packages:restore
+          bun run packages:restore .dash-bored/dogfood
 
       - name: Run QA
         run: bun run qa

@@ -51,10 +51,12 @@ try {
   await run(["bun", "install", "--frozen-lockfile"]);
 
   Object.assign(process.env, await ensureDevEnvironment(root));
+  // Restore follows config links from the root only; dogfood is not linked.
   await run(["bun", "run", "packages:restore"]);
-  await run(["bun", "run", "dash-bored", "--", "validate", "."]);
-  await run(["bun", "run", "dash-bored", "--", "validate", ".dash-bored/dogfood"]);
+  await run(["bun", "run", "packages:restore", ".dash-bored/dogfood"]);
 
+  // Prepare the toolchain before validating, so a dashboard error never
+  // leaves the checkout unable to typecheck.
   if (await hutchDevelopmentFilesReady()) {
     console.log("Electrobun/Hutch development files already prepared.");
   } else if (await worktreeDevServerIsRunning()) {
@@ -65,6 +67,9 @@ try {
     console.log("Preparing Electrobun/Hutch development files…");
     await run(["bun", "run", "setup"]);
   }
+
+  await run(["bun", "run", "dash-bored", "--", "validate", "."]);
+  await run(["bun", "run", "dash-bored", "--", "validate", ".dash-bored/dogfood"]);
 
   console.log("Worktree setup complete. Run `bun run dev` to start the isolated desktop environment.");
 } catch (error) {

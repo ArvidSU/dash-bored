@@ -35,7 +35,7 @@ Usage:
   dash-bored install-skill [project] [--global] [--check]
   dash-bored validate [project] [--json]
   dash-bored inspect [project] [--summary | --component <reference>]
-  dash-bored app <status|actions|run|open|screenshot> [--instance <identifier>]
+  dash-bored app <status|actions|run|open|screenshot|processes|wait|logs|read> [--instance <identifier>]
   dash-bored theme <init|validate|list|status|add|update|remove|sync> [--global]
   dash-bored component api [--api-version <version>] [--json]
   dash-bored component init <directory>
@@ -47,6 +47,8 @@ Usage:
   dash-bored component update <name> [--to <ref>] [project]
   dash-bored component remove <name> [project]
   dash-bored component sync [project]
+  dash-bored component restore [project]
+  dash-bored component migrate-ownership [project]
   dash-bored migrate inspect <dashboard>
   dash-bored --help
   dash-bored --version`;

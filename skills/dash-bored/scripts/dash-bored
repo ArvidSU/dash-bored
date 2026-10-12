@@ -15,7 +15,8 @@ if [ -z "$tool" ] && [ -r "$HOME/.config/dash-bored/tool-path" ]; then
   tool=$(head -n 1 "$HOME/.config/dash-bored/tool-path")
 fi
 if [ -z "$tool" ] || [ ! -x "$tool" ]; then
-  for candidate in "/Applications/dash-bored.app/$bundled" "$HOME/Applications/dash-bored.app/$bundled"; do
+  for candidate in "/Applications/dash-bored.app/$bundled" "$HOME/Applications/dash-bored.app/$bundled" \
+    "/Applications/dash-bored-canary.app/$bundled" "$HOME/Applications/dash-bored-canary.app/$bundled"; do
     if [ -x "$candidate" ]; then
       tool=$candidate
       break

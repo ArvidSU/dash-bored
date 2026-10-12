@@ -1,8 +1,8 @@
 /**
- * Legacy migration, scheduled for deletion at dashboard schema v4: schema-v3
- * positional action targets (`focus:${root.children…}`). The v4 contract
- * migration rewrites them to node IDs; then this file and its call in
- * tree-resolve.ts go away.
+ * Legacy migration: positional action targets (`focus:${root.children…}`).
+ * Every load rewrites them to node IDs. Contract 4 shipped without a recipe
+ * for them, so this file stays until a contract migration rewrites them
+ * (yaml-todo `todo-retire-legacy-migrations`); then it and its call in tree-resolve.ts go away.
  */
 import type { Diagnostic, ResolvedComponentNode } from "../shared/contracts";
 import { parseSelectionActionReference } from "../shared/action-reference";

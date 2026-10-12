@@ -1,5 +1,6 @@
 /**
- * Legacy migration, scheduled for deletion at dashboard schema v4: an app
+ * Legacy migration, kept past dashboard contract 4 (yaml-todo
+ * `todo-retire-legacy-migrations`): an app
  * default theme saved as a bare `./themes/<name>` path, which meant "that
  * package in whichever dashboard is open". Main pins it to the active
  * dashboard's package when app settings are read; until then the reference

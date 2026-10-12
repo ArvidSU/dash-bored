@@ -32,8 +32,12 @@ function shellValue(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("$", "\\$").replaceAll("`", "\\`")}"`;
 }
 
+/** Fixed ports of `ui:fixture` (5488, 5489 as its documented fallback) and `native:probe` (5499). */
+const RESERVED_PORTS = new Set([5488, 5489, 5499]);
+
 async function findPort(start: number): Promise<number> {
   for (let port = start; port < start + 600; port++) {
+    if (RESERVED_PORTS.has(port)) continue;
     const available = await new Promise<boolean>((done) => {
       const server = createServer();
       server.once("error", () => done(false));

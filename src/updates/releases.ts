@@ -19,7 +19,7 @@ Recursively replace each node's children {type: managed, items: [...]} with its 
 Replace children {type: tiled, layout: ...} with its layout. In each layout, replace {type: child, child: edge} with edge, and remove type: split from split branches.
 Keep each split's axis, first, and second. Keep non-default horizontal ratios; omit horizontal ratio 0.5 (the default). Remove vertical ratios because vertical branches use document flow.
 Preserve node IDs, component references, props, edge metadata, child order, binary grouping, and top-level dashboard settings. Do not rewrite data inside props or metadata as topology.
-Set the dashboard schemaVersion to 3 after conversion. Component manifests remain schemaVersion 2; lock files and themes are unchanged. Linked dashboards are independent migration targets, not authorization to edit other bundles.
+Set the dashboard schemaVersion to 3 after conversion. This recipe does not convert component manifests; lock files and themes are unchanged. Linked dashboards are independent migration targets, not authorization to edit other bundles.
 Validate with the version-matched CLI and inspect the diff against the host snapshot.`,
   }, {
     id: "external-core-components", from: 3, to: 4,
@@ -27,7 +27,7 @@ Validate with the version-matched CLI and inspect the diff against the host snap
     instructions: `Convert only the selected dashboard from schemaVersion 3 to 4.
 Replace recognized @dash-bored/<name> component references (button, card, chart, command, conditional, env, focus-timer, group, list, live-chart, markdown, selection, setup-agent, status, tabs, todo-list, webview) with ./components/external/core/<name>, preserving IDs, props, metadata, topology and action references. Do not rewrite strings inside props as component references.
 Add the release-owned core package URL, exact commit and path to the bundle lock, preserving all other pins. Use components.core: {url: "${CORE_PACKAGE.url}", commit: "${CORE_PACKAGE.commit}", path: "${CORE_PACKAGE.path}"}. Restore missing pins with component restore.
-Set schemaVersion to 4. Component manifests remain schemaVersion 2 and lock files remain version 1. Linked dashboards are independent targets. Package ownership migration is a separate explicit operation; never remove parent-owned gitlinks as part of this recipe.
+Set schemaVersion to 4. This recipe does not convert component manifests, and lock files remain version 1. Linked dashboards are independent targets. Package ownership migration is a separate explicit operation; never remove parent-owned gitlinks as part of this recipe.
 Validate with the version-matched tool.`,
   }],
 };
