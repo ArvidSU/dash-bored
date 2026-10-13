@@ -203,6 +203,11 @@ root:
                             done: false
                             tags:
                               - release
+                          - id: agent-preview-test-flake
+                            description: "Harden the renderer test 'Change with agent previews the dashboard template before sending'. On CI run 38443770552 (c2f21c7), the Full prompt preview never showed the item-7 render within 10 s after the id variable was filled. The preview is a debounced main-process render (AgentPromptPanel.tsx). On failure, report previewError and the shown prompt, as the library drag helpers in ui-interaction.test.ts do."
+                            done: false
+                            tags:
+                              - tests
                           - id: acp-binary-setup
                             description: Add app-managed installation for ACP agents distributed only as binary archives, with version and integrity verification. The Settings checklist currently enables installed binaries and downloads supported npm packages on first use.
                             done: false
