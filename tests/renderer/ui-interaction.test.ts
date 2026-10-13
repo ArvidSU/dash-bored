@@ -61,6 +61,11 @@ type LibraryDragTraceWindow = Window & { __libraryDragTrace?: string[]; __stopLi
  * - Same run, attempt 2: "dragging advertises one compatible insertion edge…"
  *   waited 10 s for the bottom drop indicator. The old test never checked that
  *   the drag had started, so this may be the same failure.
+ * - CI run 38441977932 on 95d95e4 (the helpers below, first version): the drag
+ *   started, reached the target, and dropped; the "Add component" dialog
+ *   opened. Then Enter on its submit button never produced the "Dashboard
+ *   editor" within 10 s. So the flaky step may be the submit, not the drag.
+ *   submitAddComponentWithEnter now reports why the dialog stayed open.
  * - Not reproduced locally: three runs of this file and one full suite with
  *   12-20 busy loops on a 10-core Mac all passed. A probe showed the drawer's
  *   220 ms slide-in had finished and the button's geometry was stable when the
@@ -95,6 +100,12 @@ type LibraryDragTraceWindow = Window & { __libraryDragTrace?: string[]; __stopLi
  * - "found no drop indicator": compare underPointer with the target. If the
  *   pointer is over the target, nudge it 1 px to force another hit test and
  *   record whether that helps. Otherwise, find what covers it.
+ * - "Add component stayed open": dialogText holds any apply error
+ *   (ComponentDialog's role="alert", for example a drop target that went stale
+ *   before the submit). alerts holds app notices such as "Wait for the dashboard
+ *   draft check…" from sourceIsReady() in use-composition-session.ts. If both are
+ *   empty and focus was on the submit button, the Enter key never submitted the
+ *   form.
  */
 
 /** Press a component-library entry and cross the drag threshold, or fail with evidence. */
@@ -172,6 +183,32 @@ async function moveLibraryDragToBottomEdge(active: Page, target: Locator): Promi
     throw new Error(`Library drag found no drop indicator: ${JSON.stringify({ point, measured: targetBox, ...evidence }, null, 2)}\n${String(error)}`);
   }
   return { indicator, targetBox };
+}
+
+/** Submit the open "Add component" dialog with Enter on its focused submit button, or fail with evidence. */
+async function submitAddComponentWithEnter(active: Page): Promise<void> {
+  const dialog = active.getByRole("dialog", { name: "Add component" });
+  const submit = dialog.getByRole("button", { name: "Add component", exact: true });
+  await submit.focus();
+  // EditorModal moves focus to its first field one frame after mounting; let that settle first.
+  await active.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  if (!await submit.evaluate((element) => element === document.activeElement)) await submit.focus();
+  await active.keyboard.press("Enter");
+  try {
+    await dialog.waitFor({ state: "detached", timeout: 5_000 });
+  } catch (error) {
+    const evidence = await active.evaluate(() => {
+      const describe = (node: Element | null) => node?.outerHTML.slice(0, 160) ?? "nothing";
+      const open = document.querySelector(".editor-modal__panel");
+      return {
+        dialogText: open instanceof HTMLElement ? open.innerText.slice(0, 600) : "no dialog",
+        alerts: [...document.querySelectorAll("[role='alert']")].map((node) => (node as HTMLElement).innerText.slice(0, 200)),
+        activeElement: describe(document.activeElement),
+        focused: document.hasFocus(),
+      };
+    });
+    throw new Error(`Add component stayed open after Enter: ${JSON.stringify(evidence, null, 2)}\n${String(error)}`);
+  }
 }
 
 async function persistedGroupCount(active: Page = currentPage()): Promise<number> {
@@ -1969,8 +2006,7 @@ describe("renderer fixture interactions", () => {
     await moveLibraryDragToBottomEdge(active, target);
     await active.mouse.up();
 
-    await active.getByRole("heading", { name: "Add component" }).waitFor();
-    await active.getByRole("button", { name: "Add component", exact: true }).press("Enter");
+    await submitAddComponentWithEnter(active);
     await active.getByRole("region", { name: "Dashboard editor" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
     expect(await active.getByRole("button", { name: "Save dashboard" }).count()).toBe(1);
