@@ -106,6 +106,11 @@ silently switching them.
 
 The coordinator serializes mutations with an atomic directory lock. An explicit
 recovery action removes a stale lock only after its recorded owner has exited.
+The one automatic exception is the native updater, which quits the app while
+the install operation still holds the lock. While the receipt awaits
+installation no unverified download or dashboard edit can be in flight, so
+startup reconciliation releases that lock once its owner has exited. Without
+this, every native update blocked the next one.
 Lock acquisition and recovery failures reach the coordinator's visible problem
 state even when an acknowledged background operation fails before its body
 starts. The host retains these errors for renderer polling; it never treats

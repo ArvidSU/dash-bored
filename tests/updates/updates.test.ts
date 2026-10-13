@@ -185,6 +185,27 @@ describe('migration detection and durable journey', () => {
     await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
     expect((await c.state()).receipt?.installation).toBe('ready');
   });
+  test('startup releases the lock a native replacement quit with, but no other stale lock', async () => {
+    const { dir, config } = await fixture();
+    const child = Bun.spawn([process.execPath, '-e', ''], { stdout: 'ignore', stderr: 'ignore' });
+    await child.exited;
+    // The native updater quits the old app inside the install operation's lock.
+    await atomicJson(join(dir, 'operation.lock', 'owner.json'), { pid: child.pid });
+    await atomicJson(join(dir, 'receipt.json'), { ...receipt(config, metadata()), choice: 'update-only', selected: [], migrations: {} });
+    const next = new UpdateCoordinator({ directory: dir, currentVersion: '0.3.0', listDashboards: async () => [config], fetcher: fetcher(metadata('0.3.1')) });
+    await next.reconcile();
+    expect(await next.state()).toMatchObject({ installedThisLaunch: true, receipt: { installation: 'installed' } });
+    await next.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect((await next.state()).receipt).toMatchObject({ installation: 'ready', release: { metadata: { version: '0.3.1' } } });
+
+    await atomicJson(join(dir, 'operation.lock', 'owner.json'), { pid: child.pid });
+    await atomicJson(join(dir, 'receipt.json'), { ...receipt(config), installation: 'downloading' });
+    await expect(new UpdateCoordinator({ directory: dir, currentVersion: '0.2.6', listDashboards: async () => [config] }).reconcile()).rejects.toThrow('lock');
+    await atomicJson(join(dir, 'operation.lock', 'owner.json'), { pid: process.pid });
+    await atomicJson(join(dir, 'receipt.json'), receipt(config));
+    await expect(new UpdateCoordinator({ directory: dir, currentVersion: '0.3.0', listDashboards: async () => [config] }).reconcile()).rejects.toThrow('still running');
+    expect(await readFile(join(dir, 'operation.lock', 'owner.json'), 'utf8')).toContain(String(process.pid));
+  });
   test('invalid receipt and unselected dashboard never authorize edits', async () => {
     const { dir, config } = await fixture(); expect(() => parseReceipt({ ...receipt(config), choice: 'yes' })).toThrow();
     const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [], fetcher: fetcher(metadata(nextPatchVersion())) });

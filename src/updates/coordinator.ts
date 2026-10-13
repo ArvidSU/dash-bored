@@ -5,7 +5,7 @@ import type { UpdateAction, UpdateReceipt, UpdateState, PublishedRelease } from 
 import { assertReleaseSource, downloadArtifact, hashFile } from "./artifacts";
 import { BUNDLED_MIGRATIONS, compareVersions, discoverRelease, parseReleaseMetadata } from "./releases";
 import { inspectMigration } from "./migrations";
-import { atomicJson, getUpdateSettings, readJson, updateDirectory, validateUpdateSettings, withUpdateLock, recoverUpdateLock } from "./storage";
+import { atomicJson, getUpdateSettings, hasUpdateLock, readJson, updateDirectory, validateUpdateSettings, withUpdateLock, recoverUpdateLock } from "./storage";
 
 export interface UpdateCoordinatorOptions {
   directory?: string;
@@ -170,6 +170,7 @@ export class UpdateCoordinator {
   private async requiredReceipt(): Promise<UpdateReceipt> { const r = await this.receipt(); if (!r) throw new Error("No pending update. Check for updates first."); return r; }
   /** Run once per process startup; no polling path calls this. */
   async reconcile(): Promise<void> {
+    await this.releaseReplacementLock();
     await withUpdateLock(this.directory, async () => {
       const r = await this.receipt();
       if (!r) return;
@@ -191,6 +192,16 @@ export class UpdateCoordinator {
       await this.save(r);
       await this.continueMigrations(r);
     });
+  }
+  /**
+   * The native updater quits the app while the install operation holds the
+   * lock. While the receipt awaits installation, no unverified download or
+   * dashboard edit can be in flight, so startup releases that lock once its
+   * owner has exited. Any other stale lock still needs explicit recovery.
+   */
+  private async releaseReplacementLock(): Promise<void> {
+    if (!await hasUpdateLock(this.directory)) return;
+    if ((await this.receipt())?.installation === "awaiting-install") await recoverUpdateLock(this.directory);
   }
   private async continueMigrations(r: UpdateReceipt): Promise<void> {
     if (await this.cancelled(r) || r.choice !== "update-and-migrate") { this.report('finished', 'App installed. Migrate dashboard remains available for deferred dashboards.'); return; }

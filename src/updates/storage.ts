@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { UpdateSettings } from "../shared/updates";
@@ -33,6 +33,9 @@ export async function withUpdateLock<T>(directory: string, operation: () => Prom
   catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Another update operation owns the lock. If it was interrupted, choose Recover interrupted update after that process exits."); throw error; }
   try { await atomicJson(join(path, "owner.json"), { pid: process.pid }); return await operation(); }
   finally { await rm(path, { recursive: true, force: true }); }
+}
+export async function hasUpdateLock(directory: string): Promise<boolean> {
+  return stat(join(directory, "operation.lock")).then(() => true, () => false);
 }
 export async function recoverUpdateLock(directory: string): Promise<void> {
   const lock = join(directory, "operation.lock");

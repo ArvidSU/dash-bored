@@ -18,7 +18,9 @@ export interface NativeUpdater {
 
 /** Native updater sees only a version-pinned local mirror of SHA-256-verified
  * GitHub artifacts. It retains its native staging, quit approval, swap, and
- * rollback implementation. The caller owns the cross-process operation lock. */
+ * rollback implementation. The caller owns the cross-process operation lock;
+ * a successful apply quits with it held, and the next startup reconcile
+ * releases it. */
 export async function applyVerifiedNativeUpdate(native: NativeUpdater, receipt: UpdateReceipt, directory: string, fetcher: typeof fetch = fetch, beforeApply?: () => void | Promise<void>): Promise<void> {
   const release = receipt.release;
   const staging = join(directory, receipt.id);
