@@ -15,6 +15,7 @@ import { AppSettingsStore } from "./app-settings";
 import { loadApplicationThemes, watchPersonalThemes } from "./app-themes";
 import { AgentSessions } from "./agent-sessions";
 import { createDashboardRPC } from "./dashboard-rpc";
+import { openNewWindowsExternally } from "./external-links";
 import { InstalledToolDiagnostics } from "./installed-tools";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
@@ -191,6 +192,7 @@ mainWindow.on("resize", (event) => {
 });
 
 mainWindow.webview.on("dom-ready", () => send("snapshot", installedTools.addTo(runtime.getSnapshot())));
+openNewWindowsExternally(Electrobun.events, mainWindow.webview.id, Utils.openExternal);
 // Agents drive and capture the app while it sits behind their terminal.
 keepWindowRenderingWhenOccluded(mainWindow.ptr);
 

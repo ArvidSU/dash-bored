@@ -214,6 +214,12 @@ code. Supported HTTP access goes through the checked host RPC. Embedded
 application pages use sandboxed `<electrobun-webview>` elements and receive no
 dash-bored RPC bridge.
 
+The app never opens secondary windows. New-window requests from the main
+webview (`target="_blank"` links, Cmd-click, `window.open`) are handed to the
+user's default browser by `src/main/external-links.ts`, but only for `http:`,
+`https:`, and `mailto:` URLs; other schemes are dropped. Embedded application
+webviews are not covered.
+
 ## Agent-control channel
 
 The running app's agent-control channel (see
