@@ -467,7 +467,9 @@ scroll chaining; the document also disables page scrolling while any shared
 modal is mounted, including modal-chrome gestures in native WebKit. Removing
 the final modal restores page scrolling. Shared modal focus setup and
 restoration run only on mount and unmount, using the current dismiss callback
-without stealing focus during task updates. The Agent work panel and the
+without stealing focus during task updates. Deferred initial focus preserves
+any control the user or a child already focused inside the modal. The Agent
+work panel and the
 component library flyout are mutually exclusive right-side drawers sharing one
 shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
 optional initial focus and focus restore, and unified header/body geometry

@@ -24,12 +24,16 @@ export function EditorModal({ title, children, className, onDismiss }: ModalProp
     };
     window.addEventListener("keydown", close);
     // A panel may name its primary field; otherwise the first enabled control wins.
-    const focusFrame = requestAnimationFrame(() => (
-      panelRef.current?.querySelector<HTMLElement>("[data-modal-autofocus]:not(:disabled)")
-      ?? panelRef.current?.querySelector<HTMLElement>(
+    const focusFrame = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      // A user or child may focus a field before this deferred callback runs.
+      if (!panel || panel.contains(document.activeElement)) return;
+      (panel.querySelector<HTMLElement>("[data-modal-autofocus]:not(:disabled)")
+      ?? panel.querySelector<HTMLElement>(
         "input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled)",
       )
-    )?.focus());
+      )?.focus();
+    });
     return () => {
       cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", close);

@@ -316,6 +316,10 @@ describe("agent work", () => {
       expect(await followUp.inputValue()).toBe("Keep this draft");
 
       await followUp.focus();
+      // Let deferred modal autofocus run before sending; it must respect the
+      // field the user focused, including just after reopening the dialog.
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      expect(await followUp.evaluate((field) => field === document.activeElement)).toBe(true);
       await page.keyboard.press("Enter");
       await session.getByRole("log", { name: "Agent transcript" }).getByText("Done. I handled the follow-up: Keep this draft", { exact: true }).waitFor();
       await row.getByText("Idle", { exact: true }).waitFor();
