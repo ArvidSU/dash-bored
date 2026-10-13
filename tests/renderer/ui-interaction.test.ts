@@ -2533,13 +2533,31 @@ test('updates say up to date plainly and show migrations only when dashboards ne
     await proof.screenshot({ path: '/tmp/dash-bored-updates-current.png', fullPage: true });
 
     const metadata = { format: 1, product: 'dash-bored', version: '0.3.0', channel: 'canary', platform: 'macos', arch: 'arm64', dashboardContract: 4, minimumContract: 3, recipes: [],
-      notes: 'Shinier panels.\nFaster start.', updater: { file: 'u', sha256: 'a' }, archive: { file: 'a', sha256: 'a' }, dmg: { file: 'd', sha256: 'a' } };
+      notes: [
+        '# dash-bored v0.3.0', '', 'Unsigned macOS prerelease for **Apple Silicon** on **macOS 14 or newer**.', '',
+        '## What\'s new', '', '- Shinier panels.', '- Faster start, even on large dashboards with many live charts and running terminals.', '',
+        '## Install', '', '1. Download `dash-bored-v0.3.0-macos-arm64-unsigned.dmg` and `SHA256SUMS.txt`.',
+        '2. Optionally verify the download with `shasum -a 256 -c SHA256SUMS.txt`.',
+        '3. If blocked, open **System Settings → Privacy & Security**, select **Open Anyway**, and confirm.', '',
+        'Save drafts and finish running work before replacing the app. Restart and install uses the verified native updater; the verified DMG fallback preserves normal security approval.',
+        '', 'Signing and notarization are deferred.',
+      ].join('\n'), updater: { file: 'u', sha256: 'a' }, archive: { file: 'a', sha256: 'a' }, dmg: { file: 'd', sha256: 'a' } };
     const release = { metadata, url: 'https://github.com/example/releases/0.3.0', assetBase: 'https://github.com/example/' };
     const configPath = '/projects/demo/.dash-bored/dash-bored.yaml';
     await proof.evaluate(([release]) => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({ release, phase: 'available',
       dashboards: [{ configPath: '/projects/other/.dash-bored/dash-bored.yaml', contract: 4, status: 'current', steps: [], message: 'No dashboard migration required.' }] } as never), [release] as const);
     await panel.getByRole('heading', { name: '0.3.0 is here' }).waitFor();
     await panel.getByRole('button', { name: 'Update to 0.3.0', exact: true }).waitFor();
+    // Release notes render as Markdown, without repeating the version title,
+    // and keep their text clear of the scrollbar.
+    const notes = panel.locator('.updates-panel__notes-body');
+    expect(await notes.getByRole('listitem').allTextContents()).toContain('Shinier panels.');
+    expect(await notes.locator('strong', { hasText: 'Open Anyway' }).count()).toBeGreaterThan(0);
+    expect(await notes.locator('code', { hasText: 'unsigned.dmg' }).count()).toBe(1);
+    expect(await notes.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+    expect(await notes.innerText()).not.toContain('**');
+    expect(await notes.innerText()).not.toContain('dash-bored v0.3.0');
+    expect(await notes.evaluate(node => Number.parseFloat(getComputedStyle(node).paddingRight))).toBeGreaterThanOrEqual(12);
     expect(await panel.getByRole('group', { name: /migrating/ }).count()).toBe(0);
 
     await proof.evaluate(([release, configPath]) => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({ release, phase: 'available',

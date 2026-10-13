@@ -1,13 +1,15 @@
 import { Fragment, memo, useMemo } from "react";
 import type { ReactNode } from "react";
+import "./markdown-lite.css";
 
 /*
- * A small, safe Markdown subset for agent messages: paragraphs and line
- * breaks, **bold** and *italic*, `inline code`, fenced code blocks, ordered
- * and unordered lists, block quotes, rules, headings (rendered as bold text),
- * pipe tables (kept as monospace text), and links rendered as their text plus
- * the URL. Everything becomes React text nodes or fixed elements: raw HTML is
- * shown literally, nothing navigates, and no markup is injected.
+ * A small, safe Markdown subset for agent messages and release notes:
+ * paragraphs and line breaks, **bold** and *italic*, `inline code`, fenced
+ * code blocks, ordered and unordered lists, block quotes, rules, headings
+ * (rendered as bold text), pipe tables (kept as monospace text), and links
+ * rendered as their text plus the URL. Everything becomes React text nodes or
+ * fixed elements: raw HTML is shown literally, nothing navigates, and no
+ * markup is injected.
  */
 
 export type MarkdownInline =
@@ -497,7 +499,7 @@ function renderBlock(block: MarkdownBlock, index: number): ReactNode {
   }
 }
 
-/** Renders agent Markdown safely; re-parses only when the text changes. */
+/** Renders untrusted Markdown safely; re-parses only when the text changes. */
 export const MarkdownLite = memo(function MarkdownLite({ text, className }: { text: string; className?: string }): ReactNode {
   const blocks = useMemo(() => parseMarkdownBlocks(text), [text]);
   return <div className={className ? `markdown-lite ${className}` : "markdown-lite"}>{blocks.map(renderBlock)}</div>;

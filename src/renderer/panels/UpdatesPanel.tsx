@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { AppUpdatesController } from '../app/use-app-updates';
+import { MarkdownLite } from '../lib/markdown-lite';
 import { compareVersions, RELEASE_CHANNELS, type DashboardMigration, type UpdateAction, type UpdateReceipt, type UpdateState } from '../../shared/updates';
 
 const WORKING_PHASES: UpdateState['phase'][] = ['migrating', 'verifying', 'updating-guidance'];
@@ -73,12 +74,13 @@ export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boo
   }
 
   if (available && state.release) {
-    const notes = state.release.metadata.notes.trim();
+    // The hero already names the version, so a leading release title is dropped.
+    const notes = state.release.metadata.notes.trim().replace(/^#\s[^\n]*\n*/, '');
     return <Shell tone="fresh">
       <Hero eyebrow={`You have ${state.currentVersion}`} title={`${target} is here`} version={target} />
       {notes && <details className="updates-panel__notes" open>
-        <summary>What's new</summary>
-        <p>{notes}</p>
+        <summary>Release notes</summary>
+        <MarkdownLite className="updates-panel__notes-body" text={notes} />
         <a href={state.release.url} target="_blank" rel="noreferrer">Full release notes</a>
       </details>}
       {receipt?.installation === 'failed' && receipt.problem && <p className="updates-panel__alert" role="alert">The last attempt failed: {receipt.problem}</p>}

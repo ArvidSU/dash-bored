@@ -5044,8 +5044,21 @@ tr:last-child td {
 .updates-panel > .button { align-self: flex-start; }
 .updates-panel__notes { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--surface-raised); }
 .updates-panel__notes summary { cursor: pointer; font-weight: 650; font-size: var(--font-size-md); }
-.updates-panel__notes p { max-height: 220px; margin-top: 10px; overflow: auto; white-space: pre-wrap; font-size: var(--font-size-md); line-height: 1.55; }
-.updates-panel__notes a { display: inline-block; margin-top: 10px; color: var(--accent); font-size: var(--font-size-sm); }
+/* Right padding keeps text clear of macOS overlay scrollbars; the bottom fade
+ * hints at more notes and covers only padding once scrolled to the end. */
+.updates-panel__notes-body {
+  max-height: 260px;
+  margin-top: 10px;
+  padding: 0 14px 20px 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+}
+.updates-panel__notes-body .markdown-lite__heading:not(:first-child) { margin-top: 6px; }
+.updates-panel__notes a { display: inline-block; margin-top: 4px; color: var(--accent); font-size: var(--font-size-sm); }
 .updates-panel__dashboards { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border)); border-radius: var(--radius); }
 .updates-panel__dashboards legend { padding-inline: 4px; font-weight: 650; font-size: var(--font-size-md); }
 .updates-panel__dashboard { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: var(--font-size-md); }

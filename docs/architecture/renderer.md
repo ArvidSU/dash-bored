@@ -53,8 +53,8 @@ Everything else lives in focused modules under feature directories:
   `AgentSession.tsx` (plan, transcript, permission, sign-in, follow-up),
   `AgentStatus.tsx` (state and validation chips and glyphs),
   `agent-work.css`
-  (Agent work and its header badge, the composer and Settings agent
-  pickers, and agent Markdown),
+  (Agent work and its header badge, and the composer and Settings agent
+  pickers),
   `SettingsPanel.tsx`, `CommandPalette.tsx`.
 - `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
   `composition-*.ts(x)` (targets, labels, placement, movement,
@@ -103,7 +103,8 @@ Pure helpers and their contracts:
   undetected known agents, the Settings mapping, and the per-viewer custom
   command.
 - `lib/markdown-lite.tsx` — the safe Markdown subset parser and renderer for
-  agent messages.
+  agent messages and update release notes, with its styles in
+  `lib/markdown-lite.css`.
 - `composition/composition-labels.ts` — human labels for drop targets and dragged payloads.
 - `composition/composition-targets.ts` — pure drop-zone/validity/default-target resolution
   over a draft config (`createCompositionTargets`, memoized per render).
@@ -450,10 +451,10 @@ returns when the turn ends. Agent work keeps each session's unsent draft, so it
 survives tab switches and closing the modal. The Prompt tab shows the launch command and the
 full first prompt, each with a copy action.
 
-`lib/markdown-lite.tsx` renders agent messages as a safe subset: paragraphs and
-line breaks, bold, italic, inline code, fenced code, lists, quotes, rules,
-headings as bold text, pipe tables as monospace text, and links as their text
-plus the URL (only a URL, optionally with a quoted title, makes a link, so
+`lib/markdown-lite.tsx` renders agent messages and update release notes as a
+safe subset: paragraphs and line breaks, bold, italic, inline code, fenced
+code, lists, quotes, rules, headings as bold text, pipe tables as monospace
+text, and links as their text plus the URL (only a URL, optionally with a quoted title, makes a link, so
 bracketed prose such as `arr[0](see below)` stays text). It emits only React text and fixed elements: raw HTML shows
 literally, nothing navigates, and parsing stays linear on pathological input.
 The UI fixture seeds one session per interesting state and answers task
@@ -838,6 +839,9 @@ Opening updates selects its Settings tab; downloads from the palette explicitly
 defer dashboard migration. Migration selection stays in Settings. Restart and
 install asks for palette confirmation and is refused by the agent channel.
 Unsaved drafts disable installation, while the main process checks running work.
+The Updates tab renders release notes with `MarkdownLite`, without the leading
+release title the hero already shows, in a bounded scroll area padded clear of
+overlay scrollbars.
 
 Palette results retain application controls and the selected dashboard's
 actions. One **Switch dashboard** action offers available registered dashboards

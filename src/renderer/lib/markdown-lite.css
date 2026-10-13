@@ -1,0 +1,77 @@
+/* Safe Markdown subset for agent messages and release notes. */
+.markdown-lite {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.markdown-lite p,
+.markdown-lite ul,
+.markdown-lite ol,
+.markdown-lite pre,
+.markdown-lite blockquote,
+.markdown-lite hr {
+  margin: 0;
+}
+
+.markdown-lite ul,
+.markdown-lite ol {
+  display: grid;
+  gap: 3px;
+  padding-left: 1.3rem;
+}
+
+.markdown-lite li > ul,
+.markdown-lite li > ol,
+.markdown-lite li > pre,
+.markdown-lite li > p {
+  margin-top: 3px;
+}
+
+.markdown-lite__code-span {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 0.92em;
+}
+
+.markdown-lite__code,
+.markdown-lite__table {
+  max-height: 24rem;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-sm);
+  color: var(--terminal-foreground);
+  background: var(--terminal-background);
+  font: 11.5px/1.5 var(--font-mono);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.markdown-lite blockquote {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-bright);
+  color: var(--muted);
+}
+
+.markdown-lite hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.markdown-lite__link {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.markdown-lite__url {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 0.92em;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
