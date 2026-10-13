@@ -24,6 +24,8 @@ Everything else lives in focused modules under feature directories:
     per-dashboard appearance rows;
   - `use-app-theme.ts` — applies the window theme and re-reads app settings
     so main can pin a legacy `./` default theme (`src/migrations/`);
+  - `use-app-updates.ts` — shared update state, polling, request feedback, and
+    stale-response protection for Settings and the palette;
   - `use-dashboard-draft.ts` — the single draft: open, edit, validate,
     save/cancel, and the discard guard;
   - `use-composition-session.ts` — composition preview, targets, pointer
@@ -826,6 +828,14 @@ selected or hovered row and on favorites. Opening the palette and
 editing the search select the top result. Hover selection changes only on mouse
 movement; results moving under a stationary cursor cannot override search or
 keyboard selection.
+
+The update provider (`lib/update-actions.ts`) exposes Open updates, Check for
+updates, and state-dependent download, restart/install, installer, cancellation,
+and recovery actions. Settings and the palette share one update controller.
+Opening updates selects its Settings tab; downloads from the palette explicitly
+defer dashboard migration. Migration selection stays in Settings. Restart and
+install asks for palette confirmation and is refused by the agent channel.
+Unsaved drafts disable installation, while the main process checks running work.
 
 Palette results retain application controls and the selected dashboard's
 actions. One **Switch dashboard** action offers available registered dashboards

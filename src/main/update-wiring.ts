@@ -85,10 +85,11 @@ export function createAppUpdates(options: AppUpdatesOptions) {
       if (action.type === "prepare" || action.type === "migrate" || action.type === "install") {
         if (action.type === "prepare") await bundledInstallation(options.toolPath);
         if (operation) throw new Error("An update operation is already running.");
-        operation = coordinator.action(action).catch((error) => console.error("Update operation needs recovery:", error)).finally(() => { operation = null; });
-        return coordinator.state();
+        operation = coordinator.action(action).catch((error) => coordinator.problem(error)).finally(() => { operation = null; });
+        return this.state();
       }
-      return coordinator.action(action);
+      await coordinator.action(action);
+      return this.state();
     },
 
     /**

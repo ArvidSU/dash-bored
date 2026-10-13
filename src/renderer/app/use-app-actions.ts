@@ -1,4 +1,6 @@
 import type { ProjectListItem, ProjectSnapshot } from "../../shared/contracts";
+import { buildUpdateActions } from "../lib/update-actions";
+import type { AppUpdatesController } from "./use-app-updates";
 import type { ThemeCatalogItem } from "../../shared/themes";
 import {
   buildApplicationActions,
@@ -19,6 +21,8 @@ import type { Notices } from "./use-notices";
 import type { useProjectNavigation } from "./use-project-navigation";
 
 export interface AppActionSources {
+  updates: AppUpdatesController;
+  showUpdates(): void;
   snapshot: ProjectSnapshot | null;
   projects: ProjectListItem[];
   themeCatalog: ThemeCatalogItem[];
@@ -36,6 +40,8 @@ export interface AppActionSources {
 
 /** Every action source the palette, shortcuts, and agents see, registered into the store. */
 export function useAppActions({
+  updates,
+  showUpdates,
   snapshot,
   projects,
   themeCatalog,
@@ -118,6 +124,7 @@ export function useAppActions({
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, actions.componentActions);
   return useProvidedActions(actions.store, [
     { id: "application", actions: applicationActions },
+    { id: "updates", actions: buildUpdateActions(updates, draft.blocksNavigation, showUpdates) },
     { id: "node-focus", actions: nodeFocusActions },
     { id: "selection", actions: selectionActions },
     { id: "reveal", actions: revealActions },

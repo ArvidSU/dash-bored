@@ -64,7 +64,18 @@ export class UpdateCoordinator {
     return this.state();
   }
   async action(action: UpdateAction): Promise<UpdateState> {
-    if (action.type === "recover") { await recoverUpdateLock(this.directory); await this.reconcile(); return this.state(); }
+    // Lock acquisition and recovery can fail before the operation body starts.
+    // They must reach the same visible problem state as download/install errors.
+    try { return await this.performAction(action); }
+    catch (error) { this.problem(error); throw error; }
+  }
+  private async performAction(action: UpdateAction): Promise<UpdateState> {
+    if (action.type === "recover") {
+      await recoverUpdateLock(this.directory);
+      this.report("idle", "Interrupted update recovered. Review existing work before retrying.");
+      await this.reconcile();
+      return this.state();
+    }
     if (action.type === "check") return this.check();
     if (action.type === "settings") { await atomicJson(join(this.directory, "settings.json"), validateUpdateSettings(action.settings)); return this.state(); }
     if (action.type === "cancel") {
@@ -76,6 +87,8 @@ export class UpdateCoordinator {
       this.report("idle", "Continuation cancelled. Review existing edits before explicitly retrying.");
       return this.state();
     }
+    if (action.type === "prepare") this.report("downloading", "Starting the update download…");
+    if (action.type === "install") this.report("downloading", "Preparing verified installation…");
     return withUpdateLock(this.directory, async () => {
       try {
         if (action.type === "prepare") {
@@ -166,7 +179,14 @@ export class UpdateCoordinator {
       }
       if (await this.cancelled(r)) { r.cancelled = true; await this.save(r); this.report("finished", "App installed; automatic migration continuation cancelled."); return; }
       for (const migration of Object.values(r.migrations)) if (migration.status === "running") { migration.status = "interrupted"; migration.message = "Interrupted work requires explicit retry after reviewing the snapshot and edits."; }
-      if (r.release.metadata.version !== this.current) { await this.save(r); return; }
+      if (r.release.metadata.version !== this.current) {
+        if (r.installation === "downloading") {
+          r.installation = "failed";
+          r.problem = "The download was interrupted. Retry the update to download and verify it again.";
+        }
+        await this.save(r);
+        return;
+      }
       r.installation = "installed";
       await this.save(r);
       await this.continueMigrations(r);

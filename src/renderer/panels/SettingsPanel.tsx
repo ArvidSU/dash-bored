@@ -219,7 +219,12 @@ function AgentSettings({
   );
 }
 
+export type SettingsTab = "general" | "themes" | "actions" | "updates";
+
 export function SettingsPanel({
+  updates,
+  activeTab,
+  onSelectTab: setActiveTab,
   draftsOpen = false,
   appSettings,
   dashboardSettings,
@@ -230,6 +235,9 @@ export function SettingsPanel({
   onUpdateSettings,
   onUpdateDashboardAppearance,
 }: {
+  updates: import("../app/use-app-updates").AppUpdatesController;
+  activeTab: SettingsTab;
+  onSelectTab(tab: SettingsTab): void;
   draftsOpen?: boolean;
   appSettings: AppSettings;
   dashboardSettings: readonly DashboardSettingsItem[];
@@ -241,7 +249,6 @@ export function SettingsPanel({
   onUpdateSettings: (settings: AppSettings, notice: string) => void;
   onUpdateDashboardAppearance: (dashboard: DashboardSettingsItem, change: Pick<DashboardConfig, "theme" | "themeMode">) => Promise<void>;
 }): ReactNode {
-  const [activeTab, setActiveTab] = useState<"general" | "themes" | "actions" | "updates">("general");
   const [actionQuery, setActionQuery] = useState("");
   const [updatingDashboard, setUpdatingDashboard] = useState<string | null>(null);
   const savingSettings = pendingAction === "save-settings";
@@ -321,7 +328,7 @@ export function SettingsPanel({
         <button type="button" role="tab" aria-selected={activeTab === "actions"} onClick={() => setActiveTab("actions")}>Actions</button>
         <button type="button" role="tab" aria-selected={activeTab === "updates"} onClick={() => setActiveTab("updates")}>Updates</button>
       </div>
-      {activeTab === "updates" && <div className="settings-tab-panel" role="tabpanel" aria-label="Updates"><UpdatesPanel draftsOpen={draftsOpen} /></div>}
+      {activeTab === "updates" && <div className="settings-tab-panel" role="tabpanel" aria-label="Updates"><UpdatesPanel draftsOpen={draftsOpen} updates={updates} /></div>}
       {activeTab === "themes" && <div className="settings-tab-panel" role="tabpanel" aria-label="Themes">
       <section className="settings-card settings-card--themes" aria-labelledby="theme-settings-title">
         <h2 id="theme-settings-title">App defaults</h2>

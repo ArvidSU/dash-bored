@@ -1214,7 +1214,7 @@ root:
                         **Unsigned macOS prerelease** for Apple Silicon on macOS 14+. Run the checks in order before
                         pushing a tag that exactly matches `v<package.json version>`; GitHub Actions repeats them and
                         creates a draft prerelease for explicit publication. Settings → Updates handles release notes,
-                        dashboard migration, and the verified installer.
+                        dashboard migration, and the verified installer. Search updates in the palette for update actions.
                 second:
                   axis: vertical
                   first:
@@ -1282,8 +1282,11 @@ root:
                                 id: update-check
                                 component: "./components/external/core/button"
                                 props:
-                                  name: Open Settings to check canary releases
-                                  action: app:show-settings
+                                  items:
+                                    - name: App updates
+                                      action: app:show-updates
+                                    - name: Check for updates
+                                      action: update:check
                             second:
                               node:
                                 id: migration-inspect

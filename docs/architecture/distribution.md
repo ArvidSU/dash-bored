@@ -106,6 +106,14 @@ silently switching them.
 
 The coordinator serializes mutations with an atomic directory lock. An explicit
 recovery action removes a stale lock only after its recorded owner has exited.
+Lock acquisition and recovery failures reach the coordinator's visible problem
+state even when an acknowledged background operation fails before its body
+starts. The host retains these errors for renderer polling; it never treats
+logging alone as update feedback.
+Recovery clears the previous lock error. An interrupted download becomes a
+retryable failure; it cannot keep presenting download progress after its owner
+has exited. The UI compares release versions semantically so an older receipt
+does not advertise a downgrade as an update.
 Receipts store the selected target, explicit dashboard paths, migration choice,
 separate installation and migration outcomes, and recovery paths. Atomic
 cancellation markers bypass the operation lock, so cancellation can interrupt a

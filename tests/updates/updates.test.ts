@@ -138,6 +138,53 @@ describe('migration detection and durable journey', () => {
     await c.action({ type: 'prepare', choice: 'update-only', selected: [] }); await expect(c.action({ type: 'install' })).rejects.toThrow('installer unavailable');
     expect((await c.receipt())?.installation).toBe('ready');
   });
+  test('lock failures from background update requests remain visible and never remove a live owner', async () => {
+    const { dir, config } = await fixture();
+    const c = new UpdateCoordinator({ directory: dir, currentVersion: '0.2.6', listDashboards: async () => [config], fetcher: fetcher() });
+    await c.check();
+    const entered = Promise.withResolvers<void>();
+    const releaseLock = Promise.withResolvers<void>();
+    const owner = withUpdateLock(dir, async () => { entered.resolve(); await releaseLock.promise; });
+    await entered.promise;
+    try {
+      // The host acknowledges long operations and the renderer polls later.
+      await c.action({ type: 'prepare', choice: 'update-only', selected: [] }).catch(() => undefined);
+      expect(await c.state()).toMatchObject({ phase: 'problem', message: expect.stringContaining('Recover interrupted update') });
+      await expect(c.action({ type: 'recover' })).rejects.toThrow('still running');
+      expect((await c.state()).phase).toBe('problem');
+      expect(await readFile(join(dir, 'operation.lock', 'owner.json'), 'utf8')).toContain(String(process.pid));
+    } finally { releaseLock.resolve(); await owner; }
+    await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect((await c.state()).receipt?.installation).toBe('ready');
+  });
+  test('explicit recovery releases an exited owner and preserves cancelled authorization', async () => {
+    const { dir, config } = await fixture();
+    const child = Bun.spawn([process.execPath, '-e', ''], { stdout: 'ignore', stderr: 'ignore' });
+    await child.exited;
+    await atomicJson(join(dir, 'operation.lock', 'owner.json'), { pid: child.pid });
+    const r = receipt(config); r.cancelled = true;
+    await atomicJson(join(dir, 'receipt.json'), r);
+    const c = new UpdateCoordinator({ directory: dir, currentVersion: '0.2.6', listDashboards: async () => [config], fetcher: fetcher() });
+    await c.action({ type: 'recover' });
+    expect((await c.receipt())?.cancelled).toBe(true);
+    await expect(readFile(join(dir, 'operation.lock', 'owner.json'))).rejects.toThrow();
+    await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect((await c.state()).receipt?.installation).toBe('ready');
+  });
+  test('recovering an interrupted download clears the old lock error and permits a fresh download', async () => {
+    const { dir, config } = await fixture();
+    const child = Bun.spawn([process.execPath, '-e', ''], { stdout: 'ignore', stderr: 'ignore' });
+    await child.exited;
+    await atomicJson(join(dir, 'operation.lock', 'owner.json'), { pid: child.pid });
+    await atomicJson(join(dir, 'receipt.json'), { ...receipt(config), installation: 'downloading' });
+    const c = new UpdateCoordinator({ directory: dir, currentVersion: '0.2.6', listDashboards: async () => [config], fetcher: fetcher(metadata('0.3.0', true)) });
+    await expect(c.action({ type: 'prepare', choice: 'update-only', selected: [] })).rejects.toThrow('lock');
+    const recovered = await c.action({ type: 'recover' });
+    expect(recovered.phase).toBe('idle');
+    expect(recovered.receipt).toMatchObject({ installation: 'failed', problem: expect.stringContaining('interrupted') });
+    await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect((await c.state()).receipt?.installation).toBe('ready');
+  });
   test('invalid receipt and unselected dashboard never authorize edits', async () => {
     const { dir, config } = await fixture(); expect(() => parseReceipt({ ...receipt(config), choice: 'yes' })).toThrow();
     const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [], fetcher: fetcher(metadata(nextPatchVersion())) });

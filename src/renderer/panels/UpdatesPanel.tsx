@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { host } from '../lib/rpc-client';
-import { RELEASE_CHANNELS, type DashboardMigration, type UpdateAction, type UpdateReceipt, type UpdateState } from '../../shared/updates';
+import { useState, type ReactNode } from 'react';
+import type { AppUpdatesController } from '../app/use-app-updates';
+import { compareVersions, RELEASE_CHANNELS, type DashboardMigration, type UpdateAction, type UpdateReceipt, type UpdateState } from '../../shared/updates';
 
 const WORKING_PHASES: UpdateState['phase'][] = ['migrating', 'verifying', 'updating-guidance'];
 const SELECTABLE_CHANNELS = RELEASE_CHANNELS.filter(c => c.available);
@@ -9,29 +9,15 @@ const SELECTABLE_CHANNELS = RELEASE_CHANNELS.filter(c => c.available);
  * One headline state at a time: up to date, an update to get, or the step in
  * progress. Dashboards appear only when they need migrating.
  */
-export function UpdatesPanel({ draftsOpen = false }: { draftsOpen?: boolean }): ReactNode {
-  const [state, setState] = useState<UpdateState | null>(null);
-  const [error, setError] = useState('');
+export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boolean; updates: AppUpdatesController }): ReactNode {
+  const { state, error, pending } = updates;
   const [selected, setSelected] = useState<string[]>([]);
-  const [pending, setPending] = useState(false);
-  useEffect(() => {
-    let active = true;
-    const refresh = () => host.getUpdateState().then(s => { if (active) setState(s); }).catch(e => { if (active) setError(String(e)); });
-    void refresh();
-    const timer = setInterval(() => { void refresh(); }, 2000);
-    return () => { active = false; clearInterval(timer); };
-  }, []);
-  async function act(action: UpdateAction): Promise<void> {
-    setPending(true); setError('');
-    try { const result = await host.updateAction(action); setState(old => ({ ...result, directInstallAvailable: old?.directInstallAvailable })); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setPending(false); }
-  }
+  const act = (action: UpdateAction) => updates.act(action).catch(() => undefined);
   if (!state) return <section className="settings-card updates-panel" aria-label="Updates"><p role="status">{error || 'Loading update status…'}</p></section>;
 
   const receipt = state.receipt && !state.receipt.cancelled ? state.receipt : null;
   const target = state.release?.metadata.version;
-  const available = Boolean(target && target !== state.currentVersion);
+  const available = Boolean(target && compareVersions(target, state.currentVersion) > 0);
   const installedHere = receipt?.installation === 'installed' && receipt.release.metadata.version === state.currentVersion;
   const working = pending || state.phase === 'checking' || state.phase === 'downloading' || WORKING_PHASES.includes(state.phase);
   const attention = state.dashboards.filter(d => d.status !== 'current');
@@ -60,9 +46,10 @@ export function UpdatesPanel({ draftsOpen = false }: { draftsOpen?: boolean }): 
     <div className="updates-panel__actions"><button className="button button--quiet" type="button" onClick={() => void act({ type: 'cancel' })}>Stop after this step</button></div>
   </Shell>;
 
-  if (receipt?.installation === 'downloading') return <Shell tone="busy">
-    <Hero eyebrow="Downloading" title={`Fetching ${receipt.release.metadata.version}…`} body="Verifying the installer as it lands." />
+  if (state.phase === 'downloading' || receipt?.installation === 'downloading' && state.phase !== 'problem') return <Shell tone="busy">
+    <Hero eyebrow="Updating" title={receipt?.installation === 'awaiting-install' ? 'Preparing installation…' : `Fetching ${receipt?.release.metadata.version ?? target ?? 'update'}…`} body={state.message} />
     <Progress label="Downloading update" />
+    {alerts}
     <div className="updates-panel__actions"><button className="button button--quiet" type="button" onClick={() => void act({ type: 'cancel' })}>Cancel</button></div>
   </Shell>;
 
@@ -95,6 +82,7 @@ export function UpdatesPanel({ draftsOpen = false }: { draftsOpen?: boolean }): 
         <a href={state.release.url} target="_blank" rel="noreferrer">Full release notes</a>
       </details>}
       {receipt?.installation === 'failed' && receipt.problem && <p className="updates-panel__alert" role="alert">The last attempt failed: {receipt.problem}</p>}
+      {pending && <Progress label="Starting update" />}
       {alerts}
       {dashboards(true)}
       <div className="updates-panel__actions">

@@ -38,10 +38,15 @@ import { useAppActions } from "./use-app-actions";
 import { useAppShortcuts, useCommandHeld } from "./use-app-keyboard";
 import { useAgentControl } from "./use-agent-control";
 import { usePaletteRecents } from "./use-palette-recents";
+import { useAppUpdates } from "./use-app-updates";
+import type { SettingsTab } from "../panels/SettingsPanel";
 
 export function App(): ReactNode {
   const notices = useNotices();
   const [activeView, setActiveView] = useState<AppView>("dashboard");
+  const updates = useAppUpdates();
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
+  const showUpdates = () => { setSettingsTab("updates"); setActiveView("settings"); };
   const showDashboard = useCallback(() => setActiveView("dashboard"), []);
   const [dialog, setDialog] = useState<AppDialog | null>(null);
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
@@ -175,6 +180,8 @@ export function App(): ReactNode {
     agent,
     actions,
     toggleLibrary: toggleCompositionLibrary,
+    updates,
+    showUpdates,
   });
   const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...actions.diagnostics];
 
@@ -224,7 +231,10 @@ export function App(): ReactNode {
     <>
       {activeView === "settings" ? (
         <SettingsPanel
-            draftsOpen={Boolean(editSession)}
+            draftsOpen={draft.blocksNavigation}
+            updates={updates}
+            activeTab={settingsTab}
+            onSelectTab={setSettingsTab}
             appSettings={settings.settings}
             dashboardSettings={dashboardSettings.items}
             actions={allActions}

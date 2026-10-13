@@ -2558,6 +2558,50 @@ test('updates say up to date plainly and show migrations only when dashboards ne
   } finally { await proof.close(); }
 }, 30_000);
 
+test('update palette opens Settings and background lock failures expose recovery', async () => {
+  const proof = await openPage({ viewport: { width: 1100, height: 900 } });
+  try {
+    await proof.goto(fixtureUrl);
+    await proof.getByRole('button', { name: /Open command palette/ }).click();
+    const palette = proof.getByRole('dialog', { name: 'Command palette' });
+    await palette.getByRole('combobox').fill('Open updates');
+    await palette.getByRole('option', { name: /Open updates/ }).click();
+    const panel = proof.getByRole('region', { name: 'Updates', exact: true });
+    await panel.waitFor();
+    expect(await proof.getByRole('tab', { name: 'Updates', exact: true }).getAttribute('aria-selected')).toBe('true');
+    await proof.evaluate(() => {
+      const host = window.__DASH_BORED_UI_HARNESS_HOST__!;
+      host.setUpdateState({ phase: 'available', release: { metadata: { version: '0.5.0', notes: '' } } } as never);
+      const original = host.updateAction.bind(host);
+      host.updateAction = async (action) => {
+        if (action.type === 'prepare') {
+          const acknowledged = await host.getUpdateState();
+          host.setUpdateState({ ...acknowledged, phase: 'problem', message: 'Another update operation owns the lock. Recover interrupted update after its owner exits.' });
+          return acknowledged;
+        }
+        if (action.type === 'recover') {
+          host.setUpdateState({ phase: 'idle', checkedAt: new Date().toISOString(), message: 'Recovered.' });
+          return host.getUpdateState();
+        }
+        return original(action);
+      };
+    });
+    await panel.getByRole('button', { name: 'Update to 0.5.0', exact: true }).click();
+    await panel.getByRole('alert').filter({ hasText: 'owns the lock' }).waitFor();
+    await panel.getByRole('button', { name: 'Recover interrupted update', exact: true }).waitFor();
+    await proof.screenshot({ path: '/tmp/dash-bored-update-lock-recovery.png' });
+    await proof.getByRole('button', { name: /Open command palette/ }).click();
+    await palette.getByRole('combobox').fill('Recover interrupted update');
+    await palette.getByRole('option', { name: /Recover interrupted update/ }).click();
+    await panel.getByRole('heading', { name: "You're up to date" }).waitFor();
+    await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({ phase: 'downloading', message: 'Preparing verified installation.',
+      receipt: { installation: 'awaiting-install', cancelled: false, selected: [], release: { metadata: { version: '0.5.0' } } } } as never));
+    await panel.getByRole('heading', { name: 'Preparing installation…' }).waitFor();
+    expect(await panel.getByRole('progressbar').count()).toBe(1);
+    expect(await panel.getByRole('button', { name: 'Restart and install', exact: true }).count()).toBe(0);
+  } finally { await proof.close(); }
+}, 30_000);
+
 test('focus timer pauses, resumes, completes and starts breaks explicitly', async () => {
   const proof = await openPage({ viewport: { width: 1100, height: 850 } });
   proof.setDefaultTimeout(5_000);

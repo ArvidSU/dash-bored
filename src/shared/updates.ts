@@ -74,3 +74,28 @@ export type UpdateAction =
   | { type: "recover" }
   | { type: "cancel" }
   | { type: "migrate"; selected: string[] };
+
+export function compareVersions(left: string, right: string): number {
+  const parse = (value: string) => {
+    const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/.exec(value);
+    if (!match) throw new Error(`Unsupported release version: ${value}`);
+    return { numbers: match.slice(1, 4).map(Number), pre: match[4] };
+  };
+  const a = parse(left), b = parse(right);
+  for (let i = 0; i < 3; i++) if (a.numbers[i] !== b.numbers[i]) return a.numbers[i]! - b.numbers[i]!;
+  if (a.pre === b.pre) return 0;
+  if (!a.pre) return 1;
+  if (!b.pre) return -1;
+  const aa = a.pre.split('.'), bb = b.pre.split('.');
+  for (let i = 0; i < Math.max(aa.length, bb.length); i++) {
+    const x = aa[i], y = bb[i];
+    if (x === y) continue;
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    const xn = /^\d+$/.test(x), yn = /^\d+$/.test(y);
+    if (xn && yn) return Number(x) - Number(y);
+    if (xn !== yn) return xn ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return 0;
+}

@@ -1162,6 +1162,13 @@ switched off with **Check automatically**. Canary is the only available channel,
 so no channel picker is shown yet. Downloads and installation remain explicit
 actions.
 
+Search **updates** in the command palette to open this surface or check for a
+release. When available, the palette also offers **Download update**, **Restart
+and install update**, **Open update installer**, **Cancel update**, and
+**Recover interrupted update**. Palette downloads defer dashboard migrations;
+choose dashboards in Settings when you want to migrate them. Restarting asks
+for confirmation. Failed operations show their reason and recovery controls.
+
 Dashboards appear only when the new release needs to migrate them. When some
 do, select them and choose **Update and migrate**: after installing and
 restarting the exact target app, those migrations continue automatically.
