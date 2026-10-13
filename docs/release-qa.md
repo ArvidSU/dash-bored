@@ -28,6 +28,15 @@ maintainer action.
 8. Check that the draft has the DMG, app archive, update metadata,
    `MIGRATIONS.md`, and `SHA256SUMS.txt`, and leave it as a draft.
 
+The project dashboard's Release tab runs these steps:
+`.dash-bored/scripts/release.ts set <version>` writes step 2, and `cut` runs
+steps 4–6 and 8, always including `packages:verify-published`. `cut` refuses
+before QA when the checkout is not on `main`, has unpushed commits, is behind
+`origin/main`, has uncommitted changes other than the version bump, or the
+version is not newer than the latest tag. It asks for the tag to be typed
+(`--confirm v<version>` when run without a terminal) and checks again after
+QA. Step 7 stays manual.
+
 ## Release onboarding QA
 
 Run this suite for a release candidate, separately from per-change QA. It uses

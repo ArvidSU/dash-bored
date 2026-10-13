@@ -198,6 +198,11 @@ root:
                                 vars:
                                   id: ${item.id}
                         todos:
+                          - id: release-cut-live-check
+                            description: "Watch the Release tab's Cut release command through a real release: commit and push of the bump, the CI wait, the tag push, and the draft asset check. When it was added, only its refusals (uncommitted, unpushed, behind, existing tag or release) and the typed confirmation were exercised."
+                            done: false
+                            tags:
+                              - release
                           - id: acp-binary-setup
                             description: Add app-managed installation for ACP agents distributed only as binary archives, with version and integrity verification. The Settings checklist currently enables installed binaries and downloads supported npm packages on first use.
                             done: false
@@ -1211,9 +1216,10 @@ root:
                     component: "./components/external/core/markdown"
                     props:
                       content: |
-                        **Unsigned macOS prerelease** for Apple Silicon on macOS 14+. Run the checks in order before
-                        pushing a tag that exactly matches `v<package.json version>`; GitHub Actions repeats them and
-                        creates a draft prerelease for explicit publication. Settings → Updates handles release notes,
+                        **Unsigned macOS prerelease** for Apple Silicon on macOS 14+. Pick the next version, then cut it:
+                        the cut refuses uncommitted or unpushed work, runs release QA, commits the bump, pushes `main`,
+                        waits for CI, and pushes the matching `v<version>` tag. GitHub Actions repeats QA and creates a
+                        draft prerelease; publishing it stays manual. Settings → Updates handles release notes,
                         dashboard migration, and the verified installer. Search updates in the palette for update actions.
                 second:
                   axis: vertical
@@ -1226,34 +1232,96 @@ root:
                         component: "./components/external/core/group"
                         props:
                           title: Release pipeline
+                          description: Set the next version, then cut it. Cutting asks you to type the tag before it changes anything.
                         children:
                           axis: vertical
                           first:
                             node:
-                              id: run-release-qa
-                              component: "./components/external/core/command"
+                              id: release-readiness
+                              component: "./components/external/core/status"
                               props:
-                                label: 1 · Run release QA
-                                command: bun run qa && bun run dash-bored -- validate .
-                                cwd: .
+                                label: Release readiness
+                                source:
+                                  shell: bun run .dash-bored/scripts/release.ts status
+                                  cwd: .
+                                  every: 10000
+                                  timeoutMs: 10000
                           second:
                             axis: vertical
                             first:
                               node:
-                                id: build-macos-release
-                                component: "./components/external/core/command"
+                                id: release-versions
+                                component: "./components/external/core/list"
                                 props:
-                                  label: 2 · Build clean macOS prerelease
-                                  command: bun run build:release
-                                  cwd: .
+                                  title: 1 · Next version
+                                  sort: source-order
+                                  filterByTags: false
+                                  source:
+                                    shell: bun run .dash-bored/scripts/release.ts versions
+                                    cwd: .
+                                    every: 10000
+                                    timeoutMs: 10000
+                                  itemActions:
+                                    - name: Set version
+                                      action:
+                                        run: component:set-release-version:run
+                                        with:
+                                          version: ${item.version}
                             second:
-                              node:
-                                id: prepare-macos-release
-                                component: "./components/external/core/command"
-                                props:
-                                  label: 3 · Verify and stage release assets
-                                  command: bun run release:prepare
-                                  cwd: .
+                              axis: vertical
+                              first:
+                                node:
+                                  id: set-release-version
+                                  component: "./components/external/core/command"
+                                  props:
+                                    label: Set another version (prompts)
+                                    command: bun run .dash-bored/scripts/release.ts set
+                                    cwd: .
+                              second:
+                                axis: vertical
+                                first:
+                                  node:
+                                    id: cut-release
+                                    component: "./components/external/core/command"
+                                    props:
+                                      label: 2 · Cut release (QA, push, CI, tag)
+                                      command: bun run .dash-bored/scripts/release.ts cut
+                                      cwd: .
+                                second:
+                                  node:
+                                    id: release-rehearsal
+                                    component: "./components/external/core/group"
+                                    props:
+                                      title: Local rehearsal
+                                      description: Optional. The release workflow runs these on the tag.
+                                    children:
+                                      axis: vertical
+                                      first:
+                                        node:
+                                          id: run-release-qa
+                                          component: "./components/external/core/command"
+                                          props:
+                                            label: Run release QA
+                                            command: bun run qa && bun run dash-bored -- validate .
+                                            cwd: .
+                                      second:
+                                        axis: vertical
+                                        first:
+                                          node:
+                                            id: build-macos-release
+                                            component: "./components/external/core/command"
+                                            props:
+                                              label: Build clean macOS prerelease
+                                              command: bun run build:release
+                                              cwd: .
+                                        second:
+                                          node:
+                                            id: prepare-macos-release
+                                            component: "./components/external/core/command"
+                                            props:
+                                              label: Verify and stage release assets
+                                              command: bun run release:prepare
+                                              cwd: .
                     second:
                       axis: vertical
                       first:
