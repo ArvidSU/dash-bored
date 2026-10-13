@@ -199,7 +199,7 @@ root:
                                   id: ${item.id}
                         todos:
                           - id: release-cut-live-check
-                            description: "Watch the Release tab's Cut release command through a real release: commit and push of the bump, the CI wait, the tag push, and the draft asset check. When it was added, only its refusals (uncommitted, unpushed, behind, existing tag or release) and the typed confirmation were exercised."
+                            description: "Watch the Release tab's Cut release command succeed end to end, including its draft asset check and final message. During v0.5.2 (2026-10-13) it committed and pushed the bump, waited for CI, pushed the tag, and correctly stopped when the release workflow failed on a flaky test. The tag move and the draft check were then done by hand, because cut refuses an existing tag; consider a resume mode for that case."
                             done: false
                             tags:
                               - release
