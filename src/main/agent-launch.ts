@@ -25,7 +25,7 @@ import {
 } from "../shared/component-agent";
 import type { AgentPromptTemplateSummary, ComponentAgentLaunch, ResolvedComponentNode } from "../shared/contracts";
 import { assertAgentAvailable } from "./agent-preflight";
-import { agentDisplay, detectAgents } from "./agent-detection";
+import { agentDisplay, detectAgents, detectPackageRunner } from "./agent-detection";
 import type { AgentSessions } from "./agent-sessions";
 import { AppSettingsStore, normalizeDashBoredAgent } from "./app-settings";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
@@ -62,7 +62,7 @@ export class AgentLauncher {
   private async configured() {
     const settings = await this.options.settings.get();
     const installed = this.options.detect?.() ?? detectAgents();
-    const runner = this.options.packageRunner ? this.options.packageRunner() : (Bun.which("npx") ? "npx" : Bun.which("bunx") ? "bunx" : null);
+    const runner = this.options.packageRunner ? this.options.packageRunner() : detectPackageRunner();
     return agentSetup(KNOWN_AGENTS, installed, settings.enabledAgentIds, runner);
   }
 

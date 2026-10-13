@@ -35,6 +35,16 @@ export function detectAgents(
 }
 
 /**
+ * The package runner that can fetch a supported agent on first use. PATH is
+ * passed explicitly: Bun.which otherwise reads the launch-time PATH, which
+ * lacks the user directories a Finder-launched app adds at startup.
+ */
+export function detectPackageRunner(env: Readonly<Record<string, string | undefined>> = process.env): "npx" | "bunx" | null {
+  const PATH = env.PATH ?? "";
+  return Bun.which("npx", { PATH }) ? "npx" : Bun.which("bunx", { PATH }) ? "bunx" : null;
+}
+
+/**
  * The known agent a launch command runs: its executable matches the agent's
  * launch executable and it carries the launch command's remaining words
  * (such as `--acp`), so `/opt/homebrew/bin/gemini --acp --debug` is Gemini CLI.

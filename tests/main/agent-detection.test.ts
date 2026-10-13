@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { acpCommandHint, agentDisplay, detectAgents, knownAgentForCommand } from "../../src/main/agent-detection";
+import { acpCommandHint, agentDisplay, detectAgents, detectPackageRunner, knownAgentForCommand } from "../../src/main/agent-detection";
 import { HANDOFF_SESSION_ID, handoffScript, resumeCommand, shellWord } from "../../src/main/agent-handoff";
 import { KNOWN_AGENTS } from "../../src/shared/agent-catalog";
 
@@ -31,6 +31,14 @@ test("detects known agents by their launch executable on PATH, in catalog order"
   ]);
   expect(detectAgents({ PATH: await bin([]) })).toEqual([]);
   expect(detectAgents({})).toEqual([]);
+});
+
+test("finds a package runner on the PATH it is given, not only the launch PATH", async () => {
+  // A Finder-launched app extends PATH at startup; Bun.which ignores that unless passed.
+  expect(detectPackageRunner({ PATH: await bin(["bunx"]) })).toBe("bunx");
+  expect(detectPackageRunner({ PATH: `${await bin(["bunx"])}:${await bin(["npx"])}` })).toBe("npx");
+  expect(detectPackageRunner({ PATH: await bin([]) })).toBeNull();
+  expect(detectPackageRunner({})).toBeNull();
 });
 
 test("every catalog entry is data the app can use", () => {

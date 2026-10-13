@@ -80,8 +80,10 @@ the enabled, available picker choices, including opted-in package commands.
 
 Installed PATH executables win. For an explicitly enabled entry with `package`,
 a missing executable uses `npx -y <package> <ACP args>`, or `bunx` when npx is
-absent. The package runner downloads and caches the package on first launch;
-checking a box only saves configuration. No registry is fetched. Without a
+absent. Like executable detection, the runner lookup passes the app's
+normalized PATH to `Bun.which` explicitly: without it, Bun reads the launch-time
+PATH, which a Finder-launched app lacks. The package runner downloads and
+caches the package on first launch; checking a box only saves configuration. No registry is fetched. Without a
 runner, or for entries without a package, setup names the missing prerequisite
 and links to the agent's instructions. Refresh rechecks PATH without reopening
 Settings. There is no global install, uninstall, or automatic upgrade policy.
