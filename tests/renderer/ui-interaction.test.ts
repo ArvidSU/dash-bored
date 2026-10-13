@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { access, readFile } from "node:fs/promises";
-import { chromium, type Browser, type Page } from "playwright-core";
+import { chromium, type Browser, type Locator, type Page } from "playwright-core";
 import type { ComponentNode, ComponentChildLayout } from "../../src/shared/contracts";
 import { startFixtureServer, type FixtureServer } from "../helpers/fixture-server";
 
@@ -40,6 +40,138 @@ async function addGroupDraft(active: Page = currentPage()): Promise<void> {
   await active.getByRole("button", { name: "Add component", exact: true }).click();
   await active.getByRole("region", { name: "Dashboard editor" }).waitFor();
   await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
+}
+
+type LibraryDragTraceWindow = Window & { __libraryDragTrace?: string[]; __stopLibraryDragTrace?: () => void };
+
+/*
+ * Library drag flake log. Read this before changing the library drag tests.
+ *
+ * Symptom: on hosted macOS runners (3 CPUs), a component-library drag from
+ * "Insert Group" onto renderer-proof-card sometimes never produces a drop,
+ * although the same commit passes CI and local runs.
+ * - Before a516d01 and 32198ec: fixed by waiting for a valid drop target,
+ *   scrolling the target into view, dropping near its bottom edge, and waiting
+ *   for the bottom indicator. It kept flaking after both.
+ * - Release run 38416165831, attempt 1 (v0.5.2, 2026-10-13): "pointer and
+ *   keyboard insertions…" waited 10 s for aria-grabbed="true" and never saw it.
+ *   Its save never happened, so the next four tests failed one revision behind
+ *   ("ui-harness-5", "Revision 6/7/8"). When that happens, fix the first failure
+ *   only.
+ * - Same run, attempt 2: "dragging advertises one compatible insertion edge…"
+ *   waited 10 s for the bottom drop indicator. The old test never checked that
+ *   the drag had started, so this may be the same failure.
+ * - Not reproduced locally: three runs of this file and one full suite with
+ *   12-20 busy loops on a 10-core Mac all passed. A probe showed the drawer's
+ *   220 ms slide-in had finished and the button's geometry was stable when the
+ *   test measured it.
+ *
+ * Changed after those runs (the helpers below):
+ * - Pressing used raw mouse.move/down at a measured point. That skips
+ *   Playwright's hit-target check, so anything covering the button at that
+ *   moment swallowed the press with no trace. The press now goes through
+ *   hover(), which waits until the button is visible, stable, and receives
+ *   events. The press point is also hit-tested.
+ * - A short move inside the drawer crosses the 6 px activation threshold and
+ *   confirms the grab before the pointer travels, so "did not start" and
+ *   "found no target" fail separately.
+ * - The target is measured again after the drag starts. The tab switch and the
+ *   drawer folding can still be settling before then. Drop targets are resolved
+ *   only on pointer moves (an elementFromPoint call throttled to animation frames
+ *   in composition-targets.ts), so a pointer that stops over a covered or moved
+ *   point never gets an indicator.
+ * - No retries, on purpose: a retry would hide which step failed.
+ *
+ * If it fails again, the error carries evidence. Next steps by symptom:
+ * - "did not start" with no pointerdown on the button: something covered it.
+ *   Find out what, or press the card's data-library-drag-handle instead.
+ * - "did not start" with lostpointercapture, pointercancel, or "blur window"
+ *   after the pointerdown: the gesture was cancelled. pointer-session.ts
+ *   finishes on a window blur, and the drawer folds to pointer-events: none once
+ *   a drag starts (CompositionFlyout.tsx). Element blurs, such as the search box
+ *   losing focus on the press, are expected.
+ * - "did not start" with pointerdown and gotpointercapture but no grab:
+ *   movePointerDrag never saw the move. Try more or larger steps.
+ * - "found no drop indicator": compare underPointer with the target. If the
+ *   pointer is over the target, nudge it 1 px to force another hit test and
+ *   record whether that helps. Otherwise, find what covers it.
+ */
+
+/** Press a component-library entry and cross the drag threshold, or fail with evidence. */
+async function startLibraryDrag(active: Page, source: Locator): Promise<void> {
+  await source.hover();
+  const box = await source.boundingBox();
+  if (!box) throw new Error("Library drag source geometry is unavailable.");
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const covering = await source.evaluate((element, { x, y }) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit && element.contains(hit) ? null : hit?.outerHTML.slice(0, 160) ?? "nothing";
+  }, point);
+  if (covering) throw new Error(`Library drag source is covered at its press point by ${covering}`);
+
+  await active.evaluate(() => {
+    const trace: string[] = [];
+    const record = (event: Event): void => {
+      const target = event.target === window ? "window" : event.target instanceof Element
+        ? `${event.target.tagName.toLowerCase()}[${event.target.getAttribute("aria-label") ?? ""}].${event.target.getAttribute("class") ?? ""}`
+        : String(event.target);
+      trace.push(`${Math.round(performance.now())} ${event.type} ${target}`);
+    };
+    const types = ["pointerdown", "gotpointercapture", "lostpointercapture", "pointercancel", "pointerup", "blur"];
+    for (const type of types) window.addEventListener(type, record, true);
+    const traced = window as LibraryDragTraceWindow;
+    traced.__libraryDragTrace = trace;
+    traced.__stopLibraryDragTrace = () => types.forEach((type) => window.removeEventListener(type, record, true));
+  });
+  try {
+    await active.mouse.down();
+    await active.mouse.move(point.x - 12, point.y, { steps: 3 });
+    await active.locator('[data-library-drag-handle][aria-grabbed="true"]').waitFor({ state: "attached", timeout: 3_000 });
+  } catch (error) {
+    const evidence = await active.evaluate(({ x, y }) => {
+      const traced = window as LibraryDragTraceWindow;
+      const describe = (element: Element | null) => element?.outerHTML.slice(0, 160) ?? "nothing";
+      return {
+        trace: traced.__libraryDragTrace ?? [],
+        underPressPoint: describe(document.elementFromPoint(x, y)),
+        focused: document.hasFocus(),
+        activeElement: describe(document.activeElement),
+        drawers: [...document.querySelectorAll(".right-drawer")].map((drawer) => drawer.getAttribute("class")),
+        grabbed: [...document.querySelectorAll("[aria-grabbed='true']")].map(describe),
+      };
+    }, point);
+    await active.mouse.up();
+    throw new Error(`Library drag did not start: ${JSON.stringify(evidence, null, 2)}\n${String(error)}`);
+  } finally {
+    await active.evaluate(() => (window as LibraryDragTraceWindow).__stopLibraryDragTrace?.());
+  }
+}
+
+/** Carry an active library drag to `target`'s bottom edge and return its bottom drop indicator. */
+async function moveLibraryDragToBottomEdge(active: Page, target: Locator): Promise<{ indicator: Locator; targetBox: { x: number; y: number; width: number; height: number } }> {
+  const targetBox = await target.boundingBox();
+  if (!targetBox) throw new Error("Library drag target geometry is unavailable.");
+  const point = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height - 8 };
+  await active.mouse.move(point.x, point.y, { steps: 12 });
+  const indicator = target.locator(":scope > .composition-drop-indicator--bottom");
+  try {
+    await indicator.waitFor({ timeout: 5_000 });
+  } catch (error) {
+    const evidence = await target.evaluate((element, { x, y }) => {
+      const describe = (node: Element | null) => node?.outerHTML.slice(0, 160) ?? "nothing";
+      const under = document.elementFromPoint(x, y);
+      return {
+        underPointer: describe(under),
+        pointerInsideTarget: under !== null && element.contains(under),
+        targetRect: element.getBoundingClientRect().toJSON(),
+        indicators: [...document.querySelectorAll(".composition-drop-indicator")].map(describe),
+        grabbed: [...document.querySelectorAll("[aria-grabbed='true']")].map(describe),
+      };
+    }, point);
+    await active.mouse.up();
+    throw new Error(`Library drag found no drop indicator: ${JSON.stringify({ point, measured: targetBox, ...evidence }, null, 2)}\n${String(error)}`);
+  }
+  return { indicator, targetBox };
 }
 
 async function persistedGroupCount(active: Page = currentPage()): Promise<number> {
@@ -1627,12 +1759,11 @@ describe("renderer fixture interactions", () => {
     // The app header is outside the managed component tree, so it exposes no pointer insertion boundary.
     const target = active.locator(".app-header");
     await source.scrollIntoViewIfNeeded();
-    const sourceBox = await source.boundingBox();
     const targetBox = await target.boundingBox();
-    if (!sourceBox || !targetBox) throw new Error("Fixture drag geometry is unavailable.");
+    if (!targetBox) throw new Error("Fixture drag geometry is unavailable.");
 
-    await active.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
-    await active.mouse.down();
+    // Without a confirmed start, a missed press would pass this test vacuously.
+    await startLibraryDrag(active, source);
     await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 4 });
     await active.waitForTimeout(250);
     await active.mouse.up();
@@ -1653,17 +1784,9 @@ describe("renderer fixture interactions", () => {
     const source = active.getByRole("button", { name: "Insert Group", exact: true });
     const target = active.locator('[data-node-id="renderer-proof-card"]');
     await source.scrollIntoViewIfNeeded();
-    const sourceBox = await source.boundingBox();
-    const targetBox = await target.boundingBox();
-    if (!sourceBox || !targetBox) throw new Error("Fixture drag geometry is unavailable.");
 
-    await active.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
-    await active.waitForTimeout(100);
-    await active.mouse.down();
-    await active.waitForTimeout(100);
-    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 8, { steps: 12 });
-    const indicator = target.locator(":scope > .composition-drop-indicator--bottom");
-    await indicator.waitFor();
+    await startLibraryDrag(active, source);
+    const { indicator, targetBox } = await moveLibraryDragToBottomEdge(active, target);
     const indicatorBox = await indicator.boundingBox();
     if (!indicatorBox) throw new Error("Drop-indicator geometry is unavailable.");
     expect(indicatorBox.y).toBeGreaterThanOrEqual(targetBox.y);
@@ -1841,17 +1964,9 @@ describe("renderer fixture interactions", () => {
     const target = active.locator('[data-node-id="renderer-proof-card"]');
     await target.scrollIntoViewIfNeeded();
     await source.scrollIntoViewIfNeeded();
-    const sourceBox = await source.boundingBox();
-    const targetBox = await target.boundingBox();
-    if (!sourceBox || !targetBox) throw new Error("Fixture drag geometry is unavailable.");
 
-    await active.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
-    await active.waitForTimeout(100);
-    await active.mouse.down();
-    await active.waitForTimeout(100);
-    await active.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 8, { steps: 12 });
-    await active.locator('[data-library-drag-handle][aria-grabbed="true"]').waitFor();
-    await target.locator(":scope > .composition-drop-indicator--bottom").waitFor();
+    await startLibraryDrag(active, source);
+    await moveLibraryDragToBottomEdge(active, target);
     await active.mouse.up();
 
     await active.getByRole("heading", { name: "Add component" }).waitFor();
