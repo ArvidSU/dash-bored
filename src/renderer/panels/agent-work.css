@@ -87,7 +87,7 @@
 
 .agent-activity-trigger__count--attention,
 .agent-activity-trigger strong.agent-activity-trigger__count--attention {
-  color: var(--text);
+  color: var(--surface);
   background: var(--warning);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 28%, transparent);
 }

@@ -1560,7 +1560,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Open component library" }).click();
     await active.getByRole("dialog", { name: "Component library" }).waitFor();
 
-    await active.getByText("Revision 1", { exact: true }).click({ position: { x: 4, y: 4 } });
+    await active.locator('main.workspace[data-revision="1"]').click({ position: { x: 4, y: 4 } });
 
     await active.getByRole("button", { name: "Open component library" }).waitFor();
     expect(await active.getByRole("region", { name: "Dashboard editor" }).count()).toBe(0);
@@ -1676,7 +1676,7 @@ describe("renderer fixture interactions", () => {
 
     expect(await persistedGroupCount()).toBe(0);
     await currentPage().getByRole("button", { name: "Save dashboard" }).click();
-    await currentPage().getByText("Revision 2", { exact: true }).waitFor();
+    await currentPage().locator('main.workspace[data-revision="2"]').waitFor();
     expect(await persistedGroupCount()).toBe(1);
 
     await addGroupDraft();
@@ -1714,7 +1714,7 @@ describe("renderer fixture interactions", () => {
 
       await moveUp();
       await proof.getByRole("button", { name: "Save dashboard" }).click();
-      await proof.getByText("Revision 2", { exact: true }).waitFor();
+      await proof.locator('main.workspace[data-revision="2"]').waitFor();
       const saved = await persistedResponsiveSiblingOrder(proof);
       expect(saved.indexOf("responsive-card")).toBeLessThan(saved.indexOf("status"));
     } finally {
@@ -1912,7 +1912,7 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Save dashboard" }).waitFor();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard" }).click();
-    await active.getByText("Revision 3", { exact: true }).waitFor();
+    await active.locator('main.workspace[data-revision="3"]').waitFor();
     expect(await active.evaluate(() => {
       const host = window.__DASH_BORED_UI_HARNESS_HOST__;
       if (!host) throw new Error("UI harness host is unavailable.");
@@ -2013,7 +2013,7 @@ describe("renderer fixture interactions", () => {
     expect(await active.getByRole("button", { name: "Cancel", exact: true }).count()).toBeGreaterThan(0);
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard" }).click();
-    await active.getByText("Revision 4", { exact: true }).waitFor();
+    await active.locator('main.workspace[data-revision="4"]').waitFor();
     expect(await persistedGroupCount()).toBe(2);
   }, 30_000);
 
@@ -2105,7 +2105,7 @@ describe("renderer fixture interactions", () => {
 
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
-    await active.getByText("Revision 6", { exact: true }).waitFor();
+    await active.locator('main.workspace[data-revision="6"]').waitFor();
     await active.getByRole("tab", { name: "Item 4", exact: true }).click();
     await active.getByRole("button", { name: "Open terminal", exact: true }).waitFor();
     expect(await active.locator('[data-node-id="command"] > [data-composition-drag-handle]').count()).toBe(1);
@@ -2149,7 +2149,7 @@ describe("renderer fixture interactions", () => {
 
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
-    await active.getByText("Revision 7", { exact: true }).waitFor();
+    await active.locator('main.workspace[data-revision="7"]').waitFor();
     await active.getByRole("tab", { name: "Item 5", exact: true }).click();
     await active.locator(".markdown").filter({ hasText: "Deferred Markdown" }).waitFor();
     expect(await markdownModuleRequested()).toBe(true);
@@ -2166,7 +2166,7 @@ describe("renderer fixture interactions", () => {
     await dialog.getByRole("button", { name: "Add component", exact: true }).click();
     await active.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Close Component library", exact: true }).click();
     await active.getByRole("button", { name: "Save dashboard", exact: true }).click();
-    await active.getByText("Revision 8", { exact: true }).waitFor();
+    await active.locator('main.workspace[data-revision="8"]').waitFor();
 
     await active.getByRole("tab", { name: "Item 6", exact: true }).click();
     const viewer = active.getByRole("region", { name: "Markdown preview for README.md" });
@@ -3197,7 +3197,7 @@ test('glance atoms show trend, proportion, changes, item reveal, and chart refre
 
     // A changed status value keeps text state and does not change geometry.
     await proof.evaluate(() => { (window as GlanceWindow).glance!.status = { ...(window as GlanceWindow).glance!.status as object, state: 'warning' }; });
-    await proof.getByRole('button', { name: 'Refresh glance status', exact: true }).click({ position: { x: 16, y: 34 } });
+    await proof.getByRole('button', { name: 'Refresh glance status', exact: true }).click();
     await tile.locator('.status__changed').waitFor();
     expect(await tile.locator('.status__changed').innerText()).toMatch(/^Changed\s+from healthy · /);
     // The previous state and time wrap under "Changed" instead of being clipped.
@@ -3229,7 +3229,7 @@ test('glance atoms show trend, proportion, changes, item reveal, and chart refre
 
     // Chart refresh shows a visible cue in existing chrome.
     const chart = proof.locator('.chart');
-    await chart.getByText('Source', { exact: true }).waitFor();
+    await chart.locator('.chart__svg').waitFor();
     const chartBefore = await chart.boundingBox();
     await proof.evaluate(() => { (window as GlanceWindow).glance!.hold = true; });
     await chart.getByRole('button', { name: 'Refresh', exact: true }).click();

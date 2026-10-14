@@ -53,7 +53,9 @@ export function DashboardWorkspace({
     : resolvedTree === undefined ? snapshot.tree : resolvedTree;
   const packageFailure = diagnostics.some(item => item.code === "PACKAGE_RESTORE_FAILED" || item.code === "PACKAGE_PIN_MISMATCH");
   return (
-    <main className="workspace">
+    // The snapshot revision is test and agent plumbing, not reader-facing state;
+    // trust problems surface through the trust panel above.
+    <main className="workspace" data-revision={snapshot.revision}>
       <>
           {draftPreviewUnavailable ? (
             <div className="inline-warning" role="status">The draft has not resolved yet. The saved dashboard remains visible while it is checked.</div>
@@ -109,11 +111,6 @@ export function DashboardWorkspace({
             </section>
           )}
       </>
-
-      <footer className="workspace__footer">
-        <span>Revision {snapshot.revision}</span>
-        <span>{snapshot.trusted ? "Capabilities enabled" : "Restricted mode"}</span>
-      </footer>
     </main>
   );
 }

@@ -353,9 +353,13 @@ state must come from real sources, including explicit unknown and failed reads.
 
 Use consistent visual grammar across generic atoms: color plus shape for state,
 clear selected navigation, quieter metadata, and grouped related information.
-Reserve signal colors for meaning. Light and dark themes must preserve hierarchy
-and readable secondary text. A project-specific visualization belongs in its
-bundle and uses the same theme and capability contracts.
+Reserve signal colors for meaning: healthy state reads calm, and only state
+that needs attention tints its surface. Chrome recedes so attention falls on
+data and available actions: one level of framing, headings rather than nested
+boxes, and editing affordances that appear on hover or focus. Light and dark
+themes must preserve hierarchy and readable secondary text. A project-specific
+visualization belongs in its bundle and uses the same theme and capability
+contracts.
 
 Interactions should reveal detail and make the next action clear. Motion explains
 arrival, selection, or work in progress; it should be brief, respect reduced

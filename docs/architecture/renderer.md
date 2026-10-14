@@ -929,9 +929,12 @@ bounds stay centered.
 The generic atoms share `lib/state-visual.tsx`: healthy/completed states use a
 check circle, warnings/work in progress a triangle, failures a cross circle,
 and unknown or arbitrary states a neutral minus circle. State remains visible
-as text; glyphs are decorative. Semantic theme colors tint status borders,
-backgrounds, and state labels, while metadata uses the readable muted token.
-Status refresh dims the existing glyph without changing geometry.
+as text; glyphs are decorative. Signal colors are reserved for attention:
+healthy and unknown status tiles keep a neutral surface with a colored glyph,
+and only warning and negative states tint the tile border, background, and
+value. Metadata uses the readable muted token, and reference detail such as a
+command line or config path the faint one. Status refresh dims the existing
+glyph without changing geometry.
 `stateTone` also maps generic work states: `bug`, `broken`, and `failing` are
 negative; `blocked`, `degraded`, and `stale` are warnings; `open` stays
 neutral. `isClosedState` shares the done/completed/closed set with the tone map.
@@ -947,12 +950,27 @@ ring, and source lists mark changed items as above. Change tracking is
 per-mount and in memory; it does not survive a remount or reload.
 
 Action bars show contract-derived verbs (process, agent, navigation, component
-refresh, or a neutral generic action), replacing the same icon slot with a spinner while running. Tabs use a
-filled selected surface and an inset indicator; controls wrap in narrow panels.
-Source lists and Markdown announce background refresh in visually hidden text
-and indicate it within the existing header, retaining the prior content and
-height. Initial loading and source errors remain explicit. Group headings
-provide hierarchy, and charts have a bounded responsive plot height.
+refresh, or a neutral generic action), replacing the same icon slot with a spinner while running. Tabs are
+text on a baseline rule with an accent underline on the selected tab; controls
+wrap in narrow panels. Source lists and Markdown announce background refresh in
+visually hidden text and indicate it within the existing header, retaining the
+prior content and height. Initial loading and source errors remain explicit.
+
+Chrome recedes so data and actions lead. Surfaces are flat, with one border
+level: a titled group is a section heading over its children rather than a
+box, and a card is the one explicit frame, which sets `--core-surface` and
+`--core-surface-border` so leaf surfaces inside it sit inset without a second
+border. Row actions in lists and todos, header refresh controls, and Open
+terminal are quiet ghost buttons; a command's run control is a plain **Run**
+button rather than an accent button repeating the label. Editing affordances
+appear on hover or focus: Markdown view controls (always while editing), a
+todo's Remove, and the tag editor of an untagged todo; touch devices show them
+throughout. Markdown shows a header only for a configured `title` or `path`.
+Charts state only transient status (`Updating…`, `Paused while hidden`) in the
+heading and show a legend only for more than one series. The workspace has no
+footer; its snapshot revision is the `data-revision` attribute on
+`main.workspace`, and header controls are ghost buttons until hovered. Group
+headings provide hierarchy, and charts have a bounded responsive plot height.
 
 Surfaces fade in once on mount for 180 ms. Button presses, hover, and source
 feedback use short transitions; polling does not replay mount animations.

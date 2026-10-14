@@ -590,8 +590,9 @@ valid action that is currently unmounted remains valid and renders as a
 disabled button with its reason.
 
 `./components/external/core/markdown` accepts either inline `content` or a project-relative
-`path`. It opens in pretty Markdown preview by default; `Raw / edit` exposes
-the source editor, with Save/Cancel behavior. Inline saves update the owning
+`path`. It opens in pretty Markdown preview by default; `Raw / edit`, shown
+when you hover or focus the panel, exposes the source editor, with Save/Cancel
+behavior. An optional `title` adds a heading. Inline saves update the owning
 dashboard draft, while path-backed saves write the bounded project file.
 
 `./components/external/core/list` reads JSON from one bounded source and expects an array of
@@ -636,8 +637,8 @@ same `todos` array and remains available for existing dashboards.
 
 `./components/external/core/command` is a user-controlled terminal. It never starts
 automatically: **Open terminal** creates its persistent PTY-backed shell and
-the configured YAML `command` is its remembered quick action. Use the command
-button to run that action again, or type directly into the terminal to run
+the configured YAML `command` is its remembered quick action. Use **Run** to
+run that action again, or type directly into the terminal to run
 consecutive commands; **Close terminal** ends the shell and its process tree.
 Each quick-action run reports its own result: the command shows `running`
 and then its exit code, and a status view or button bound to the command

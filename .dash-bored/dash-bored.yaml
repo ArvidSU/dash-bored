@@ -713,6 +713,36 @@ root:
                             done: false
                             tags:
                               - docs
+                          - id: todo-push-quiet-chrome-core
+                            description: "Push dash-bored-components commit cbcd5d5 (quiet component chrome, local branch visual-clarity) to the public repository before any release: the core pin points at it, so package restore in other checkouts and the release core-package gate fail until it is published."
+                            done: false
+                            tags:
+                              - release
+                              - visuals
+                          - id: todo-quiet-chrome-app-panels
+                            description: "Extend the quiet-chrome pass from the dashboard to app panels: Settings tabs and cards, the command palette, the Agent work drawer and session modal, and the component library still use filled accent selections, raised shadows, and uppercase mono labels."
+                            done: false
+                            tags:
+                              - visuals
+                              - renderer
+                          - id: todo-narrow-tab-bar
+                            description: "At phone widths the 76 px sidebar stays expanded and the eight project tabs wrap into three rows. Collapse the sidebar below a breakpoint and decide between a scrolling tab row and an overflow menu for tab bars."
+                            done: false
+                            tags:
+                              - visuals
+                              - renderer
+                          - id: todo-list-row-actions-width
+                            description: "List rows with two item actions (Roadmap: Continue with agent, Read roadmap) squeeze the title and detail into a narrow column at half width. Move trailing actions under the text when the row is narrow, or collapse extra actions into a row menu."
+                            done: false
+                            tags:
+                              - visuals
+                              - renderer
+                          - id: todo-fixture-replay
+                            description: "Add a replay mode to the UI fixture that renders a bundle's real dashboard with recorded source outputs (one run per shell source), so renderer visuals can be reviewed against real content in headless Chrome when the native window cannot be captured, such as on a locked screen."
+                            done: false
+                            tags:
+                              - tooling
+                              - visuals
                   second:
                     node:
                       id: checks
