@@ -39,12 +39,15 @@ import { useAppShortcuts, useCommandHeld } from "./use-app-keyboard";
 import { useAgentControl } from "./use-agent-control";
 import { usePaletteRecents } from "./use-palette-recents";
 import { useAppUpdates } from "./use-app-updates";
+import { usePackageUpdates } from "./use-package-updates";
+import { pendingUpdateCount } from "../lib/update-actions";
 import type { SettingsTab } from "../panels/SettingsPanel";
 
 export function App(): ReactNode {
   const notices = useNotices();
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const updates = useAppUpdates();
+  const packageUpdates = usePackageUpdates();
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const showUpdates = () => { setSettingsTab("updates"); setActiveView("settings"); };
   const showDashboard = useCallback(() => setActiveView("dashboard"), []);
@@ -181,6 +184,7 @@ export function App(): ReactNode {
     actions,
     toggleLibrary: toggleCompositionLibrary,
     updates,
+    packageUpdates,
     showUpdates,
   });
   const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...actions.diagnostics];
@@ -233,6 +237,7 @@ export function App(): ReactNode {
         <SettingsPanel
             draftsOpen={draft.blocksNavigation}
             updates={updates}
+            packageUpdates={packageUpdates}
             activeTab={settingsTab}
             onSelectTab={setSettingsTab}
             appSettings={settings.settings}
@@ -313,6 +318,7 @@ export function App(): ReactNode {
         agentActivityOpen={agentActivityOpen}
         activeAgentTaskCount={busyAgentTaskCount(session.agentTasks)}
         waitingAgentTaskCount={waitingAgentTaskCount(session.agentTasks)}
+        pendingUpdateCount={pendingUpdateCount(updates.state, packageUpdates.state)}
         agentPickerAvailable={agentPicker.enabled}
         agentPickerActive={agentPicker.active}
         editorToolbar={

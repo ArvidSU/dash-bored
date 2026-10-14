@@ -739,7 +739,8 @@ Dash-bored owns private Git repositories inside `components/external/` and
 commit your YAML, local components and `dash-bored-lock.yaml`. Package operations
 work in plain directories and never edit parent Git metadata. Init and opening a
 bundle restore missing locked packages, including linked bundles, at exact pins.
-Existing checkouts stay untouched. Updates are explicit.
+Existing checkouts stay untouched. Updates are explicit; **Settings → Updates**
+shows which pins are behind their repository and updates them.
 
 Use `component restore <bundle>` to retry missing checkouts, `component sync
 <bundle>` to align existing clean checkouts, and `component migrate-ownership
@@ -1156,7 +1157,8 @@ restores the exact pin when the bundle opens (or with Sync). Personal
 installation becomes `global:ocean` and lives under
 `~/.config/dash-bored/themes`. Git is required for installations; project
 installs work in Git projects and plain directories. Updates are always
-explicit and refuse local changes. Installation does not select a theme.
+explicit and refuse local changes; **Settings → Updates** lists theme packages
+with newer commits. Installation does not select a theme.
 
 ## App updates and dashboard migrations
 
@@ -1167,8 +1169,22 @@ switched off with **Check automatically**. Canary is the only available channel,
 so no channel picker is shown yet. Downloads and installation remain explicit
 actions.
 
+Below the app release, **Components and themes** lists pinned component
+packages (such as `core`) and theme packages, from every registered dashboard
+and your personal themes, that are behind their repository's default branch.
+Each shows its pinned and latest version (a release tag when the repository
+tags one, such as `v0.1.4+4 → v0.1.5`), a **Changes** link for GitHub, GitLab
+and Codeberg repositories, and **Update**; **Update all** appears when several
+can update. Checks read remote refs only and run with the app's automatic
+checks, or with **Check packages**/**Check again**. A package with local
+changes, a missing checkout, or parent-owned Git metadata says so instead of
+offering Update. Updating moves the pin to the repository's latest commit; if a
+component update asks for new permissions, its dashboard asks for trust again.
+The Updates tab counts waiting updates, and the sidebar Settings entry shows a dot.
+
 Search **updates** in the command palette to open this surface or check for a
-release. When available, the palette also offers **Download update**, **Restart
+release or **Check for package updates**. When available, the palette also
+offers **Update packages**, **Download update**, **Restart
 and install update**, **Open update installer**, **Cancel update**, and
 **Recover interrupted update**. Palette downloads defer dashboard migrations;
 choose dashboards in Settings when you want to migrate them. Restarting asks

@@ -50,11 +50,16 @@ export function packageWorkPath(store: Pick<PackageStore, "root">, purpose: "sta
 }
 
 /** Run git with local file transport allowed; resolves to trimmed stdout and rejects with git's own error. */
-export async function git(cwd: string, args: readonly string[], timeoutMs = GIT_TIMEOUT_MS): Promise<string> {
+export async function git(
+  cwd: string,
+  args: readonly string[],
+  timeoutMs = GIT_TIMEOUT_MS,
+  env?: Readonly<Record<string, string>>,
+): Promise<string> {
   const { stdout } = await execFileAsync(
     "git",
     ["-c", "protocol.file.allow=always", ...args],
-    { cwd, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
+    { cwd, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, ...(env ? { env: { ...process.env, ...env } } : {}) },
   );
   return stdout.trim();
 }
@@ -442,8 +447,9 @@ function parseLsRemote(output: string): RemoteRef[] {
 async function listRemoteRefs(url: string): Promise<RemoteRef[]> {
   let output: string;
   try {
-    // ls-remote needs no repository; run it from the process directory.
-    output = await git(process.cwd(), ["ls-remote", url], LS_REMOTE_TIMEOUT_MS);
+    // ls-remote needs no repository; run it from the process directory. Lock
+    // URLs are untrusted data, so `--` keeps them from becoming options.
+    output = await git(process.cwd(), ["ls-remote", "--", url], LS_REMOTE_TIMEOUT_MS);
   } catch (error) {
     throw new CoreError(
       "COMPONENT_REF_UNRESOLVED",
@@ -481,7 +487,7 @@ export async function resolveRemoteCommit(url: string, ref?: string): Promise<st
   try {
     output = await git(
       process.cwd(),
-      ["ls-remote", url, ref, `refs/heads/${ref}`, `refs/tags/${ref}`],
+      ["ls-remote", "--", url, ref, `refs/heads/${ref}`, `refs/tags/${ref}`],
       LS_REMOTE_TIMEOUT_MS,
     );
   } catch (error) {
@@ -508,8 +514,39 @@ export async function resolveRemoteCommit(url: string, ref?: string): Promise<st
 /** The remote's HEAD commit, or null when it cannot be reached. */
 export async function readRemoteHead(url: string, cwd: string): Promise<string | null> {
   try {
-    return parseLsRemote(await git(cwd, ["ls-remote", url, "HEAD"], LS_REMOTE_TIMEOUT_MS))[0]?.sha ?? null;
+    return parseLsRemote(await git(cwd, ["ls-remote", "--", url, "HEAD"], LS_REMOTE_TIMEOUT_MS))[0]?.sha ?? null;
   } catch {
     return null;
   }
+}
+
+export interface RemoteHeadAndTags {
+  /** The default-branch head, or null when the remote advertises none. */
+  head: string | null;
+  /** Tag names by the commit they point at; annotated tags use their peeled commit. */
+  tags: Map<string, string[]>;
+}
+
+/**
+ * HEAD and tags in one round trip, without prompting for credentials: update
+ * checks also run unattended, and a terminal prompt would hang them.
+ */
+export async function readRemoteHeadAndTags(url: string): Promise<RemoteHeadAndTags> {
+  let output: string;
+  try {
+    output = await git(process.cwd(), ["ls-remote", "--", url, "HEAD", "refs/tags/*"], LS_REMOTE_TIMEOUT_MS, { GIT_TERMINAL_PROMPT: "0" });
+  } catch (error) {
+    throw new CoreError("COMPONENT_REF_UNRESOLVED", `Could not reach ${url}: ${gitErrorDetail(error)}`);
+  }
+  const refs = parseLsRemote(output);
+  const tagCommits = new Map<string, string>();
+  for (const { sha, ref } of refs) {
+    if (!ref.startsWith("refs/tags/")) continue;
+    const peeled = ref.endsWith("^{}");
+    const name = ref.slice("refs/tags/".length, peeled ? -3 : undefined);
+    if (peeled || !tagCommits.has(name)) tagCommits.set(name, sha);
+  }
+  const tags = new Map<string, string[]>();
+  for (const [name, sha] of tagCommits) tags.set(sha, [...tags.get(sha) ?? [], name]);
+  return { head: refs.find((entry) => entry.ref === "HEAD")?.sha ?? null, tags };
 }

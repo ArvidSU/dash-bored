@@ -377,6 +377,38 @@ The SDK exports `useComponentVisibility()` to pause hidden polling and
 and theme are app-owned; the external command and Agent work both use it.
 Supervision and capability checks remain in main.
 
+### Package update checks
+
+`src/core/package-updates.ts` compares every pin with its repository's default
+branch: components and themes in each registered dashboard bundle (plus the
+active one) and personal themes. A check reads remote `HEAD` and tags with one
+`ls-remote` per distinct URL, with terminal prompts disabled, and inspects each
+checkout locally: missing, parent-owned, or modified checkouts are reported as
+the reason an update would refuse. It never fetches, writes a lock, rewrites an
+index, or touches a checkout, so it may run unattended. A version is labeled by
+a remote tag at that exact commit, else by the nearest local tag below the pin
+(`v0.1.4+4`), else by its short SHA. GitHub, GitLab, and Codeberg URLs also get
+a compare-page link. Lock URLs are pre-trust data: every `ls-remote` passes
+them after `--`, so a URL cannot become a git option.
+
+`src/main/package-updates.ts` holds the result and pushes each change as
+`packageUpdates`. It checks five seconds after startup and every 24 hours while
+the app's **Check automatically** update setting is on, and on demand.
+`packageUpdateCommand` runs one check or update at a time and acknowledges once
+it has started. An update calls the package kind's ordinary `update` operation
+without a ref, so it moves to the default-branch head resolved at that moment
+under the store's operation guard, dirty-checkout refusal, validation, and
+rollback. Afterwards an updated component of the active dashboard reloads it,
+which re-runs the permission-union trust check; the result says when trust must
+be granted again. Updated themes push a fresh catalog. A failure stays on its
+package. Manual add, update, remove, and sync operations re-rate pins against
+the last check's remote heads without new network reads for known URLs.
+
+The check follows the default branch because that is what `update` without a
+ref already does. Without fetching it cannot order commits, so a pin on another
+branch that is ahead of the default branch is still listed as updatable, and
+Update would move it back to that branch.
+
 ## Local React contract and compilation
 
 Local TSX imports its supported API from a virtual module:

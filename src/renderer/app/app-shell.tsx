@@ -98,6 +98,8 @@ export interface AppShellProps {
   activeAgentTaskCount: number;
   /** Agent sessions blocked on the user (a permission request or sign-in). */
   waitingAgentTaskCount: number;
+  /** App releases and pinned packages ready to update; Settings shows a badge. */
+  pendingUpdateCount: number;
   /** Whether the header dropper can pick a dashboard component for the agent. */
   agentPickerAvailable: boolean;
   agentPickerActive: boolean;
@@ -127,6 +129,10 @@ export interface AppShellProps {
   onDismissNotice(): void;
 }
 
+function updatesAvailable(count: number): string {
+  return `${count} ${count === 1 ? "update" : "updates"} available`;
+}
+
 /** Window chrome, navigation, and header only. Dashboard state stays with its workspace. */
 /** The Agent work trigger's name: its action, then the counts its badge shows. */
 function agentActivityTriggerLabel(open: boolean, active: number, waiting: number): string {
@@ -153,6 +159,7 @@ export function AppShell({
   agentActivityOpen,
   activeAgentTaskCount,
   waitingAgentTaskCount,
+  pendingUpdateCount,
   agentPickerAvailable,
   agentPickerActive,
   editorToolbar,
@@ -288,12 +295,15 @@ export function AppShell({
               type="button"
               aria-current={activeView === "settings" ? "page" : undefined}
               aria-label="Settings"
-              title="Settings"
+              aria-describedby={pendingUpdateCount ? "sidebar-update-count" : undefined}
+              title={pendingUpdateCount ? `Settings — ${updatesAvailable(pendingUpdateCount)}` : "Settings"}
               onClick={onShowSettings}
             >
               <span className="sidebar__item-icon">
                 <ShellIcon name="settings" />
+                {pendingUpdateCount ? <span className="sidebar__update-dot" aria-hidden="true" /> : null}
               </span>
+              {pendingUpdateCount ? <span id="sidebar-update-count" hidden>{updatesAvailable(pendingUpdateCount)}</span> : null}
               <span className="sidebar__label">Settings</span>
             </button>
           </div>

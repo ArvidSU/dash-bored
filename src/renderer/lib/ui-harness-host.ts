@@ -39,6 +39,7 @@ import type { AgentCommandChoice, ComponentAgentRequest } from "../../shared/age
 import { childEdges } from "../../shared/child-edges";
 import type { DashboardHost, HostEvent } from "./rpc-client";
 import type { UpdateState } from "../../shared/updates";
+import { INITIAL_PACKAGE_UPDATE_STATE, type PackageUpdateCommand, type PackageUpdateItem, type PackageUpdateState } from "../../shared/package-updates";
 import { envEntries, parseEnv } from "../../shared/env";
 import { componentPath, findResolvedNode, promptComponent } from "../../shared/component-agent";
 import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, type PromptTemplate } from "../../shared/prompt-templates";
@@ -375,6 +376,29 @@ export interface UiHarnessHost extends DashboardHost, FixtureAgentControls {
   getPackageOperations(): readonly unknown[];
   /** Test-only override for the Updates panel state; null restores the idle fixture. */
   setUpdateState(state: Partial<UpdateState> | null): void;
+  /** Test-only package update state, pushed like the host's; null restores the unchecked fixture. */
+  setPackageUpdates(state: Partial<PackageUpdateState> | null): void;
+  /** Test-only record of package update commands the UI sent. */
+  getPackageUpdateCommands(): readonly PackageUpdateCommand[];
+}
+
+const FIXTURE_CORE_URL = "https://github.com/ArvidSU/dash-bored-components.git";
+
+/** What a check of the fixture finds: the core pin is behind, a personal theme is current. */
+function fixturePackageUpdates(dashboardName: string): PackageUpdateItem[] {
+  const pinned = "cbcd5d5dccb5a20bf031d1ec7f6178fd50a34814";
+  const latest = "4f1c2e9a7b3d5c6e8f0a1b2c3d4e5f6a7b8c9d0e";
+  return [{
+    id: `component:${CONFIG_PATH}:core`, kind: "component", name: "core", url: FIXTURE_CORE_URL,
+    configPath: CONFIG_PATH, dashboardName,
+    current: { commit: pinned, base: { tag: "v0.1.4", ahead: 4 } }, latest: { commit: latest, tag: "v0.1.5" }, status: "available",
+    changesUrl: `https://github.com/ArvidSU/dash-bored-components/compare/${pinned}...${latest}`,
+  }, {
+    id: "theme:personal:ocean", kind: "theme", name: "ocean", url: "https://example.com/ocean.git",
+    configPath: null, dashboardName: null,
+    current: { commit: "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b", tag: "v2.0.0" },
+    latest: { commit: "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b", tag: "v2.0.0" }, status: "current",
+  }];
 }
 
 export function createUiHarnessHost(): UiHarnessHost {
@@ -386,6 +410,12 @@ export function createUiHarnessHost(): UiHarnessHost {
   let snapshotRevision = 1;
   let currentDiagnostics: Diagnostic[] = [];
   let updateOverride: Partial<UpdateState> | null = null;
+  let packageUpdates: PackageUpdateState = structuredClone(INITIAL_PACKAGE_UPDATE_STATE);
+  const packageUpdateCommands: PackageUpdateCommand[] = [];
+  const publishPackageUpdates = (patch: Partial<PackageUpdateState>): void => {
+    packageUpdates = { ...packageUpdates, ...structuredClone(patch) };
+    emit({ type: "package-updates", state: structuredClone(packageUpdates) });
+  };
   const packageOperations: unknown[] = [];
   const processSnapshots = new Map<string, ProcessSnapshot>();
   const files = new Map<string, string>([
@@ -499,6 +529,32 @@ export function createUiHarnessHost(): UiHarnessHost {
       return { ...await this.getUpdateState(), message: "UI fixture: update action received; no installation performed." };
     },
     setUpdateState(state) { updateOverride = state && structuredClone(state); },
+    async getPackageUpdates() { return structuredClone(packageUpdates); },
+    async packageUpdateCommand(command) {
+      if (packageUpdates.phase !== "idle") throw new Error("A package check or update is already running.");
+      packageUpdateCommands.push(structuredClone(command));
+      if (command.type === "check") {
+        publishPackageUpdates({ phase: "checking", problem: "" });
+        setTimeout(() => publishPackageUpdates({
+          phase: "idle", checkedAt: new Date().toISOString(), packages: fixturePackageUpdates(persistedConfig.name),
+          message: "UI fixture: no network check performed.",
+        }), 150);
+        return;
+      }
+      const ids = new Set(command.ids);
+      publishPackageUpdates({ phase: "updating", updating: command.ids, message: "" });
+      setTimeout(() => publishPackageUpdates({
+        phase: "idle", updating: [],
+        packages: packageUpdates.packages.map((item) => ids.has(item.id) && item.latest
+          ? { ...item, current: item.latest, status: "current" as const, changesUrl: undefined } : item),
+        message: "UI fixture: package update received; no checkout changed.",
+      }), 150);
+    },
+    setPackageUpdates(state) {
+      packageUpdates = structuredClone(INITIAL_PACKAGE_UPDATE_STATE);
+      publishPackageUpdates(state ?? {});
+    },
+    getPackageUpdateCommands() { return structuredClone(packageUpdateCommands); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async getPromptTemplates(nodeId: string) {

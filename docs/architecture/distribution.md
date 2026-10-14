@@ -98,7 +98,9 @@ archive, native manifest, `dash-bored-release.json`, `MIGRATIONS.md`, and SHA-25
 checksums alongside the verified DMG. No independent signing is claimed.
 
 The app keeps update state in `~/.config/dash-bored/updates/`. Settings contain the selected
-channel and startup/24-hour check preference. Canary is available; Beta and
+channel and startup/24-hour check preference. The same preference schedules
+[package update checks](components.md#package-update-checks), which the Updates
+tab shows below the app release. Canary is available; Beta and
 Stable are rejected. Downloads never happen on scheduled checks. A future
 channel-enablement package will publish beta/stable, default new installs to
 stable, and explicitly define transitions for existing canary users without

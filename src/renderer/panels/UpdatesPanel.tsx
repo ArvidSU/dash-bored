@@ -136,7 +136,7 @@ function Hero({ eyebrow, title, body, version, check }: { eyebrow: string; title
   </header>;
 }
 
-function Progress({ label }: { label: string }): ReactNode {
+export function Progress({ label }: { label: string }): ReactNode {
   return <div className="updates-panel__progress" role="progressbar" aria-label={label}><span /></div>;
 }
 
@@ -170,7 +170,7 @@ function UpdateFooter({ state, disabled, onChange }: { state: UpdateState; disab
   </footer>;
 }
 
-function plural(count: number, noun: string): string { return `${count} ${noun}${count === 1 ? '' : 's'}`; }
+export function plural(count: number, noun: string): string { return `${count} ${noun}${count === 1 ? '' : 's'}`; }
 
 function projectName(configPath: string): string {
   const parts = configPath.split('/').filter(Boolean);
@@ -180,7 +180,7 @@ function projectName(configPath: string): string {
 
 const relativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
-function relativeTime(iso: string): string {
+export function relativeTime(iso: string): string {
   const seconds = Math.round((Date.parse(iso) - Date.now()) / 1000);
   if (!Number.isFinite(seconds) || seconds > -45) return 'just now';
   if (seconds > -3600) return relativeTimeFormat.format(Math.round(seconds / 60), 'minute');

@@ -1,4 +1,6 @@
 import { UpdatesPanel } from "./UpdatesPanel";
+import { PackageUpdatesPanel } from "./PackageUpdatesPanel";
+import { pendingUpdateCount } from "../lib/update-actions";
 import { ThemeManager } from "./ThemeManager";
 import { ThemeSelect } from "../lib/theme";
 import { useEffect, useMemo, useState } from "react";
@@ -223,6 +225,7 @@ export type SettingsTab = "general" | "themes" | "actions" | "updates";
 
 export function SettingsPanel({
   updates,
+  packageUpdates,
   activeTab,
   onSelectTab: setActiveTab,
   draftsOpen = false,
@@ -236,6 +239,7 @@ export function SettingsPanel({
   onUpdateDashboardAppearance,
 }: {
   updates: import("../app/use-app-updates").AppUpdatesController;
+  packageUpdates: import("../app/use-package-updates").PackageUpdatesController;
   activeTab: SettingsTab;
   onSelectTab(tab: SettingsTab): void;
   draftsOpen?: boolean;
@@ -252,6 +256,7 @@ export function SettingsPanel({
   const [actionQuery, setActionQuery] = useState("");
   const [updatingDashboard, setUpdatingDashboard] = useState<string | null>(null);
   const savingSettings = pendingAction === "save-settings";
+  const pendingUpdates = pendingUpdateCount(updates.state, packageUpdates.state);
   const favoriteIds = useMemo(() => new Set(appSettings.favoriteActionIds), [appSettings.favoriteActionIds]);
   const visibleActions = useMemo(
     () => rankActions(actions, actionQuery, favoriteIds, true),
@@ -326,9 +331,16 @@ export function SettingsPanel({
         <button type="button" role="tab" aria-selected={activeTab === "general"} onClick={() => setActiveTab("general")}>General</button>
         <button type="button" role="tab" aria-selected={activeTab === "themes"} onClick={() => setActiveTab("themes")}>Themes</button>
         <button type="button" role="tab" aria-selected={activeTab === "actions"} onClick={() => setActiveTab("actions")}>Actions</button>
-        <button type="button" role="tab" aria-selected={activeTab === "updates"} onClick={() => setActiveTab("updates")}>Updates</button>
+        <button type="button" role="tab" aria-selected={activeTab === "updates"} onClick={() => setActiveTab("updates")}
+          aria-describedby={pendingUpdates ? "settings-updates-count" : undefined}>
+          Updates{pendingUpdates ? <span className="settings-tabs__badge" aria-hidden="true">{pendingUpdates}</span> : null}
+        </button>
+        {pendingUpdates ? <span id="settings-updates-count" hidden>{pendingUpdates} available</span> : null}
       </div>
-      {activeTab === "updates" && <div className="settings-tab-panel" role="tabpanel" aria-label="Updates"><UpdatesPanel draftsOpen={draftsOpen} updates={updates} /></div>}
+      {activeTab === "updates" && <div className="settings-tab-panel" role="tabpanel" aria-label="Updates">
+        <UpdatesPanel draftsOpen={draftsOpen} updates={updates} />
+        <PackageUpdatesPanel packages={packageUpdates} automaticChecks={updates.state?.settings.automaticChecks} />
+      </div>}
       {activeTab === "themes" && <div className="settings-tab-panel" role="tabpanel" aria-label="Themes">
       <section className="settings-card settings-card--themes" aria-labelledby="theme-settings-title">
         <h2 id="theme-settings-title">App defaults</h2>

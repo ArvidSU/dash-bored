@@ -2734,6 +2734,60 @@ test('updates say up to date plainly and show migrations only when dashboards ne
   } finally { await proof.close(); }
 }, 30_000);
 
+test('package updates show pinned packages behind their repository and update them explicitly', async () => {
+  const proof = await openPage({ viewport: { width: 1100, height: 900 } });
+  try {
+    await proof.goto(fixtureUrl);
+    const settings = proof.getByRole('button', { name: 'Settings', exact: true });
+    await settings.click();
+    await proof.getByRole('tab', { name: 'Updates', exact: true }).click();
+    const card = proof.getByRole('region', { name: 'Package updates', exact: true });
+    await card.getByText('See whether pinned component packages and themes have newer versions.').waitFor();
+    expect(await settings.getAttribute('aria-describedby')).toBeNull();
+    await card.getByRole('button', { name: 'Check packages', exact: true }).click();
+    const behind = card.getByRole('list', { name: 'Packages with updates', exact: true });
+    const row = behind.getByRole('listitem').filter({ hasText: 'core' });
+    await row.waitFor();
+    await card.getByText('1 update available.', { exact: true }).waitFor();
+    expect(await row.locator('.package-update__versions').innerText()).toMatch(/v0\.1\.4\+4\s*→\s*v0\.1\.5/);
+    expect(await row.getByRole('link', { name: /^Changes in core/ }).getAttribute('href')).toContain('/compare/');
+    // The Settings entry and the Updates tab announce what is waiting without renaming them.
+    expect(await settings.getAttribute('aria-describedby')).toBe('sidebar-update-count');
+    expect(await proof.locator('#sidebar-update-count').textContent()).toBe('1 update available');
+    expect(await proof.locator('.settings-tabs__badge').innerText()).toBe('1');
+    await card.getByText('1 package up to date', { exact: true }).click();
+    await card.getByRole('list', { name: 'Up-to-date packages', exact: true }).getByText('ocean', { exact: true }).waitFor();
+    await proof.screenshot({ path: '/tmp/dash-bored-package-updates.png', fullPage: true });
+
+    await row.getByRole('button', { name: /^Update core in / }).click();
+    await card.getByText('UI fixture: package update received; no checkout changed.', { exact: true }).waitFor();
+    expect(await behind.count()).toBe(0);
+    expect(await card.getByText('All 2 pinned packages are up to date.', { exact: true }).count()).toBe(1);
+    expect(await proof.locator('.settings-tabs__badge').count()).toBe(0);
+    expect(await settings.getAttribute('aria-describedby')).toBeNull();
+    expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getPackageUpdateCommands())).toEqual([
+      { type: 'check' }, { type: 'update', ids: ['component:/ui-harness/.dash-bored/dash-bored.yaml:core'] },
+    ]);
+
+    // Packages that cannot update say why, and nothing offers to update them.
+    await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setPackageUpdates({ checkedAt: new Date().toISOString(), packages: [
+      { id: 'component:/p/.dash-bored/dash-bored.yaml:widgets', kind: 'component', name: 'widgets', url: 'https://example.com/widgets.git',
+        configPath: '/p/.dash-bored/dash-bored.yaml', dashboardName: 'Other dashboard', current: { commit: 'a'.repeat(40) }, latest: { commit: 'b'.repeat(40) },
+        status: 'available', blocked: 'Has local changes. Commit or discard them before updating.' },
+      { id: 'theme:personal:sunset', kind: 'theme', name: 'sunset', url: 'https://example.com/sunset.git', configPath: null, dashboardName: null,
+        current: { commit: 'c'.repeat(40) }, latest: null, status: 'unknown', error: 'Could not reach https://example.com/sunset.git' },
+    ] }));
+    await card.getByText('Has local changes. Commit or discard them before updating.', { exact: true }).waitFor();
+    expect(await card.getByRole('button', { name: 'Update widgets in Other dashboard', exact: true }).isDisabled()).toBe(true);
+    expect(await card.getByText(/^Couldn’t check: Could not reach/).count()).toBe(1);
+    expect(await card.getByRole('button', { name: /^Update all/ }).count()).toBe(0);
+    expect(await proof.locator('.settings-tabs__badge').count()).toBe(0);
+    await proof.setViewportSize({ width: 390, height: 844 });
+    await proof.screenshot({ path: '/tmp/dash-bored-package-updates-narrow.png', fullPage: true });
+    expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally { await proof.close(); }
+}, 30_000);
+
 test('update palette opens Settings and background lock failures expose recovery', async () => {
   const proof = await openPage({ viewport: { width: 1100, height: 900 } });
   try {

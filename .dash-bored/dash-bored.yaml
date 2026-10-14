@@ -218,6 +218,21 @@ root:
                             done: false
                             tags:
                               - agents
+                          - id: package-update-preview
+                            description: "Settings → Updates lists pinned component and theme packages behind their repository's default branch from ls-remote alone. Show what an update brings before it runs: the commit subjects between pin and head, and any permissions the new component manifests add. Both need the new objects, so fetch into the managed checkout under the package store's operation guard."
+                            done: false
+                            tags:
+                              - packages
+                          - id: package-update-ancestry
+                            description: "Package update checks cannot order commits without fetching, so a pin on another branch that is ahead of the default branch is still listed as updatable and Update moves it back. Once checks fetch (see package-update-preview), offer Update only when the head descends from the pin and label other pins as on a different branch."
+                            done: false
+                            tags:
+                              - packages
+                          - id: package-update-linked-bundles
+                            description: "Package update checks cover registered dashboards, the active one, and personal themes. Linked bundles that were never opened as dashboards keep their own locks and are not checked; include the bundles a registered dashboard links to."
+                            done: false
+                            tags:
+                              - packages
                           - id: todo-001
                             description: Adopt the shared bounded source contract in status, chart, list, and Markdown views, then migrate the legacy live-chart polling path.
                             done: true

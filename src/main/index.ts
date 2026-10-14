@@ -21,6 +21,8 @@ import { InstalledToolDiagnostics } from "./installed-tools";
 import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
 import { createAppUpdates } from "./update-wiring";
+import { createPackageUpdates } from "./package-updates";
+import { getUpdateSettings, updateDirectory } from "../updates/storage";
 import { keepWindowRenderingWhenOccluded } from "./window-capture";
 
 configureDesktopExecutableEnvironment();
@@ -126,6 +128,13 @@ const publishThemes = async () => send("themes", await loadThemes());
 await watchPersonalThemes(() => {
   void publishThemes().catch((error) => console.error("Could not reload personal themes.", error));
 });
+const packageUpdates = createPackageUpdates({
+  registry: projectRegistry,
+  runtime,
+  publishThemes,
+  onChange: (state) => send("packageUpdates", state),
+  automaticChecks: async () => (await getUpdateSettings(updateDirectory())).automaticChecks,
+});
 
 const dashboardRPC = createDashboardRPC({
   runtime,
@@ -135,6 +144,7 @@ const dashboardRPC = createDashboardRPC({
   agents,
   installedTools,
   updates,
+  packageUpdates,
   loadThemes,
   publishThemes,
   focusWindow() {
@@ -230,4 +240,5 @@ Electrobun.events.on("before-quit", (event) => {
   });
 });
 
+packageUpdates.schedule();
 await updates.continueRelease();

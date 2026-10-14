@@ -104,7 +104,7 @@ export function useHostSession(handlers: HostSessionHandlers) {
       } else if (event.type === "agent-task") {
         setAgentTasks((current) => replaceAgentTask(current, event.task));
         syncAgentActivity(event.task);
-      } else {
+      } else if (event.type === "open-command-palette") {
         handlersRef.current.onPaletteRequested();
       }
     });

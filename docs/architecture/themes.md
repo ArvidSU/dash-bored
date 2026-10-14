@@ -109,7 +109,10 @@ can target the personal store or any registered dashboard bundle's canonical
 config path, including named bundles. Add, update, remove, sync, and status run
 in main through the `manageThemePackage` bun RPC, which then pushes a refreshed
 theme catalog. Catalog entries carry validated lock metadata and retain missing
-pinned packages so users can discover their source/pin and sync them. Catalog
+pinned packages so users can discover their source/pin and sync them.
+Settings → Updates reports personal and project theme packages behind their
+repository's default branch and updates them through the same `updateTheme`
+operation ([update checks](components.md#package-update-checks)). Catalog
 discovery performs no Git or network operations. Application catalog discovery
 scans the personal theme directory once, then scans only each project's local
 themes. Catalog discovery and personal package operations share pins document

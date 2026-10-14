@@ -8,6 +8,7 @@ import type { AgentLauncher } from "./agent-launch";
 import type { AgentSessions } from "./agent-sessions";
 import type { InstalledToolDiagnostics } from "./installed-tools";
 import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
+import type { PackageUpdates } from "./package-updates";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
 import { getRegisteredProjectOutline } from "./project-outline";
 import type { ProjectRegistry } from "./project-registry";
@@ -21,6 +22,7 @@ export interface DashboardRPCOptions {
   agents: AgentLauncher;
   installedTools: InstalledToolDiagnostics;
   updates: AppUpdates;
+  packageUpdates: PackageUpdates;
   loadThemes(): Promise<ThemeCatalogItem[]>;
   /** Pushes a fresh theme catalog to the renderer. */
   publishThemes(): Promise<void>;
@@ -35,7 +37,7 @@ export interface DashboardRPCOptions {
  * resolve and answer with an ack or a command-specific result.
  */
 export function createDashboardRPC(options: DashboardRPCOptions) {
-  const { runtime, registry, trustStore, sessions, agents, installedTools, updates } = options;
+  const { runtime, registry, trustStore, sessions, agents, installedTools, updates, packageUpdates } = options;
 
   async function loadAndWatch(configPath: string): Promise<void> {
     await runtime.load(configPath, { inputKind: "auto" });
@@ -62,13 +64,17 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
           if (!configPath) throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before managing its external components.");
           const result = await runExternalComponentOperation(configPath, operation);
           await runtime.reload();
+          packageUpdates.refresh();
           return result;
         },
         manageThemePackage: async (operation) => {
           const result = await runThemePackageOperation(operation);
           await options.publishThemes();
+          if (operation.op !== "status") packageUpdates.refresh();
           return result;
         },
+        getPackageUpdates: () => packageUpdates.state(),
+        packageUpdateCommand: (command) => packageUpdates.command(command),
         getAgentTasks: () => sessions.list(),
         agentTaskCommand: ({ taskId, command }) => agents.taskCommand(taskId, command),
         getAgentOptions: ({ configPath }) => agents.agentOptions(configPath),

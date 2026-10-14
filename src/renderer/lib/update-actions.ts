@@ -1,5 +1,7 @@
 import type { AppUpdatesController } from "../app/use-app-updates";
-import { compareVersions, type UpdateAction } from "../../shared/updates";
+import type { PackageUpdatesController } from "../app/use-package-updates";
+import { updatablePackages, type PackageUpdateState } from "../../shared/package-updates";
+import { compareVersions, type UpdateAction, type UpdateState } from "../../shared/updates";
 import type { PaletteAction } from "./actions";
 
 /** Update operations share the panel's controller; migration selection stays in Settings. */
@@ -33,4 +35,36 @@ export function buildUpdateActions(updates: AppUpdatesController, draftsOpen: bo
   if (receipt && (receipt.installation !== "installed" || continuing)) actions.push(operation("update:cancel", "Cancel update", { type: "cancel" }, pending ? unavailable : undefined));
   if (state?.phase === "problem" && state.message.includes("lock")) actions.push(operation("update:recover", "Recover interrupted update", { type: "recover" }, unavailable));
   return actions;
+}
+
+/** Package checks and bulk updates; single packages and their reasons stay in Settings. */
+export function buildPackageUpdateActions(packages: PackageUpdatesController, showUpdates: () => void): PaletteAction[] {
+  const { state, pending } = packages;
+  const unavailable = pending ? "A package request is in progress." : !state ? "Loading package update status…"
+    : state.phase !== "idle" ? "A package check or update is running." : undefined;
+  const keywords = ["package", "component", "theme", "pin", "update", "upgrade"];
+  const actions: PaletteAction[] = [{
+    id: "packages:check", label: "Check for package updates", description: "Compare pinned components and themes with their repositories.",
+    group: "Updates", keywords, enabled: unavailable === undefined, disabledReason: unavailable,
+    run: async () => { showUpdates(); await packages.command({ type: "check" }); },
+  }];
+  const ready = state ? updatablePackages(state) : [];
+  if (ready.length) actions.push({
+    id: "packages:update-all", label: ready.length === 1 ? `Update ${ready[0]!.name} package` : `Update ${ready.length} packages`,
+    description: "Move every updatable pinned package to its repository's latest commit.",
+    group: "Updates", keywords, enabled: unavailable === undefined, disabledReason: unavailable,
+    run: async () => { showUpdates(); await packages.command({ type: "update", ids: ready.map((item) => item.id) }); },
+  });
+  return actions;
+}
+
+/** Updates waiting on the user: a newer app release plus every updatable package. */
+export function pendingUpdateCount(app: UpdateState | null, packages: PackageUpdateState | null): number {
+  let releases = 0;
+  try {
+    if (app?.release && compareVersions(app.release.metadata.version, app.currentVersion) > 0) releases = 1;
+  } catch {
+    // An unparseable version is reported by the Updates panel itself.
+  }
+  return releases + (packages ? updatablePackages(packages).length : 0);
 }

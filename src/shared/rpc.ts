@@ -55,6 +55,9 @@ export type DashboardRPC = {
       repairInstalledTools: { params: {}; response: { conflictsRemain: boolean } };
       manageExternalComponent: { params: ExternalComponentOperation; response: PackageOperationResult };
       manageThemePackage: { params: ThemePackageOperation; response: PackageOperationResult };
+      getPackageUpdates: { params: {}; response: import("./package-updates").PackageUpdateState };
+      /** Starts a package check or update; progress and results arrive as `packageUpdates` pushes. */
+      packageUpdateCommand: { params: import("./package-updates").PackageUpdateCommand; response: void };
       getAgentTasks: { params: {}; response: AgentSessionTask[] };
       agentTaskCommand: { params: { taskId: string; command: AgentTaskCommand }; response: AgentSessionTask };
       /** Agent choices for Settings, or for one bundle's composer when `configPath` is given. */
@@ -94,6 +97,7 @@ export type DashboardRPC = {
     };
     messages: {
       themes: import("./themes").ThemeCatalogItem[];
+      packageUpdates: import("./package-updates").PackageUpdateState;
       snapshot: ProjectSnapshot;
       process: ProcessSnapshot;
       agentTask: AgentSessionTask;

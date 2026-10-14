@@ -26,6 +26,8 @@ Everything else lives in focused modules under feature directories:
     so main can pin a legacy `./` default theme (`src/migrations/`);
   - `use-app-updates.ts` — shared update state, polling, request feedback, and
     stale-response protection for Settings and the palette;
+    `use-package-updates.ts` — the pushed package update state and its
+    command feedback;
   - `use-dashboard-draft.ts` — the single draft: open, edit, validate,
     save/cancel, and the discard guard;
   - `use-composition-session.ts` — composition preview, targets, pointer
@@ -56,7 +58,8 @@ Everything else lives in focused modules under feature directories:
   `agent-work.css`
   (Agent work and its header badge, and the composer and Settings agent
   pickers),
-  `SettingsPanel.tsx`, `CommandPalette.tsx`.
+  `SettingsPanel.tsx`, `UpdatesPanel.tsx`, `PackageUpdatesPanel.tsx`,
+  `CommandPalette.tsx`.
 - `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
   `composition-*.ts(x)` (targets, labels, placement, movement,
   operation, interaction-controller), `ComponentCompositor.tsx`,
@@ -848,6 +851,17 @@ Unsaved drafts disable installation, while the main process checks running work.
 The Updates tab renders release notes with `MarkdownLite`, without the leading
 release title the hero already shows, in a bounded scroll area padded clear of
 overlay scrollbars.
+
+Below the app release, `PackageUpdatesPanel.tsx` lists pinned component
+packages and themes from the pushed package update state (see
+[update checks](components.md#package-update-checks)). Packages behind their
+repository lead with pinned and latest versions, a hosted compare link when
+known, and an Update button; a package that cannot update states why and offers
+none. Up-to-date packages stay folded. Update all appears for two or more
+updatable packages. The same provider adds Check for package updates and a bulk
+update action. `pendingUpdateCount()` counts a newer release plus updatable
+packages; the Updates tab shows it as a badge and the sidebar Settings entry as
+a dot, both described rather than renamed for assistive technology.
 
 Palette results retain application controls and the selected dashboard's
 actions. One **Switch dashboard** action offers available registered dashboards

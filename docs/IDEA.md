@@ -291,6 +291,12 @@ updated only by an explicit user action in the app, or by an agent the
 user asked to do so. This keeps reuse reproducible and
 reviewable without a second distribution model.
 
+Users should still see when a pinned component or theme package has moved on.
+The app's update checks also compare every pin with its repository's default
+branch, reading remote refs only, and Settings → Updates lists the packages
+that are behind. Updating one, or all, remains an explicit action that passes
+the normal trust check.
+
 Dash-bored owns private Git repositories at each bundle's `components/external/`
 and `themes/external/`. Generated bundle ignore rules keep these checkouts and
 their Git metadata out of the parent project's repository. The parent can
@@ -585,8 +591,9 @@ The product succeeds if a developer can:
 
 ## Application updates and migrations
 
-The app discovers published canary releases at startup and
-every 24 hours, with an off switch. Installation is always user initiated.
+The app discovers published canary releases and newer commits for pinned
+component and theme packages at startup and every 24 hours, with an off switch.
+Installation is always user initiated.
 Update and migrate authorizes continuation for explicitly selected dashboards
 after restart; Update only leaves migration available for later. Persist this
 choice outside the app bundle, preserve drafts and running work, and distinguish
