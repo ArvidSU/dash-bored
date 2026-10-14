@@ -38,30 +38,17 @@ function intersect(a: Box, b: Box): Box {
   };
 }
 
-/** Bottom edge of sticky or fixed bars pinned to the top of the viewport (the app header) that sit over the node. */
-function pinnedTopInset(element: HTMLElement): number {
-  const node = element.getBoundingClientRect();
-  let inset = 0;
-  for (const candidate of document.querySelectorAll<HTMLElement>("*")) {
-    if (candidate.contains(element)) continue;
-    const position = getComputedStyle(candidate).position;
-    if (position !== "sticky" && position !== "fixed") continue;
-    const rect = candidate.getBoundingClientRect();
-    if (rect.top > 1 || rect.bottom <= 0 || rect.height >= window.innerHeight / 2) continue;
-    if (rect.right <= node.left || rect.left >= node.right) continue;
-    inset = Math.max(inset, rect.bottom);
-  }
-  return Math.ceil(inset);
-}
-
-/** The part of the node a person could see: clipped by the viewport, pinned bars, and every clipping ancestor. */
-function visibleBox(element: HTMLElement, inset = 0): Box {
-  let box = intersect(toBox(element.getBoundingClientRect()), {
+/**
+ * Where the node could be seen: the viewport clipped by every clipping
+ * ancestor, including the app's content scroller below the fixed header.
+ */
+function viewBox(element: HTMLElement): Box {
+  let box: Box = {
     left: 0,
-    top: inset,
+    top: 0,
     right: document.documentElement.clientWidth,
     bottom: window.innerHeight,
-  });
+  };
   for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
     const style = getComputedStyle(ancestor);
     if ([style.overflowX, style.overflowY].every((value) => value === "visible")) continue;
@@ -76,16 +63,21 @@ function visibleBox(element: HTMLElement, inset = 0): Box {
   return box;
 }
 
+/** The part of the node a person could see. */
+function visibleBox(element: HTMLElement): Box {
+  return intersect(toBox(element.getBoundingClientRect()), viewBox(element));
+}
+
 function sameBox(a: Box, b: Box): boolean {
   return (["left", "top", "right", "bottom"] as const).every((side) => Math.abs(a[side] - b[side]) < 0.5);
 }
 
 /** Resolves once the node stops moving (smooth scrolls and mount animations finish). */
-async function settledBox(element: HTMLElement, inset: number, maxFrames = 40): Promise<Box> {
-  let previous = visibleBox(element, inset);
+async function settledBox(element: HTMLElement, maxFrames = 40): Promise<Box> {
+  let previous = visibleBox(element);
   for (let frame = 0; frame < maxFrames; frame += 1) {
     await nextFrame();
-    const current = visibleBox(element, inset);
+    const current = visibleBox(element);
     if (sameBox(previous, current)) return current;
     previous = current;
   }
@@ -126,7 +118,7 @@ function restoreScroll(positions: ScrollPosition[]): void {
 export class NodeCaptureSession {
   private restoreView: (() => void) | null = null;
   private scrolls: ScrollPosition[] | null = null;
-  private measured: { element: HTMLElement; box: Box; inset: number } | null = null;
+  private measured: { element: HTMLElement; box: Box } | null = null;
 
   /** Finds the node's frame, revealing it (and recording the view to restore) when it is not mounted. */
   private async mount(nodeId: string, hooks: NodeCaptureHooks): Promise<{ element: HTMLElement; revealed: boolean }> {
@@ -174,23 +166,21 @@ export class NodeCaptureSession {
     try {
       const { element, revealed } = await this.mount(nodeId, hooks);
       const full = element.getBoundingClientRect();
-      const inset = pinnedTopInset(element);
-      let box = await settledBox(element, inset);
+      let box = await settledBox(element);
       let scrolled = false;
       const fits = (visible: Box) => visible.right - visible.left >= full.width - 1 && visible.bottom - visible.top >= full.height - 1;
       if (!fits(box)) {
         const before = scrollPositions();
         // A node taller than the view cannot fit; show its top.
-        element.style.scrollMarginTop = `${inset}px`;
-        element.scrollIntoView({ block: full.height > window.innerHeight - inset ? "start" : "nearest", inline: "nearest", behavior: "instant" });
-        element.style.removeProperty("scroll-margin-top");
-        box = await settledBox(element, inset);
+        const view = viewBox(element);
+        element.scrollIntoView({ block: full.height > view.bottom - view.top ? "start" : "nearest", inline: "nearest", behavior: "instant" });
+        box = await settledBox(element);
         scrolled = !sameScroll(before, scrollPositions());
       }
       const width = box.right - box.left;
       const height = box.bottom - box.top;
       if (width <= 0 || height <= 0) throw new Error(`Node ${nodeId} has no visible area.`);
-      this.measured = { element, box, inset };
+      this.measured = { element, box };
       return {
         nodeId,
         rect: { x: box.left, y: box.top, width, height },
@@ -215,7 +205,7 @@ export class NodeCaptureSession {
   async finish(): Promise<boolean> {
     const measured = this.measured;
     const stable = measured !== null && measured.element.isConnected
-      && sameBox(visibleBox(measured.element, measured.inset), measured.box);
+      && sameBox(visibleBox(measured.element), measured.box);
     await this.end();
     return stable;
   }

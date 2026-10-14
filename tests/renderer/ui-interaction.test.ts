@@ -2478,13 +2478,17 @@ describe("renderer fixture interactions", () => {
         const dialog = proof.getByRole("dialog", { name: "Agent session" });
         const transcript = dialog.getByRole("log", { name: "Agent transcript" });
         await transcript.getByText("LAST ACTIVITY", { exact: true }).waitFor();
-        await proof.evaluate(() => window.scrollTo(0, 400));
-        const backgroundPosition = await proof.evaluate(() => window.scrollY);
+        // The content pane, not the document, is the page scroller.
+        const background = proof.locator(".app-frame__scroll");
+        const backgroundTop = () => background.evaluate((element) => element.scrollTop);
+        await background.evaluate((element) => element.scrollTo(0, 400));
+        const backgroundPosition = await backgroundTop();
         expect(backgroundPosition).toBe(400);
+        expect(await proof.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
         const wheel = async (delta: number) => {
           await proof.mouse.wheel(0, delta);
           await proof.waitForTimeout(150);
-          expect(await proof.evaluate(() => window.scrollY)).toBe(backgroundPosition);
+          expect(await backgroundTop()).toBe(backgroundPosition);
         };
         await transcript.hover();
         await wheel(1500); // Already at the bottom of the transcript.
@@ -2506,7 +2510,10 @@ describe("renderer fixture interactions", () => {
         await proof.getByRole("dialog", { name: "Agent work" }).getByRole("button", { name: "Close", exact: true }).click();
         await proof.locator(".workspace").hover();
         await proof.mouse.wheel(0, 500);
-        await proof.waitForFunction((previous) => window.scrollY > previous, backgroundPosition);
+        await proof.waitForFunction((previous) => document.querySelector(".app-frame__scroll")!.scrollTop > previous, backgroundPosition);
+        expect(await proof.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+        // Scrolled content never carries the header or sidebar with it.
+        expect(await proof.evaluate(() => [".app-header", ".sidebar"].map((selector) => document.querySelector(selector)!.getBoundingClientRect().top))).toEqual([0, 0]);
       } finally { await proof.close(); }
     }
   }, 30_000);
