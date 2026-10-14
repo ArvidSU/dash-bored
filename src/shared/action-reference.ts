@@ -1,3 +1,8 @@
+import { ANIMATION_REFERENCE_PATTERN } from "./animations";
+
+/** Upper bound on the reason an attention request shows beside its notice. */
+export const MAX_ATTENTION_MESSAGE_CHARS = 200;
+
 /** `reveal:<node>` may name one item, by its stable ID, to highlight after revealing. */
 export const REVEAL_ACTION_ARGS_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -5,10 +10,26 @@ export const REVEAL_ACTION_ARGS_SCHEMA: Record<string, unknown> = {
   properties: { item: { type: "string", minLength: 1, maxLength: 512 } },
 };
 
+/**
+ * `attention:<node>` may pick an animation, give a short reason, and name one
+ * item inside the node to animate instead of the whole frame.
+ */
+export const ATTENTION_ACTION_ARGS_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    animation: { type: "string", pattern: ANIMATION_REFERENCE_PATTERN, maxLength: 200 },
+    message: { type: "string", minLength: 1, maxLength: MAX_ATTENTION_MESSAGE_CHARS },
+    item: { type: "string", minLength: 1, maxLength: 512 },
+  },
+};
+
+const SINGLE_NODE_VERBS = new Set(["focus", "process", "reveal", "attention"]);
+
 /** Return the stable node ID carried by a node-targeting action reference. */
 export function parseActionReferenceNodeId(reference: string): string | undefined {
   const parts = reference.split(":");
-  const targetIndex = parts[0] === "focus" || parts[0] === "process" || parts[0] === "reveal"
+  const targetIndex = SINGLE_NODE_VERBS.has(parts[0]!)
     ? parts.length === 2 ? 1 : -1
     : parts[0] === "component" && parts.length === 3 ? 1 : -1;
   if (targetIndex < 0 || !parts[targetIndex]) return undefined;
@@ -48,7 +69,7 @@ export function remapActionReferenceNode(
   remap: (nodeId: string) => string | undefined,
 ): string {
   const parts = reference.split(":");
-  if ((parts[0] === "focus" || parts[0] === "process" || parts[0] === "reveal") && parts.length === 2) {
+  if (SINGLE_NODE_VERBS.has(parts[0]!) && parts.length === 2) {
     return remapPart(parts, 1, remap);
   }
   const selection = parseSelectionActionReference(reference);

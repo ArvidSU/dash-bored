@@ -9,6 +9,7 @@ import {
   AGENT_LOG_MAX_TAIL,
   MAX_COMMAND_PALETTE_QUERY_CHARS,
   type AgentActionDescriptor,
+  type AgentAttentionArgs,
   type AgentNodeMeasurement,
   type AgentNodeText,
   type AgentProcessInfo,
@@ -19,7 +20,7 @@ import {
 
 export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
-  dash-bored app run <action> [--select <choice>=<option> ...] [--query <text>] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
+  dash-bored app run <action> [--select <choice>=<option> ...] [--query <text>] [--animation <reference>] [--message <text>] [--item <item-id>] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
   dash-bored app open <dashboard> [--instance <identifier>]
   dash-bored app processes [<command-id>] [--instance <identifier>]
   dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
@@ -28,7 +29,9 @@ export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
 
 \`actions\` prints choices as {id, label, optionCount}; \`--choices\` adds their options. Run
-\`app:open-palette --query <text>\` to open the command palette on a bounded search. \`screenshot\`
+\`app:open-palette --query <text>\` to open the command palette on a bounded search, and
+\`attention:<node-id> [--animation <reference>] [--message <text>] [--item <item-id>]\` to reveal
+and animate a component (or one of its items) when the user should look at it. \`screenshot\`
 captures the window; \`--node\` crops to one node and restores any view change it made;
 \`--focus\` focuses a node for the capture and then restores the previous focus unless
 \`--keep-focus\` is given.`;
@@ -46,6 +49,8 @@ interface AppArguments {
   keepFocus: boolean;
   timeout?: number;
   query?: string;
+  /** `attention:<node>` arguments. */
+  attention: AgentAttentionArgs;
   wait: boolean;
   untilExit: boolean;
   selections: Record<string, string>;
@@ -53,7 +58,7 @@ interface AppArguments {
 
 function parseAppArguments(args: string[]): AppArguments {
   const parsed: AppArguments = {
-    verb: undefined, positional: [], all: false, choices: false, keepFocus: false, wait: true, untilExit: false, selections: {},
+    verb: undefined, positional: [], all: false, choices: false, keepFocus: false, wait: true, untilExit: false, selections: {}, attention: {},
   };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
@@ -81,6 +86,9 @@ function parseAppArguments(args: string[]): AppArguments {
       parsed.timeout = timeout;
     }
     else if (argument === "--query") parsed.query = value();
+    else if (argument === "--animation") parsed.attention.animation = value();
+    else if (argument === "--message") parsed.attention.message = value();
+    else if (argument === "--item") parsed.attention.item = value();
     else if (argument === "--choices" || argument === "--full") parsed.choices = true;
     else if (argument === "--keep-focus") parsed.keepFocus = true;
     else if (argument === "--select") {
@@ -157,7 +165,7 @@ async function runAction(
   reference: string,
   selections: Record<string, string>,
   wait: { wait?: boolean; timeoutMs?: number } = {},
-  args?: { query?: string },
+  args?: { query?: string } | AgentAttentionArgs,
 ): Promise<RunOutcome> {
   const response = await call(instance, "/v1/actions/run", {
     reference,
@@ -249,6 +257,10 @@ export async function runAppCommand(args: string[]): Promise<number> {
   if (parsed.query !== undefined && parsed.verb !== "run") {
     throw new Error("--query is only supported with app run app:open-palette.");
   }
+  const attention = Object.keys(parsed.attention).length > 0;
+  if (attention && (parsed.verb !== "run" || !parsed.positional[0]?.startsWith("attention:"))) {
+    throw new Error("--animation, --message, and --item are only supported with app run attention:<node-id>.");
+  }
 
   if (parsed.verb === "status" && parsed.positional.length === 0) {
     const instances = await listAppInstances();
@@ -286,7 +298,7 @@ export async function runAppCommand(args: string[]): Promise<number> {
     const outcome = await runAction(instance, reference, parsed.selections, {
       wait: parsed.wait,
       ...(parsed.timeout === undefined || parsed.untilExit ? {} : { timeoutMs: parsed.timeout }),
-    }, parsed.query === undefined ? undefined : { query: parsed.query });
+    }, parsed.query !== undefined ? { query: parsed.query } : attention ? parsed.attention : undefined);
     if (!parsed.untilExit || outcome.result.status !== "completed") {
       print(outcome);
       return outcome.result.status === "completed" ? 0 : 1;

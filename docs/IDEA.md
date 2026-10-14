@@ -218,10 +218,14 @@ per-instance control channel of the running app: the agent reads app state,
 lists and invokes the same command-palette actions a user can (for example to
 open a dashboard or focus a component), and captures a screenshot of the app
 window. An explicit Bring app to front action lets an agent show and focus the
-window when it finishes work or needs the user's attention. Agents use it
-sparingly for meaningful completion or blockers, after making the relevant
-result visible. The channel never widens what a palette action may do: trust
-decisions and actions that require user confirmation stay with the user.
+window when it finishes work or needs the user's attention. Within the window,
+a Draw attention action reveals one component, or one item in it, plays a
+short attention animation on it, and says why in a notice, so the agent can
+point at the result or blocker rather than describe where it is. Agents use
+both sparingly for meaningful completion or blockers, after making the
+relevant result visible. The channel never widens what a palette action may
+do: trust decisions and actions that require user confirmation stay with the
+user.
 
 Development builds are agent-owned proof environments. Each checkout can run
 its own native instance, and agents may start, restart, and stop that instance
@@ -350,6 +354,16 @@ installations are shared by the agent tools and desktop app; project installatio
 travel with the dashboard bundle. Git themes use exact commit pins, explicit
 installation/update actions, and no marketplace or automatic network updates.
 
+## Attention animations
+
+Attention animations follow the same model. The app ships a few built-ins
+(bounce, shake, pulse, wiggle, glow), and users and agents author their own as
+versioned `animation.yaml` packages, personally or in a dashboard bundle. An
+animation is bounded keyframe data: small offsets, rotation, scale, opacity,
+and a halo in a theme color, finite in length, with no CSS, code, or assets.
+A request names an animation or falls back to the dashboard's optional
+default. Reduced motion keeps the halo and drops movement.
+
 ## Visual understanding
 
 A dashboard should answer “where does this stand?” before asking the user to
@@ -368,9 +382,9 @@ visualization belongs in its bundle and uses the same theme and capability
 contracts.
 
 Interactions should reveal detail and make the next action clear. Motion explains
-arrival, selection, or work in progress; it should be brief, respect reduced
-motion, and preserve layout during polling. Decorative continuous animation
-competes with the project and should be avoided. Keyboard focus and textual
+arrival, selection, work in progress, or a request for the user's attention; it
+should be brief, respect reduced motion, and preserve layout during polling.
+Decorative continuous animation competes with the project and should be avoided. Keyboard focus and textual
 state remain available alongside every visual cue.
 
 ## Design Principles

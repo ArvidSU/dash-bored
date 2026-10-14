@@ -190,6 +190,8 @@ Composition rules:
   for arguments. References name nodes by ID: `select:<selection-id>/<child-id>`
   switches a `selection`; `reveal:<id>` expands and selects a node anywhere
   (`with: { item: ${item.id} }` also focuses that item of a list inside it);
+  `attention:<id>` reveals it and plays an attention animation
+  (`with: { animation?, message?, item? }`);
   `focus:<id>` makes it the page; `process:<command-id>` runs a `command`;
   `component:<node-id>:<action-id>` runs a declared action (a view's
   `refresh`, a command's `run`); `agent:prompt` with
@@ -307,10 +309,15 @@ When work finishes or an actionable blocker needs the user's attention, make
 the relevant result visible first, then use
 `dash-bored app run app:focus-window --no-wait` to restore the window and bring
 dash-bored to the foreground with keyboard focus. This action is available even
-with an unsaved draft; it preserves that draft and the selected view. Use it
-sparingly for meaningful handoffs, not for routine progress, polling, or every
-tool call. Ordinary focus/reveal actions and screenshots do not request native
-window attention.
+with an unsaved draft; it preserves that draft and the selected view. To point
+at the component that matters, follow it with
+`dash-bored app run attention:<node-id> --message "<why, one short line>"`
+(`--item <id>` targets one list item; `--animation builtin:shake` and others
+are in [references/animations.md](references/animations.md)). It reveals the
+node, animates it, and shows your message; it never moves keyboard focus. Use
+both sparingly for meaningful handoffs, not for routine progress, polling, or
+every tool call. Ordinary focus/reveal actions and screenshots do not request
+native window attention.
 
 ### 7. Report
 
@@ -442,6 +449,12 @@ missing and fall back to screenshots and the YAML.
   dashboard's top-level `theme:` (`builtin:default`, `builtin:neon-dusk`, `global:<name>`,
   `./themes/<name>`, or `./themes/external/<name>`); themes are data only. In
   local components, use CSS variables or `useTheme()`, never hard-coded colors.
+- **Attention animations**: `dash-bored animation init <name>` scaffolds
+  `animations/<name>/animation.yaml` (bounded keyframes, no CSS); check it with
+  `dash-bored animation validate <directory>` and preview it with
+  `app run attention:<node-id> --animation ./animations/<name>`. The top-level
+  `attentionAnimation:` sets the dashboard's default. Format and built-ins:
+  [references/animations.md](references/animations.md).
 - **Migrations** after an app update, or when validation reports an old
   `schemaVersion`: read [references/migrations.md](references/migrations.md)
   and start with `dash-bored migrate inspect <dashboard>`.

@@ -273,6 +273,24 @@ root:
                             done: false
                             tags:
                               - agent-tools
+                          - id: todo-animation-git-packages
+                            description: "Install attention animation packages from Git like themes: animations/external/<name> pinned in the bundle lock, personal clones with pins, Settings management, and Settings → Updates checks. Animations currently come only from built-ins, global:<name>, and authored ./animations/<name> directories."
+                            done: false
+                            tags:
+                              - feature
+                              - packages
+                          - id: todo-attention-app-default
+                            description: Add an app-level default attention animation in Settings → Themes, beside the default theme, that a dashboard's attentionAnimation overrides, so a user who dislikes a motion chooses once for every dashboard.
+                            done: false
+                            tags:
+                              - feature
+                              - visuals
+                          - id: todo-attention-component-api
+                            description: Decide whether components may request attention on themselves or one of their data-item-id items through the SDK host (for example a list flagging a new failure), and how to keep that from becoming continuous motion; today only actions (buttons, palette, agents) can.
+                            done: false
+                            tags:
+                              - atoms
+                              - renderer
                           - id: todo-command-read-only-hint
                             description: Let command nodes declare whether they are read-only checks (validate, status) or side-effecting (build, release), and expose it in app actions, so agents know what they may run without asking.
                             done: false
@@ -1455,6 +1473,12 @@ root:
                         items:
                           - name: Bring app to front
                             action: app:focus-window
+                          - name: Point at open work
+                            action:
+                              run: attention:cockpit-attention
+                              with:
+                                animation: ./animations/nudge
+                                message: Bugs come first; triage the top item.
                           - name: Show whole dashboard
                             action: project:clear-focus
                           - name: Trust project

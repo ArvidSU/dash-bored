@@ -60,9 +60,10 @@ dash-bored component check <directory> [--source-project <tsconfig>] [--json]
 dash-bored migrate inspect <dashboard>
 dash-bored component add|list|status|update|remove|sync ...
 dash-bored theme init|validate|list|status|add|update|remove|sync ...
+dash-bored animation init|validate|list [--global]
 dash-bored app status [--instance <identifier>]
 dash-bored app actions [<filter>] [--all] [--choices] [--instance <identifier>]
-dash-bored app run <action> [--select <choice>=<option> ...] [--query <text>] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
+dash-bored app run <action> [--select <choice>=<option> ...] [--query <text>] [--animation <reference>] [--message <text>] [--item <item-id>] [--timeout <ms>] [--no-wait] [--until-exit] [--instance <identifier>]
 dash-bored app open <dashboard> [--instance <identifier>]
 dash-bored app processes [<command-id>] [--instance <identifier>]
 dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
@@ -273,6 +274,15 @@ a minimized window and activates the app through the `focusWindow` host RPC.
 It does not change the dashboard's focused node, panel selections, or draft.
 Use it sparingly after making a completed result or an actionable blocker visible;
 ordinary reads, checks, and screenshots do not bring the app forward.
+
+To point at one component inside the window, `app run attention:<node-id>`
+reveals it and plays an attention animation, optionally with
+`--animation <reference>`, `--message <text>` (at most 200 characters, shown in
+the notice), and `--item <id>` (one `data-item-id` element in the node). These
+flags are refused for any other action. When the window is not rendering, the
+run completes at once and the animation plays when the window next paints.
+`animation init|validate|list` manages animation packages; see
+[attention animations](attention.md).
 
 The tool writes JSON with `process.stdout.write`: under Bun 1.3, `console.log`
 loses output past the 64 KiB pipe buffer once `process.stdout` has been

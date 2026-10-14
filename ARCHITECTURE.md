@@ -18,6 +18,7 @@ pages in this order only when a full system view is needed:
 | 7. [ACP client](./docs/architecture/acp-client.md) | Agent selection and detection, ACP sessions, permissions, validation and repair, hand-off | `src/main/acp-connection.ts`, `agent-sessions.ts`, `agent-launch.ts`, `agent-detection.ts`, `agent-preflight.ts`, `agent-handoff.ts`; the Agent work UI |
 | 8. [Distribution and exclusions](./docs/architecture/distribution.md) | macOS packaging, updates and migrations, deliberate exclusions | `src/updates/`, release scripts, `electrobun.config.ts` |
 | [Themes](./docs/architecture/themes.md) | Theme packages, selection, rendering, distribution | `src/shared/themes.ts`, theme CLI and settings |
+| [Attention animations](./docs/architecture/attention.md) | `attention:<node>`, animation packages, playback | `src/shared/animations.ts`, `src/core/animations.ts`, `src/renderer/lib/attention.ts`, animation CLI |
 
 Product intent lives in [docs/IDEA.md](./docs/IDEA.md). User-facing setup,
 commands, and workflows live in [README.md](./README.md). Releases and release

@@ -229,10 +229,11 @@ With those tools an agent can:
   validate its edits (`validate`);
 - check whether a dashboard needs migration (`migrate inspect <dashboard>`);
 - manage external component and theme pins when you ask it to (`component`,
-  `theme`);
+  `theme`), and write attention animations (`animation`);
 - drive the running app through a private, per-instance control socket: read
   its state (`app status`), list and run the same command-palette actions you
-  can (`app actions [<filter>]`, `app run <action>`), open a dashboard
+  can (`app actions [<filter>]`, `app run <action>`), point you at a component
+  (`app run attention:<node-id> --message <why>`), open a dashboard
   (`app open <dashboard>`), capture the window (`app screenshot`), and read
   results instead of guessing from pixels (`app processes`, `app logs`,
   `app wait`, `app read <node-id>`).
@@ -1159,6 +1160,31 @@ installation becomes `global:ocean` and lives under
 installs work in Git projects and plain directories. Updates are always
 explicit and refuse local changes; **Settings → Updates** lists theme packages
 with newer commits. Installation does not select a theme.
+
+## Attention animations
+
+When your agent finishes something or hits a blocker, it can point at the
+component instead of describing where it is: the app reveals the component (or
+one item in a list), plays a short animation on it, and shows a notice with the
+agent's reason. Agents use it sparingly, and reduced motion keeps only a halo.
+
+Five animations ship with the app: `builtin:bounce` (the default),
+`builtin:shake`, `builtin:pulse`, `builtin:wiggle`, and `builtin:glow`. To
+preview them, open the command palette and choose **Draw attention to
+component**, then a component and an animation. A button can do the same:
+
+```yaml
+action: { run: "attention:backlog", with: { animation: builtin:shake, message: Two bugs need triage } }
+```
+
+Ask your agent for your own animation; it runs `dash-bored animation init
+nudge` and edits `.dash-bored/animations/nudge/animation.yaml`, a short list of
+keyframes with small offsets, rotation, scale, opacity, and a halo in a theme
+color. Set the top-level `attentionAnimation: ./animations/nudge` to make it the
+dashboard's default, or use `--global` for one shared by every dashboard. See
+the [format reference](skills/dash-bored/references/animations.md) and
+[JSON Schema](schemas/animation.schema.json). Animations are data: no CSS,
+scripts, or assets.
 
 ## App updates and dashboard migrations
 

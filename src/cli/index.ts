@@ -6,6 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runThemeCommand } from "./theme";
+import { runAnimationCommand } from "./animation";
 import { initializeProject } from "./init-project";
 import { inspectProject } from "../core/index";
 import { runComponentCommand } from "./component";
@@ -16,7 +17,7 @@ import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
 import { installDashBoredSkill } from "./install-skill";
 
-const COMMANDS = new Set(["init", "install-skill", "validate", "inspect", "component", "theme", "migrate", "app"]);
+const COMMANDS = new Set(["init", "install-skill", "validate", "inspect", "component", "theme", "animation", "migrate", "app"]);
 
 interface ParsedCommandArguments {
   project: string;
@@ -37,6 +38,7 @@ Usage:
   dash-bored inspect [project] [--summary | --component <reference>]
   dash-bored app <status|actions|run|open|screenshot|processes|wait|logs|read> [--instance <identifier>]
   dash-bored theme <init|validate|list|status|add|update|remove|sync> [--global]
+  dash-bored animation <init|validate|list> [--global]
   dash-bored component api [--api-version <version>] [--json]
   dash-bored component init <directory>
   dash-bored component setup <directory> [--tsconfig <file>]
@@ -230,6 +232,7 @@ async function main(): Promise<number> {
   }
   const parsed = parseCommandArguments(command, commandArgs);
   if (command === "theme") return runThemeCommand(args.slice(1));
+  if (command === "animation") return runAnimationCommand(args.slice(1));
   if (command === "component") return runComponentCommand(args.slice(1));
   if (parsed.help) {
     console.log(usage());
@@ -287,6 +290,10 @@ async function main(): Promise<number> {
     const output = summary ? {
       ok: result.ok, projectRoot: result.projectRoot, permissions: result.permissions, diagnostics: result.diagnostics,
       promptTemplates: result.promptTemplates,
+      // What `attention:<node>` can play; a broken bundle animation shows its error.
+      animations: (result.animationCatalog ?? []).map(({ reference, name, manifest, error }) => ({
+        reference, name, ...(manifest?.description ? { description: manifest.description } : {}), ...(error ? { error } : {}),
+      })),
       componentCatalog: catalog.map(({ reference, available, manifest }) => ({ reference, available,
         name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions })),
     } : componentReference ? { ok: result.ok, diagnostics: result.diagnostics, component: selected } : result;

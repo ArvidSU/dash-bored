@@ -18,6 +18,7 @@
     "build:cli": "bun ./scripts/build-cli.ts",
     "styles:dead": "bun ./scripts/find-dead-styles.ts",
     "generate:themes": "bun ./scripts/generate-themes.ts",
+    "generate:animations": "bun ./scripts/generate-animations.ts",
     "generate:components": "bun ./scripts/generate-component-reference.ts",
     "generate:component-sdk": "bun ./scripts/generate-component-sdk.ts",
     "ui:fixture": "vite --host 127.0.0.1 --port ${DASH_BORED_UI_PORT:-5488} --strictPort",

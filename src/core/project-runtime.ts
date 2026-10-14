@@ -292,6 +292,7 @@ export class ProjectRuntime {
       configRevision: definition.configRevision,
       componentCatalog: definition.componentCatalog,
       themeCatalog: definition.themeCatalog,
+      animationCatalog: definition.animationCatalog,
       diagnostics: definition.diagnostics,
       trustReview: definition.trustReview,
       revision: this.snapshot.revision + 1,

@@ -1,4 +1,6 @@
 import { homedir } from "node:os";
+import { dirname } from "node:path";
+import { resolveAnimation, snapshotConfigPaths } from "../core/animations";
 import { BrowserView, Utils } from "electrobun/main";
 import { CoreError, type ProjectRuntime, type TrustStore } from "../core/index";
 import type { AppSettings } from "../shared/contracts";
@@ -49,6 +51,14 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
     handlers: {
       requests: {
         getSnapshot: () => installedTools.addTo(runtime.getSnapshot()),
+        readAnimation: ({ reference, configPath }) => {
+          const snapshot = runtime.getSnapshot();
+          if (configPath !== undefined && !snapshotConfigPaths(snapshot).has(configPath)) {
+            throw new CoreError("ANIMATION_BUNDLE_UNKNOWN", `${configPath} is not part of the open dashboard.`);
+          }
+          const owner = configPath ?? snapshot.configPath;
+          return resolveAnimation(reference, owner ? dirname(owner) : undefined);
+        },
         focusWindow: () => options.focusWindow(),
         getThemes: () => options.loadThemes(),
         getUpdateState: () => updates.state(),

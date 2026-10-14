@@ -1,5 +1,6 @@
 import migrationReference from "../../skills/dash-bored/references/migrations.md" with { type: "text" };
 import themeReference from "../../skills/dash-bored/references/theme-tokens.md" with { type: "text" };
+import animationReference from "../../skills/dash-bored/references/animations.md" with { type: "text" };
 import { createHash } from "node:crypto";
 import { APP_VERSION } from "../shared/app-metadata";
 import skillMarkdown from "../../skills/dash-bored/SKILL.md" with { type: "text" };
@@ -14,6 +15,7 @@ import toolLauncher from "../../skills/dash-bored/scripts/dash-bored" with { typ
 const SKILL_CONTENTS = {
   "references/migrations.md": migrationReference,
   "references/theme-tokens.md": themeReference,
+  "references/animations.md": animationReference,
   "SKILL.md": skillMarkdown,
   "agents/openai.yaml": openAiMetadata,
   "references/components.md": componentReference,

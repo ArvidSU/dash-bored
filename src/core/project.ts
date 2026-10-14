@@ -1,6 +1,8 @@
 import { checkedOutCommit } from "./package-store";
 import { loadPromptTemplates, promptTemplateSummaries } from "./prompt-templates";
 import { loadThemeCatalog } from "./themes";
+import { loadAnimationCatalog } from "./animations";
+import type { AnimationCatalogItem } from "../shared/animations";
 import { resolveTheme, type ThemeCatalogItem } from "../shared/themes";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -35,6 +37,7 @@ import {
 
 export interface ProjectDefinition {
   themeCatalog: ThemeCatalogItem[];
+  animationCatalog: AnimationCatalogItem[];
   ok: boolean;
   location: ProjectLocation;
   config: DashboardConfig | null;
@@ -170,11 +173,14 @@ async function buildProjectDefinition(
   if (config?.theme) {
     for (const message of resolveTheme(themeCatalog, config.theme).errors) diagnostics.push(diagnostic({ code: "THEME_UNAVAILABLE", severity: "warning", message, file: location.configPath, path: "/theme" }));
   }
+  const animationCatalog = await loadAnimationCatalog(location.configDirectory);
+  diagnostics.push(...animationDiagnostics(animationCatalog, config?.attentionAnimation, location.configPath));
   const ok = !hasErrors(diagnostics) && tree !== null;
   if (!ok) tree = null;
   return {
     ok,
     themeCatalog,
+    animationCatalog,
     location,
     config,
     configRevision,
@@ -192,6 +198,30 @@ async function buildProjectDefinition(
   };
 }
 
+/**
+ * Broken bundle animations and an unavailable dashboard default are warnings:
+ * like themes, they never invalidate the component tree.
+ */
+function animationDiagnostics(
+  catalog: readonly AnimationCatalogItem[],
+  attentionAnimation: string | undefined,
+  configPath: string,
+): Diagnostic[] {
+  const diagnostics = catalog
+    .filter((item) => item.error && item.reference.startsWith("./animations/"))
+    .map((item) => diagnostic({ code: "ANIMATION_INVALID", severity: "warning", message: `${item.reference}: ${item.error}`, file: configPath }));
+  if (attentionAnimation && !catalog.some((item) => item.reference === attentionAnimation && item.manifest)) {
+    diagnostics.push(diagnostic({
+      code: "ANIMATION_UNAVAILABLE",
+      severity: "warning",
+      message: `attentionAnimation ${attentionAnimation} is not installed or is invalid; attention requests fall back to the built-in default.`,
+      file: configPath,
+      path: "/attentionAnimation",
+    }));
+  }
+  return diagnostics;
+}
+
 export async function loadProjectDefinition(
   input: string | ProjectLocation,
   options: InspectProjectOptions = {},
@@ -203,6 +233,7 @@ export async function loadProjectDefinition(
     return {
       ok: false,
       themeCatalog: [],
+      animationCatalog: [],
       location,
       config: null,
       configRevision: null,
@@ -278,6 +309,7 @@ export async function inspectProject(
     return {
       ok: definition.ok,
       themeCatalog: definition.themeCatalog,
+      animationCatalog: definition.animationCatalog,
       promptTemplates: promptTemplateSummaries((await loadPromptTemplates(definition.location.configDirectory)).templates),
       projectRoot: definition.location.projectRoot,
       config: definition.config,
@@ -292,6 +324,7 @@ export async function inspectProject(
     return {
       ok: false,
       themeCatalog: [],
+      animationCatalog: [],
       projectRoot: resolve(input),
       promptTemplates: [],
       config: null,

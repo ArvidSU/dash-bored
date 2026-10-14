@@ -10,6 +10,7 @@ import type {
   ExternalComponentLockEntry,
 } from "../shared/contracts";
 import { SUPPORTED_COMPONENT_API_VERSIONS } from "../shared/component-api";
+import { ANIMATION_REFERENCE_PATTERN } from "../shared/animations";
 import { diagnostic, errorMessage } from "./diagnostics";
 
 const MAX_YAML_BYTES = 2 * 1024 * 1024;
@@ -80,6 +81,7 @@ const configSchema = {
     name: { type: "string", minLength: 1, maxLength: 200 },
     theme: { type: "string", minLength: 1, maxLength: 2048 },
     themeMode: { enum: ["light", "dark", "system"] },
+    attentionAnimation: { type: "string", pattern: ANIMATION_REFERENCE_PATTERN, maxLength: 200 },
     icon: { type: "string", minLength: 1, maxLength: 2048 },
     root: { $ref: "#/$defs/componentNode" },
   },

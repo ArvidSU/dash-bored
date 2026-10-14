@@ -9,6 +9,9 @@ These are renderer/app state, never YAML — do not try to configure them:
   brings dash-bored to the foreground with keyboard focus. Agents may invoke it
   for a meaningful completion or blocker. It preserves dashboard focus, panel
   selections, trust, and unsaved drafts, and remains available during pending work.
+  `attention:<node-id>` then reveals one node (or one item, with `item`),
+  animates it, and shows its `message` in a notice. In a hidden window the run
+  completes at once and the animation waits until the window is shown.
 
 - **Draft Save/Cancel.** The component-library flyout opens read-only; the
   first insertion, move, removal, replacement, metadata edit, or ratio resize

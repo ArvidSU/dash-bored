@@ -333,6 +333,36 @@ test("inspect summary discovers bundle overrides, scope, input and declared vari
   expect(result.stdout).not.toContain("secret-value");
 }, 15_000);
 
+test("animation commands scaffold, validate, and list bundle animations that inspect and validate see", async () => {
+  const project = await mkdtemp(join(tmpdir(), "dash-bored-animation-"));
+  temporaryDirectories.push(project);
+  const home = await mkdtemp(join(tmpdir(), "dash-bored-animation-home-"));
+  temporaryDirectories.push(home);
+  const environment = { ...process.env, HOME: home };
+  expect((await runWithEnvironment(project, environment, "init", ".")).exitCode).toBe(0);
+
+  const created = await runWithEnvironment(project, environment, "animation", "init", "nudge");
+  expect(created.exitCode).toBe(0);
+  expect(JSON.parse(created.stdout).reference).toBe("./animations/nudge");
+  const directory = join(project, ".dash-bored", "animations", "nudge");
+  expect(JSON.parse((await runWithEnvironment(project, environment, "animation", "validate", directory)).stdout).id).toBe("nudge");
+  expect((await runWithEnvironment(project, environment, "animation", "init", "nudge")).exitCode).toBe(1);
+
+  await mkdir(join(project, ".dash-bored", "animations", "broken"));
+  await writeFile(join(project, ".dash-bored", "animations", "broken", "animation.yaml"), "schemaVersion: 1\n");
+  const listed = JSON.parse((await runWithEnvironment(project, environment, "animation", "list")).stdout) as { reference: string; error?: string }[];
+  expect(listed.map(({ reference }) => reference)).toEqual([
+    "builtin:bounce", "builtin:shake", "builtin:pulse", "builtin:wiggle", "builtin:glow", "./animations/broken", "./animations/nudge",
+  ]);
+  const summary = JSON.parse((await runWithEnvironment(project, environment, "inspect", ".", "--summary")).stdout);
+  expect(summary.animations).toContainEqual({ reference: "./animations/nudge", name: "nudge", description: "A custom attention animation." });
+  expect(summary.diagnostics).toContainEqual(expect.objectContaining({ code: "ANIMATION_INVALID", severity: "warning" }));
+
+  const global = await runWithEnvironment(project, environment, "animation", "init", "soft", "--global");
+  expect(JSON.parse(global.stdout)).toEqual({ directory: join(home, ".config", "dash-bored", "animations", "soft"), reference: "global:soft" });
+  expect((await runWithEnvironment(project, environment, "animation", "validate", "--schema")).stdout).toContain("keyframes");
+}, 15_000);
+
 test("validate text prints diagnostic paths and explains item templates in command text", async () => {
   const project = await mkdtemp(join(tmpdir(), "dash-bored-validate-"));
   temporaryDirectories.push(project);

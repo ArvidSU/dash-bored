@@ -16,6 +16,7 @@ import { childEdges } from "../shared/child-edges";
 import { diagnostic } from "./diagnostics";
 import type { ProjectLocation } from "./paths";
 import { loadPromptTemplates } from "./prompt-templates";
+import { loadAnimationCatalog } from "./animations";
 import {
   loadLocalDefinition,
   validateLocalDefinitionContainment,
@@ -332,7 +333,9 @@ export async function resolveComponentTree(
     // Each bundle owns its prompt templates; linked bundles load their own.
     const promptTemplates = await loadPromptTemplates(location.configDirectory);
     diagnostics.push(...promptTemplates.diagnostics);
-    const index = referenceIndex(allNodes, explicitNodeIds, promptTemplates.templates);
+    const animations = new Set((await loadAnimationCatalog(location.configDirectory))
+      .filter((item) => item.manifest).map((item) => item.reference));
+    const index = referenceIndex(allNodes, explicitNodeIds, promptTemplates.templates, animations);
     for (const node of bundleNodes) {
       diagnostics.push(...validateNodeReferences(index, node), ...(cwdDiagnostics.get(node) ?? []));
     }

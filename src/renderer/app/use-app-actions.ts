@@ -9,9 +9,11 @@ import {
   buildNodeFocusActions,
   type AppView,
 } from "../lib/action-providers";
+import { buildAttentionActions, loadAttentionAnimation, requestAttention } from "../lib/attention";
 import { highlightRevealedItem, scrollNodeIntoView } from "../lib/reveal-item";
 import { host } from "../lib/rpc-client";
 import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
+import { dashboardNodeEntries } from "../lib/virtual-root";
 import type { useActionRegistry } from "./use-action-registry";
 import { useProvidedActions } from "./use-action-registry";
 import type { useAgentWork } from "./use-agent-work";
@@ -124,6 +126,18 @@ export function useAppActions({
     if (itemId !== undefined) return highlightRevealedItem(nodeId, itemId);
     requestAnimationFrame(() => requestAnimationFrame(() => scrollNodeIntoView(nodeId)));
   });
+  // Attention reveals like reveal:, then animates and says why in the notice.
+  const attentionActions = buildAttentionActions(snapshot, async (nodeId, request, callerNodeId) => {
+    if (!snapshot) throw new Error("Open a dashboard first.");
+    const manifest = await loadAttentionAnimation(snapshot, request.animation, callerNodeId, (reference, configPath) => host.readAnimation(reference, configPath));
+    const label = snapshot.tree ? dashboardNodeEntries(snapshot.tree).find((entry) => entry.node.id === nodeId)?.label ?? nodeId : nodeId;
+    showDashboard();
+    viewState.revealComponent(nodeId);
+    await requestAttention(nodeId, manifest, {
+      ...(request.item === undefined ? {} : { item: request.item }),
+      onPlay: () => notices.showNotice(request.message ? `${label}: ${request.message}` : `${label} needs your attention.`),
+    });
+  });
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, actions.componentActions);
   return useProvidedActions(actions.store, [
     { id: "application", actions: applicationActions },
@@ -134,6 +148,7 @@ export function useAppActions({
     { id: "node-focus", actions: nodeFocusActions },
     { id: "selection", actions: selectionActions },
     { id: "reveal", actions: revealActions },
+    { id: "attention", actions: attentionActions },
     { id: "declared-component", actions: declaredComponentActions },
   ], actions.componentActions);
 }

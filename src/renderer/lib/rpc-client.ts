@@ -57,6 +57,7 @@ export interface DashboardHost {
   subscribe(listener: HostEventListener): () => void;
   getSnapshot(): Promise<ProjectSnapshot>;
   getThemes(): Promise<import("../../shared/themes").ThemeCatalogItem[]>;
+  readAnimation(reference: string, configPath?: string): Promise<import("../../shared/animations").AnimationManifest>;
   getUpdateState(): Promise<import("../../shared/updates").UpdateState>;
   updateAction(action: import("../../shared/updates").UpdateAction): Promise<import("../../shared/updates").UpdateState>;
   getAppSettings(): Promise<AppSettings>;
@@ -190,6 +191,10 @@ const liveHost: DashboardHost = {
   async getUpdateState() { ensureTransport(); return rpc.request.getUpdateState({}); },
   async updateAction(action) { ensureTransport(); return rpc.request.updateAction(action); },
   async getThemes() { ensureTransport(); return rpc.request.getThemes({}); },
+  async readAnimation(reference, configPath) {
+    ensureTransport();
+    return rpc.request.readAnimation({ reference, ...(configPath === undefined ? {} : { configPath }) });
+  },
   async getAppSettings() { ensureTransport(); return rpc.request.getAppSettings({}); },
   async updateAppSettings(settings) { ensureTransport(); return rpc.request.updateAppSettings(settings); },
   async previewComponentAgent(request) { ensureTransport(); return rpc.request.previewComponentAgent(request); },

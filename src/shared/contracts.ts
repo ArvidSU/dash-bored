@@ -56,6 +56,8 @@ export interface DashboardConfig {
   theme?: string;
   /** Optional appearance mode for this dashboard; omitted means inherit app settings. */
   themeMode?: import("./themes").ThemeMode;
+  /** Animation `attention:` plays when a request names none. */
+  attentionAnimation?: string;
   root: ComponentNode;
 }
 
@@ -310,6 +312,8 @@ export interface ProcessSnapshot {
 
 export interface ProjectSnapshot {
   themeCatalog?: import("./themes").ThemeCatalogItem[];
+  /** Attention animations for the palette; `attention:` re-reads non-built-ins when it plays. */
+  animationCatalog?: import("./animations").AnimationCatalogItem[];
   /** Public configuration only; never the inherited process environment or bundle secrets. */
   environmentByNode?: Record<string, ComponentEnvironmentSnapshot>;
   projectRoot: string | null;
@@ -411,6 +415,7 @@ export interface InspectResult {
   /** Effective prompt templates from this bundle; summaries never contain rendered environment values. */
   promptTemplates?: AgentPromptTemplateSummary[];
   themeCatalog?: import("./themes").ThemeCatalogItem[];
+  animationCatalog?: import("./animations").AnimationCatalogItem[];
   ok: boolean;
   projectRoot: string;
   config: DashboardConfig | null;

@@ -8,6 +8,7 @@ import type {
   ResolvedComponentNode,
 } from "../shared/contracts";
 import {
+  ATTENTION_ACTION_ARGS_SCHEMA,
   parseActionReferenceNodeId,
   parseComponentActionReference,
   parseSelectionActionReference,
@@ -268,12 +269,15 @@ export interface ReferenceIndex {
   resourceProviders: ReadonlyMap<string, ReadonlySet<string>>;
   /** The bundle's own prompt templates; linked bundles validate against theirs. */
   promptTemplates: ReadonlyMap<string, PromptTemplate>;
+  /** Animation references that resolve for this bundle; omitted skips availability warnings. */
+  animations?: ReadonlySet<string>;
 }
 
 export function referenceIndex(
   nodes: readonly ResolvedComponentNode[],
   explicitNodeIds: ReadonlySet<string>,
   promptTemplates: ReadonlyMap<string, PromptTemplate>,
+  animations?: ReadonlySet<string>,
 ): ReferenceIndex {
   const nodesById = new Map<string, ResolvedComponentNode>();
   const resourceProviders = new Map<string, Set<string>>();
@@ -286,7 +290,7 @@ export function referenceIndex(
       resourceProviders.set(resource, providers);
     }
   }
-  return { nodesById, explicitNodeIds, resourceProviders, promptTemplates };
+  return { nodesById, explicitNodeIds, resourceProviders, promptTemplates, ...(animations ? { animations } : {}) };
 }
 
 /** Check every manifest-declared action and resource reference in a node's props. */
@@ -317,6 +321,32 @@ function validateResourceReference(
     code: "COMPONENT_RESOURCE_REFERENCE_UNKNOWN",
     message: `${node.manifest?.name ?? node.component} references unknown ${resource} resource node: ${String(rawReference)}`,
     path: diagnosticPath,
+  })];
+}
+
+/** Shape errors block the dashboard; an animation this machine lacks is only a warning, like a theme. */
+function validateAttentionArguments(
+  index: ReferenceIndex,
+  args: Record<string, unknown>,
+  diagnosticPath: string,
+  allowsItemTemplates: boolean,
+): Diagnostic[] {
+  if (Object.keys(args).length === 0) return [];
+  const error = argumentsError(ATTENTION_ACTION_ARGS_SCHEMA, args, allowsItemTemplates);
+  if (error) {
+    return [diagnostic({
+      code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
+      message: `attention arguments are invalid: ${error}`,
+      path: `${diagnosticPath}.with`,
+    })];
+  }
+  const animation = args.animation;
+  if (typeof animation !== "string" || !index.animations || index.animations.has(animation)) return [];
+  return [diagnostic({
+    code: "ANIMATION_UNAVAILABLE",
+    severity: "warning",
+    message: `Animation ${animation} is not installed or is invalid; run dash-bored animation list to see what resolves.`,
+    path: `${diagnosticPath}.with.animation`,
   })];
 }
 
@@ -372,6 +402,7 @@ function validateActionReference(
       path: `${diagnosticPath}.with`,
     }));
   }
+  if (targetId.startsWith("attention:")) diagnostics.push(...validateAttentionArguments(index, invocation.with, diagnosticPath, allowsItemTemplates));
   const selectionTarget = parseSelectionActionReference(targetId);
   if (selectionTarget) {
     const container = index.nodesById.get(selectionTarget.containerId);
@@ -399,10 +430,10 @@ function validateActionReference(
       message: "Malformed component action reference; expected component:<node-id>:<action-id>.",
       path: diagnosticPath,
     }));
-  } else if (targetNodeId === undefined && /^(focus|process|reveal|select):/.test(targetId)) {
+  } else if (targetNodeId === undefined && /^(focus|process|reveal|attention|select):/.test(targetId)) {
     diagnostics.push(diagnostic({
       code: "COMPONENT_ACTION_REFERENCE_INVALID",
-      message: "Malformed node action reference; expected focus:<node-id>, reveal:<node-id>, process:<node-id>, select:<container-id>/<child-id>, or component:<node-id>:<action-id>.",
+      message: "Malformed node action reference; expected focus:<node-id>, reveal:<node-id>, attention:<node-id>, process:<node-id>, select:<container-id>/<child-id>, or component:<node-id>:<action-id>.",
       path: diagnosticPath,
     }));
   }

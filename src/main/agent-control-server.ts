@@ -5,6 +5,7 @@ import {
   MAX_COMMAND_PALETTE_QUERY_CHARS,
   MAX_IDLE_TIMEOUT_MS,
   type AgentActionDescriptor,
+  type AgentAttentionArgs,
   type AgentNodeMeasurement,
   type AgentNodeText,
   type AgentProcessInfo,
@@ -15,6 +16,8 @@ import {
   type AppInstanceRecord,
 } from "../shared/agent-control";
 import { clampLogTail } from "../shared/agent-control";
+import { MAX_ATTENTION_MESSAGE_CHARS } from "../shared/action-reference";
+import { isAnimationReference } from "../shared/animations";
 import { CoreError } from "../core/index";
 import { cropNodeCapture } from "./png-crop";
 import { publishAppInstance, withdrawAppInstance } from "../core/app-instances";
@@ -102,10 +105,30 @@ function selections(value: unknown): Record<string, string> | undefined {
   return value as Record<string, string>;
 }
 
-function actionArgs(value: unknown, reference: string): { query?: string } | undefined {
+function attentionArgs(value: unknown): AgentAttentionArgs {
+  const allowed = new Set(["animation", "message", "item"]);
+  if (typeof value !== "object" || value === null || Array.isArray(value)
+    || Object.entries(value).some(([key, entry]) => !allowed.has(key) || typeof entry !== "string")) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "attention args may contain only animation, message, and item strings.");
+  }
+  const { animation, message, item } = value as AgentAttentionArgs;
+  if (animation !== undefined && !isAnimationReference(animation)) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "animation must be builtin:<id>, global:<name>, or ./animations/<name>.");
+  }
+  if (message !== undefined && (!message.trim() || message.length > MAX_ATTENTION_MESSAGE_CHARS)) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", `message must be non-empty text of at most ${MAX_ATTENTION_MESSAGE_CHARS} characters.`);
+  }
+  if (item !== undefined && (!item.trim() || item.length > 512)) {
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "item must be a stable item ID of at most 512 characters.");
+  }
+  return value as AgentAttentionArgs;
+}
+
+function actionArgs(value: unknown, reference: string): { query?: string } | AgentAttentionArgs | undefined {
   if (value === undefined) return undefined;
+  if (reference.startsWith("attention:")) return attentionArgs(value);
   if (reference !== "app:open-palette") {
-    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "Only app:open-palette accepts action arguments.");
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "Only app:open-palette and attention:<node> accept action arguments.");
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)
     || Object.keys(value).some((key) => key !== "query")) {

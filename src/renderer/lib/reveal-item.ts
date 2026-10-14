@@ -8,7 +8,8 @@ export function revealScrollBehavior(): ScrollBehavior {
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-function nodeFrame(nodeId: string): HTMLElement | undefined {
+/** The mounted frame of a node, if any. */
+export function nodeFrame(nodeId: string): HTMLElement | undefined {
   return [...document.querySelectorAll<HTMLElement>("[data-node-id]")]
     .find((element) => element.dataset.nodeId === nodeId);
 }

@@ -158,6 +158,7 @@ interface DashboardConfig {
   icon?: string;
   theme?: string;
   themeMode?: "light" | "dark" | "system";
+  attentionAnimation?: string; // builtin:<id> | global:<name> | ./animations/<name>
   root: ComponentNode;
 }
 
@@ -493,6 +494,10 @@ metadata. Each field inherits the app default independently when omitted.
 Application Settings can edit these fields for any registered dashboard without
 opening that dashboard or changing the active runtime.
 Bundle-local packages and the optional `themes` lock section follow the [theme contract](themes.md).
+The optional top-level `attentionAnimation` names the animation
+`attention:<node>` plays when a request names none; bundle-local
+`animations/<name>/animation.yaml` packages follow the
+[attention contract](attention.md).
 
 ### Legacy migrations
 

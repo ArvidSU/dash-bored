@@ -257,6 +257,12 @@ automation surface for the user's own agents, not a new capability.
   a save in progress (`editing: true`). Clean sessions do not block agents.
   It loads and registers
   the dashboard but never trusts it.
+- `attention:<node>` is agent-callable without confirmation and accepts only
+  `animation`, `message`, and `item` strings, validated in main before they
+  reach the renderer. It changes presentation (reveal, a bounded animation, a
+  notice) and never moves keyboard focus. Animation packages are data; main
+  reads them only from built-ins, the personal animation directory, or a
+  bundle in the open snapshot.
 - `app:focus-window` is agent-callable without project trust or confirmation.
   It only restores, shows, and activates this instance's window, and remains
   available during unsaved or pending work. It cannot change drafts or select

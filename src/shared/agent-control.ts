@@ -182,11 +182,18 @@ export interface AgentNodeMeasurement {
   changes: { revealed: boolean; scrolled: boolean };
 }
 
+/** `attention:<node>` arguments an agent may pass; see ATTENTION_ACTION_ARGS_SCHEMA. */
+export type AgentAttentionArgs = {
+  animation?: string;
+  message?: string;
+  item?: string;
+};
+
 export interface AgentRunActionRequest {
   reference: string;
   selections?: Readonly<Record<string, string>>;
-  /** Only `app:open-palette` accepts a query argument. */
-  args?: { query?: string };
+  /** `app:open-palette` accepts a query; `attention:<node>` its attention arguments; nothing else takes any. */
+  args?: { query?: string } | AgentAttentionArgs;
 }
 
 export const MAX_COMMAND_PALETTE_QUERY_CHARS = 200;

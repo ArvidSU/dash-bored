@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: nudge
+name: Nudge
+description: Two sideways nudges with a warning halo, for a blocker the user should act on.
+duration: 900
+easing: ease-in-out
+color: warning
+keyframes:
+  - { at: 0, x: 0, glow: 0 }
+  - { at: 0.15, x: 7, glow: 0.7, easing: ease-out }
+  - { at: 0.3, x: 0, glow: 0.8, easing: ease-in }
+  - { at: 0.45, x: 7, glow: 0.9, easing: ease-out }
+  - { at: 0.6, x: 0, glow: 0.8 }
+  - { at: 1, x: 0, glow: 0 }

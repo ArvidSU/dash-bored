@@ -217,7 +217,38 @@ test("the app-control action forwards bounded palette queries through the shared
     body: JSON.stringify({ reference: "focus:logs", args: { query: "logs" } }),
   } as RequestInit);
   expect(unexpectedArgs.status).toBe(400);
-  expect((await unexpectedArgs.json() as { error: { message: string } }).error.message).toContain("Only app:open-palette");
+  expect((await unexpectedArgs.json() as { error: { message: string } }).error.message).toContain("Only app:open-palette and attention:<node>");
+});
+
+test("attention requests carry a bounded animation, message, and item through the channel", async () => {
+  const homeDirectory = await home();
+  const { runs, server } = await serve(homeDirectory);
+
+  const asked = await cli(homeDirectory, "run", "attention:logs", "--animation", "./animations/nudge", "--message", "Tests failed here", "--item", "t-1");
+  expect(asked.exitCode).toBe(0);
+  expect(runs.at(-1)).toEqual({
+    reference: "attention:logs", args: { animation: "./animations/nudge", message: "Tests failed here", item: "t-1" },
+  });
+
+  const misplaced = await cli(homeDirectory, "run", "focus:logs", "--animation", "builtin:shake");
+  expect(misplaced.exitCode).not.toBe(0);
+  expect(misplaced.stderr).toContain("only supported with app run attention:");
+
+  const post = (body: unknown) => fetch("http://dash-bored/v1/actions/run", {
+    method: "POST",
+    unix: server.record.socketPath,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  } as RequestInit);
+  for (const [args, message] of [
+    [{ animation: "../escape" }, "animation must be"],
+    [{ message: "x".repeat(201) }, "at most 200 characters"],
+    [{ query: "logs" }, "may contain only animation, message, and item"],
+  ] as const) {
+    const response = await post({ reference: "attention:logs", args });
+    expect(response.status).toBe(400);
+    expect((await response.json() as { error: { message: string } }).error.message).toContain(message);
+  }
 });
 
 test("status reports diagnostic text, bounded, and the read-only trust state", async () => {

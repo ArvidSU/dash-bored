@@ -45,6 +45,8 @@ export type DashboardRPC = {
     requests: {
       getSnapshot: { params: {}; response: ProjectSnapshot };
       getThemes: { params: {}; response: import("./themes").ThemeCatalogItem[] };
+      /** Reads an attention animation fresh; `configPath` names the bundle `./animations/` resolves in. */
+      readAnimation: { params: { reference: string; configPath?: string }; response: import("./animations").AnimationManifest };
       getUpdateState: { params: {}; response: import("./updates").UpdateState };
       updateAction: { params: import("./updates").UpdateAction; response: import("./updates").UpdateState };
       getAppSettings: { params: {}; response: AppSettings };

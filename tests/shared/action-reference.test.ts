@@ -12,6 +12,7 @@ describe("action references", () => {
   test("parses node IDs and component action IDs", () => {
     expect(parseActionReferenceNodeId("focus:todo-list")).toBe("todo-list");
     expect(parseActionReferenceNodeId("component:todo-list:refresh")).toBe("todo-list");
+    expect(parseActionReferenceNodeId("attention:todo-list")).toBe("todo-list");
     expect(parseActionReferenceNodeId("app:reload")).toBeUndefined();
     expect(parseActionReferenceNodeId("focus:%E0%A4%A")).toBeUndefined();
     expect(parseComponentActionReference("component:todo-list:refresh"))
@@ -31,6 +32,7 @@ describe("action references", () => {
     const remap = (id: string) => id === "pulse" ? "bundle::pulse" : undefined;
     expect(remapActionReferenceNode("focus:pulse", remap)).toBe("focus:bundle%3A%3Apulse");
     expect(remapActionReferenceNode("process:pulse", remap)).toBe("process:bundle%3A%3Apulse");
+    expect(remapActionReferenceNode("attention:pulse", remap)).toBe("attention:bundle%3A%3Apulse");
     expect(remapActionReferenceNode("component:pulse:refresh", remap)).toBe("component:bundle%3A%3Apulse:refresh");
     expect(remapActionReferenceNode("app:reload", remap)).toBe("app:reload");
   });

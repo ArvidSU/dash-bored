@@ -1,4 +1,5 @@
 import { BUILTIN_THEME, projectThemeReference, type ThemeCatalogItem } from "../../shared/themes";
+import { BUILTIN_ANIMATIONS, builtinAnimation, type AnimationCatalogItem } from "../../shared/animations";
 import { cloneDefaultAppSettings } from "../../shared/app-settings";
 import Ajv, { type ErrorObject } from "ajv";
 import { permissionsForComponent } from "../../shared/component-permissions";
@@ -228,6 +229,13 @@ const FIXTURE_APPLICATION_THEMES: ThemeCatalogItem[] = [
     displayReference: 'UI harness · ./themes/plum',
   },
 ];
+const FIXTURE_ANIMATIONS: AnimationCatalogItem[] = [...BUILTIN_ANIMATIONS,
+  {
+    reference: './animations/nudge', name: 'Nudge',
+    manifest: { schemaVersion: 1, id: 'nudge', name: 'Nudge', duration: 400, color: 'warning', keyframes: [{ x: 0, glow: 0 }, { x: 6, glow: 1 }, { x: 0, glow: 0 }] },
+  },
+  { reference: './animations/broken', name: './animations/broken', error: 'Invalid animation.yaml: keyframes must NOT have fewer than 2 items' },
+];
 function validateFixtureDraft(config: DashboardConfig): DashboardDraftValidation {
   const diagnostics: Diagnostic[] = [];
   if (config.schemaVersion !== 4) diagnostics.push(fixtureDiagnostic("CONFIG_SCHEMA_INVALID", "schemaVersion must be 4.", "schemaVersion"));
@@ -441,6 +449,7 @@ export function createUiHarnessHost(): UiHarnessHost {
   visitEnvironment(tree);
   return {
     themeCatalog: structuredClone(FIXTURE_THEMES),
+    animationCatalog: structuredClone(FIXTURE_ANIMATIONS),
     environmentByNode,
     projectRoot: PROJECT_ROOT,
     configPath: CONFIG_PATH,
@@ -522,6 +531,12 @@ export function createUiHarnessHost(): UiHarnessHost {
     },
     async getSnapshot() { return snapshot(); },
     async getThemes() { return structuredClone(FIXTURE_APPLICATION_THEMES); },
+    async readAnimation(reference: string) {
+      const item = FIXTURE_ANIMATIONS.find((candidate) => candidate.reference === reference);
+      const manifest = builtinAnimation(reference) ?? item?.manifest;
+      if (!manifest) throw new Error(`${reference}: ${item?.error ?? "animation not found."}`);
+      return structuredClone(manifest);
+    },
     async getUpdateState(): Promise<UpdateState> { return { currentVersion: "0.2.6", settings: { channel: "canary" as const, automaticChecks: true }, release: null, receipt: null, dashboards: [], phase: "idle" as const, message: "UI fixture: no network check performed.", ...structuredClone(updateOverride ?? {}) }; },
     async updateAction(action) {
       if (action.type === "settings") updateOverride = { ...updateOverride, settings: action.settings };

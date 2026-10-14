@@ -81,7 +81,8 @@ Everything else lives in focused modules under feature directories:
   sessions), `agent-tasks.ts`, `agent-options.ts`, `markdown-lite.tsx`,
   `virtual-root.ts`,
   `clipboard.ts`, `pointer-session.ts`,
-  `selection-actions.ts` (core select/reveal actions), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
+  `selection-actions.ts` (core select/reveal actions), `attention.ts`
+  (`attention:` actions and animation playback), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
 - Core rendering and portable helpers live in `dash-bored-components`, with
@@ -306,7 +307,8 @@ invocation fails with a visible reason. It changes
 focus only when the current focus projection hides the node, widening focus to
 the closest common ancestor of the current target and the node. Focus is global navigation for top-level pages; selection is local
 presentation for nested panels. Reveal connects the two when navigation targets
-a nested node.
+a nested node. `attention:<node>` reveals the same way, then animates the
+node or one item and shows a notice; see [attention animations](attention.md).
 
 Core-owned horizontal tile branches support runtime ratio resizing. Their
 project-owned topology contains a normalized first-pane `ratio` between
