@@ -420,7 +420,8 @@ export function AppShell({
             </div>
           ) : null}
           {actionNotice ? <GlobalNotice notice={actionNotice} onDismiss={onDismissNotice} /> : null}
-          {children}
+          {/* The window's only page scroller: the header, banners, and sidebar stay put. */}
+          <div className="app-frame__scroll">{children}</div>
         </div>
       </div>
     </div>

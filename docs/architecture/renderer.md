@@ -470,9 +470,9 @@ answers and pushes, for example to push after answering.
 
 The modal reserves its remaining height for the active panel, with bounded,
 scrollable validation feedback. The shared modal overlay and panel contain
-scroll chaining; the document also disables page scrolling while any shared
-modal is mounted, including modal-chrome gestures in native WebKit. Removing
-the final modal restores page scrolling. Shared modal focus setup and
+scroll chaining; the shell's content scroller also stops scrolling while any
+shared modal is mounted, including modal-chrome gestures in native WebKit.
+Removing the final modal restores page scrolling. Shared modal focus setup and
 restoration run only on mount and unmount, using the current dismiss callback
 without stealing focus during task updates. Deferred initial focus preserves
 any control the user or a child already focused inside the modal. The Agent
@@ -915,6 +915,14 @@ no dashboard is open. The native application menu binds the same lifecycle
 operation to `CommandOrControl+Shift+R`. This is distinct from `Reload
 dashboard`, which asks the main process to reread the active project while
 preserving the last known-good renderer when project validation fails.
+
+The window is one viewport-sized shell that never scrolls or rubber-bands as
+a whole. The sidebar and the header, with the action error and notice banners
+below it, stay fixed; `.app-frame__scroll` beneath them is the page's only
+scroll container, so reveals, the component picker, and agent node captures
+scroll and clip against it rather than the document. It must not form a
+stacking context, or fixed layers rendered from the workspace would sit below
+the header.
 
 Sidebar chrome centers collapsed icons in the bordered button content box;
 expanded navigation retains its fixed icon column. The industrial dot-grid
