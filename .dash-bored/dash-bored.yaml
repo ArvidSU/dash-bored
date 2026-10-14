@@ -715,7 +715,7 @@ root:
                               - docs
                           - id: todo-push-quiet-chrome-core
                             description: "Push dash-bored-components commit cbcd5d5 (quiet component chrome, local branch visual-clarity) to the public repository before any release: the core pin points at it, so package restore in other checkouts and the release core-package gate fail until it is published."
-                            done: false
+                            done: true
                             tags:
                               - release
                               - visuals
