@@ -402,7 +402,11 @@ To change several components in one request, hold Shift and click each one
 (click a selected component again to drop it), then release Shift to open the
 composer for all of them. Escape or a click outside the dashboard cancels.
 Change with agent shows the resolved command before sending and enriches your request with the owning
-dashboard and exact component path. **Agent work** in the header lists each
+dashboard and exact component path. Below the request, choose the agent's
+model, mode, and other options for the first prompt. **Default** leaves an
+option to the agent. The composer remembers your choices per agent. An agent's
+options appear after the app's first session with it, because agents list
+them only once a session exists. **Agent work** in the header lists each
 session with its agent, state (Starting, Working, Needs permission, Idle,
 Sign-in required, Closed, Failed), and validation result. Clicking one opens
 its **Session**: the agent's messages and plan, its tool calls with the files

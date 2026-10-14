@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { stringify } from "yaml";
 import { ProjectRuntime, TrustStore } from "../../src/core";
-import { AgentLauncher } from "../../src/main/agent-launch";
+import { AgentConfigMemory } from "../../src/main/agent-config-memory";
+import { AgentLauncher, type AgentLauncherOptions } from "../../src/main/agent-launch";
 import type { AgentSessionLaunchOptions, AgentSessions } from "../../src/main/agent-sessions";
 import type { AgentCommandChoice, DetectedAgent } from "../../src/shared/agent-session";
 import { KNOWN_AGENTS } from "../../src/shared/agent-catalog";
@@ -18,7 +19,7 @@ afterEach(async () => {
 
 const GEMINI: DetectedAgent = { id: "gemini", name: "Gemini CLI", command: "gemini --acp", resumable: true };
 
-async function setup(environment: string, appSetting: { value: string | null; enabledAgentIds?: string[] }, detected: DetectedAgent[] = []) {
+async function setup(environment: string, appSetting: { value: string | null; enabledAgentIds?: string[] }, detected: DetectedAgent[] = [], extra: Partial<AgentLauncherOptions> = {}) {
   const root = await temporaryDirectory();
   cleanup.push(root);
   const config = { schemaVersion: 4 as const, name: "Agents", root: {
@@ -47,6 +48,7 @@ async function setup(environment: string, appSetting: { value: string | null; en
     publishedEnvironment: () => ({ APP_PUBLISHED_VALUE: "available" }),
     detect: () => detected,
     packageRunner: () => "npx",
+    ...extra,
   });
   return { root: await realpath(root), config, configPath: await realpath(configPath), runtime, launcher, launches };
 }
@@ -134,6 +136,33 @@ test("the composer's choice selects the app, bundle, or a custom command", async
   await writeFile(join(root, ".dash-bored", ".env"), "OTHER=1\n");
   expect(await launcher.agentOptions(configPath)).toMatchObject({ project: null, effective: { source: "detected", command: "gemini --acp" } });
   await expect(launch({ source: "project" })).rejects.toThrow("does not set DASH_BORED_AGENT");
+});
+
+test("composer config choices are checked, set before the first prompt, and offered again", async () => {
+  const state = await temporaryDirectory();
+  cleanup.push(state);
+  const configMemory = new AgentConfigMemory(join(state, "agent-config.json"));
+  const { configPath, runtime, launcher, launches } = await setup("", { value: "/usr/bin/true" }, [], { configMemory });
+  await runtime.trust();
+  await configMemory.offered("/usr/bin/true", [{ id: "effort", name: "Effort", type: "select", currentValue: "default", options: [{ value: "high", name: "High" }] }]);
+  const launch = (config?: unknown) =>
+    launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Do it.", ...(config === undefined ? {} : { config }) } as never);
+
+  await launch({ effort: "high", fast: true });
+  expect(launches[0]!.config).toEqual({ effort: "high", fast: true });
+  expect((await launcher.agentOptions(configPath)).config?.["/usr/bin/true"]?.chosen).toEqual({ effort: "high", fast: true });
+  // Nothing chosen returns every option to the agent's default.
+  await launch({});
+  expect(launches[1]!.config).toBeUndefined();
+  expect((await launcher.preview({ nodeIds: ["test"], prompt: "" })).agents.config?.["/usr/bin/true"]).toMatchObject({ chosen: {} });
+  // A launch without the composer's options leaves the remembered choices alone.
+  await configMemory.chose("/usr/bin/true", { effort: "high" });
+  await launch();
+  expect((await launcher.agentOptions(configPath)).config?.["/usr/bin/true"]?.chosen).toEqual({ effort: "high" });
+  for (const config of [[], { effort: 3 }, { "": "high" }, Object.fromEntries(Array.from({ length: 21 }, (_, index) => [`o${index}`, true]))]) {
+    await expect(launch(config)).rejects.toMatchObject({ code: "COMPONENT_AGENT_CONFIG_INVALID" });
+  }
+  expect(launches).toHaveLength(3);
 });
 
 test("enabled packages resolve in main and stale disabled picker choices are rejected", async () => {

@@ -469,6 +469,7 @@ export function createUiHarnessHost(): UiHarnessHost {
       prompt,
       componentPath: componentPath(node),
       ...(request.agent ? { agent: request.agent } : {}),
+      ...(request.config ? { config: request.config } : {}),
     });
   };
 

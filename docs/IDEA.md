@@ -171,8 +171,9 @@ standard: dash-bored is an [Agent Client Protocol](https://agentclientprotocol.c
 the owning project, briefs it with the reviewed prompt, and renders the session
 the protocol describes: the agent's messages and plan, its tool calls and their
 progress, its permission requests, and the model and mode choices it offers.
-The user answers permission requests, sends follow-up messages, and stops work
-in the app.
+The user can make those choices before the first prompt and the app remembers
+them per agent. The user answers permission requests, sends follow-up messages,
+and stops work in the app.
 
 The scope stays an agent-driven dashboard app, not an agent harness, IDE, or
 editor. The agent owns its model, credentials, tools, and loop; the app holds

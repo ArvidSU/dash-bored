@@ -208,6 +208,11 @@ root:
                             done: false
                             tags:
                               - tests
+                          - id: agent-options-first-session
+                            description: "The composer offers an agent's model, mode, and effort only after the app's first session with that launch command, because ACP lists options only in the session/new answer. Consider a way to show them earlier, such as an opt-in probe session from the composer. Also consider offering the options in the component library's Build with agent, which launches with the agent's defaults today."
+                            done: false
+                            tags:
+                              - agents
                           - id: acp-binary-setup
                             description: Add app-managed installation for ACP agents distributed only as binary archives, with version and integrity verification. The Settings checklist currently enables installed binaries and downloads supported npm packages on first use.
                             done: false
@@ -743,7 +748,7 @@ root:
                                 component: "./components/external/core/command"
                                 props:
                                   label: Verify ACP agent sessions
-                                  command: bun test --timeout 30000 tests/main/agent-sessions.test.ts tests/main/agent-session-updates.test.ts tests/main/dashboard-setup.test.ts tests/updates/migration-agent.test.ts
+                                  command: bun test --timeout 30000 tests/main/agent-sessions.test.ts tests/main/agent-session-updates.test.ts tests/main/agent-config-memory.test.ts tests/main/dashboard-setup.test.ts tests/updates/migration-agent.test.ts
                                   cwd: .
                             second:
                               node:

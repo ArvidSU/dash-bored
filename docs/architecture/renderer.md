@@ -51,6 +51,7 @@ Everything else lives in focused modules under feature directories:
   `EmptyProject.tsx`, `AgentPromptPanel.tsx` (composer and agent picker),
   `AgentActivity.tsx` (Agent work drawer and session modal),
   `AgentSession.tsx` (plan, transcript, permission, sign-in, follow-up),
+  `AgentConfigControl.tsx` (agent option selects for a session and for the composer),
   `AgentStatus.tsx` (state and validation chips and glyphs),
   `agent-work.css`
   (Agent work and its header badge, and the composer and Settings agent
@@ -358,7 +359,12 @@ The composer names the target component, or lists every picked target in pick
 order, offers every template the owning
 bundle resolves (built-ins first, each with its scope) as a radio group, shows
 a field per declared var, and pairs a large request editor with a Full prompt
-tab above a bar with the Agent picker, the launch command it runs, and Send.
+tab above a row of agent options and a bar with the Agent picker, the launch
+command it runs, and Send. The options row shows the picked command's
+remembered options with Default first, or a hint when the agent has not run
+yet; edits are kept per command while the composer is open, and Send carries
+the non-default choices as `config` (see
+[Agents](./acp-client.md#options-before-the-first-prompt)).
 The picker (`lib/agent-options.ts`) presents the main process's command
 options: App default (the app setting) and Project .env (the owning bundle's
 `DASH_BORED_AGENT`), each disabled and marked "not set" when empty; a
@@ -375,8 +381,8 @@ The default selector still accepts a custom command or returns selection to
 individual dashboards. Vars the
 selected template does not declare are dropped, so switching templates cannot
 send a foreign var. The renderer sends only the selected node IDs (`nodeIds`,
-in pick order), the template name, typed vars, user text, and the optional
-choice. Main resolves each ID against its own snapshot, drops duplicates,
+in pick order), the template name, typed vars, user text, the optional
+choice, and the option choices. Main resolves each ID against its own snapshot, drops duplicates,
 refuses a missing node (`COMPONENT_NOT_FOUND`) and targets owned by different
 dashboard bundles (`COMPONENT_AGENT_TARGETS_MIXED`, since templates,
 environment, and validation are per bundle), and records the first target as

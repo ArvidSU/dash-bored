@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import { hasErrors, loadProjectDefinition } from "../core/index";
 import type { ProjectLocation } from "../core/paths";
-import type { AgentSessionTask } from "../shared/agent-session";
+import type { AgentConfigChoices, AgentSessionTask } from "../shared/agent-session";
 import type { ComponentAgentLaunch, Diagnostic, Permission, ResolvedComponentNode } from "../shared/contracts";
 import { buildDiagnosticsAgentPrompt, componentPath, findResolvedNode } from "../shared/component-agent";
 import { starterAgentPrompt } from "../core/project-files";
@@ -93,7 +93,7 @@ export class DashboardSetupSupervisor {
    * launch environment, refuses out-of-bundle permission requests, and
    * reports review-required instead of repairing.
    */
-  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: AgentSessionTask["purpose"]; template?: string; followUp?: boolean; untrustedRepair?: boolean; env?: Record<string, string> }): Promise<ComponentAgentLaunch> {
+  async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: AgentSessionTask["purpose"]; template?: string; followUp?: boolean; untrustedRepair?: boolean; env?: Record<string, string>; config?: AgentConfigChoices }): Promise<ComponentAgentLaunch> {
     const { runtime, harness, command, location, preflight } = this.options;
     const { followUp = true, untrustedRepair = false, env: explicitEnv, ...launch } = request;
     const env = explicitEnv ?? await runtime.getLaunchEnvironment(request.configPath);

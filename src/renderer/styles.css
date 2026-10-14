@@ -3716,6 +3716,39 @@ html:has(.editor-modal) {
   overflow-wrap: anywhere;
 }
 
+.agent-prompt__options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.agent-prompt__option {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-prompt__option select {
+  max-width: 13rem;
+  text-overflow: ellipsis;
+}
+
+.agent-prompt__option select:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.agent-prompt__options-hint {
+  color: var(--faint);
+  font-size: 11px;
+}
+
 .agent-prompt__bar {
   display: flex;
   align-items: center;

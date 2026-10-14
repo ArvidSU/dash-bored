@@ -13,6 +13,8 @@ import { CoreError } from "../core/diagnostics";
 import { KNOWN_AGENTS } from "../shared/agent-catalog";
 import type {
   AgentAuthMethod,
+  AgentConfigChoices,
+  AgentConfigOption,
   AgentPermissionRequest,
   AgentSessionTask,
   AgentTaskCommand,
@@ -85,6 +87,11 @@ export interface AgentSessionLaunchOptions {
    */
   untrusted?: boolean;
   /**
+   * Config option values to set once the session exists, before the first
+   * prompt. One the agent does not offer, or refuses, is skipped with a notice.
+   */
+  config?: AgentConfigChoices;
+  /**
    * Runs after every prompt turn ends, and once when the session ends before
    * an outstanding turn (including the first one) could.
    */
@@ -93,6 +100,8 @@ export interface AgentSessionLaunchOptions {
 
 export interface AgentSessionsOptions {
   onTask?: (task: AgentSessionTask) => void;
+  /** A trusted session was created and offered these config options, before any launch choices. */
+  onConfigOffered?: (command: string, options: AgentConfigOption[]) => void;
   /** Where hand-off scripts are written; hand-off is unavailable without it. */
   handoffDirectory?: string;
   /** Opens a hand-off script in the user's terminal; injectable so tests never open one. */
@@ -406,32 +415,13 @@ export class AgentSessions {
   async setConfig(id: string, configId: string, value: string | boolean): Promise<AgentSessionTask> {
     const record = this.require(id);
     const { task } = record;
-    const sessionId = task.sessionId;
-    if (!sessionId || task.state === "closed" || task.state === "failed" || task.state === "starting") {
+    if (!task.sessionId || task.state === "closed" || task.state === "failed" || task.state === "starting") {
       throw new CoreError("AGENT_SESSION_UNAVAILABLE", "The agent session is not open.");
     }
-    const option = task.configOptions.find((candidate) => candidate.id === configId);
-    if (!option) throw new CoreError("AGENT_CONFIG_UNKNOWN", "The agent does not offer that option.");
-    if (task.untrusted && option.category === "mode") {
-      // A mode can let the agent act without asking, which would bypass the repair's permission policy.
-      throw new CoreError("AGENT_CONFIG_REFUSED", "This project is not trusted, so the repair cannot change the agent's mode.");
-    }
     if (record.handingOff) throw new CoreError("AGENT_SESSION_BUSY", "This session is being handed off.");
-    if (option.type === "boolean" ? typeof value !== "boolean"
-      : typeof value !== "string" || !option.options?.some((choice) => choice.value === value)) {
-      throw new CoreError("AGENT_CONFIG_INVALID", `That value is not one of the choices for ${option.name}.`);
-    }
+    const option = this.configOption(record, configId, value);
     try {
-      if (record.transcript.modeFallback && configId === MODE_FALLBACK_ID) {
-        await record.process.request("session/set_mode", { sessionId, modeId: value as string }, { timeoutMs: this.timeouts.config });
-        option.currentValue = value;
-      } else {
-        const response = await record.process.request("session/set_config_option", typeof value === "boolean"
-          ? { sessionId, configId, type: "boolean", value }
-          : { sessionId, configId, value }, { timeoutMs: this.timeouts.config });
-        record.transcript.modeFallback = false;
-        task.configOptions = configOptions(response.configOptions);
-      }
+      await this.sendConfig(record, option, value);
     } catch (error) {
       if (error instanceof RequestError) {
         throw new CoreError("AGENT_CONFIG_FAILED", clip(`The agent refused the change: ${error.message}`, MAX_NOTICE_TEXT));
@@ -442,6 +432,69 @@ export class AgentSessions {
     }
     this.schedule(record);
     return this.snapshot(record);
+  }
+
+  /** The offered option `value` may be set on, or why it may not. */
+  private configOption(record: SessionRecord, configId: string, value: string | boolean): AgentConfigOption {
+    const option = record.task.configOptions.find((candidate) => candidate.id === configId);
+    if (!option) throw new CoreError("AGENT_CONFIG_UNKNOWN", "The agent does not offer that option.");
+    if (record.task.untrusted && option.category === "mode") {
+      // A mode can let the agent act without asking, which would bypass the repair's permission policy.
+      throw new CoreError("AGENT_CONFIG_REFUSED", "This project is not trusted, so the repair cannot change the agent's mode.");
+    }
+    if (option.type === "boolean" ? typeof value !== "boolean"
+      : typeof value !== "string" || !option.options?.some((choice) => choice.value === value)) {
+      throw new CoreError("AGENT_CONFIG_INVALID", `That value is not one of the choices for ${option.name}.`);
+    }
+    return option;
+  }
+
+  private async sendConfig(record: SessionRecord, option: AgentConfigOption, value: string | boolean): Promise<void> {
+    const { task } = record;
+    const sessionId = task.sessionId!;
+    if (record.transcript.modeFallback && option.id === MODE_FALLBACK_ID) {
+      await record.process.request("session/set_mode", { sessionId, modeId: value as string }, { timeoutMs: this.timeouts.config });
+      option.currentValue = value;
+      return;
+    }
+    const response = await record.process.request("session/set_config_option", typeof value === "boolean"
+      ? { sessionId, configId: option.id, type: "boolean", value }
+      : { sessionId, configId: option.id, value }, { timeoutMs: this.timeouts.config });
+    record.transcript.modeFallback = false;
+    task.configOptions = configOptions(response.configOptions);
+  }
+
+  /**
+   * Set the launch's config choices before the first prompt, in the order the
+   * agent lists its options (a model change can change the effort choices).
+   * A choice the agent no longer offers or refuses is skipped with a notice;
+   * a failed connection fails the task. False when the session ended.
+   */
+  private async applyLaunchConfig(record: SessionRecord): Promise<boolean> {
+    const { task } = record;
+    const choices = record.options.config ?? {};
+    const position = (id: string) => {
+      const index = task.configOptions.findIndex((option) => option.id === id);
+      return index < 0 ? task.configOptions.length : index;
+    };
+    for (const configId of Object.keys(choices).sort((left, right) => position(left) - position(right))) {
+      const value = choices[configId]!;
+      const offered = task.configOptions.find((option) => option.id === configId);
+      if (offered?.currentValue === value) continue;
+      try {
+        await this.sendConfig(record, this.configOption(record, configId, value), value);
+      } catch (error) {
+        if (record.closing || this.ended(record)) return false;
+        if (error instanceof CoreError || error instanceof RequestError) {
+          addNotice(task, record.transcript, "warning", `${offered?.name ?? configId} was left at the agent's default: ${error.message}`);
+          continue;
+        }
+        this.fail(record, await this.requestFailure(record, "session/set_config_option", error));
+        return false;
+      }
+      if (record.closing || this.ended(record)) return false;
+    }
+    return true;
   }
 
   /** Start an agent-handled sign-in, then create the session (or resend the interrupted prompt). */
@@ -646,6 +699,9 @@ export class AgentSessions {
       record.transcript.modeFallback = true;
       task.configOptions = [modeOption(session.modes)];
     }
+    // An untrusted project's agent configuration does not shape what the app remembers.
+    if (task.configOptions.length > 0 && !task.untrusted) this.options.onConfigOffered?.(task.agent.command, structuredClone(task.configOptions));
+    if (record.options.config && !(await this.applyLaunchConfig(record))) return;
     task.state = "idle";
     const pending = record.pendingPrompt;
     record.pendingPrompt = null;

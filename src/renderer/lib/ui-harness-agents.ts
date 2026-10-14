@@ -3,6 +3,7 @@ import { KNOWN_AGENTS } from "../../shared/agent-catalog";
 import type {
   AgentCommandChoice,
   AgentCommandOptions,
+  AgentConfigChoices,
   AgentConfigOption,
   AgentPermissionRequest,
   AgentSessionEntry,
@@ -10,6 +11,7 @@ import type {
   AgentStopReason,
   AgentTaskCommand,
   DetectedAgent,
+  RememberedAgentConfig,
 } from "../../shared/agent-session";
 import type { ComponentAgentLaunch } from "../../shared/contracts";
 
@@ -31,6 +33,8 @@ export interface FixtureAgentLaunch {
   prompt: string;
   componentPath: string;
   agent?: AgentCommandChoice;
+  /** Composer choices: applied when the session opens, and remembered for the command. */
+  config?: AgentConfigChoices;
 }
 
 export interface FixtureAgentControls {
@@ -96,6 +100,30 @@ function modelOptions(current: string): AgentConfigOption {
       { value: "haiku", name: "Haiku", group: "Claude" },
     ],
   };
+}
+
+function effortOptions(): AgentConfigOption {
+  return {
+    id: "effort",
+    name: "Effort",
+    category: "thought_level",
+    type: "select",
+    currentValue: "default",
+    options: [
+      { value: "default", name: "Default" },
+      { value: "low", name: "Low" },
+      { value: "high", name: "High" },
+    ],
+  };
+}
+
+function fastModeOption(): AgentConfigOption {
+  return { id: "fast", name: "Fast mode", type: "boolean", currentValue: false };
+}
+
+/** What each fixture session offers when it opens. */
+function launchOptions(): AgentConfigOption[] {
+  return [modelOptions("default"), effortOptions(), fastModeOption()];
 }
 
 function seededTasks(projectRoot: string, configPath: string): AgentSessionTask[] {
@@ -377,6 +405,10 @@ export function createFixtureAgents({
   let detectedIds: readonly string[] = ["claude", "codex", "gemini"];
   let launches = 0;
   let sequence = 0;
+  // Claude Code has had a session before, so the composer can offer its options.
+  const rememberedConfig = new Map<string, RememberedAgentConfig>([
+    ["claude-agent-acp", { options: launchOptions(), chosen: { effort: "high" } }],
+  ]);
   const nextId = (prefix: string) => `${prefix}-${++sequence}`;
 
   const emit = (task: AgentSessionTask): void => publish(structuredClone(task));
@@ -400,7 +432,7 @@ export function createFixtureAgents({
         : detected[0]
           ? { source: "detected" as const, command: detected[0].command, name: detected[0].name }
           : null;
-    return { app, project, detected, setup, known: structuredClone([...KNOWN_AGENTS]), effective };
+    return { app, project, detected, setup, known: structuredClone([...KNOWN_AGENTS]), effective, config: Object.fromEntries(structuredClone([...rememberedConfig])) };
   };
 
   const resolveCommand = (choice: AgentCommandChoice | undefined): string => {
@@ -602,12 +634,19 @@ export function createFixtureAgents({
         log: [],
       };
       tasks.unshift(task);
+      if (request.config) rememberedConfig.set(command, { options: rememberedConfig.get(command)?.options ?? [], chosen: { ...request.config } });
       emit(task);
       setTimeout(() => {
         if (task.state !== "starting") return;
         task.state = "working";
         task.sessionId = `fixture-session-${task.id}`;
-        task.configOptions = [modelOptions("default")];
+        task.configOptions = launchOptions();
+        rememberedConfig.set(command, { options: launchOptions(), chosen: rememberedConfig.get(command)?.chosen ?? {} });
+        // The main process sets the composer's choices before the first prompt.
+        for (const option of task.configOptions) {
+          const value = request.config?.[option.id];
+          if (value !== undefined) option.currentValue = value;
+        }
         // A new ACP message: it never merges into text a test appended earlier.
         task.entries.push({ kind: "agent", id: nextId("m"), text: "Reading the dashboard and the request…" });
         emit(task);

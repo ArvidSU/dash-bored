@@ -16,6 +16,7 @@ function componentAgentRequest(nodes: readonly ResolvedComponentNode[], draft: A
     ...(draft.template ? { template: draft.template } : {}),
     ...(draft.vars ? { vars: draft.vars } : {}),
     ...(draft.agent ? { agent: draft.agent } : {}),
+    ...(draft.config ? { config: draft.config } : {}),
   };
 }
 

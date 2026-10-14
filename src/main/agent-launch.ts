@@ -6,6 +6,7 @@ import { agentSetup } from "../shared/agent-setup";
 import type {
   AgentCommandChoice,
   AgentCommandOptions,
+  AgentConfigChoices,
   AgentLaunchRequest,
   AgentSessionTask,
   AgentTaskCommand,
@@ -26,6 +27,8 @@ import {
 import type { AgentPromptTemplateSummary, ComponentAgentLaunch, ResolvedComponentNode } from "../shared/contracts";
 import { assertAgentAvailable } from "./agent-preflight";
 import { agentDisplay, detectAgents, detectPackageRunner } from "./agent-detection";
+import type { AgentConfigMemory } from "./agent-config-memory";
+import { MAX_CONFIG_OPTIONS, MAX_LABEL_LENGTH } from "./agent-session-updates";
 import type { AgentSessions } from "./agent-sessions";
 import { AppSettingsStore, normalizeDashBoredAgent } from "./app-settings";
 import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
@@ -35,6 +38,8 @@ export interface AgentLauncherOptions {
   sessions: AgentSessions;
   settings: Pick<AppSettingsStore, "get">;
   publishedEnvironment(): Record<string, string>;
+  /** Config options remembered per launch command, for the composer. */
+  configMemory?: Pick<AgentConfigMemory, "get" | "chose">;
   /** Known agents on the app's PATH; injectable for tests. */
   detect?: () => DetectedAgent[];
   packageRunner?: () => "npx" | "bunx" | null;
@@ -45,6 +50,17 @@ export interface ResolvedAgentCommand {
   source: "app" | "project" | "detected" | "custom";
   command: string;
   name: string;
+}
+
+/** The composer's config choices, checked for shape; the session checks them against what the agent offers. */
+function launchConfig(value: unknown): AgentConfigChoices | undefined {
+  if (value === undefined) return undefined;
+  const entries = value !== null && typeof value === "object" && !Array.isArray(value) ? Object.entries(value) : null;
+  if (entries === null || entries.length > MAX_CONFIG_OPTIONS || entries.some(([id, choice]) => id === "" || id.length > MAX_LABEL_LENGTH
+    || !(typeof choice === "boolean" || (typeof choice === "string" && choice.length <= MAX_LABEL_LENGTH)))) {
+    throw new CoreError("COMPONENT_AGENT_CONFIG_INVALID", "The agent options could not be read. Reopen the composer and choose them again.");
+  }
+  return Object.fromEntries(entries) as AgentConfigChoices;
 }
 
 function unavailable(): CoreError {
@@ -120,7 +136,8 @@ export class AgentLauncher {
         : detected[0]
           ? { source: "detected" as const, command: detected[0].command, name: detected[0].name }
           : null;
-    return { app, project, detected, setup, known: KNOWN_AGENTS.map((agent) => ({ ...agent })), effective };
+    const config = await this.options.configMemory?.get();
+    return { app, project, detected, setup, known: KNOWN_AGENTS.map((agent) => ({ ...agent })), effective, ...(config ? { config } : {}) };
   }
 
   launch(request: AgentLaunchRequest): Promise<ComponentAgentLaunch> {
@@ -219,10 +236,11 @@ export class AgentLauncher {
   }
 
   private async launchComponent(request: ComponentAgentRequest): Promise<ComponentAgentLaunch> {
+    const config = launchConfig(request.config);
     const { template, prompt, source, sourceLocation, locator } = await this.prepareComponent(request);
     const { command } = await this.resolve(source.configPath, request.agent);
     const dashboardWork = template.scope === "dashboard";
-    return this.supervisor(command, sourceLocation).launchRequest({
+    const launched = await this.supervisor(command, sourceLocation).launchRequest({
       prompt,
       // Only dashboard work is validated when a turn ends and may receive the
       // single automatic repair; project work is the user's to review.
@@ -232,7 +250,11 @@ export class AgentLauncher {
       componentPath: locator,
       configPath: source.configPath,
       request: request.prompt.trim() || template.description,
+      ...(config && Object.keys(config).length > 0 ? { config } : {}),
     });
+    // The composer offers these choices again next time; an empty set returns every option to its default.
+    if (config) await this.options.configMemory?.chose(command, config);
+    return launched;
   }
 
   private async launchCreation({ configPath, target, prompt: userPrompt }: ComponentCreationAgentRequest): Promise<ComponentAgentLaunch> {

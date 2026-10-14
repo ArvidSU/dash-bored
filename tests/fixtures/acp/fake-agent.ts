@@ -15,6 +15,7 @@
 //   "linked-edit" edit permission for .dash-bored/linked/escape.txt (tests make "linked" a symlink) -> end_turn
 //   "late-permission" chunk -> waits until session/cancel -> permission request -> stopReason "cancelled"
 // Scenarios that ask once log "fake-acp-agent: <scenario> <optionId|cancelled>" to stderr.
+// Every prompt first logs "fake-acp-agent: prompt with <model> <mode>".
 // Flags:
 //   --auth        session/new requires authenticate (method "fake-login") first
 //   --modes       session/new offers legacy modes instead of config options
@@ -165,6 +166,7 @@ const conn = new AgentSideConnection(
       const turn = new AbortController();
       s.turn = turn;
       const text = prompt.map((b) => (b.type === "text" ? b.text : "")).join(" ");
+      console.error(`fake-acp-agent: prompt with ${s.model} ${s.mode}`);
       const has = (word: string) => new RegExp(`(^|[^\\w-])${word}($|[^\\w-])`).test(text);
       const update = (u: Parameters<typeof client.sessionUpdate>[0]["update"]) =>
         client.sessionUpdate({ sessionId, update: u });

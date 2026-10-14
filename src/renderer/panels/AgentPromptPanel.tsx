@@ -1,7 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AgentPromptTemplateSummary, ResolvedComponentNode } from "../../shared/contracts";
-import type { AgentCommandChoice, AgentCommandOptions, ComponentAgentPreview } from "../../shared/agent-session";
+import type {
+  AgentCommandChoice,
+  AgentCommandOptions,
+  AgentConfigChoices,
+  AgentConfigOption,
+  ComponentAgentPreview,
+  RememberedAgentConfig,
+} from "../../shared/agent-session";
 import { componentPath } from "../../shared/component-agent";
 import { DEFAULT_PROMPT_TEMPLATE } from "../../shared/prompt-templates";
 import { errorMessage } from "../app/app-utils";
@@ -16,6 +23,7 @@ import {
   type AgentPickerValue,
 } from "../lib/agent-options";
 import { nodeLabel } from "../lib/virtual-root";
+import { agentConfigOffers, AgentLaunchConfigControl } from "./AgentConfigControl";
 
 /** What the composer opens with: a template, its typed values, and editable input. */
 export interface AgentPromptDraft {
@@ -25,7 +33,12 @@ export interface AgentPromptDraft {
   vars?: Record<string, string | number | boolean>;
   /** Omitted until the user picks; the main process then uses the effective agent. */
   agent?: AgentCommandChoice;
+  /** Set when the composer offered the agent's options; omitted ids keep the agent's default. */
+  config?: AgentConfigChoices;
 }
+
+/** A launch choice per option id; `null` keeps the agent's default. */
+type ConfigEdits = Record<string, string | boolean | null>;
 
 type PromptVars = Record<string, string | number | boolean>;
 
@@ -51,6 +64,12 @@ function sentVars(declared: readonly string[] | null, vars: PromptVars): PromptV
     .filter((key) => Object.hasOwn(vars, key) && vars[key] !== "")
     .map((key) => [key, vars[key]!] as const);
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+/** The value an option launches with: this composer's edit, else the remembered choice, if still offered. */
+function launchConfigValue(option: AgentConfigOption, remembered: RememberedAgentConfig, edits: ConfigEdits | undefined): string | boolean | null {
+  const value = edits && Object.hasOwn(edits, option.id) ? edits[option.id]! : remembered.chosen[option.id] ?? null;
+  return value !== null && agentConfigOffers(option, value) ? value : null;
 }
 
 /** One target as the composer names it. */
@@ -96,6 +115,8 @@ export function AgentPromptPanel({
   const [customCommand, setCustomCommand] = useState(() => (
     draft.agent?.source === "custom" ? draft.agent.command : storedCustomAgentCommand()
   ));
+  // Per launch command, so switching agents keeps each agent's choices.
+  const [configEdits, setConfigEdits] = useState<Readonly<Record<string, ConfigEdits>>>({});
   const previewRequest = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const customRef = useRef<HTMLInputElement>(null);
@@ -119,6 +140,16 @@ export function AgentPromptPanel({
     ? undefined
     : choiceForPickerValue(agentValue, customCommand);
   const noAgent = agents !== null && agents.effective === null && agentValue === null;
+  // ACP lists options only once a session exists, so these are the ones the
+  // agent offered last time; the main process applies them before the first prompt.
+  const remembered = shownCommand ? agents?.config?.[shownCommand] : undefined;
+  const launchOptions = remembered?.options ?? [];
+  const launchConfig = remembered && launchOptions.length > 0
+    ? Object.fromEntries(launchOptions.flatMap((option) => {
+      const value = launchConfigValue(option, remembered, configEdits[shownCommand]);
+      return value === null ? [] : [[option.id, value] as const];
+    }))
+    : undefined;
   const canSend = !pending
     && previewError === null
     && (inputOptional || prompt.trim() !== "")
@@ -153,7 +184,11 @@ export function AgentPromptPanel({
     setError(null);
     try {
       if (agentChoice?.source === "custom") storeCustomAgentCommand(agentChoice.command);
-      await onSend(agentChoice ? { ...request, agent: agentChoice } : request);
+      await onSend({
+        ...request,
+        ...(agentChoice ? { agent: agentChoice } : {}),
+        ...(launchConfig ? { config: launchConfig } : {}),
+      });
     } catch (submitError) {
       setError(errorMessage(submitError));
     }
@@ -296,6 +331,26 @@ export function AgentPromptPanel({
         <div id={`${id}-preview`} role="tabpanel" aria-labelledby={`${id}-preview-tab`} hidden={tab !== "preview"}>
           <pre aria-label="Full agent prompt">{preview?.prompt ?? "Rendering…"}</pre>
         </div>
+        {shownCommand && agents ? (
+          <div className="agent-prompt__options" role="group" aria-label="Agent options">
+            {remembered && launchOptions.length > 0 ? launchOptions.map((option) => (
+              <AgentLaunchConfigControl
+                key={option.id}
+                option={option}
+                value={launchConfigValue(option, remembered, configEdits[shownCommand])}
+                disabled={pending}
+                onChange={(value) => setConfigEdits((current) => ({
+                  ...current,
+                  [shownCommand]: { ...current[shownCommand], [option.id]: value },
+                }))}
+              />
+            )) : (
+              <span className="agent-prompt__options-hint">
+                Model and mode choices appear here after this agent's first session.
+              </span>
+            )}
+          </div>
+        ) : null}
         <div className="agent-prompt__bar">
           <span className="agent-prompt__runner">
             <span className="agent-prompt__runner-label">via</span>

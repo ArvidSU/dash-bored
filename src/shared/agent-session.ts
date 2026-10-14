@@ -65,6 +65,21 @@ export interface AgentCommandOptions {
   setup?: AgentSetupOption[];
   /** What an omitted choice runs, or null when no agent is configured or detected. */
   effective: { source: "app" | "project" | "detected"; command: string; name: string } | null;
+  /**
+   * Remembered config options per launch command, so the composer can offer
+   * them before a session exists; ACP lists them only once a session is created.
+   */
+  config?: Record<string, RememberedAgentConfig>;
+}
+
+/** Config option values chosen before launch, by option id; an omitted id keeps the agent's default. */
+export type AgentConfigChoices = Record<string, string | boolean>;
+
+export interface RememberedAgentConfig {
+  /** The options the agent offered when the app last created a session with this command. */
+  options: AgentConfigOption[];
+  /** The composer's last choices for this command; the rest kept the agent's default. */
+  chosen: AgentConfigChoices;
 }
 
 export interface AgentSetupOption {
@@ -89,6 +104,8 @@ export interface ComponentAgentRequest {
   template?: string;
   vars?: Record<string, string | number | boolean>;
   agent?: AgentCommandChoice;
+  /** Applied after the session is created and before the first prompt. */
+  config?: AgentConfigChoices;
 }
 
 export interface ComponentAgentPreview {

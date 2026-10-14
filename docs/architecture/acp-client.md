@@ -24,6 +24,7 @@ run in a command component's terminal; it is not an integrated agent.
 | `main/agent-session-updates.ts` | Pure reducer from `session/update` into the bounded transcript. |
 | `main/acp-connection.ts` | `AcpAgentProcess`: spawn, JSON-RPC connection, timeouts, termination. |
 | `main/agent-handoff.ts` | Resume-command quoting and the hand-off script. |
+| `main/agent-config-memory.ts` | `AgentConfigMemory`: config options remembered per launch command for the composer. |
 
 RPC (`src/shared/rpc.ts`): `previewComponentAgent`, `launchAgent` (component,
 creation, diagnostics, setup), `getAgentTasks`, `getAgentOptions` (Settings, or
@@ -125,7 +126,7 @@ an ACP handshake.
 | `initialize` | 60 s (first-run adapters are slow) |
 | `session/new` | 60 s |
 | `authenticate` | 120 s; the user can stop waiting earlier (`$/cancel_request`) |
-| `session/set_config_option`, `session/set_mode` | 30 s |
+| `session/set_config_option`, `session/set_mode` | 30 s each, including the launch choices |
 | `session/close` | 5 s |
 | `session/prompt` | none: a turn runs until it ends, is cancelled, or the process exits |
 
@@ -149,6 +150,41 @@ app injects no MCP servers. The answer's config options become the task's
 selects (grouped choices flattened, keeping the group name). An agent that
 sends only legacy `modes` gets one synthesized `mode` select, set through
 `session/set_mode`.
+
+### Options before the first prompt
+
+ACP lists config options only in the `session/new` answer, so the composer
+cannot ask the agent before a session exists. Instead, `AgentConfigMemory`
+keeps, per launch command, the options the agent offered when the app last
+created a session with it, and the composer's last choices. It lives in
+`<user data>/agent-config-v1.json` (0600), keeps the 10 most recently used
+commands, and starts empty when the file is missing or unreadable; entries of
+the wrong shape are dropped. `AgentCommandOptions.config` carries it to the
+composer.
+
+- **Offered.** After every `session/new` answer, the options as the agent
+  offered them are remembered, before any launch choice is applied. An
+  untrusted repair's session is not remembered, so an untrusted project's
+  agent configuration does not shape app-wide state.
+- **Composer.** Each remembered option is a select whose first choice,
+  **Default**, sets nothing; booleans offer Default, On, and Off. The composer
+  never shows the agent's default value, because agents may default
+  differently per project. A remembered choice the option no longer offers
+  shows as Default. A command with no remembered options shows a hint instead.
+- **Launch.** Component launches carry `config`, the non-default choices
+  (an object of at most 20 ids with string or boolean values;
+  `COMPONENT_AGENT_CONFIG_INVALID` otherwise). When the composer showed
+  options, a successful launch replaces that command's remembered choices,
+  so returning an option to Default forgets it. Other launch kinds (setup,
+  creation, diagnostics, migrations) carry no choices and use the agent's
+  defaults.
+- **Apply.** While the task is still `starting`, after `session/new` and
+  before the first prompt, each choice that differs from the session's value
+  is set in the order the agent lists its options (a model change can change
+  the effort choices), through the same checks as a `config` task command. A
+  choice the agent does not offer, or refuses, leaves that option at the
+  agent's default with a warning notice. A timeout or connection failure fails
+  the task.
 
 An auth-required error (`-32000`) on `session/new` or `session/prompt` moves the
 task to `auth-required` with the agent-handled sign-in methods; terminal methods

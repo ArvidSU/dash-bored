@@ -4,7 +4,7 @@ import { delimiter, join } from "node:path";
 import { agentSpawnCommand } from "../../src/main/acp-connection";
 import { AgentSessions, pathWithin, resolveRealPath, type AgentSessionLaunchOptions, type AgentSessionsOptions } from "../../src/main/agent-sessions";
 import { shellWord } from "../../src/main/agent-handoff";
-import type { AgentSessionTask } from "../../src/shared/agent-session";
+import type { AgentConfigOption, AgentSessionTask } from "../../src/shared/agent-session";
 import { removeTemporaryDirectory, temporaryDirectory } from "../core/helpers";
 
 const FAKE_AGENT = join(import.meta.dir, "..", "fixtures", "acp", "fake-agent.ts");
@@ -197,6 +197,46 @@ describe("AgentSessions", () => {
     const switched = await manager.setConfig(modes.taskId, "mode", "code");
     expect(switched.configOptions[0]?.currentValue).toBe("code");
     expect((await until(manager, modes.taskId, (task) => task.log.includes("fake-acp-agent: mode code"))).state).toBe("idle");
+  });
+
+  test("sets launch config choices before the first prompt and reports the agent's own offer", async () => {
+    const root = await project();
+    const offered: Array<[string, AgentConfigOption[]]> = [];
+    const manager = sessions({ onConfigOffered: (command, options) => offered.push([command, options]) });
+    const values = (task: AgentSessionTask) => task.configOptions.map((option) => [option.id, option.currentValue]);
+    const notices = (task: AgentSessionTask) => task.entries.flatMap((entry) => entry.kind === "notice" ? [`${entry.level}: ${entry.text}`] : []);
+
+    const chosen = await manager.launch(options(root, { prompt: "quick", config: { mode: "code", model: "fake-smart" } }));
+    const idle = await until(manager, chosen.taskId, (task) => task.state === "idle");
+    expect(values(idle)).toEqual([["model", "fake-smart"], ["mode", "code"]]);
+    expect(idle.log).toContain("fake-acp-agent: prompt with fake-smart code");
+    expect(notices(idle)).toEqual([]);
+    // The composer next offers what the agent offered, at its own defaults.
+    expect(offered).toHaveLength(1);
+    expect(offered[0]![0]).toBe(fakeCommand());
+    expect(offered[0]![1].map((option) => [option.id, option.currentValue])).toEqual([["model", "fake-fast"], ["mode", "ask"]]);
+
+    // Choices the agent no longer offers are skipped; the turn still runs.
+    const stale = await manager.launch(options(root, { prompt: "quick", config: { model: "fake-huge", temperature: "hot", mode: "code" } }));
+    const staleIdle = await until(manager, stale.taskId, (task) => task.state === "idle");
+    expect(values(staleIdle)).toEqual([["model", "fake-fast"], ["mode", "code"]]);
+    expect(staleIdle.log).toContain("fake-acp-agent: prompt with fake-fast code");
+    expect(notices(staleIdle)).toEqual([
+      "warning: Model was left at the agent's default: That value is not one of the choices for Model.",
+      "warning: temperature was left at the agent's default: The agent does not offer that option.",
+    ]);
+
+    // Legacy modes are set through session/set_mode.
+    const modes = await manager.launch(options(root, { command: fakeCommand("--modes"), prompt: "quick", config: { mode: "code" } }));
+    const modesIdle = await until(manager, modes.taskId, (task) => task.state === "idle");
+    expect(modesIdle.log.indexOf("fake-acp-agent: mode code")).toBeLessThan(modesIdle.log.indexOf("fake-acp-agent: prompt with fake-fast code"));
+
+    // An untrusted repair cannot pick a mode, and its project does not shape the composer's options.
+    const repair = await manager.launch(options(root, { prompt: "quick", untrusted: true, config: { mode: "code", model: "fake-smart" } }));
+    const repairIdle = await until(manager, repair.taskId, (task) => task.state === "idle");
+    expect(values(repairIdle)).toEqual([["model", "fake-smart"], ["mode", "ask"]]);
+    expect(notices(repairIdle)).toEqual(["warning: Mode was left at the agent's default: This project is not trusted, so the repair cannot change the agent's mode."]);
+    expect(offered).toHaveLength(3);
   });
 
   test("ignores update kinds it does not know", async () => {

@@ -9,6 +9,7 @@ import type { AppSettings } from "../shared/contracts";
 import type { DashboardRPC } from "../shared/rpc";
 import { windowAgentControlBridge } from "./agent-control-bridge";
 import { startAgentControlServer } from "./agent-control-server";
+import { AgentConfigMemory } from "./agent-config-memory";
 import { AgentLauncher } from "./agent-launch";
 import { onApplicationMenuAction, setApplicationMenu } from "./app-menu";
 import { AppSettingsStore } from "./app-settings";
@@ -83,8 +84,10 @@ function agentEnvironment(settings: AppSettings): Record<string, string> {
 }
 let publishedEnvironment = agentEnvironment(initialAppSettings);
 
+const agentConfigMemory = new AgentConfigMemory(join(Utils.paths.userData, "agent-config-v1.json"));
 const agentSessions = new AgentSessions({
   onTask: (task) => send("agentTask", task),
+  onConfigOffered: (command, options) => void agentConfigMemory.offered(command, options),
   handoffDirectory: join(Utils.paths.userData, "agent-handoff"),
 });
 const runtime = new ProjectRuntime({
@@ -107,6 +110,7 @@ const agents = new AgentLauncher({
   sessions: agentSessions,
   settings: appSettingsStore,
   publishedEnvironment: () => publishedEnvironment,
+  configMemory: agentConfigMemory,
 });
 const updates = createAppUpdates({
   runtime,

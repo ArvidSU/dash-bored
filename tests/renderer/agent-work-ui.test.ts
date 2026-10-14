@@ -501,6 +501,51 @@ describe("agent work", () => {
     } finally { await page.close(); }
   }, 20_000);
 
+  test("the composer sets an agent's remembered options before the first prompt", async () => {
+    const page = await openFixture();
+    try {
+      const openComposer = async () => {
+        await page.locator('[data-node-id="responsive-card"] header').first().click({ button: "right" });
+        await page.getByRole("menuitem", { name: "Change with agent…", exact: true }).click();
+        const composer = page.getByRole("dialog", { name: "Ask the agent" });
+        await composer.waitFor();
+        return composer;
+      };
+      let composer = await openComposer();
+      const agentOptions = composer.getByRole("group", { name: "Agent options" });
+      // The bundle's agent has not run yet, so there is nothing to offer.
+      await composer.locator(".agent-prompt__runner code").getByText("bundle-agent", { exact: true }).waitFor();
+      await agentOptions.getByText("Model and mode choices appear here after this agent's first session.").waitFor();
+      await composer.getByRole("combobox", { name: "Agent", exact: true }).selectOption("detected:claude");
+      const model = agentOptions.getByRole("combobox", { name: "Model", exact: true });
+      await model.waitFor();
+      // Unchosen options keep the agent's default; Effort is remembered from last time.
+      expect(await model.inputValue()).toBe("");
+      expect(await model.locator("option").allTextContents()).toEqual(["Default", "Default (recommended)", "Sonnet", "Opus", "Haiku"]);
+      expect(await agentOptions.getByRole("combobox", { name: "Effort", exact: true }).inputValue()).toBe("high");
+      expect(await agentOptions.getByRole("combobox", { name: "Fast mode", exact: true }).locator("option").allTextContents()).toEqual(["Default", "On", "Off"]);
+      await model.selectOption("opus");
+      await agentOptions.getByRole("combobox", { name: "Fast mode", exact: true }).selectOption("true");
+      await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Tighten this tile.");
+      await composer.getByRole("button", { name: "Send", exact: true }).click();
+      await composer.waitFor({ state: "detached" });
+
+      const [launched] = await page.evaluate(async () => window.__DASH_BORED_UI_HARNESS_HOST__!.getAgentTasks());
+      const { session } = await openSession(page, launched!.id);
+      const sessionModel = session.getByRole("combobox", { name: "Model", exact: true });
+      await sessionModel.waitFor();
+      expect(await sessionModel.inputValue()).toBe("opus");
+      expect(await session.getByRole("combobox", { name: "Effort", exact: true }).inputValue()).toBe("high");
+      expect(await session.getByRole("checkbox", { name: "Fast mode", exact: true }).isChecked()).toBe(true);
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+
+      composer = await openComposer();
+      await composer.getByRole("combobox", { name: "Agent", exact: true }).selectOption("detected:claude");
+      expect(await composer.getByRole("group", { name: "Agent options" }).getByRole("combobox", { name: "Model", exact: true }).inputValue()).toBe("opus");
+    } finally { await page.close(); }
+  }, 20_000);
+
   test("Settings stores a detected agent's command, returns selection to each dashboard, and accepts a custom command", async () => {
     const page = await openFixture();
     try {
