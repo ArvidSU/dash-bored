@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ciStatus } from "../../.dash-bored/scripts/ci-status";
 import { dashboardHealth } from "../../.dash-bored/scripts/dashboard-health";
 import { changeListItems } from "../../.dash-bored/scripts/git-changes";
 import { activityChart, activityStatus, commitListItems } from "../../.dash-bored/scripts/git-log";
@@ -10,6 +11,17 @@ import { findTodos, todoAttention, todoChart, todoStatus } from "../../.dash-bor
 import { workspaceStatus } from "../../.dash-bored/scripts/workspace-status";
 
 describe("project cockpit source scripts", () => {
+  test("maps the newest CI run on main to a status, failures as errors", () => {
+    const now = new Date("2026-10-19T12:00:00Z");
+    const run = (status: string, conclusion: string | null) => ({ status, conclusion, displayTitle: "feat: notify", createdAt: "2026-10-19T11:30:00Z" });
+    expect(ciStatus([], now)).toEqual({ state: "unknown", detail: "No CI runs on main yet." });
+    expect(ciStatus([run("completed", "success")], now)).toEqual({ state: "healthy", detail: "Passed · feat: notify · 30 min ago" });
+    expect(ciStatus([run("completed", "failure")], now)).toEqual({ state: "error", detail: "Failed · feat: notify · 30 min ago" });
+    expect(ciStatus([run("in_progress", null)], now).state).toBe("warning");
+    expect(ciStatus([run("completed", "cancelled")], now)).toEqual({ state: "warning", detail: "cancelled · feat: notify · 30 min ago" });
+    for (const value of [ciStatus([run("completed", "failure")], now), ciStatus([], now)]) expect(parseStatusValue(value)).not.toBeNull();
+  });
+
   test("lists working-tree changes with stable path IDs, skipping rename sources", () => {
     const porcelain = ["M  src/a.ts", " M README.md", "MM src/b.ts", "?? notes/new.md", "R  src/new-name.ts", "src/old-name.ts", "UU src/conflict.ts", ""].join("\0");
     const items = changeListItems(porcelain);

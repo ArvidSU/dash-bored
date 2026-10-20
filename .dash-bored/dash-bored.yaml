@@ -47,9 +47,10 @@ root:
               children:
                 axis: vertical
                 first:
-                  axis: horizontal
+                  axis: vertical
                   first:
                     axis: horizontal
+                    ratio: 0.3333
                     first:
                       node:
                         id: workspace-status
@@ -61,27 +62,37 @@ root:
                             cwd: .
                             every: 10000
                     second:
-                      node:
-                        id: dashboard-health
-                        component: "./components/external/core/status"
-                        props:
-                          label: Dashboard config
-                          source:
-                            shell: bun run .dash-bored/scripts/dashboard-health.ts
-                            cwd: .
-                            every: 30000
-                            timeoutMs: 20000
+                      axis: horizontal
+                      first:
+                        node:
+                          id: dashboard-health
+                          component: "./components/external/core/status"
+                          watch:
+                            on: [error]
+                            every: 600000
+                            action:
+                              name: Fix with agent
+                              run: agent:prompt
+                              with:
+                                prompt: The project dashboard no longer validates. Run `bun run dash-bored -- validate .`, fix the reported errors, and validate again.
+                          props:
+                            label: Dashboard config
+                            source:
+                              shell: bun run .dash-bored/scripts/dashboard-health.ts
+                              cwd: .
+                              every: 30000
+                              timeoutMs: 20000
+                      second:
+                        node:
+                          id: qa-status
+                          component: "./components/external/core/status"
+                          props:
+                            label: Last QA run
+                            source:
+                              process: run-qa
                   second:
                     axis: horizontal
                     first:
-                      node:
-                        id: qa-status
-                        component: "./components/external/core/status"
-                        props:
-                          label: Last QA run
-                          source:
-                            process: run-qa
-                    second:
                       node:
                         id: todo-status
                         component: "./components/external/core/status"
@@ -91,6 +102,25 @@ root:
                             shell: bun run .dash-bored/scripts/todo-stats.ts status
                             cwd: .
                             every: 15000
+                    second:
+                      node:
+                        id: ci-status
+                        component: "./components/external/core/status"
+                        watch:
+                          on: [error]
+                          every: 300000
+                          action:
+                            name: Fix with agent
+                            run: agent:prompt
+                            with:
+                              prompt: CI on main is failing. Read the latest run with `gh run view --log-failed`, find the cause, and fix it.
+                        props:
+                          label: CI on main
+                          source:
+                            shell: bun run .dash-bored/scripts/ci-status.ts
+                            cwd: .
+                            every: 60000
+                            timeoutMs: 20000
                 second:
                   axis: vertical
                   first:
@@ -131,6 +161,14 @@ root:
                       node:
                         id: cockpit-attention
                         component: "./components/external/core/list"
+                        watch:
+                          on: [added]
+                          every: 300000
+                          action:
+                            name: Show in backlog
+                            run: reveal:yaml-todo
+                            with:
+                              item: ${item.id}
                         props:
                           title: Open work · bugs first
                           filterByTags: false
@@ -623,10 +661,51 @@ root:
                               - acp
                           - id: todo-acp-permission-notify
                             description: "Notify (native notification or dock badge) when an ACP agent waits for permission or sign-in while the dash-bored window is in the background."
-                            done: false
+                            done: true
                             tags:
                               - acp
                               - agent
+                          - id: todo-notification-click-routing
+                            description: "Route a click on a system notification to its own decision. Electrobun's showNotification reports no click, so the app shows the newest pending decision when it comes forward; a UNUserNotificationCenter delegate (with Show/Dismiss notification actions) would land on the clicked one. See docs/architecture/notifications.md."
+                            done: false
+                            tags:
+                              - notifications
+                              - native
+                          - id: todo-watch-shared-observation
+                            description: "Let a visible view's source observations count as its watch's, so a watched node shown on screen is not polled twice (once by the view, once by the main-process watch runner)."
+                            done: false
+                            tags:
+                              - notifications
+                              - watches
+                          - id: todo-notification-cross-dashboard-ui-test
+                            description: "Add a second dashboard to the UI fixture host so tests cover Show and declared actions on a notification from another dashboard (open it, wait for its snapshot, run attention). It is only covered by code review today; the native app has no click injection here."
+                            done: false
+                            tags:
+                              - notifications
+                              - tests
+                          - id: todo-notification-run-control-on-screen
+                            description: "Skip a failed-run decision when the control that started the run (not only the command node) is on screen; the button already shows the failure."
+                            done: false
+                            tags:
+                              - notifications
+                              - renderer
+                          - id: todo-notification-confirm-cancel
+                            description: "A notification's declared action that needs confirmation closes the decision as acted even when the user cancels the palette confirmation; keep it open until the action actually runs. Fixed: acting now only marks a decision read and keeps it open."
+                            done: true
+                            tags:
+                              - notifications
+                              - bug
+                          - id: todo-notification-history-persist
+                            description: "Persist open notifications and their Earlier history across app restarts (bounded, per user, never YAML), so a decision raised before quitting is still listed with whether it cleared. Today both last for the app session."
+                            done: false
+                            tags:
+                              - notifications
+                          - id: todo-notifications-component-api
+                            description: "Decide whether custom components get a host notify API (declared permission, rate limits). They only run while mounted, so background state belongs in a script-backed watch; revisit when a dashboard needs it."
+                            done: false
+                            tags:
+                              - notifications
+                              - sdk
                           - id: todo-acp-terminal-auth
                             description: "Support ACP terminal sign-in (clientCapabilities.auth.terminal): run the agent's login command in an app terminal instead of asking the user to sign in through the agent's own CLI."
                             done: false
