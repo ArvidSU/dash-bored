@@ -35,6 +35,69 @@ export interface AgentViewState {
    * `select:<selection>/<child>` restores one after an agent changed it.
    */
   selections: Readonly<Record<string, string>>;
+  /** Open notification decisions across every dashboard, newest first; main adds them to the renderer's view. */
+  notifications?: AgentNotificationSummary;
+}
+
+export interface AgentNotificationSummary {
+  open: number;
+  /** Open interrupts, read or not: what still needs the user. */
+  interrupts: number;
+  /** Open entries the user has not acted on or seen yet. */
+  unread: number;
+  /** At most the newest 20 open entries. */
+  entries: Array<{
+    id: string;
+    kind: string;
+    level: "interrupt" | "inform";
+    dashboardName: string | null;
+    configPath: string | null;
+    title: string;
+    message: string;
+    target: import("./notifications").NotificationTarget;
+    updatedAt: string;
+    read: boolean;
+  }>;
+  /** At most the 10 most recently closed entries of this app session. */
+  closed: Array<{
+    id: string;
+    kind: string;
+    dashboardName: string | null;
+    configPath: string | null;
+    title: string;
+    closedAt: string;
+    closedBy: import("./notifications").NotificationClosedBy;
+  }>;
+}
+
+/** What `app status` reports about notifications, so an agent can answer "does anything need attention?" in one call. */
+export function agentNotificationSummary(state: import("./notifications").NotificationState): AgentNotificationSummary {
+  return {
+    open: state.entries.length,
+    interrupts: state.entries.filter((entry) => entry.level === "interrupt").length,
+    unread: state.entries.filter((entry) => !entry.read).length,
+    entries: state.entries.slice(0, 20).map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      level: entry.level,
+      dashboardName: entry.dashboardName,
+      configPath: entry.configPath,
+      title: entry.title,
+      message: entry.message,
+      target: entry.target,
+      updatedAt: entry.updatedAt,
+      read: entry.read,
+    })),
+    closed: state.history.slice(0, 10).map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      dashboardName: entry.dashboardName,
+      configPath: entry.configPath,
+      title: entry.title,
+      closedAt: entry.closedAt,
+      closedBy: entry.closedBy,
+    })),
+  };
 }
 
 /** Derives the selected children from the palette's active `select:` actions. */
@@ -224,6 +287,8 @@ const USER_ONLY_ACTION_IDS = new Set([
   "project:save-draft",
   "project:cancel-edit",
   "app:add-dashboard",
+  // Notifications are the user's open decisions; an agent clearing them defeats their purpose.
+  "app:dismiss-notifications",
 ]);
 
 export function agentActionRefusal(action: AgentActionPolicyInput): string | undefined {

@@ -181,9 +181,10 @@ command is running. The renderer treats those snapshots as authoritative; it
 does not read project files or spawn commands directly.
 
 Host state reaches the renderer only by push: the `snapshot`, `process`,
-`agentTask`, `themes`, and `packageUpdates` messages in `src/shared/rpc.ts`.
-The renderer reads the snapshot once at boot (`getSnapshot`), and package
-update state once when its hook mounts (`getPackageUpdates`). Pushes are
+`agentTask`, `themes`, `packageUpdates`, and `notifications` messages in
+`src/shared/rpc.ts`. The renderer reads the snapshot once at boot
+(`getSnapshot`), and package update and notification state once when their
+hooks mount (`getPackageUpdates`, `getNotifications`). Pushes are
 named events; the renderer ignores names it does not handle. After that, a mutation pushes what
 it changed before it resolves, and it answers with an ack (`void`) or a
 command-specific result. Examples are `{ opened }` from `chooseProject`,
@@ -214,6 +215,9 @@ creation, diagnostics, setup), and `setTrust`.
 - `app-themes.ts`: the app-level theme catalog and the personal theme watcher.
 - `package-updates.ts`: package update checks, explicit package updates, and
   their schedule.
+- `notification-wiring.ts`, `notification-center.ts`, and
+  `notification-producers.ts`: the decision inbox, its producers, system
+  notifications, and the dock badge (see [Notifications](./notifications.md)).
 - `installed-tools.ts`: installed-tool refresh, repair, and the warnings added
   to every snapshot.
 - `app-menu.ts`: the native menu.

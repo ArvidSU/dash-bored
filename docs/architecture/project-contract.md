@@ -168,6 +168,12 @@ interface ComponentNode {
   props?: Record<string, unknown>;
   children?: ComponentChildren;
   persistOnFocus?: boolean;
+  watch?: {
+    on: Array<"unknown" | "warning" | "error"> | Array<"added">;
+    every?: number;              // 60000..86400000 ms, default 300000
+    level?: "interrupt" | "inform";
+    action?: { name: string; run: string; with?: Record<string, unknown> };
+  };
 }
 
 type ComponentChildren = ComponentChildLayout | ComponentChildEdge[];
@@ -333,6 +339,19 @@ complete navigation subtrees. Unmarked ancestors and siblings are projected
 away. Managed edge order and metadata survive, tiled splits retain their axis
 and ratio when both sides survive, and one-sided splits collapse. The current
 focus target itself remains renderer-owned per-user state and never enters YAML.
+
+`watch` is optional composition intent: the app keeps observing the node's
+own `props.source` in the background and raises notification decisions on
+transitions of its data shape (see [Notifications and watches](./notifications.md#watches)).
+`on` names status states or list `added`, never both. Only a single `shell`,
+`file`, or `http` source can be watched: an `inline` source never changes, and
+a `process` source needs none because a failed run already raises a decision.
+`watch.action` is one action reference with a `name`, validated, remapped
+through linked bundles, and allowed `${item.<field>}` templates only for
+`added` watches. A bundle declares at most 10 watches; a config-link node
+cannot carry one. Every watched node adds the `background:watch` permission to
+the requested set. These checks report `COMPONENT_WATCH_INVALID` and
+`COMPONENT_WATCH_LIMIT`; neither hides the capability set from trust review.
 
 An ordinary component manifest declares whether it renders a visible `surface`
 (the default) or is a transparent `layout` boundary, plus exactly one `children`

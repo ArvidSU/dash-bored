@@ -10,6 +10,7 @@ import {
   type AppView,
 } from "../lib/action-providers";
 import { buildAttentionActions, loadAttentionAnimation, requestAttention } from "../lib/attention";
+import { buildNotifyActions } from "../lib/notifications";
 import { highlightRevealedItem, scrollNodeIntoView } from "../lib/reveal-item";
 import { host } from "../lib/rpc-client";
 import { buildRevealActions, buildSelectionActions } from "../lib/selection-actions";
@@ -22,6 +23,7 @@ import type { useDashboardDraft } from "./use-dashboard-draft";
 import type { useDashboardViewState } from "./use-dashboard-view-state";
 import type { Notices } from "./use-notices";
 import type { useProjectNavigation } from "./use-project-navigation";
+import type { NotificationsController } from "./use-notifications";
 
 export interface AppActionSources {
   updates: AppUpdatesController;
@@ -40,6 +42,8 @@ export interface AppActionSources {
   agent: ReturnType<typeof useAgentWork>;
   actions: ReturnType<typeof useActionRegistry>;
   toggleLibrary(): void;
+  notifications: NotificationsController;
+  toggleNotifications(): void;
 }
 
 /** Every action source the palette, shortcuts, and agents see, registered into the store. */
@@ -60,6 +64,8 @@ export function useAppActions({
   agent,
   actions,
   toggleLibrary,
+  notifications,
+  toggleNotifications,
 }: AppActionSources) {
   const showDashboard = () => setActiveView("dashboard");
   const applicationActions = buildApplicationActions({
@@ -76,6 +82,7 @@ export function useAppActions({
     themeCatalog,
     promptTemplates: agent.promptTemplates,
     promptTemplatesReason: agent.promptTemplatesReason,
+    notificationCount: notifications.state.entries.length,
     callbacks: {
       openCommandPalette: (query) => actions.palette.showFresh(query),
       reloadApp: () => window.location.reload(),
@@ -105,6 +112,8 @@ export function useAppActions({
       // Every agent launch goes through the reviewed composer and the agent-work
       // surface, so the app can show what the agent is doing.
       requestAgentPrompt: agent.requestPrompt,
+      toggleNotifications,
+      dismissNotifications: notifications.dismissAll,
     },
   });
   const nodeFocusActions = buildNodeFocusActions(
@@ -138,6 +147,13 @@ export function useAppActions({
       onPlay: () => notices.showNotice(request.message ? `${label}: ${request.message}` : `${label} needs your attention.`),
     });
   });
+  // Notify leaves the user a decision about a node; main checks it against the open dashboard.
+  const notifyActions = buildNotifyActions(snapshot, (nodeId, request) => notifications.command({
+    type: "notify",
+    nodeId,
+    message: request.message,
+    ...(request.item === undefined ? {} : { itemId: request.item }),
+  }));
   const declaredComponentActions = buildDeclaredComponentActions(snapshot, actions.componentActions);
   return useProvidedActions(actions.store, [
     { id: "application", actions: applicationActions },
@@ -149,6 +165,7 @@ export function useAppActions({
     { id: "selection", actions: selectionActions },
     { id: "reveal", actions: revealActions },
     { id: "attention", actions: attentionActions },
+    { id: "notify", actions: notifyActions },
     { id: "declared-component", actions: declaredComponentActions },
   ], actions.componentActions);
 }

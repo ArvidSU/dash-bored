@@ -11,7 +11,28 @@ export type Permission =
   | "network:http"
   | "process:execute"
   | "process:observe"
-  | "webview:embed";
+  | "webview:embed"
+  /** Granted to YAML composition, never to a manifest: a node `watch` observes its source while no view shows it. */
+  | "background:watch";
+
+/** A transition of a view's data shape that a watch reports: status states, or new list items. */
+export type NodeWatchEvent = "unknown" | "warning" | "error" | "added";
+
+/**
+ * Composition intent on a node: keep observing its `props.source` in the
+ * background and turn transitions of the view's data shape into
+ * notifications. Events inform and never act.
+ */
+export interface NodeWatch {
+  /** Transitions to report; one family only: status states, or `added` list items. */
+  on: NodeWatchEvent[];
+  /** Background interval in milliseconds; defaults to 300000. */
+  every?: number;
+  /** Overrides the default level: interrupt for status states, inform for `added`. */
+  level?: "interrupt" | "inform";
+  /** One declared act offered beside Show and Dismiss; it runs only when the user clicks it. */
+  action?: { name: string; run: string; with?: Record<string, unknown> };
+}
 
 export interface ComponentNode {
   id?: string;
@@ -20,6 +41,8 @@ export interface ComponentNode {
   children?: ComponentChildren;
   /** Keep this node in the projected tree while one of its relatives is focused. */
   persistOnFocus?: boolean;
+  /** Keep observing this node's source in the background and notify about its transitions. */
+  watch?: NodeWatch;
 }
 
 export interface ComponentChildEdge<Node = ComponentNode> {
@@ -172,6 +195,7 @@ export interface ResolvedComponentNode {
   props: Record<string, unknown>;
   children?: ComponentChildren<ResolvedComponentNode>;
   persistOnFocus?: boolean;
+  watch?: NodeWatch;
   source: "local" | "config" | "external";
   manifest?: ComponentManifest;
   /** Canonical source path for a standalone config-link component. */
@@ -203,6 +227,15 @@ export interface AppSettings {
   clearPaletteInputOnKeepOpen: boolean;
   /** App-local keyboard shortcuts keyed by stable action id. */
   actionShortcuts: Record<string, string>;
+  /** Notification preferences; omitted means the defaults (everything on, every dashboard at `all`). */
+  notifications?: {
+    /** Show system notifications for interrupts while the app is in the background. */
+    native: boolean;
+    /** Run declared watches in the background. */
+    watches: boolean;
+    /** Per-user levels keyed by canonical config path; an absent dashboard uses `all`. */
+    dashboards: Record<string, "all" | "inform" | "off">;
+  };
 }
 
 /** What a dispatched agent works on; decides the follow-up review, not the wording. */

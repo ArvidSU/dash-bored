@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ProjectSnapshot } from "../../shared/contracts";
+import { watchSummaries } from "../../shared/watches";
 import { hasLocalNode, PERMISSION_LABELS } from "../lib/action-providers";
 
 export function TrustPanel({
@@ -13,6 +14,9 @@ export function TrustPanel({
 }): ReactNode {
   const localCode = snapshot.trustReview?.hasLocalCode ?? hasLocalNode(snapshot.tree);
   const canReviewCapabilities = snapshot.trustReview?.available ?? snapshot.tree !== null;
+  // Trust review lists what each watch runs and how often; linked bundles run theirs under their own trust.
+  const watches = watchSummaries(snapshot.tree, snapshot.configPath ?? undefined);
+  const linkedWatches = watchSummaries(snapshot.tree).length - watches.length;
   return (
     <section className="trust-panel" aria-labelledby="trust-title">
       <div className="trust-panel__icon" aria-hidden="true">◇</div>
@@ -34,6 +38,20 @@ export function TrustPanel({
             <li>No privileged capabilities requested</li>
           ) : null}
         </ul>
+        {watches.length > 0 ? (
+          <div className="trust-panel__watches" role="group" aria-label="Background watches">
+            <p>Background watches keep running while this dashboard is hidden or not selected:</p>
+            {watches.map((watch) => (
+              <p key={watch.nodeId}>
+                <strong>{watch.label}</strong> {watch.description}; notifies on {watch.on.join(", ")}
+                {watch.action ? ` and offers ${watch.action}` : ""}.
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {linkedWatches > 0 ? (
+          <p>Linked dashboards declare {linkedWatches} more watch{linkedWatches === 1 ? "" : "es"}; they run only when those dashboards are added and trusted themselves.</p>
+        ) : null}
         {!canReviewCapabilities ? (
           <p>Fix the fatal configuration diagnostics before trusting this project. Fix with agent repairs them without a trust grant; nothing this project declares runs until you approve it.</p>
         ) : snapshot.tree === null ? (

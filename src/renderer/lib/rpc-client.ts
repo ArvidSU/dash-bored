@@ -46,6 +46,7 @@ import type { UiHarnessHost } from "./ui-harness-host";
 export type HostEvent =
   | { type: "themes"; catalog: import("../../shared/themes").ThemeCatalogItem[] }
   | { type: "package-updates"; state: import("../../shared/package-updates").PackageUpdateState }
+  | { type: "notifications"; state: import("../../shared/notifications").NotificationState }
   | { type: "snapshot"; snapshot: ProjectSnapshot }
   | { type: "process"; process: ProcessSnapshot }
   | { type: "agent-task"; task: AgentSessionTask }
@@ -71,6 +72,10 @@ export interface DashboardHost {
   getPackageUpdates(): Promise<import("../../shared/package-updates").PackageUpdateState>;
   /** Starts a check or update; the store learns its progress from the host's push. */
   packageUpdateCommand(command: import("../../shared/package-updates").PackageUpdateCommand): Promise<void>;
+  /** Open notification decisions, newest first. */
+  getNotifications(): Promise<import("../../shared/notifications").NotificationState>;
+  /** Closes decided entries or raises `notify:<node>`; the inbox arrives as a `notifications` push. */
+  notificationCommand(command: import("../../shared/notifications").NotificationCommand): Promise<void>;
   getAgentTasks(): Promise<AgentSessionTask[]>;
   /** The task after the command; the store learns about it from the host's push. */
   agentTaskCommand(taskId: string, command: AgentTaskCommand): Promise<AgentSessionTask>;
@@ -158,6 +163,7 @@ const rpc = Electroview.defineRPC<DashboardRPC>({
     messages: {
       themes: (catalog) => emit({ type: "themes", catalog }),
       packageUpdates: (state) => emit({ type: "package-updates", state }),
+      notifications: (state) => emit({ type: "notifications", state }),
       snapshot: (snapshot) => emit({ type: "snapshot", snapshot }),
       process: (process) => emit({ type: "process", process }),
       agentTask: (task) => emit({ type: "agent-task", task }),
@@ -205,6 +211,8 @@ const liveHost: DashboardHost = {
   async manageThemePackage(operation) { ensureTransport(); return rpc.request.manageThemePackage(operation); },
   async getPackageUpdates() { ensureTransport(); return rpc.request.getPackageUpdates({}); },
   async packageUpdateCommand(command) { ensureTransport(); await rpc.request.packageUpdateCommand(command); },
+  async getNotifications() { ensureTransport(); return rpc.request.getNotifications({}); },
+  async notificationCommand(command) { ensureTransport(); await rpc.request.notificationCommand(command); },
   async getAgentTasks() { ensureTransport(); return rpc.request.getAgentTasks({}); },
   async agentTaskCommand(taskId, command) { ensureTransport(); return rpc.request.agentTaskCommand({ taskId, command }); },
   async getAgentOptions(configPath) {

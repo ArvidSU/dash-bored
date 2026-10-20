@@ -1359,6 +1359,87 @@ describe("renderer fixture interactions", () => {
     expect(await activity.count()).toBe(0);
   }, 20_000);
 
+  test("notifications are read on screen, interrupt elsewhere, stay open after Show, and close into Earlier", async () => {
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).waitFor();
+      // The status node is on screen: its decision is marked read and no notice appears.
+      await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.raiseNotification({
+        key: "run:status", kind: "run-failed", title: "Renderer fixture failed", message: "Exited with code 1.",
+        target: { kind: "node", nodeId: "status" },
+      }));
+      await proof.waitForFunction(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getNotificationCommands().length === 1);
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getNotificationCommands()))
+        .toEqual([{ type: "read", ids: ["fixture-notification-1"] }]);
+      expect(await proof.locator(".decision-notice").count()).toBe(0);
+      expect(await proof.locator(".sidebar__notification-mark").count()).toBe(0);
+      await proof.getByRole("button", { name: "Open notifications, 1 read and still open", exact: true }).waitFor();
+
+      // A node on the hidden Boundary tab interrupts with a decision notice and marks the dashboard.
+      await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.raiseNotification({
+        key: "run:boundary", kind: "run-failed", title: "Renderer boundary failed", message: "Exited with code 2.",
+        target: { kind: "node", nodeId: "boundary-status" },
+        action: { label: "Fix with agent", invocation: { run: "agent:prompt", with: { prompt: "Fix the boundary run." } } },
+      }));
+      const notice = proof.locator(".decision-notice");
+      await notice.getByText("Renderer boundary failed", { exact: true }).waitFor();
+      expect(await notice.getAttribute("data-level")).toBe("interrupt");
+      expect(await notice.getByRole("button").allTextContents()).toEqual(["Show", "Fix with agent", "Dismiss"]);
+      await proof.getByRole("status").filter({ hasText: "Needs you: Renderer boundary failed." }).waitFor({ state: "attached" });
+      expect(await proof.locator(".sidebar__notification-mark").getAttribute("data-level")).toBe("interrupt");
+      const dashboardButton = proof.getByRole("button", { name: "Visual verification fixture", exact: true });
+      expect(await dashboardButton.getAttribute("aria-describedby")).toBeTruthy();
+
+      // Escape hides the notice without deciding; the inbox still lists the decision, unread.
+      await notice.getByRole("button", { name: "Show" }).focus();
+      await proof.keyboard.press("Escape");
+      expect(await notice.count()).toBe(0);
+      const trigger = proof.getByRole("button", { name: "Open notifications, 1 needs you, 1 read and still open", exact: true });
+      await trigger.click();
+      const inbox = proof.getByRole("dialog", { name: "Notifications" });
+      const row = inbox.locator('.notification-row[data-notification-id="fixture-notification-2"]');
+      await row.getByText("Visual verification fixture", { exact: true }).waitFor();
+      expect(await row.getAttribute("data-read")).toBe("false");
+      expect(await inbox.locator('.notification-row[data-notification-id="fixture-notification-1"]').getAttribute("data-read")).toBe("true");
+      expect(await row.locator("time").count()).toBe(1);
+
+      // Show lands on the component and keeps the decision open, read, with its action and Dismiss.
+      await row.getByRole("button", { name: "Show" }).click();
+      await inbox.waitFor({ state: "hidden" });
+      await proof.waitForFunction(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getNotificationCommands()
+        .some((command) => command.type === "read" && command.ids.includes("fixture-notification-2")));
+      expect(await proof.locator(".sidebar__notification-mark").count()).toBe(0);
+      await proof.getByRole("button", { name: "Open notifications, 2 read and still open", exact: true }).click();
+      await inbox.waitFor();
+      expect(await row.getAttribute("data-read")).toBe("true");
+      expect(await row.getByRole("button").allTextContents()).toEqual(["Show", "Fix with agent", "Dismiss"]);
+
+      // Dismissing, or the cause clearing, moves an entry to Earlier and says which happened.
+      await row.getByRole("button", { name: "Dismiss" }).click();
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getNotificationCommands().at(-1)))
+        .toEqual({ type: "dismiss", ids: ["fixture-notification-2"] });
+      await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.resolveNotification("run:status"));
+      await inbox.getByText(/^Nothing needs you\./).waitFor();
+      const earlier = inbox.getByRole("region", { name: "Earlier" });
+      const closed = earlier.locator(".notification-row");
+      await closed.nth(1).waitFor();
+      expect(await closed.evaluateAll((rows) => rows.map((element) => [
+        element.querySelector("strong")?.textContent,
+        element.querySelector(".notification-row__outcome")?.textContent,
+      ]))).toEqual([["Renderer fixture failed", "Cleared"], ["Renderer boundary failed", "Dismissed"]]);
+      expect(await closed.first().getByRole("button").allTextContents()).toEqual(["Show"]);
+      await earlier.getByRole("button", { name: "Clear 2 earlier notifications" }).click();
+      await earlier.waitFor({ state: "detached" });
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getNotificationCommands().at(-1)))
+        .toEqual({ type: "clear-history" });
+      await inbox.getByRole("button", { name: "Close notifications" }).click();
+      await proof.getByRole("button", { name: "Open notifications", exact: true }).waitFor();
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("diagnostics details can ask the configured agent to fix the dashboard", async () => {
     const active = currentPage();
     await active.setViewportSize({ width: 390, height: 844 });

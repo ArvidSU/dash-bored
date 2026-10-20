@@ -232,8 +232,9 @@ With those tools an agent can:
   `theme`), and write attention animations (`animation`);
 - drive the running app through a private, per-instance control socket: read
   its state (`app status`), list and run the same command-palette actions you
-  can (`app actions [<filter>]`, `app run <action>`), point you at a component
-  (`app run attention:<node-id> --message <why>`), open a dashboard
+  can (`app actions [<filter>]`, `app run <action>`), leave you a decision
+  about a component (`app run notify:<node-id> --message <why>`), point you at
+  one (`app run attention:<node-id> --message <why>`), open a dashboard
   (`app open <dashboard>`), capture the window (`app screenshot`), and read
   results instead of guessing from pixels (`app processes`, `app logs`,
   `app wait`, `app read <node-id>`).
@@ -249,9 +250,10 @@ dashboard is refused while you have unsaved dashboard changes or a save in
 progress. Screenshots use macOS Screen Recording permission; the first capture
 asks for it. The app keeps rendering while other windows cover it, so agents
 can drive and capture it without you switching to it; a minimized or hidden
-window cannot be captured. Agents bring the app to the front with
-`app run app:focus-window --no-wait` (**Bring app to front**) only when work is
-done or blocked and your attention is needed.
+window cannot be captured. When work is done or blocked, agents leave a
+[notification](#notifications-and-watches) instead of taking focus; they bring
+the app to the front with `app run app:focus-window --no-wait` (**Bring app to
+front**) only when you asked to be shown.
 
 Later app launches refresh installer-owned skill files. Modified files are
 preserved, with a notice explaining the conflict. The Installed tools warning
@@ -1185,6 +1187,68 @@ dashboard's default, or use `--global` for one shared by every dashboard. See
 the [format reference](skills/dash-bored/references/animations.md) and
 [JSON Schema](schemas/animation.schema.json). Animations are data: no CSS,
 scripts, or assets.
+
+## Notifications and watches
+
+The dashboard you have open already shows what needs you. Notifications cover
+what it can't: a run you started that failed while you were in another app, an
+agent waiting for your permission, a new release, or a watched status turning
+red on a dashboard you don't have open.
+
+Every notification is a decision. **Show** takes you to what it is about: it
+opens the dashboard, reveals the component (or list item), and animates it.
+Some offer one more act, such as **Fix with agent**, which opens the reviewed
+agent composer. Acting marks a notification read but keeps it under the bell,
+so after looking you can still fix it or dismiss it. **Dismiss** closes it.
+While dash-bored is in the background, urgent ones arrive as macOS
+notifications; click one and the app comes forward with that decision in
+front. In the app they appear as a notice, but never about a component you are
+already looking at. Open ones wait under the bell in the header; the sidebar
+marks dashboards with unread ones, and the dock icon counts the unread urgent
+ones. A notification also closes by itself when its cause clears, for example
+when the status recovers, the command runs again, or you answer the agent.
+Closed notifications stay listed under **Earlier** until you quit, marked
+**Cleared** or **Dismissed**, so you can tell whether an issue went away.
+
+Raised automatically:
+
+- a command you started fails, or finishes after running for 10 seconds or
+  more (stopping it yourself is not news);
+- an agent session needs permission or sign-in, finishes, or fails;
+- a new dash-bored release, and component or theme package updates (the
+  latter only in the bell, without interrupting).
+
+To keep watching a status or list while its dashboard isn't open, add `watch`
+to its node. The app then runs the node's own source in the background at the
+interval you choose (at least once a minute) and tells you when it changes:
+
+```yaml
+node:
+  id: ci-status
+  component: "./components/external/core/status"
+  watch:
+    on: [error]          # status: unknown, warning, error; list: added
+    every: 300000        # milliseconds, default 5 minutes
+    action:              # optional, offered next to Show
+      name: Fix with agent
+      run: agent:prompt
+      with: { prompt: "CI on main is failing. Find out why and fix it." }
+  props:
+    label: CI on main
+    source: { shell: bun run .dash-bored/scripts/ci-status.ts, every: 60000 }
+```
+
+A watch observes a `shell`, `file`, or `http` source; commands need none,
+because their failed runs already notify. Watching needs the `background:watch`
+permission, so trust review lists each watch and a project's first watch asks
+you to approve again. Watches run for every
+registered dashboard you trust, only while the app is running. The state found
+when the app starts is recorded quietly rather than interrupting you.
+
+In **Settings → General** you can turn off macOS notifications or background
+watching, and set each dashboard to **All**, **Inform only** (nothing
+interrupts; decisions still collect under the bell), or **Off**. These choices
+are yours, not part of the dashboard YAML.
 
 ## App updates and dashboard migrations
 

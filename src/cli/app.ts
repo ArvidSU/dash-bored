@@ -31,7 +31,10 @@ export const APP_USAGE = `dash-bored app status [--instance <identifier>]
 \`actions\` prints choices as {id, label, optionCount}; \`--choices\` adds their options. Run
 \`app:open-palette --query <text>\` to open the command palette on a bounded search, and
 \`attention:<node-id> [--animation <reference>] [--message <text>] [--item <item-id>]\` to reveal
-and animate a component (or one of its items) when the user should look at it. \`screenshot\`
+and animate a component (or one of its items) when the user should look at it, and
+\`notify:<node-id> --message <text> [--item <item-id>]\` to leave the user a decision about it
+(a system notification while they work elsewhere; Show lands on it). \`status\` lists open
+notifications across dashboards, whether the user has read them, and recently closed ones. \`screenshot\`
 captures the window; \`--node\` crops to one node and restores any view change it made;
 \`--focus\` focuses a node for the capture and then restores the previous focus unless
 \`--keep-focus\` is given.`;
@@ -258,8 +261,12 @@ export async function runAppCommand(args: string[]): Promise<number> {
     throw new Error("--query is only supported with app run app:open-palette.");
   }
   const attention = Object.keys(parsed.attention).length > 0;
-  if (attention && (parsed.verb !== "run" || !parsed.positional[0]?.startsWith("attention:"))) {
-    throw new Error("--animation, --message, and --item are only supported with app run attention:<node-id>.");
+  const notify = parsed.verb === "run" && parsed.positional[0]?.startsWith("notify:") === true;
+  if (notify && (parsed.attention.animation !== undefined || parsed.attention.message === undefined)) {
+    throw new Error("app run notify:<node-id> needs --message <text> and accepts --item <item-id>, but not --animation.");
+  }
+  if (attention && !notify && (parsed.verb !== "run" || !parsed.positional[0]?.startsWith("attention:"))) {
+    throw new Error("--animation, --message, and --item are only supported with app run attention:<node-id> (and --message and --item with notify:<node-id>).");
   }
 
   if (parsed.verb === "status" && parsed.positional.length === 0) {

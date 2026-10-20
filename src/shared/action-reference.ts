@@ -24,7 +24,21 @@ export const ATTENTION_ACTION_ARGS_SCHEMA: Record<string, unknown> = {
   },
 };
 
-const SINGLE_NODE_VERBS = new Set(["focus", "process", "reveal", "attention"]);
+/**
+ * `notify:<node>` raises a notification about one component, or one item in
+ * it, with a short message the user decides on (Show or Dismiss).
+ */
+export const NOTIFY_ACTION_ARGS_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["message"],
+  properties: {
+    message: { type: "string", minLength: 1, maxLength: MAX_ATTENTION_MESSAGE_CHARS },
+    item: { type: "string", minLength: 1, maxLength: 512 },
+  },
+};
+
+const SINGLE_NODE_VERBS = new Set(["focus", "process", "reveal", "attention", "notify"]);
 
 /** Return the stable node ID carried by a node-targeting action reference. */
 export function parseActionReferenceNodeId(reference: string): string | undefined {

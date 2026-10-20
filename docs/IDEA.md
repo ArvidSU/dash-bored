@@ -22,6 +22,14 @@ The user should not need to remember:
 
 Instead, the project should expose its workflows through a persistent, composable dashboard.
 
+People increasingly work from their dashboards rather than beside them:
+monitoring and managing resources, and deciding what to do next from several
+perspectives. The app is therefore also where they learn what changed. It
+keeps watching what dashboards declare and tells the user when something needs
+them, as a hub for attention rather than a source of truth: project data stays
+with the project and its scripts, and nothing runs because something changed
+(see [Watching and notifications](#watching-and-notifications)).
+
 ## Core Idea
 
 The dashboard is not a collection of built-in integrations.
@@ -64,8 +72,9 @@ Every atom serves one of three jobs:
   switching between panels.
 - **Act** — one action model, surfaced through the palette, buttons and action
   bars, per-item actions, and persistent commands.
-- **Observe** — sources that produce data and a few views that render
-  declared data shapes.
+- **Observe** — sources that produce data, a few views that render
+  declared data shapes, and watches that keep observing them while nobody
+  looks.
 
 The shell is the integration layer. The app defines data shapes and view
 contracts; project knowledge lives in a small command or script the agent
@@ -221,11 +230,14 @@ window. An explicit Bring app to front action lets an agent show and focus the
 window when it finishes work or needs the user's attention. Within the window,
 a Draw attention action reveals one component, or one item in it, plays a
 short attention animation on it, and says why in a notice, so the agent can
-point at the result or blocker rather than describe where it is. Agents use
-both sparingly for meaningful completion or blockers, after making the
-relevant result visible. The channel never widens what a palette action may
-do: trust decisions and actions that require user confirmation stay with the
-user.
+point at the result or blocker rather than describe where it is. A Notify
+action tells the user the same thing without taking focus from other work and
+lands on the component when they follow it, so it is the default for
+completion or a blocker; Bring app to front remains for when the user asked to
+be shown. Agents use all three sparingly for meaningful completion or blockers,
+after making the relevant result visible. The channel never widens what a
+palette action may do: trust decisions and actions that require user
+confirmation stay with the user.
 
 Development builds are agent-owned proof environments. Each checkout can run
 its own native instance, and agents may start, restart, and stop that instance
@@ -363,6 +375,67 @@ animation is bounded keyframe data: small offsets, rotation, scale, opacity,
 and a halo in a theme color, finite in length, with no CSS, code, or assets.
 A request names an animation or falls back to the dashboard's optional
 default. Reduced motion keeps the halo and drops movement.
+
+## Watching and notifications
+
+dash-bored is a hub for attention, not a source of truth. The selected
+dashboard is the default way something gets the user's attention: it already
+narrows what they need to scan. Notifications go one step further for what
+matters even when its component is not rendered, such as a failed GitHub
+Actions run in a project whose dashboard is not selected. The app watches and
+points; the project's scripts and sources still own the data, and the app keeps
+no record of it beyond its notifications for the app session.
+
+Every notification is a decision: the user dismisses it or acts on it. Show
+lands on what it is about, and an entry may offer one declared action, such as
+Fix with agent, alongside it; app-level entries land in Settings, and agent
+entries open their session. Acting marks the decision read but keeps it open,
+because looking at a failure does not fix it: the declared action and Dismiss
+stay available. An open decision closes when the user dismisses it or when the
+condition that raised it clears: a recovered status, an answered permission
+request, or a new run of the command that failed. Closed decisions stay listed
+for the session and say whether they cleared or were dismissed, so the inbox
+doubles as a short log of what needed attention and whether it still does.
+
+An event reports a transition, never a repeated state, and comes from a closed
+set the app understands: a run the user started failed, or finished after long
+enough that they moved on; an agent session needs permission or sign-in,
+finished its turn, or failed; an app release or package update became
+available; or a watched view's declared data shape changed, such as a status
+turning to warning or error, or a list gaining items. Agents raise the same
+kind of event with the Notify action. A watch is composition intent on a node,
+not a condition language: it names which transitions of the view's own shape
+matter. Deciding what counts as bad, combining sources, and transforming data
+stay the script's job.
+
+Watches keep observing while their view is hidden and their dashboard is not
+selected, so they run in the background, at a bounded rate, for every
+registered and trusted dashboard. Watching is its own permission: trust review
+shows that a dashboard watches in the background, and a project's first watch
+requires approval again. Watching lasts as long as the app runs and stops when
+it quits; there is no daemon, login item, or menu-bar agent. The first
+observation after the app starts is a baseline: one that already shows a
+notified state is recorded without interrupting.
+
+Events have two levels. Interrupt is for what needs the user soon: a blocked,
+finished, or failed agent, a failed or long run, a watched state turning bad,
+and a new app release. Inform is for what is worth knowing: package updates,
+new list items unless the watch asks for more, and watches that are failing or
+paused. An interrupt becomes a system notification while the app is in the
+background, and following it brings the app forward with the decision in
+front; in the frontmost window it is an in-app notice. Nothing interrupts about
+a component the user is already looking at; such a decision is recorded as
+read. Open and closed decisions wait in a bounded inbox for the app session,
+like agent sessions, and the sidebar marks dashboards with unread ones. Users
+can lower or mute notifications per dashboard; that choice is per-user state,
+not YAML.
+
+Acting goes through the same executor, confirmation, and trust as any other
+invocation, and only when the user chooses it. Events inform and never act: no
+event starts a process, an agent, or a write by itself.
+
+The planned work lives in
+[docs/roadmap/notifications.md](./roadmap/notifications.md).
 
 ## Visual understanding
 
@@ -602,6 +675,8 @@ The product succeeds if a developer can:
 4. Perform common workflows without remembering commands.
 5. Extend the dashboard as new friction appears.
 6. Find app, project, and component actions from one keyboard-driven palette.
+7. Step away from their dashboards and be told when something on one needs
+   them.
 
 ## Application updates and migrations
 

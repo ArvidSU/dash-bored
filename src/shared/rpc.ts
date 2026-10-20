@@ -35,10 +35,10 @@ import type {
 } from "./agent-session";
 
 /**
- * Host state (the project snapshot, processes, agent tasks, themes) reaches
- * the renderer only as `webview` messages. A mutation pushes what it changed
- * before it resolves and answers with an ack or a command-specific result,
- * never with a copy of that state.
+ * Host state (the project snapshot, processes, agent tasks, themes,
+ * notifications) reaches the renderer only as `webview` messages. A mutation
+ * pushes what it changed before it resolves and answers with an ack or a
+ * command-specific result, never with a copy of that state.
  */
 export type DashboardRPC = {
   bun: RPCSchema<{
@@ -58,6 +58,9 @@ export type DashboardRPC = {
       manageExternalComponent: { params: ExternalComponentOperation; response: PackageOperationResult };
       manageThemePackage: { params: ThemePackageOperation; response: PackageOperationResult };
       getPackageUpdates: { params: {}; response: import("./package-updates").PackageUpdateState };
+      getNotifications: { params: {}; response: import("./notifications").NotificationState };
+      /** Closes decided entries or raises `notify:<node>`; the inbox arrives as a `notifications` push. */
+      notificationCommand: { params: import("./notifications").NotificationCommand; response: void };
       /** Starts a package check or update; progress and results arrive as `packageUpdates` pushes. */
       packageUpdateCommand: { params: import("./package-updates").PackageUpdateCommand; response: void };
       getAgentTasks: { params: {}; response: AgentSessionTask[] };
@@ -100,6 +103,7 @@ export type DashboardRPC = {
     messages: {
       themes: import("./themes").ThemeCatalogItem[];
       packageUpdates: import("./package-updates").PackageUpdateState;
+      notifications: import("./notifications").NotificationState;
       snapshot: ProjectSnapshot;
       process: ProcessSnapshot;
       agentTask: AgentSessionTask;

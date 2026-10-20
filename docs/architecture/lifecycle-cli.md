@@ -268,18 +268,29 @@ with `app screenshot` and inspect the PNG. `--query` is restricted to this
 action and accepts at most 200 characters. Opening the palette does not execute
 a search result; agent prompts still require review and explicit Send.
 
-For explicit user attention, `app run app:focus-window --no-wait` invokes the
-same Bring app to front palette action through the shared executor. It restores
-a minimized window and activates the app through the `focusWindow` host RPC.
-It does not change the dashboard's focused node, panel selections, or draft.
-Use it sparingly after making a completed result or an actionable blocker visible;
-ordinary reads, checks, and screenshots do not bring the app forward.
+To leave the user a decision, `app run notify:<node-id> --message <text>`
+(at most 200 characters, required) with an optional `--item <id>` adds an
+entry to their notification inbox about a node of the open dashboard; `--animation`
+is refused. It is the default for completion and blockers because it does not
+take focus: the app shows a system notification while it is in the background
+and an in-app notice in front, and Show runs `attention:` with the message (see
+[Notifications](notifications.md)). `app status` lists open decisions, whether
+the user has read them, and recently closed ones (`cleared` or `dismissed`)
+under `notifications`.
+
+When the user asked to be shown the app, `app run app:focus-window --no-wait`
+invokes the same Bring app to front palette action through the shared
+executor. It restores a minimized window and activates the app through the
+`focusWindow` host RPC. It does not change the dashboard's focused node, panel
+selections, or draft. Ordinary reads, checks, and screenshots do not bring the
+app forward.
 
 To point at one component inside the window, `app run attention:<node-id>`
 reveals it and plays an attention animation, optionally with
 `--animation <reference>`, `--message <text>` (at most 200 characters, shown in
 the notice), and `--item <id>` (one `data-item-id` element in the node). These
-flags are refused for any other action. When the window is not rendering, the
+flags are refused for any other action except `--message` and `--item` with
+`notify:`. When the window is not rendering, the
 run completes at once and the animation plays when the window next paints.
 `animation init|validate|list` manages animation packages; see
 [attention animations](attention.md).

@@ -307,3 +307,44 @@ children:
         label: Run tests
         command: bun test
 ```
+
+## Watches
+
+The open dashboard already shows its state. Add `watch` to a status or list
+node only when the user should hear about a change even while that
+dashboard isn't open, such as CI on main turning red. The app then runs the
+node's own `source` in the background and raises a notification decision
+(Show, an optional declared action, Dismiss) on transitions:
+
+```yaml
+node:
+  id: ci-status
+  component: "./components/external/core/status"
+  watch:
+    on: [error]               # status: unknown | warning | error; list: added
+    every: 300000             # ms, 60000..86400000, default 300000
+    action:                   # optional, offered beside Show
+      name: Fix with agent
+      run: agent:prompt
+      with: { prompt: "CI on main is failing. Find out why and fix it." }
+  props:
+    label: CI on main
+    source: { shell: bun run .dash-bored/scripts/ci-status.ts, cwd: ., every: 60000, timeoutMs: 20000 }
+```
+
+- Watch a `shell`, `file`, or `http` source. `inline` never changes, and a
+  `process` source needs no watch: a run the user starts already raises a
+  decision when it fails. Validation reports `COMPONENT_WATCH_INVALID`.
+- Status watches interrupt by default; recovery closes the decision instead
+  of raising another. List watches (`on: [added]`) raise one decision per new
+  item ID, inform by default (`level: interrupt` to interrupt); the action may
+  use whole-value `${item.<field>}` templates like `itemActions`. A removed
+  item closes its decision.
+- The state found when the app starts is recorded quietly. A failing script
+  raises one inform "watch failed" entry until it succeeds again, so make the
+  script exit 0 for every state it can report and nonzero only when it cannot
+  tell.
+- At most 10 watches per bundle. Watching adds the `background:watch`
+  permission: the user approves trust again for a project's first watch.
+- Keep `every` generous (minutes); the view's own `source.every` still drives
+  what is on screen.

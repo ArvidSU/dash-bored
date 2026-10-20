@@ -6,9 +6,11 @@ import { retireManagedCliLink } from "../migrations/cli-link";
 import { isLegacyAppThemeReference, upgradeLegacyAppThemeReference } from "../migrations/app-theme-reference";
 import { APP_VERSION } from "../shared/app-metadata";
 import type { AppSettings } from "../shared/contracts";
+import { normalizeNotificationSettings } from "../shared/notifications";
 import type { DashboardRPC } from "../shared/rpc";
 import { windowAgentControlBridge } from "./agent-control-bridge";
 import { startAgentControlServer } from "./agent-control-server";
+import { agentNotificationSummary } from "../shared/agent-control";
 import { AgentConfigMemory } from "./agent-config-memory";
 import { AgentLauncher } from "./agent-launch";
 import { onApplicationMenuAction, setApplicationMenu } from "./app-menu";
@@ -22,6 +24,9 @@ import { ProjectRegistry } from "./project-registry";
 import { configureBundledToolEnvironment, configureDesktopExecutableEnvironment } from "./tool-environment";
 import { createAppUpdates } from "./update-wiring";
 import { createPackageUpdates } from "./package-updates";
+import { createNotifications } from "./notification-wiring";
+import { WatchRunner } from "./watches";
+import { loadProjectDefinition } from "../core/project";
 import { getUpdateSettings, updateDirectory } from "../updates/storage";
 import { keepWindowRenderingWhenOccluded } from "./window-capture";
 
@@ -85,10 +90,32 @@ function agentEnvironment(settings: AppSettings): Record<string, string> {
   return settings.dashBoredAgent === null ? {} : { DASH_BORED_AGENT: settings.dashBoredAgent };
 }
 let publishedEnvironment = agentEnvironment(initialAppSettings);
+let notificationSettings = normalizeNotificationSettings(initialAppSettings.notifications);
+// Runs an agent starts through the control channel are the agent's to report, not the user's notification.
+let agentActionsRunning = 0;
+
+// Dashboard names for entries about dashboards other than the active one.
+const dashboardNames = new Map<string, string | null>();
+void projectRegistry.list().then((projects) => {
+  for (const project of projects) if (!dashboardNames.has(project.configPath)) dashboardNames.set(project.configPath, project.dashboardName);
+}).catch(() => undefined);
+const notifications = createNotifications({
+  memoryPath: join(Utils.paths.userData, "notifications-v1.json"),
+  settings: () => notificationSettings,
+  publish: (state) => send("notifications", state),
+  active: () => {
+    const { configPath, dashboardName, tree } = runtime.getSnapshot();
+    return { configPath: configPath ?? null, dashboardName, tree };
+  },
+  dashboardName: (configPath) => dashboardNames.get(configPath) ?? null,
+});
 
 const agentConfigMemory = new AgentConfigMemory(join(Utils.paths.userData, "agent-config-v1.json"));
 const agentSessions = new AgentSessions({
-  onTask: (task) => send("agentTask", task),
+  onTask: (task) => {
+    send("agentTask", task);
+    notifications.agents.observe(task);
+  },
   onConfigOffered: (command, options) => void agentConfigMemory.offered(command, options),
   handoffDirectory: join(Utils.paths.userData, "agent-handoff"),
 });
@@ -100,11 +127,28 @@ const runtime = new ProjectRuntime({
     send("snapshot", installedTools.addTo(snapshot));
     if (snapshot.projectRoot) installedTools.checkProject(snapshot.projectRoot);
     if (snapshot.configPath) agentSessions.markDashboardChanged(snapshot.configPath);
+    if (snapshot.configPath) dashboardNames.set(snapshot.configPath, snapshot.dashboardName);
+    watches.observeSnapshot(snapshot);
     void projectRegistry.remember(snapshot).catch((error: unknown) => {
       console.error("Could not persist the dashboard list.", error);
     });
   },
-  onProcess: (process) => send("process", process),
+  onProcess: (process) => {
+    send("process", process);
+    notifications.runs.observe(process);
+  },
+});
+// Declared watches keep observing every registered, trusted dashboard while the app runs.
+const watches = new WatchRunner({
+  center: notifications.center,
+  dashboards: () => projectRegistry.list(),
+  active: () => {
+    return { configPath: runtime.getSnapshot().configPath ?? null };
+  },
+  loadDefinition: (configPath) => loadProjectDefinition(configPath),
+  isTrusted: (definition) => runtime.isDefinitionTrusted(definition),
+  settings: () => notificationSettings,
+  getPublishedEnvironment: () => publishedEnvironment,
 });
 
 const agents = new AgentLauncher({
@@ -121,6 +165,7 @@ const updates = createAppUpdates({
   trustStore,
   toolPath: bundledTools ? bundledTools.toolPath : process.execPath,
   agentCommand: (configPath) => agents.command(configPath),
+  onReleaseState: (state) => notifications.releases.observe(state),
 });
 
 const loadThemes = async () => loadApplicationThemes(await projectRegistry.list(), runtime.getSnapshot());
@@ -132,7 +177,10 @@ const packageUpdates = createPackageUpdates({
   registry: projectRegistry,
   runtime,
   publishThemes,
-  onChange: (state) => send("packageUpdates", state),
+  onChange: (state) => {
+    send("packageUpdates", state);
+    notifications.packages.observe(state);
+  },
   automaticChecks: async () => (await getUpdateSettings(updateDirectory())).automaticChecks,
 });
 
@@ -145,6 +193,9 @@ const dashboardRPC = createDashboardRPC({
   installedTools,
   updates,
   packageUpdates,
+  notifications,
+  agentActionRunning: () => agentActionsRunning > 0,
+  onDashboardRemoved: () => watches.requestRefresh(),
   loadThemes,
   publishThemes,
   focusWindow() {
@@ -164,6 +215,9 @@ const dashboardRPC = createDashboardRPC({
   async updateAppSettings(settings) {
     const updated = await appSettingsStore.update(settings);
     publishedEnvironment = agentEnvironment(updated);
+    const previousNotificationSettings = JSON.stringify(notificationSettings);
+    notificationSettings = normalizeNotificationSettings(updated.notifications);
+    if (JSON.stringify(notificationSettings) !== previousNotificationSettings) watches.requestRefresh();
     setApplicationMenu(updated);
     await runtime.refreshEnvironment();
     return updated;
@@ -206,17 +260,34 @@ mainWindow.on("resize", (event) => {
 });
 
 mainWindow.webview.on("dom-ready", () => send("snapshot", installedTools.addTo(runtime.getSnapshot())));
+// Interrupts become system notifications only while the user is in another app.
+mainWindow.on("focus", () => notifications.setWindowFocused(true));
+mainWindow.on("blur", () => notifications.setWindowFocused(false));
 openNewWindowsExternally(Electrobun.events, mainWindow.webview.id, Utils.openExternal);
+watches.start();
 // Agents drive and capture the app while it sits behind their terminal.
 keepWindowRenderingWhenOccluded(mainWindow.ptr);
 
+const windowBridge = windowAgentControlBridge(() => mainWindow, runtime);
+const agentControlBridge: typeof windowBridge = {
+  ...windowBridge,
+  runAction: async (request) => {
+    agentActionsRunning += 1;
+    try {
+      return await windowBridge.runAction(request);
+    } finally {
+      agentActionsRunning -= 1;
+    }
+  },
+  viewState: async () => ({ ...await windowBridge.viewState(), notifications: agentNotificationSummary(notifications.state()) }),
+};
 const agentControl = await startAgentControlServer({
   identifier: appInstanceIdentifier,
   pid: process.pid,
   version: APP_VERSION,
   socketPath: instanceSocketPath(appInstanceIdentifier),
   toolPath: bundledTools?.toolPath ?? null,
-}, windowAgentControlBridge(() => mainWindow, runtime)).catch((error: unknown) => {
+}, agentControlBridge).catch((error: unknown) => {
   console.error("Agent control channel unavailable:", error);
   return null;
 });
@@ -235,6 +306,7 @@ Electrobun.events.on("before-quit", (event) => {
   if (cleanupStarted) return;
   cleanupStarted = true;
   event.response = { allow: false };
+  watches.stop();
   void Promise.all([runtime.close(), agentSessions.shutdown(), agentControl?.close()]).finally(() => {
     Utils.quit(0);
   });

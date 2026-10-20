@@ -5,7 +5,7 @@ import { ThemeManager } from "./ThemeManager";
 import { ThemeSelect } from "../lib/theme";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { AppSettings, DashboardConfig, DashboardSettingsItem } from "../../shared/contracts";
+import type { AppSettings, DashboardConfig, DashboardSettingsItem, ProjectListItem } from "../../shared/contracts";
 import type { AgentCommandOptions } from "../../shared/agent-session";
 import { keyboardShortcutFromEvent, keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 import { rankActions } from "../lib/actions";
@@ -19,6 +19,7 @@ import {
   type AgentPickerValue,
 } from "../lib/agent-options";
 import { host } from "../lib/rpc-client";
+import { NotificationSettingsCard } from "./Notifications";
 
 function ShortcutRecorder({
   shortcut,
@@ -231,6 +232,7 @@ export function SettingsPanel({
   draftsOpen = false,
   appSettings,
   dashboardSettings,
+  projects = [],
   actions,
   pendingAction,
   agentOptions = null,
@@ -245,6 +247,8 @@ export function SettingsPanel({
   draftsOpen?: boolean;
   appSettings: AppSettings;
   dashboardSettings: readonly DashboardSettingsItem[];
+  /** Registered dashboards, for per-dashboard notification levels. */
+  projects?: readonly ProjectListItem[];
   actions: readonly PaletteAction[];
   pendingAction: string | null;
   /** Detected and known agents for the agent picker; null while loading. */
@@ -434,6 +438,12 @@ export function SettingsPanel({
           <span>Start expanded</span>
         </label>
       </section>
+      <NotificationSettingsCard
+        settings={appSettings}
+        projects={projects}
+        disabled={savingSettings}
+        onUpdate={onUpdateSettings}
+      />
       <AgentSettings
         setting={appSettings.dashBoredAgent}
         options={agentOptions}

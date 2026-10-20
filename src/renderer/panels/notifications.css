@@ -1,0 +1,420 @@
+/*
+ * Notifications: the header trigger, the decision notice, the inbox drawer,
+ * and sidebar marks. Interrupts are a warning diamond with a solid rail;
+ * informs are an info circle with a dashed rail. Shape and text carry the
+ * level; color only reinforces it. Unread rows add a dot and a tint; closed
+ * rows under Earlier lose the rail and name how they ended.
+ */
+
+.notification-glyph {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.notification-glyph--interrupt { color: var(--warning); }
+.notification-glyph--inform { color: var(--info); }
+
+/* Header trigger: recedes like its neighbours; the badge carries the signal. */
+.app-header__actions .notifications-trigger {
+  gap: 0.45rem;
+  border-color: transparent;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-header__actions .notifications-trigger:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--surface-hover);
+  transform: none;
+}
+
+.app-header__actions .notifications-trigger--active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.notifications-trigger__icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.notifications-trigger__count {
+  display: inline-grid;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  box-sizing: border-box;
+  place-items: center;
+  padding-inline: 4px;
+  border: 1px solid color-mix(in srgb, var(--info) 55%, transparent);
+  border-radius: 999px;
+  color: var(--text);
+  background: transparent;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.notifications-trigger__count--attention {
+  border-color: transparent;
+  color: var(--surface);
+  background: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 28%, transparent);
+}
+
+/* The decision notice: in flow below the header, so native webviews never cover it. */
+.decision-notice {
+  --notice-color: var(--warning);
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 10px 16px 0;
+  padding: 10px 16px 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--notice-color) 32%, var(--border));
+  border-left: 3px solid var(--notice-color);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: color-mix(in srgb, var(--notice-color) 9%, var(--surface));
+  box-shadow: var(--shadow-raised, none);
+}
+
+.decision-notice--inform {
+  --notice-color: var(--info);
+  border-left-style: dashed;
+}
+
+.decision-notice > .notification-glyph {
+  width: 18px;
+  height: 18px;
+}
+
+.decision-notice__copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.decision-notice__heading,
+.notification-row__heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.decision-notice__heading strong {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-notice__message {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.decision-notice__meta,
+.notification-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.decision-notice__more {
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.decision-notice__actions,
+.notification-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.notification__count {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.notification__source {
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  .decision-notice { grid-template-columns: auto minmax(0, 1fr); }
+  .decision-notice__actions { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .decision-notice { animation: decision-notice-arrive 180ms ease-out; }
+}
+
+@keyframes decision-notice-arrive {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Inbox rows share the agent-work row geometry: a tone rail on the left. */
+.right-drawer__header-actions .notification-inbox__dismiss-all {
+  white-space: nowrap;
+}
+
+.notification-inbox__empty {
+  margin: 0;
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.notification-inbox__list {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.8rem;
+  list-style: none;
+}
+
+.notification-row {
+  --notice-color: var(--warning);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  box-shadow: inset 3px 0 0 var(--notice-color);
+}
+
+.notification-row--inform {
+  --notice-color: var(--info);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.notification-row > .notification-glyph {
+  margin-top: 1px;
+}
+
+.notification-row__copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.notification-row__heading strong {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.notification-row__message {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.notification-row__actions {
+  margin-top: 4px;
+}
+
+/* Unread rows carry the signal: a tinted surface, a heavier title, and a dot. */
+.notification-row--unread {
+  background: color-mix(in srgb, var(--notice-color) 7%, var(--surface));
+}
+
+.notification-row--unread .notification-row__heading strong {
+  font-weight: 750;
+}
+
+.notification-row:not(.notification-row--unread) .notification-row__heading strong {
+  font-weight: 600;
+}
+
+.notification-row__unread {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Earlier: what closed this session, quieter than anything open. */
+.notification-inbox__history {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--border);
+}
+
+.notification-inbox__history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.7rem 0.8rem 0;
+}
+
+.notification-inbox__history-header h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.notification-row--closed {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.notification-row--closed > .notification-glyph {
+  color: var(--faint);
+}
+
+.notification-row--closed .notification-row__heading strong {
+  color: var(--muted);
+}
+
+.notification-row__outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 650;
+}
+
+.notification-row__outcome svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.notification-row__outcome--cleared { color: var(--positive); }
+.notification-row__outcome--dismissed { color: var(--muted); }
+
+/* Sidebar marks sit on the icon's lower corner, away from Command numbers. */
+.sidebar__notification-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.sidebar__notification-mark--interrupt {
+  background: var(--warning);
+  box-shadow: 0 0 0 2px var(--bg);
+  transform: rotate(45deg) scale(0.92);
+}
+
+.sidebar__notification-mark--inform {
+  border: 2px solid var(--info);
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 1.5px var(--bg);
+}
+
+/* Settings › General › Notifications. */
+.settings-card--notifications {
+  align-items: flex-start;
+}
+
+.settings-card--notifications > div:first-child {
+  max-width: 340px;
+}
+
+.notification-settings {
+  display: grid;
+  min-width: 0;
+  flex: 0 1 26rem;
+  gap: 10px;
+}
+
+.notification-settings .settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.notification-settings__dashboards {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.notification-settings__dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9.5rem;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A dashboard name, not a field caption: plain text instead of the mono label. */
+.notification-settings .notification-settings__dashboard > span {
+  display: block;
+  overflow: hidden;
+  font-family: inherit;
+  font-weight: 650;
+  letter-spacing: normal;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .settings-card--notifications { flex-direction: column; align-items: stretch; }
+  .notification-settings { flex-basis: auto; }
+}

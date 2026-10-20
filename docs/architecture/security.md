@@ -39,6 +39,20 @@ and traversal limits block a new trust decision. Broken config links remain
 quarantined placeholders; resolving them later rechecks the permission union.
 Unknown error codes fail closed for trust review.
 
+`background:watch` is the one permission that composition, not a manifest,
+requests: every node with a `watch` adds it, and manifests cannot declare it.
+It makes background work part of the trust decision, so a project's first
+watch requires approval again, and trust review lists each watch with what it
+runs and how often. The watch runner (`src/main/watches.ts`) executes a
+watched node's own `shell`, `file`, or `http` source through a dedicated
+`CapabilityService` per dashboard, configured exactly like the active
+runtime's (`definitionCapabilityContext`), so the node's declared permissions,
+path containment, environment assembly, timeouts, and output bounds apply
+unchanged. It runs only for registered dashboards whose definition validates
+and passes the runtime's own rule (`ProjectRuntime.isDefinitionTrusted`,
+including session revocation), rechecks registration and trust before every
+read, never touches the active runtime's capability context, and stops on quit.
+
 `ProjectSnapshot.trustReview` exposes availability and local-code disclosure
 separately from `tree`. Nonfatal errors can withhold the tree while retaining
 the permission union and persisted trust. Trust re-reads the current definition
@@ -263,6 +277,16 @@ automation surface for the user's own agents, not a new capability.
   notice) and never moves keyboard focus. Animation packages are data; main
   reads them only from built-ins, the personal animation directory, or a
   bundle in the open snapshot.
+- `notify:<node>` is agent-callable without confirmation and accepts only a
+  required `message` and an optional `item`, validated in main before they
+  reach the renderer. It records a decision in the user's notification inbox
+  about a node of the open dashboard and may show a system notification; it
+  runs nothing, and more than one per dashboard within 30 seconds is recorded
+  without being presented. Runs an agent starts through the channel never
+  raise run notifications, so agents report their own results.
+  `app status` adds the open decisions (at most 20, newest first, with
+  whether the user read them) and the 10 most recently closed ones as
+  `notifications`.
 - `app:focus-window` is agent-callable without project trust or confirmation.
   It only restores, shows, and activates this instance's window, and remains
   available during unsaved or pending work. It cannot change drafts or select

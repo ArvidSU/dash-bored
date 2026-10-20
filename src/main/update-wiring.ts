@@ -19,6 +19,8 @@ export interface AppUpdatesOptions {
   /** The bundled agent tool, or this executable in an unbundled run. */
   toolPath: string;
   agentCommand(configPath: string): Promise<string>;
+  /** Every finished release check, for the new-release notification. */
+  onReleaseState?(state: UpdateState): void | Promise<void>;
 }
 
 const busy = (phase: string): boolean => phase === "running" || phase === "stopping";
@@ -33,6 +35,14 @@ export function createAppUpdates(options: AppUpdatesOptions) {
       || sessions.list().some((t) => (configPath === undefined || t.configPath === configPath) && isAgentTaskBusy(t));
   };
   let nativeUpdateApplying = false;
+  const reportReleaseState = async (): Promise<void> => {
+    if (!options.onReleaseState) return;
+    try {
+      await options.onReleaseState(await coordinator.state());
+    } catch (error) {
+      console.error("Could not report the release check.", error);
+    }
+  };
   let operation: Promise<unknown> | null = null;
 
   const coordinator: UpdateCoordinator = new UpdateCoordinator({
@@ -82,6 +92,11 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     },
 
     async action(action: UpdateAction): Promise<UpdateState> {
+      if (action.type === "check") {
+        await coordinator.action(action);
+        await reportReleaseState();
+        return this.state();
+      }
       if (action.type === "prepare" || action.type === "migrate" || action.type === "install") {
         if (action.type === "prepare") await bundledInstallation(options.toolPath);
         if (operation) throw new Error("An update operation is already running.");
@@ -101,7 +116,10 @@ export function createAppUpdates(options: AppUpdatesOptions) {
       await atomicJson(join(updateDirectory(), "app-host.json"), { pid: process.pid });
       operation = coordinator.reconcile().catch((error) => coordinator.problem(error)).finally(() => { operation = null; });
       const scheduledCheck = async () => {
-        if ((await getUpdateSettings(updateDirectory())).automaticChecks && !operation) await coordinator.check();
+        if ((await getUpdateSettings(updateDirectory())).automaticChecks && !operation) {
+          await coordinator.check();
+          await reportReleaseState();
+        }
       };
       void operation.then(scheduledCheck).catch((error) => console.error("Update check failed:", error));
       setInterval(() => { void scheduledCheck().catch((error) => console.error("Update check failed:", error)); }, 24 * 60 * 60_000);

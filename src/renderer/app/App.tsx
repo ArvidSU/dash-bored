@@ -1,5 +1,5 @@
 import { ThemeNotice } from "../lib/theme";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
 import { summarizeAgentDiagnostics } from "../../shared/agent-control";
@@ -42,6 +42,10 @@ import { useAppUpdates } from "./use-app-updates";
 import { usePackageUpdates } from "./use-package-updates";
 import { pendingUpdateCount } from "../lib/update-actions";
 import type { SettingsTab } from "../panels/SettingsPanel";
+import { unreadInterruptCount, unreadNotificationCount, type NotificationEntry } from "../../shared/notifications";
+import { nodeOnScreen, notificationMarks } from "../lib/notifications";
+import { DecisionNotice, NotificationInbox } from "../panels/Notifications";
+import { useNotificationLanding, useNotificationPresentation, useNotifications } from "./use-notifications";
 
 export function App(): ReactNode {
   const notices = useNotices();
@@ -53,8 +57,11 @@ export function App(): ReactNode {
   const showDashboard = useCallback(() => setActiveView("dashboard"), []);
   const [dialog, setDialog] = useState<AppDialog | null>(null);
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
+  const [agentSessionTaskId, setAgentSessionTaskId] = useState<string | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const interaction = useCompositionInteractionController();
   const settings = useAppSettings(notices);
+  const notifications = useNotifications(notices.setError);
   const actions = useActionRegistry(notices.setError);
   const session = useHostSession({
     onBoot: settings.load,
@@ -113,7 +120,10 @@ export function App(): ReactNode {
     focusedNodeId: virtualRoot?.target.id,
     setDialog,
     endDraft: draft.end,
-    closeLibrary: interaction.closeLibrary,
+    closeLibrary: () => {
+      interaction.closeLibrary();
+      setNotificationsOpen(false);
+    },
   });
   const composition = useCompositionSession({
     interaction,
@@ -157,7 +167,32 @@ export function App(): ReactNode {
 
   function toggleCompositionLibrary(): void {
     setAgentActivityOpen(false);
+    setNotificationsOpen(false);
     interaction.toggleLibrary();
+  }
+
+  // The right drawers are mutually exclusive; agent work also opens on its own.
+  useEffect(() => {
+    if (agentActivityOpen || interaction.libraryOpen) setNotificationsOpen(false);
+  }, [agentActivityOpen, interaction.libraryOpen]);
+
+  function openNotifications(): void {
+    setAgentActivityOpen(false);
+    interaction.closeLibrary();
+    setNotificationsOpen(true);
+  }
+
+  function toggleNotifications(): void {
+    // Render-state based, like the other drawer triggers.
+    if (notificationsOpen) setNotificationsOpen(false);
+    else openNotifications();
+  }
+
+  function openAgentSession(taskId: string): void {
+    setNotificationsOpen(false);
+    interaction.closeLibrary();
+    setAgentActivityOpen(true);
+    setAgentSessionTaskId(taskId);
   }
 
   async function repairInstalledTools(): Promise<void> {
@@ -186,6 +221,8 @@ export function App(): ReactNode {
     updates,
     packageUpdates,
     showUpdates,
+    notifications,
+    toggleNotifications,
   });
   const visibleDiagnostics = [...(snapshot?.diagnostics ?? []), ...actions.diagnostics];
 
@@ -210,6 +247,53 @@ export function App(): ReactNode {
       pendingPermissions: snapshot && !snapshot.trusted ? snapshot.requestedPermissions : [],
     },
   }, snapshot?.tree, setActiveView);
+
+  // What the user is looking at decides whether a new decision interrupts.
+  const dashboardCovered = dialog !== null || interaction.dialog !== null || actions.palette.open;
+  const notificationTargetVisible = (entry: NotificationEntry): boolean => {
+    const target = entry.target;
+    if (target.kind === "updates") return activeView === "settings" && settingsTab === "updates";
+    if (target.kind === "agent-session") {
+      if (!agentActivityOpen) return false;
+      return agentSessionTaskId === null
+        ? session.agentTasks.some((task) => task.id === target.taskId)
+        : agentSessionTaskId === target.taskId;
+    }
+    if (activeView !== "dashboard" || dashboardCovered || entry.configPath !== snapshot?.configPath) return false;
+    return target.kind === "dashboard" || nodeOnScreen(target.nodeId, target.itemId);
+  };
+  const presentation = useNotificationPresentation(notifications.state, notificationTargetVisible, notifications.markRead);
+  const landing = useNotificationLanding({
+    snapshot,
+    projects: session.projects,
+    store: actions.store,
+    request: actions.request,
+    setActiveView,
+    openDashboard: (project) => navigation.selectProject(project),
+    showUpdates,
+    openAgentSession,
+    markRead: notifications.markRead,
+    setError: notices.setError,
+    showNotice: notices.showNotice,
+  });
+  const marks = useMemo(() => notificationMarks(notifications.state), [notifications.state]);
+  const interruptCount = unreadInterruptCount(notifications.state);
+  const notificationCounts = {
+    interrupts: interruptCount,
+    unread: unreadNotificationCount(notifications.state),
+    open: notifications.state.entries.length,
+  };
+  const decisionHandlers = {
+    onShow: (entry: NotificationEntry) => {
+      setNotificationsOpen(false);
+      landing.show(entry);
+    },
+    onAction: (entry: NotificationEntry) => {
+      setNotificationsOpen(false);
+      landing.runAction(entry);
+    },
+    onDismiss: (entry: NotificationEntry) => notifications.dismiss([entry.id]),
+  };
 
   if (session.loading) return <BootScreen />;
   if (!snapshot && notices.error) return <BootScreen error={notices.error} />;
@@ -242,6 +326,7 @@ export function App(): ReactNode {
             onSelectTab={setSettingsTab}
             appSettings={settings.settings}
             dashboardSettings={dashboardSettings.items}
+            projects={session.projects}
             actions={allActions}
             pendingAction={pendingAction}
             agentOptions={settingsAgentOptions}
@@ -319,6 +404,23 @@ export function App(): ReactNode {
         activeAgentTaskCount={busyAgentTaskCount(session.agentTasks)}
         waitingAgentTaskCount={waitingAgentTaskCount(session.agentTasks)}
         pendingUpdateCount={pendingUpdateCount(updates.state, packageUpdates.state)}
+        notificationsOpen={notificationsOpen}
+        notificationCounts={notificationCounts}
+        notificationMarks={marks}
+        decisionNotice={
+          <DecisionNotice
+            entry={presentation.notice}
+            noticeKey={presentation.noticeKey}
+            activeConfigPath={activeView === "dashboard" ? snapshot?.configPath ?? null : null}
+            moreCount={interruptCount - (presentation.notice?.level === "interrupt" ? 1 : 0)}
+            onHide={presentation.hide}
+            onOpenInbox={() => {
+              presentation.hide();
+              openNotifications();
+            }}
+            {...decisionHandlers}
+          />
+        }
         agentPickerAvailable={agentPicker.enabled}
         agentPickerActive={agentPicker.active}
         editorToolbar={
@@ -351,6 +453,7 @@ export function App(): ReactNode {
         onToggleLibrary={toggleCompositionLibrary}
         onToggleAgentActivity={agent.toggleActivity}
         onToggleAgentPicker={agentPicker.toggle}
+        onToggleNotifications={toggleNotifications}
         onDismissError={() => notices.setError(null)}
         onDismissNotice={notices.dismissNotice}
       >
@@ -361,8 +464,18 @@ export function App(): ReactNode {
       <AgentActivity
         open={agentActivityOpen}
         tasks={session.agentTasks}
+        selectedTaskId={agentSessionTaskId}
+        onSelectTask={setAgentSessionTaskId}
         onClose={() => setAgentActivityOpen(false)}
         onCommand={agent.taskCommand}
+      />
+      <NotificationInbox
+        open={notificationsOpen}
+        state={notifications.state}
+        onClose={() => setNotificationsOpen(false)}
+        onDismissAll={notifications.dismissAll}
+        onClearHistory={notifications.clearHistory}
+        {...decisionHandlers}
       />
       <CommandPalette
         open={actions.palette.open}

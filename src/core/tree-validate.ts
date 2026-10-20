@@ -9,6 +9,7 @@ import type {
 } from "../shared/contracts";
 import {
   ATTENTION_ACTION_ARGS_SCHEMA,
+  NOTIFY_ACTION_ARGS_SCHEMA,
   parseActionReferenceNodeId,
   parseComponentActionReference,
   parseSelectionActionReference,
@@ -22,6 +23,7 @@ import { resolveContainedPath } from "./paths";
 import { validatePromptInvocation, type PromptTemplate } from "./prompt-templates";
 import { validatePropsSchema } from "./yaml";
 import { referenceLocations, type ReferenceLocation } from "./tree-links";
+import { containsItemTemplate, WATCH_EVENTS, watchFamily, watchSource } from "../shared/watches";
 
 /**
  * Tree validation. Every check reads a resolved or configured node and returns
@@ -62,6 +64,45 @@ export function validateNode(
     ...validateProcessResource(manifest, props, nodePath),
     ...validateChildren(manifest, props, node.children, edges, nodePath),
   ];
+}
+
+/**
+ * Check a node's `watch` against the node itself: the YAML schema owns field
+ * types, this owns what can be watched. Families are inferred from `on`
+ * because a manifest does not declare its view's data shape.
+ */
+export function validateWatch(node: ComponentNode, nodePath: string, options: { configLink?: boolean } = {}): Diagnostic[] {
+  const watch = node.watch as unknown;
+  if (watch === undefined) return [];
+  const watchPath = `${nodePath}.watch`;
+  const invalid = (message: string, path = watchPath): Diagnostic => diagnostic({ code: "COMPONENT_WATCH_INVALID", message, path });
+  if (!watch || typeof watch !== "object" || Array.isArray(watch)) return [invalid("watch must be an object with an on list.")];
+  if (options.configLink) {
+    return [invalid("A config link renders another dashboard and has no source to watch; declare the watch inside that dashboard.")];
+  }
+  const record = watch as Record<string, unknown>;
+  const diagnostics: Diagnostic[] = [];
+  const on = Array.isArray(record.on) ? record.on : [];
+  const family = watchFamily(on);
+  // Unknown or missing events are schema errors; only report what the schema cannot see.
+  if (family === null && on.length > 0 && on.every((event) => (WATCH_EVENTS as readonly unknown[]).includes(event))) {
+    diagnostics.push(invalid("watch.on cannot mix status states (unknown, warning, error) with list events (added).", `${watchPath}.on`));
+  }
+  const source = watchSource(node.props ?? {});
+  if ("error" in source) diagnostics.push(invalid(source.error, `${nodePath}.props.source`));
+  const action = record.action;
+  if (family !== "list" && action && typeof action === "object" && containsItemTemplate((action as Record<string, unknown>).with)) {
+    diagnostics.push(invalid("Item templates are only available in the action of an added watch.", `${watchPath}.action.with`));
+  }
+  return diagnostics;
+}
+
+/** The action a node's watch offers, as an action reference value. */
+function watchActionReference(node: ResolvedComponentNode): unknown {
+  const action = node.watch?.action as unknown;
+  if (!action || typeof action !== "object" || Array.isArray(action)) return undefined;
+  const { run, with: args } = action as Record<string, unknown>;
+  return args === undefined ? { run } : { run, with: args };
 }
 
 function validateResourceProviderId(manifest: ComponentManifest, id: string | undefined, nodePath: string): Diagnostic[] {
@@ -305,6 +346,12 @@ export function validateNodeReferences(index: ReferenceIndex, node: ResolvedComp
         : validateResourceReference(index, node, reference.resource, location, diagnosticPath)));
     }
   }
+  const watchAction = watchActionReference(node);
+  if (watchAction !== undefined) {
+    const on: unknown = node.watch?.on;
+    const listWatch = Array.isArray(on) && watchFamily(on) === "list";
+    diagnostics.push(...validateActionReference(index, node, watchAction, `${node.id}.watch.action`, listWatch));
+  }
   return diagnostics;
 }
 
@@ -403,6 +450,14 @@ function validateActionReference(
     }));
   }
   if (targetId.startsWith("attention:")) diagnostics.push(...validateAttentionArguments(index, invocation.with, diagnosticPath, allowsItemTemplates));
+  if (targetId.startsWith("notify:")) {
+    const error = argumentsError(NOTIFY_ACTION_ARGS_SCHEMA, invocation.with, allowsItemTemplates);
+    if (error) diagnostics.push(diagnostic({
+      code: "COMPONENT_ACTION_ARGUMENTS_INVALID",
+      message: `notify arguments are invalid: ${error}`,
+      path: `${diagnosticPath}.with`,
+    }));
+  }
   const selectionTarget = parseSelectionActionReference(targetId);
   if (selectionTarget) {
     const container = index.nodesById.get(selectionTarget.containerId);
@@ -430,10 +485,10 @@ function validateActionReference(
       message: "Malformed component action reference; expected component:<node-id>:<action-id>.",
       path: diagnosticPath,
     }));
-  } else if (targetNodeId === undefined && /^(focus|process|reveal|attention|select):/.test(targetId)) {
+  } else if (targetNodeId === undefined && /^(focus|process|reveal|attention|notify|select):/.test(targetId)) {
     diagnostics.push(diagnostic({
       code: "COMPONENT_ACTION_REFERENCE_INVALID",
-      message: "Malformed node action reference; expected focus:<node-id>, reveal:<node-id>, attention:<node-id>, process:<node-id>, select:<container-id>/<child-id>, or component:<node-id>:<action-id>.",
+      message: "Malformed node action reference; expected focus:<node-id>, reveal:<node-id>, attention:<node-id>, notify:<node-id>, process:<node-id>, select:<container-id>/<child-id>, or component:<node-id>:<action-id>.",
       path: diagnosticPath,
     }));
   }
@@ -492,26 +547,31 @@ export function validateDeclaredComponentActionReferences(
 ): Diagnostic[] {
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const diagnostics: Diagnostic[] = [];
+  const check = (rawReference: unknown, path: string): void => {
+    const invocation = actionInvocation(rawReference);
+    if (!invocation) return;
+    const target = parseComponentActionReference(invocation.run);
+    if (!target) return;
+    const targetNode = nodesById.get(target.nodeId);
+    const declaredActions = targetNode?.manifest?.actions;
+    // Omission is the legacy dynamic-registration contract.
+    if (declaredActions === undefined) return;
+    if (declaredActions.some((action) => action.id === target.actionId)) return;
+    diagnostics.push(diagnostic({
+      code: "COMPONENT_ACTION_REFERENCE_UNKNOWN",
+      message: `${targetNode?.manifest?.name ?? targetNode?.component ?? target.nodeId} does not declare action ${target.actionId}.`,
+      path,
+    }));
+  };
   for (const node of nodes) {
     for (const [propName, referenceDefinition] of Object.entries(node.manifest?.references ?? {})) {
       if (referenceDefinition.resource !== "action") continue;
       for (const { parent, key, path: suffix } of referenceLocations(node.props, propName)) {
-        const invocation = actionInvocation(parent[key]);
-        if (!invocation) continue;
-        const target = parseComponentActionReference(invocation.run);
-        if (!target) continue;
-        const targetNode = nodesById.get(target.nodeId);
-        const declaredActions = targetNode?.manifest?.actions;
-        // Omission is the legacy dynamic-registration contract.
-        if (declaredActions === undefined) continue;
-        if (declaredActions.some((action) => action.id === target.actionId)) continue;
-        diagnostics.push(diagnostic({
-          code: "COMPONENT_ACTION_REFERENCE_UNKNOWN",
-          message: `${targetNode?.manifest?.name ?? targetNode?.component ?? target.nodeId} does not declare action ${target.actionId}.`,
-          path: `${node.id}.props.${suffix}`,
-        }));
+        check(parent[key], `${node.id}.props.${suffix}`);
       }
     }
+    const watchAction = watchActionReference(node);
+    if (watchAction !== undefined) check(watchAction, `${node.id}.watch.action`);
   }
   return diagnostics;
 }

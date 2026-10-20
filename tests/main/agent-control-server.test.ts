@@ -217,7 +217,7 @@ test("the app-control action forwards bounded palette queries through the shared
     body: JSON.stringify({ reference: "focus:logs", args: { query: "logs" } }),
   } as RequestInit);
   expect(unexpectedArgs.status).toBe(400);
-  expect((await unexpectedArgs.json() as { error: { message: string } }).error.message).toContain("Only app:open-palette and attention:<node>");
+  expect((await unexpectedArgs.json() as { error: { message: string } }).error.message).toContain("Only app:open-palette, attention:<node>, and notify:<node>");
 });
 
 test("attention requests carry a bounded animation, message, and item through the channel", async () => {
@@ -246,6 +246,37 @@ test("attention requests carry a bounded animation, message, and item through th
     [{ query: "logs" }, "may contain only animation, message, and item"],
   ] as const) {
     const response = await post({ reference: "attention:logs", args });
+    expect(response.status).toBe(400);
+    expect((await response.json() as { error: { message: string } }).error.message).toContain(message);
+  }
+});
+
+test("notify requests need a message, may name an item, and take no animation", async () => {
+  const homeDirectory = await home();
+  const { runs, server } = await serve(homeDirectory);
+
+  const asked = await cli(homeDirectory, "run", "notify:logs", "--message", "Tests failed here", "--item", "t-1");
+  expect(asked.exitCode).toBe(0);
+  expect(runs.at(-1)).toEqual({ reference: "notify:logs", args: { message: "Tests failed here", item: "t-1" } });
+
+  const silent = await cli(homeDirectory, "run", "notify:logs");
+  expect(silent.exitCode).not.toBe(0);
+  expect(silent.stderr).toContain("needs --message");
+  const animated = await cli(homeDirectory, "run", "notify:logs", "--message", "x", "--animation", "builtin:shake");
+  expect(animated.exitCode).not.toBe(0);
+
+  const post = (body: unknown) => fetch("http://dash-bored/v1/actions/run", {
+    method: "POST",
+    unix: server.record.socketPath,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  } as RequestInit);
+  for (const [args, message] of [
+    [undefined, "notify needs a message"],
+    [{ message: "x", animation: "builtin:shake" }, "notify args may contain only message and item"],
+    [{ message: "x".repeat(201) }, "at most 200 characters"],
+  ] as const) {
+    const response = await post({ reference: "notify:logs", ...(args ? { args } : {}) });
     expect(response.status).toBe(400);
     expect((await response.json() as { error: { message: string } }).error.message).toContain(message);
   }

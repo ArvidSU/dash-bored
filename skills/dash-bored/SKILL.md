@@ -257,9 +257,14 @@ A value typed into YAML goes stale, so anything that can change comes from a
    the user sees the panel.
 5. Set `every` (ms, 1000–300000) for anything that changes; without it the
    view reads once when shown.
+6. Only if the user should hear about a change while this dashboard isn't
+   open (a red CI run, a new urgent item), add a node-level `watch` to the
+   status or list node. It runs the same source in the background and needs
+   the `background:watch` permission, so the user approves trust again.
 
 [references/sources.md](references/sources.md) has the full source contract,
-tested example scripts, list item actions, and the app's shell environment.
+tested example scripts, list item actions, watches, and the app's shell
+environment.
 
 ### 5. Validate
 
@@ -306,18 +311,25 @@ If the app is not running, the project is untrusted, or a screenshot fails,
 say so in the report rather than implying you checked the result visually.
 
 When work finishes or an actionable blocker needs the user's attention, make
-the relevant result visible first, then use
-`dash-bored app run app:focus-window --no-wait` to restore the window and bring
-dash-bored to the foreground with keyboard focus. This action is available even
-with an unsaved draft; it preserves that draft and the selected view. To point
-at the component that matters, follow it with
-`dash-bored app run attention:<node-id> --message "<why, one short line>"`
-(`--item <id>` targets one list item; `--animation builtin:shake` and others
-are in [references/animations.md](references/animations.md)). It reveals the
-node, animates it, and shows your message; it never moves keyboard focus. Use
-both sparingly for meaningful handoffs, not for routine progress, polling, or
-every tool call. Ordinary focus/reveal actions and screenshots do not request
-native window attention.
+the relevant result visible first, then leave the user a decision with
+`dash-bored app run notify:<node-id> --message "<why, one short line>"`
+(`--item <id>` targets one list item). It does not take focus from what the
+user is doing: while dash-bored is in the background it shows a system
+notification, in front it shows an in-app notice, and either way the decision
+waits in the user's notification inbox until they dismiss it or choose Show,
+which reveals and animates the node with your message. Use
+`dash-bored app run app:focus-window --no-wait` only when the user asked to be
+shown the app; it restores the window and brings dash-bored to the foreground
+with keyboard focus, preserving drafts and the selected view. To point at a
+component while the user is already looking at the app, use
+`dash-bored app run attention:<node-id> --message "<why>"` (`--animation
+builtin:shake` and others are in
+[references/animations.md](references/animations.md)); it reveals the node,
+animates it, and never moves keyboard focus. Use all three sparingly for
+meaningful handoffs, not for routine progress, polling, or every tool call.
+Runs you start through `app run` never notify the user; report their results
+yourself. `app status` lists the user's open notification decisions across
+dashboards under `notifications`.
 
 ### 7. Report
 

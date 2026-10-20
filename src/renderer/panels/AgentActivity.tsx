@@ -70,15 +70,19 @@ function Announcement({ message }: { message: string }): ReactNode {
 export function AgentActivity({
   open,
   tasks,
+  selectedTaskId,
+  onSelectTask,
   onClose,
   onCommand,
 }: {
   open: boolean;
   tasks: readonly AgentSessionTask[];
+  /** The session whose modal is open; the shell owns it so a notification can open one. */
+  selectedTaskId: string | null;
+  onSelectTask(taskId: string | null): void;
   onClose(): void;
   onCommand: AgentTaskCommandRunner;
 }): ReactNode {
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   // Unsent follow-ups per session; they outlive tab switches and the modal.
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
@@ -88,13 +92,13 @@ export function AgentActivity({
   // The live region moves into the modal while it is open (outside content is
   // hidden from assistive tech then); it starts empty so nothing repeats.
   function selectTask(taskId: string | null): void {
-    setSelectedTaskId(taskId);
+    onSelectTask(taskId);
     clearAnnouncement();
   }
 
   useEffect(() => {
-    if (!open) setSelectedTaskId(null);
-  }, [open]);
+    if (!open && selectedTaskId !== null) onSelectTask(null);
+  }, [onSelectTask, open, selectedTaskId]);
 
   function setDraft(taskId: string, text: string): void {
     setDrafts((current) => {

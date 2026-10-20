@@ -15,3 +15,16 @@ export function permissionsForComponent(
   }
   return [...permissions].sort();
 }
+
+/**
+ * A node's capability set: its component's permissions plus the composition's
+ * own requests. A `watch` is YAML intent, never a manifest declaration, so it
+ * adds `background:watch` to the node that carries it.
+ */
+export function permissionsForNode(
+  manifest: Pick<ComponentManifest, "permissions" | "permissionsByProp"> | null | undefined,
+  node: { props?: Record<string, unknown>; watch?: unknown },
+): Permission[] {
+  const permissions = permissionsForComponent(manifest, node.props ?? {});
+  return node.watch === undefined ? permissions : [...new Set<Permission>([...permissions, "background:watch"])].sort();
+}

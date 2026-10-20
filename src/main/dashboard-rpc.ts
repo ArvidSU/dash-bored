@@ -15,6 +15,7 @@ import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-de
 import { getRegisteredProjectOutline } from "./project-outline";
 import type { ProjectRegistry } from "./project-registry";
 import type { AppUpdates } from "./update-wiring";
+import type { Notifications } from "./notification-wiring";
 
 export interface DashboardRPCOptions {
   runtime: ProjectRuntime;
@@ -25,6 +26,11 @@ export interface DashboardRPCOptions {
   installedTools: InstalledToolDiagnostics;
   updates: AppUpdates;
   packageUpdates: PackageUpdates;
+  notifications: Notifications;
+  /** An agent-control action is running, so a process it starts is the agent's own work. */
+  agentActionRunning(): boolean;
+  /** A dashboard left the registry; background watches re-plan without it. */
+  onDashboardRemoved(): void;
   loadThemes(): Promise<ThemeCatalogItem[]>;
   /** Pushes a fresh theme catalog to the renderer. */
   publishThemes(): Promise<void>;
@@ -39,7 +45,7 @@ export interface DashboardRPCOptions {
  * resolve and answer with an ack or a command-specific result.
  */
 export function createDashboardRPC(options: DashboardRPCOptions) {
-  const { runtime, registry, trustStore, sessions, agents, installedTools, updates, packageUpdates } = options;
+  const { runtime, registry, trustStore, sessions, agents, installedTools, updates, packageUpdates, notifications } = options;
 
   async function loadAndWatch(configPath: string): Promise<void> {
     await runtime.load(configPath, { inputKind: "auto" });
@@ -84,6 +90,8 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
           return result;
         },
         getPackageUpdates: () => packageUpdates.state(),
+        getNotifications: () => notifications.state(),
+        notificationCommand: (command) => notifications.command(command),
         packageUpdateCommand: (command) => packageUpdates.command(command),
         getAgentTasks: () => sessions.list(),
         agentTaskCommand: ({ taskId, command }) => agents.taskCommand(taskId, command),
@@ -123,6 +131,8 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
             moveToTrash: (path) => Utils.moveToTrash(path),
             stopAgents: (root, config) => sessions.stopProject(root, config),
           });
+          notifications.center.retainDashboards(new Set((await registry.list()).map((project) => project.configPath)));
+          options.onDashboardRemoved();
         },
         setTrust: async ({ trusted }) => {
           if (trusted) {
@@ -140,7 +150,10 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
         saveDashboardConfig: async ({ config, expectedConfigRevision, configPath }) => {
           await runtime.saveDashboardConfig(config, expectedConfigRevision, configPath);
         },
-        processCommand: ({ nodeId, command }) => runtime.processCommand(nodeId, command),
+        processCommand: ({ nodeId, command }) => {
+          if (command.type === "start" || command.type === "quick-action") notifications.runs.noteStart(nodeId, options.agentActionRunning());
+          return runtime.processCommand(nodeId, command);
+        },
         readTextFile: (request) => runtime.readText(request),
         writeTextFile: (request) => runtime.writeText(request),
         httpRequest: (request) => runtime.http(request),

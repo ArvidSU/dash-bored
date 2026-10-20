@@ -13,6 +13,23 @@ These are renderer/app state, never YAML — do not try to configure them:
   animates it, and shows its `message` in a notice. In a hidden window the run
   completes at once and the animation waits until the window is shown.
 
+- **Notifications.** Every notification is a decision the user dismisses or
+  acts on. Acting marks it read but keeps it open until it is dismissed or its
+  cause clears; closed ones stay listed for the app session (not YAML), and
+  `app status` reports both, so check `notifications.closed` to learn whether
+  an issue cleared.
+  `notify:<node-id>` (args `message`, optional `item`) adds one about a node of
+  the open dashboard; it runs nothing. Interrupts become system notifications
+  while the app is in the background and in-app notices in front, never about
+  a component the user is looking at. Runs the user starts that fail (or run
+  10 s or longer), agent sessions that need the user, finish, or fail, app
+  releases, and package updates raise decisions automatically; runs started
+  through `app run` do not. Per-dashboard levels (All, Inform only, Off) and
+  the system-notification and background-watch switches are user settings in
+  Settings › General. A node's `watch` (see
+  [sources.md](sources.md#watches)) keeps observing its source in the
+  background and needs the `background:watch` permission.
+
 - **Draft Save/Cancel.** The component-library flyout opens read-only; the
   first insertion, move, removal, replacement, metadata edit, or ratio resize
   starts a draft. Save validates and atomically publishes the owning bundle's

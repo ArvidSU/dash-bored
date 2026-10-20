@@ -35,6 +35,7 @@ const labels: Record<Permission, string> = {
   "process:execute": "Run commands",
   "process:observe": "Observe processes",
   "webview:embed": "Embed web pages",
+  "background:watch": "Watch in the background",
 };
 
 describe("component library catalog helpers", () => {

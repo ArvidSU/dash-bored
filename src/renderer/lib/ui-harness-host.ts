@@ -45,6 +45,21 @@ import { envEntries, parseEnv } from "../../shared/env";
 import { componentPath, findResolvedNode, promptComponent } from "../../shared/component-agent";
 import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, type PromptTemplate } from "../../shared/prompt-templates";
 import { createFixtureAgents, type FixtureAgentControls } from "./ui-harness-agents";
+import {
+  boundNotificationText,
+  INITIAL_NOTIFICATION_STATE,
+  NOTIFICATION_MESSAGE_MAX_CHARS,
+  NOTIFICATION_TITLE_MAX_CHARS,
+  type NotificationAction,
+  type NotificationCommand,
+  type NotificationEntry,
+  type NotificationKind,
+  type NotificationLevel,
+  type NotificationState,
+  type NotificationTarget,
+} from "../../shared/notifications";
+import { applyNotificationCommand } from "./notifications";
+import { dashboardNodeEntries } from "./virtual-root";
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
 
@@ -336,6 +351,7 @@ function resolveFixtureNode(
     sourcePath: path,
     sourceNodePath,
     ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
+    ...(node.watch === undefined ? {} : { watch: structuredClone(node.watch) }),
     ...(item?.manifest ? { manifest: { ...structuredClone(item.manifest), permissions: permissionsForComponent(item.manifest, node.props ?? {}) } } : {}),
   };
   if (Array.isArray(node.children)) {
@@ -373,6 +389,81 @@ function project(config: DashboardConfig): ProjectListItem {
   return { projectRoot: PROJECT_ROOT, configPath: CONFIG_PATH, dashboardName: config.name };
 }
 
+/** One fixture event; the harness coalesces it like the main-process notification center. */
+export interface FixtureNotificationRaise {
+  key: string;
+  kind?: NotificationKind;
+  level?: NotificationLevel;
+  /** Defaults to the fixture dashboard; null for an app-level entry. */
+  configPath?: string | null;
+  dashboardName?: string | null;
+  title: string;
+  message: string;
+  /** Defaults to the entry's dashboard. */
+  target?: NotificationTarget;
+  action?: NotificationAction;
+  /** Record without presenting, like a baseline that was already bad. */
+  quiet?: boolean;
+  /** Pretend the window was in the background, so a system notification went out instead of the notice. */
+  deliveredNatively?: boolean;
+}
+
+/**
+ * Coalesce one raise into the open entries the way main does: a raise with an
+ * open key updates that entry and moves it to the top, and only interrupts
+ * that are not quiet take the next presentation number, which also makes
+ * them unread. The harness has no presentation cooldown, so tests stay
+ * deterministic.
+ */
+export function coalesceFixtureNotification(
+  entries: readonly NotificationEntry[],
+  input: FixtureNotificationRaise & { configPath: string | null; dashboardName: string | null },
+  next: { id: string; now: Date; presentation: () => number },
+): NotificationEntry[] {
+  const level = input.level ?? "interrupt";
+  const title = boundNotificationText(input.title, NOTIFICATION_TITLE_MAX_CHARS) || "dash-bored";
+  const message = boundNotificationText(input.message, NOTIFICATION_MESSAGE_MAX_CHARS);
+  const target = input.target ?? { kind: "dashboard" as const };
+  const existing = entries.find((entry) => entry.key === input.key);
+  const entry: NotificationEntry = existing
+    ? {
+        ...existing,
+        kind: input.kind ?? existing.kind,
+        level: existing.level === "interrupt" ? "interrupt" : level,
+        dashboardName: input.dashboardName,
+        title,
+        message,
+        target,
+        updatedAt: next.now.toISOString(),
+        count: existing.count + 1,
+      }
+    : {
+        id: next.id,
+        key: input.key,
+        kind: input.kind ?? "notify",
+        level,
+        configPath: input.configPath,
+        dashboardName: input.dashboardName,
+        title,
+        message,
+        target,
+        createdAt: next.now.toISOString(),
+        updatedAt: next.now.toISOString(),
+        count: 1,
+        presentation: 0,
+        read: false,
+      };
+  if (input.action) entry.action = structuredClone(input.action);
+  else delete entry.action;
+  if (existing?.read && (existing.title !== title || existing.message !== message)) entry.read = false;
+  if (level === "interrupt" && !input.quiet) {
+    entry.presentation = next.presentation();
+    entry.deliveredNatively = input.deliveredNatively ?? false;
+    entry.read = false;
+  }
+  return [entry, ...entries.filter((candidate) => candidate.key !== input.key)];
+}
+
 /** Test-only controls are exposed only on the ui-harness page. */
 export interface UiHarnessHost extends DashboardHost, FixtureAgentControls {
   setProcessSnapshot(process: ProcessSnapshot): void;
@@ -388,6 +479,12 @@ export interface UiHarnessHost extends DashboardHost, FixtureAgentControls {
   setPackageUpdates(state: Partial<PackageUpdateState> | null): void;
   /** Test-only record of package update commands the UI sent. */
   getPackageUpdateCommands(): readonly PackageUpdateCommand[];
+  /** Test-only event, coalesced and pushed like the host's notification center. */
+  raiseNotification(input: FixtureNotificationRaise): NotificationEntry;
+  /** Test-only: the condition behind a key cleared, so its open entry closes. */
+  resolveNotification(key: string): void;
+  /** Test-only record of notification commands the UI sent. */
+  getNotificationCommands(): readonly NotificationCommand[];
 }
 
 const FIXTURE_CORE_URL = "https://github.com/ArvidSU/dash-bored-components.git";
@@ -425,6 +522,27 @@ export function createUiHarnessHost(): UiHarnessHost {
     emit({ type: "package-updates", state: structuredClone(packageUpdates) });
   };
   const packageOperations: unknown[] = [];
+  let notifications: NotificationState = structuredClone(INITIAL_NOTIFICATION_STATE);
+  let notificationSequence = 0;
+  let notificationIds = 0;
+  const notificationCommands: NotificationCommand[] = [];
+  const publishNotifications = (next: Pick<NotificationState, "entries"> & Partial<NotificationState>): void => {
+    notifications = { entries: next.entries, history: next.history ?? notifications.history };
+    emit({ type: "notifications", state: structuredClone(notifications) });
+  };
+  const raiseNotification = (input: FixtureNotificationRaise): NotificationEntry => {
+    const configPath = input.configPath === undefined ? CONFIG_PATH : input.configPath;
+    publishNotifications({ entries: coalesceFixtureNotification(notifications.entries, {
+      ...input,
+      configPath,
+      dashboardName: input.dashboardName !== undefined ? input.dashboardName : configPath === null ? null : persistedConfig.name,
+    }, {
+      id: `fixture-notification-${++notificationIds}`,
+      now: new Date(),
+      presentation: () => ++notificationSequence,
+    }) });
+    return structuredClone(notifications.entries[0]!);
+  };
   const processSnapshots = new Map<string, ProcessSnapshot>();
   const files = new Map<string, string>([
     ["README.md", "# Fixture document\n\nThis file is loaded by the Markdown component.\n"],
@@ -570,6 +688,36 @@ export function createUiHarnessHost(): UiHarnessHost {
       publishPackageUpdates(state ?? {});
     },
     getPackageUpdateCommands() { return structuredClone(packageUpdateCommands); },
+    async getNotifications() { return structuredClone(notifications); },
+    async notificationCommand(command) {
+      notificationCommands.push(structuredClone(command));
+      if (command.type !== "notify") {
+        publishNotifications(applyNotificationCommand(notifications, command));
+        return;
+      }
+      const tree = snapshot().tree;
+      const label = tree ? dashboardNodeEntries(tree).find((entry) => entry.node.id === command.nodeId)?.label : undefined;
+      if (label === undefined) throw new Error(`No component with id ${command.nodeId} exists in the open dashboard.`);
+      raiseNotification({
+        key: `notify:${CONFIG_PATH}:${command.nodeId}:${command.itemId ?? ""}`,
+        kind: "notify",
+        title: label,
+        message: command.message,
+        target: { kind: "node", nodeId: command.nodeId, ...(command.itemId ? { itemId: command.itemId } : {}) },
+      });
+    },
+    raiseNotification,
+    resolveNotification(key) {
+      const closedAt = new Date().toISOString();
+      publishNotifications({
+        entries: notifications.entries.filter((entry) => entry.key !== key),
+        history: [
+          ...notifications.entries.filter((entry) => entry.key === key).map((entry) => ({ ...entry, closedAt, closedBy: "cleared" as const })),
+          ...notifications.history,
+        ],
+      });
+    },
+    getNotificationCommands() { return structuredClone(notificationCommands); },
     async getAppSettings() { return structuredClone(settings); },
     async updateAppSettings(next) { settings = structuredClone(next); emitSnapshot(); return structuredClone(settings); },
     async getPromptTemplates(nodeId: string) {

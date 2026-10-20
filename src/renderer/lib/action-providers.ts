@@ -24,6 +24,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "process:execute": "Run project commands",
   "process:observe": "Observe project process output",
   "webview:embed": "Embed native web pages",
+  "background:watch": "Watch views in the background",
 };
 
 export interface ApplicationActionCallbacks {
@@ -46,6 +47,8 @@ export interface ApplicationActionCallbacks {
   requestAgentPrompt?(args: Record<string, unknown>, callerNodeId?: string): void;
   setDashboardAppearance?(theme: string | undefined, themeMode: ThemeMode | undefined): void | Promise<void>;
   setDefaultAppearance?(theme: string, themeMode: ThemeMode): void | Promise<void>;
+  toggleNotifications?(): void;
+  dismissNotifications?(): void | Promise<void>;
 }
 
 export interface ApplicationActionContext {
@@ -62,6 +65,8 @@ export interface ApplicationActionContext {
   themeCatalog?: readonly ThemeCatalogItem[];
   promptTemplates?: readonly import("../../shared/contracts").AgentPromptTemplateSummary[];
   promptTemplatesReason?: string;
+  /** Open notification decisions across dashboards. */
+  notificationCount?: number;
   callbacks: ApplicationActionCallbacks;
 }
 
@@ -339,6 +344,24 @@ export function buildApplicationActions(
       group: "Application",
       run: callbacks.toggleSidebar,
     }),
+    ...(callbacks.toggleNotifications ? [appAction({
+      id: "app:toggle-notifications",
+      label: "Show or hide notifications",
+      description: "Open or close the inbox of decisions across dashboards: failed runs, agents that need you, and updates.",
+      keywords: ["notifications", "inbox", "attention", "decisions", "alerts"],
+      group: "Application",
+      run: callbacks.toggleNotifications,
+    })] : []),
+    ...(callbacks.dismissNotifications ? [appAction({
+      id: "app:dismiss-notifications",
+      label: "Dismiss all notifications",
+      description: "Close every open notification without acting on it; they stay listed under Earlier.",
+      keywords: ["notifications", "inbox", "clear", "dismiss", "read"],
+      group: "Application",
+      enabled: (context.notificationCount ?? 0) > 0,
+      disabledReason: "There are no open notifications.",
+      run: callbacks.dismissNotifications,
+    })] : []),
     appAction({
       id: "app:add-dashboard",
       label: "Add dashboard",

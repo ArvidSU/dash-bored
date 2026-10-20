@@ -30,7 +30,8 @@ function isPermission(value: unknown): value is Permission {
     || value === "network:http"
     || value === "process:execute"
     || value === "process:observe"
-    || value === "webview:embed";
+    || value === "webview:embed"
+    || value === "background:watch";
 }
 
 function parseTrustFile(source: string): TrustFile {

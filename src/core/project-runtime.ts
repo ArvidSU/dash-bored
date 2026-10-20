@@ -13,6 +13,7 @@ import type {
   FileWriteRequest,
   HttpRequest,
   HttpResponsePayload,
+  Permission,
   ProcessCommand,
   ProcessSnapshot,
   ProjectSnapshot,
@@ -21,7 +22,7 @@ import type {
   ShellRunResult,
 } from "../shared/contracts";
 import { childEdges } from "../shared/child-edges";
-import { CapabilityService } from "./capabilities";
+import { CapabilityService, type CapabilityContext } from "./capabilities";
 import { compileLocalComponents } from "./compiler";
 import { CoreError, diagnostic, errorMessage, hasErrors } from "./diagnostics";
 import type { ProjectLocation } from "./paths";
@@ -120,6 +121,33 @@ function cloneSnapshot(snapshot: ProjectSnapshot): ProjectSnapshot {
   return structuredClone(snapshot);
 }
 
+/**
+ * The host capabilities a resolved definition grants its nodes. The active
+ * dashboard and background watches configure their own services with it.
+ */
+export function definitionCapabilityContext(
+  definition: Pick<ProjectDefinition, "location" | "permissionsByNode" | "projectRootsByNode">,
+  tree: ResolvedComponentNode,
+  trusted: boolean,
+  getPublishedEnvironment: PublishedEnvironment,
+): CapabilityContext {
+  const configPathsByNode = new Map<string, string>();
+  const collectConfigPaths = (node: ResolvedComponentNode): void => {
+    configPathsByNode.set(node.id, node.sourceConfigPath ?? definition.location.configPath);
+    for (const edge of childEdges(node.children)) collectConfigPaths(edge.node);
+  };
+  collectConfigPaths(tree);
+  return {
+    projectRoot: definition.location.projectRoot,
+    trusted,
+    permissionsByNode: definition.permissionsByNode,
+    projectRootsByNode: definition.projectRootsByNode,
+    configPathsByNode,
+    configDirectoriesByNode: new Map([...configPathsByNode].map(([id, path]) => [id, dirname(path)])),
+    getPublishedEnvironment,
+  };
+}
+
 export class ProjectRuntime {
   private readonly trustStore: TrustStore;
   private readonly isConfigRegistered?: (configPath: string) => Promise<boolean> | boolean;
@@ -173,6 +201,23 @@ export class ProjectRuntime {
     }
   };
 
+  /**
+   * The composed trust rule: the capability set could be inspected, the
+   * persisted grant covers it, and the user did not revoke the project root
+   * during this session. Rejects when the trust store cannot be read.
+   */
+  async isDefinitionTrusted(
+    definition: Pick<ProjectDefinition, "trustReview" | "location" | "permissions">,
+  ): Promise<boolean> {
+    return definition.trustReview.available
+      && await this.isRootTrusted(definition.location.projectRoot, definition.permissions);
+  }
+
+  private async isRootTrusted(projectRoot: string, permissions: readonly Permission[]): Promise<boolean> {
+    if (this.sessionRevokedRoots.has(projectRoot)) return false;
+    return this.trustStore.isTrusted(projectRoot, permissions);
+  }
+
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.operation.then(operation, operation);
     this.operation = result.then(
@@ -188,11 +233,7 @@ export class ProjectRuntime {
   ): Promise<ProjectSnapshot> {
     let trusted = false;
     try {
-      trusted = definition.trustReview.available && await this.trustStore.isTrusted(
-        definition.location.projectRoot,
-        definition.permissions,
-      );
-      if (this.sessionRevokedRoots.has(definition.location.projectRoot)) trusted = false;
+      trusted = await this.isDefinitionTrusted(definition);
     } catch (error) {
       definition.diagnostics.push(
         diagnostic({ code: "TRUST_STORE_READ_FAILED", message: errorMessage(error) }),
@@ -251,21 +292,9 @@ export class ProjectRuntime {
     await this.processManager.reconcile(
       trusted ? processDefinitions(definition.tree, definition.projectRootsByNode) : [],
     );
-    const configPathsByNode = new Map<string, string>();
-    const collectConfigPaths = (node: ResolvedComponentNode): void => {
-      configPathsByNode.set(node.id, node.sourceConfigPath ?? definition.location.configPath);
-      for (const edge of childEdges(node.children)) collectConfigPaths(edge.node);
-    };
-    collectConfigPaths(definition.tree);
-    this.capabilities.configure({
-      projectRoot: definition.location.projectRoot,
-      trusted,
-      permissionsByNode: definition.permissionsByNode,
-      projectRootsByNode: definition.projectRootsByNode,
-      configPathsByNode,
-      configDirectoriesByNode: new Map([...configPathsByNode].map(([id, path]) => [id, dirname(path)])),
-      getPublishedEnvironment: this.getPublishedEnvironment,
-    });
+    this.capabilities.configure(
+      definitionCapabilityContext(definition, definition.tree, trusted, this.getPublishedEnvironment),
+    );
     this.snapshot = this.buildSnapshot(definition, {
       dashboardName: definition.config.name,
       iconDataUrl: await this.resolveProjectIcon(definition, trusted),
@@ -538,8 +567,7 @@ export class ProjectRuntime {
       let components: CompiledLocalComponent[] = [];
       const activeLocation = this.location;
       const trusted = activeLocation !== null
-        && !this.sessionRevokedRoots.has(activeLocation.projectRoot)
-        && await this.trustStore.isTrusted(activeLocation.projectRoot, definition.permissions);
+        && await this.isRootTrusted(activeLocation.projectRoot, definition.permissions);
       if (definition.ok && trusted) {
         const compiled = await compileLocalComponents(definition.localComponents);
         definition.diagnostics.push(...compiled.diagnostics);
@@ -616,8 +644,7 @@ export class ProjectRuntime {
       let precompiled: CompiledLocalComponent[] | undefined;
       const trusted =
         activeLocation !== null &&
-        !this.sessionRevokedRoots.has(activeLocation.projectRoot) &&
-        (await this.trustStore.isTrusted(activeLocation.projectRoot, definition.permissions));
+        (await this.isRootTrusted(activeLocation.projectRoot, definition.permissions));
       if (trusted) {
         const compiled = await compileLocalComponents(definition.localComponents);
         if (hasErrors(compiled.diagnostics)) {

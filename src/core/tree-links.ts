@@ -146,10 +146,16 @@ export function namespaceLinkedTree(
         }
       }
     }
+    // A watch's action names nodes like any action reference.
+    const watch = node.watch === undefined ? undefined : structuredClone(node.watch);
+    if (watch?.action && typeof watch.action.run === "string") {
+      watch.action.run = remapActionReferenceNode(watch.action.run, (id) => ids.get(id));
+    }
     return {
       ...node,
       id: ids.get(node.id)!,
       props,
+      ...(watch === undefined ? {} : { watch }),
       ...(node.children === undefined
         ? {}
         : { children: mapChildren(node.children, copy) }),

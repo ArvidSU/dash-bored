@@ -274,4 +274,6 @@ Not planned until sources and action results are stable:
 - action sequences ("weird deployment button sequence") with failure and
   confirmation rules;
 - triggers such as running an action when a source changes or a process exits;
+  [notifications](notifications.md) report those events but never act on
+  them;
 - a data-transform language of any kind (deliberately excluded, not deferred).

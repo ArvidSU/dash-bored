@@ -9,6 +9,7 @@ import {
   VERSION_2_DEFAULT_ACTION_IDS,
 } from "../shared/app-settings";
 import { normalizeKeyboardShortcut } from "../shared/keyboard-shortcut";
+import { normalizeNotificationSettings } from "../shared/notifications";
 import { isAppThemeReference } from "../shared/themes";
 import { isLegacyAppThemeReference } from "../migrations/app-theme-reference";
 import { KNOWN_AGENTS } from "../shared/agent-catalog";
@@ -89,6 +90,7 @@ function normalizeSettings(value: Partial<AppSettings>, defaultAgent: string | n
     commandPaletteShortcut: paletteShortcut,
     clearPaletteInputOnKeepOpen: value.clearPaletteInputOnKeepOpen !== false,
     actionShortcuts,
+    ...(value.notifications !== undefined ? { notifications: normalizeNotificationSettings(value.notifications) } : {}),
   };
 }
 

@@ -294,6 +294,13 @@ export function isAgentTaskBusy(task: Pick<AgentSessionTask, "state" | "validati
     || task.validation?.status === "checking" || task.validation?.status === "repairing";
 }
 
+/** A bounded first sentence of the user's request for rows, headers, and notifications. */
+export function agentTaskSummary(task: Pick<AgentSessionTask, "request">): string {
+  const request = task.request.trim().replace(/\s+/g, " ");
+  const sentence = request.match(/^.*?[.!?](?:\s|$)/)?.[0].trim() ?? request;
+  return sentence.length > 160 ? `${sentence.slice(0, 159).trimEnd()}…` : sentence || "Agent request";
+}
+
 /** One command to an agent task; the host answers with the task afterwards. */
 export type AgentTaskCommand =
   /** A follow-up prompt; accepted only while the session is idle. */

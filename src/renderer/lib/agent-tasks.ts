@@ -64,12 +64,7 @@ export function isAgentSessionOpen(state: AgentSessionState): boolean {
   return state === "idle" || state === "working" || state === "waiting";
 }
 
-/** A bounded first sentence of the user's request for rows and headers. */
-export function agentTaskSummary(task: Pick<AgentSessionTask, "request">): string {
-  const request = task.request.trim().replace(/\s+/g, " ");
-  const sentence = request.match(/^.*?[.!?](?:\s|$)/)?.[0].trim() ?? request;
-  return sentence.length > 160 ? `${sentence.slice(0, 159).trimEnd()}…` : sentence || "Agent request";
-}
+export { agentTaskSummary } from "../../shared/agent-session";
 
 export function agentTaskStartedTime(task: Pick<AgentSessionTask, "startedAt">): string | null {
   if (!task.startedAt) return null;

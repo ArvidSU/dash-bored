@@ -124,11 +124,20 @@ function attentionArgs(value: unknown): AgentAttentionArgs {
   return value as AgentAttentionArgs;
 }
 
+/** `notify:<node>` takes the attention message (required) and item, but no animation. */
+function notifyArgs(value: unknown): AgentAttentionArgs {
+  const args = attentionArgs(value);
+  if (args.animation !== undefined) throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "notify args may contain only message and item.");
+  if (args.message === undefined) throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "notify needs a message.");
+  return args;
+}
+
 function actionArgs(value: unknown, reference: string): { query?: string } | AgentAttentionArgs | undefined {
+  if (reference.startsWith("notify:")) return notifyArgs(value ?? {});
   if (value === undefined) return undefined;
   if (reference.startsWith("attention:")) return attentionArgs(value);
   if (reference !== "app:open-palette") {
-    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "Only app:open-palette and attention:<node> accept action arguments.");
+    throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "Only app:open-palette, attention:<node>, and notify:<node> accept action arguments.");
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)
     || Object.keys(value).some((key) => key !== "query")) {

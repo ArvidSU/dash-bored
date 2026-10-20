@@ -7,6 +7,19 @@ import {
 } from "../composition/DashboardOutlineTree";
 import { dashboardTitle, type ActionNotice } from "./app-utils";
 import { COMPONENT_PICKER_TOGGLE } from "./component-picker";
+import {
+  notificationMarkLabel,
+  notificationTriggerLabel,
+  notificationTriggerTitle,
+  type NotificationTriggerCounts,
+} from "../lib/notifications";
+import { NotificationBellIcon } from "../panels/Notifications";
+
+/** Unread open entries of one dashboard by level, as the sidebar marks it. */
+export interface NotificationMark {
+  interrupt: number;
+  inform: number;
+}
 
 export interface ProjectOutlineState {
   tree: ProjectSnapshot["tree"];
@@ -100,6 +113,13 @@ export interface AppShellProps {
   waitingAgentTaskCount: number;
   /** App releases and pinned packages ready to update; Settings shows a badge. */
   pendingUpdateCount: number;
+  notificationsOpen: boolean;
+  /** Unread and open notifications across dashboards; the header badge counts unread ones. */
+  notificationCounts: NotificationTriggerCounts;
+  /** Unread open entries per dashboard config path, for sidebar marks. */
+  notificationMarks: ReadonlyMap<string, NotificationMark>;
+  /** The decision notice, seated below the header like the other banners. */
+  decisionNotice: ReactNode;
   /** Whether the header dropper can pick a dashboard component for the agent. */
   agentPickerAvailable: boolean;
   agentPickerActive: boolean;
@@ -125,6 +145,7 @@ export interface AppShellProps {
   onToggleLibrary(): void;
   onToggleAgentActivity(): void;
   onToggleAgentPicker(): void;
+  onToggleNotifications(): void;
   onDismissError(): void;
   onDismissNotice(): void;
 }
@@ -160,6 +181,10 @@ export function AppShell({
   activeAgentTaskCount,
   waitingAgentTaskCount,
   pendingUpdateCount,
+  notificationsOpen,
+  notificationCounts,
+  notificationMarks,
+  decisionNotice,
   agentPickerAvailable,
   agentPickerActive,
   editorToolbar,
@@ -180,6 +205,7 @@ export function AppShell({
   onToggleLibrary,
   onToggleAgentActivity,
   onToggleAgentPicker,
+  onToggleNotifications,
   onDismissError,
   onDismissNotice,
 }: AppShellProps): ReactNode {
@@ -252,6 +278,7 @@ export function AppShell({
                       : null
                   }
                   shortcutNumber={showDashboardNumbers && projectIndex < 9 ? projectIndex + 1 : null}
+                  notificationMark={notificationMarks.get(project.configPath)}
                   dragged={draggedProject === project.configPath}
                   dropBefore={dropTarget?.path === project.configPath ? dropTarget.before : null}
                   onDragStart={() => setDraggedProject(project.configPath)}
@@ -387,6 +414,23 @@ export function AppShell({
                   </svg>
                 </button>
               </div>
+              <button
+                className={`button button--quiet notifications-trigger${notificationsOpen ? " notifications-trigger--active" : ""}`}
+                type="button"
+                aria-label={notificationTriggerLabel(notificationsOpen, notificationCounts)}
+                aria-expanded={notificationsOpen}
+                title={notificationTriggerTitle(notificationCounts)}
+                onClick={onToggleNotifications}
+              >
+                <NotificationBellIcon />
+                {notificationCounts.interrupts > 0 ? (
+                  <strong className="notifications-trigger__count notifications-trigger__count--attention" aria-hidden="true">
+                    {notificationCounts.interrupts}
+                  </strong>
+                ) : notificationCounts.unread > 0 ? (
+                  <strong className="notifications-trigger__count" aria-hidden="true">{notificationCounts.unread}</strong>
+                ) : null}
+              </button>
               {activeView === "dashboard" && snapshot?.projectRoot ? (
                 <>
                   {editorToolbar}
@@ -430,6 +474,7 @@ export function AppShell({
             </div>
           ) : null}
           {actionNotice ? <GlobalNotice notice={actionNotice} onDismiss={onDismissNotice} /> : null}
+          {decisionNotice}
           {/* The window's only page scroller: the header, banners, and sidebar stay put. */}
           <div className="app-frame__scroll">{children}</div>
         </div>
@@ -472,6 +517,7 @@ interface ProjectSidebarItemProps {
   currentVirtualRootId: string | null;
   collapsedNodeIds?: ReadonlySet<string>;
   shortcutNumber: number | null;
+  notificationMark?: NotificationMark;
   dragged: boolean;
   dropBefore: boolean | null;
   acceptsDrop: boolean;
@@ -504,6 +550,7 @@ function ProjectSidebarItem({
   currentVirtualRootId,
   collapsedNodeIds,
   shortcutNumber,
+  notificationMark,
   dragged,
   dropBefore,
   acceptsDrop,
@@ -519,6 +566,9 @@ function ProjectSidebarItem({
   onOpenDeletion,
 }: ProjectSidebarItemProps): ReactNode {
   const outlineId = `sidebar-project-tree-${index}`;
+  const markId = `sidebar-project-notifications-${index}`;
+  const markLevel = notificationMark?.interrupt ? "interrupt" : notificationMark?.inform ? "inform" : null;
+  const markLabel = notificationMark && markLevel ? notificationMarkLabel(notificationMark) : null;
   return (
     <div className={`sidebar__project${dragged ? " sidebar__project--dragging" : ""}`}>
       <div
@@ -545,7 +595,8 @@ function ProjectSidebarItem({
           type="button"
           aria-current={active ? "page" : undefined}
           aria-label={label}
-          title={`${label} · Drag to reorder${index < 9 ? ` · ⌘${index + 1}` : ""}`}
+          aria-describedby={markLabel ? markId : undefined}
+          title={`${label}${markLabel ? ` — ${markLabel}` : ""} · Drag to reorder${index < 9 ? ` · ⌘${index + 1}` : ""}`}
           aria-keyshortcuts={index < 9 ? `Meta+${index + 1}` : undefined}
           draggable={!pending}
           onDragStart={(event) => {
@@ -562,7 +613,11 @@ function ProjectSidebarItem({
               <img className="sidebar__project-icon" src={project.iconDataUrl} alt="" width={20} height={20} draggable={false} />
             ) : <ShellIcon name="project" />}
             {shortcutNumber !== null ? <span className="sidebar__shortcut-number" aria-hidden="true">{shortcutNumber}</span> : null}
+            {markLevel ? (
+              <span className={`sidebar__notification-mark sidebar__notification-mark--${markLevel}`} data-level={markLevel} aria-hidden="true" />
+            ) : null}
           </span>
+          {markLabel ? <span id={markId} hidden>{markLabel}</span> : null}
           <span className="sidebar__label">{opening ? "Opening…" : label}</span>
         </button>
         <button

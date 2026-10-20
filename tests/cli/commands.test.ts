@@ -308,6 +308,7 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect(summary.stdout.length).toBeLessThan(full.stdout.length / 2);
   expect(JSON.parse(summary.stdout).componentCatalog[0].manifest).toBeUndefined();
   expect(JSON.parse(summary.stdout).promptTemplates.map((template: { name: string }) => template.name)).toEqual(["dashboard", "project"]);
+  expect(JSON.parse(summary.stdout).watches).toEqual([]);
   const selected = await run(project, "inspect", ".", "--component", "./components/external/core/command");
   expect(selected.exitCode).toBe(0);
   expect(JSON.parse(selected.stdout).component.manifest.propsSchema.required).toContain("command");

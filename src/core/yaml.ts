@@ -11,11 +11,39 @@ import type {
 } from "../shared/contracts";
 import { SUPPORTED_COMPONENT_API_VERSIONS } from "../shared/component-api";
 import { ANIMATION_REFERENCE_PATTERN } from "../shared/animations";
+import {
+  WATCH_ACTION_NAME_MAX_CHARS,
+  WATCH_EVENTS,
+  WATCH_EVERY_MAX_MS,
+  WATCH_EVERY_MIN_MS,
+} from "../shared/watches";
 import { diagnostic, errorMessage } from "./diagnostics";
 
 const MAX_YAML_BYTES = 2 * 1024 * 1024;
 
 const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
+
+/** Node-level background watch; tree validation checks its source, families, and action. */
+const nodeWatchSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["on"],
+  properties: {
+    on: { type: "array", minItems: 1, uniqueItems: true, items: { enum: [...WATCH_EVENTS] } },
+    every: { type: "integer", minimum: WATCH_EVERY_MIN_MS, maximum: WATCH_EVERY_MAX_MS },
+    level: { enum: ["interrupt", "inform"] },
+    action: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name", "run"],
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: WATCH_ACTION_NAME_MAX_CHARS },
+        run: { type: "string", minLength: 1 },
+        with: { type: "object" },
+      },
+    },
+  },
+} as const;
 
 const componentNodeSchema: Record<string, unknown> = {
   type: "object",
@@ -27,6 +55,7 @@ const componentNodeSchema: Record<string, unknown> = {
     props: { type: "object" },
     children: { $ref: "#/$defs/componentChildren" },
     persistOnFocus: { type: "boolean" },
+    watch: nodeWatchSchema,
   },
 };
 
@@ -225,11 +254,19 @@ const validateConfig = ajv.compile(configSchema);
 // Trust inspection only needs an understood composition and its configured
 // props. Invalid presentation metadata or a version marker still prevents
 // rendering; this never coerces or saves a broken config.
+// A malformed watch is a schema error like a malformed prop: its presence alone
+// declares background work, so trust review stays available for it.
 const validateTrustConfig = ajv.compile({
   type: "object",
   required: ["root"],
   properties: { root: { $ref: "#/$defs/componentNode" } },
-  $defs: configSchema.$defs,
+  $defs: {
+    ...configSchema.$defs,
+    componentNode: {
+      ...componentNodeSchema,
+      properties: { ...componentNodeSchema.properties as Record<string, unknown>, watch: { type: "object" } },
+    },
+  },
 });
 const validateLock = ajv.compile(lockSchema);
 const validateManifest = ajv.compile(manifestSchema);

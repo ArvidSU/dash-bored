@@ -28,6 +28,9 @@ Everything else lives in focused modules under feature directories:
     stale-response protection for Settings and the palette;
     `use-package-updates.ts` — the pushed package update state and its
     command feedback;
+  - `use-notifications.ts` — the pushed notification inbox, the presentation
+    pass that closes seen decisions or picks the decision notice, and acting
+    on a decision across dashboards (see [Notifications](./notifications.md));
   - `use-dashboard-draft.ts` — the single draft: open, edit, validate,
     save/cancel, and the discard guard;
   - `use-composition-session.ts` — composition preview, targets, pointer
@@ -59,7 +62,8 @@ Everything else lives in focused modules under feature directories:
   (Agent work and its header badge, and the composer and Settings agent
   pickers),
   `SettingsPanel.tsx`, `UpdatesPanel.tsx`, `PackageUpdatesPanel.tsx`,
-  `CommandPalette.tsx`.
+  `CommandPalette.tsx`, `Notifications.tsx` and `notifications.css` (decision
+  notice, inbox drawer, bell, and the Settings card).
 - `composition/` — dashboard editing: `dashboard-editor.ts` (draft engine),
   `composition-*.ts(x)` (targets, labels, placement, movement,
   operation, interaction-controller), `ComponentCompositor.tsx`,
@@ -82,7 +86,8 @@ Everything else lives in focused modules under feature directories:
   `virtual-root.ts`,
   `clipboard.ts`, `pointer-session.ts`,
   `selection-actions.ts` (core select/reveal actions), `attention.ts`
-  (`attention:` actions and animation playback), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / component-library drawer shell,
+  (`attention:` actions and animation playback), `notifications.ts`
+  (presentation rules, `notify:` actions, on-screen checks, labels), `activity.ts` (in-flight source-fetch registry agents wait on; see lifecycle-cli), `right-drawer.tsx` (shared Agent work / notifications / component-library drawer shell,
   with an optional header-actions slot), `editor-modal.tsx` (centered modal
   layer above the drawer; the drawer shell yields outside/Escape/focus to it).
 - Core rendering and portable helpers live in `dash-bored-components`, with

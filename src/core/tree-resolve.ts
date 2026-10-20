@@ -10,7 +10,8 @@ import type {
   Permission,
   ResolvedComponentNode,
 } from "../shared/contracts";
-import { permissionsForComponent } from "../shared/component-permissions";
+import { permissionsForNode } from "../shared/component-permissions";
+import { WATCH_LIMIT_PER_DASHBOARD } from "../shared/watches";
 import { migrateLegacyActionReferences } from "../migrations/action-references";
 import { childEdges } from "../shared/child-edges";
 import { diagnostic } from "./diagnostics";
@@ -34,6 +35,7 @@ import {
   validateNode,
   validateNodeReferences,
   validateProcessWorkingDirectories,
+  validateWatch,
 } from "./tree-validate";
 
 const MAX_TREE_DEPTH = 64;
@@ -109,8 +111,11 @@ export async function resolveComponentTree(
     sourceNodePath: NodePath,
   ): Promise<ResolvedComponentNode> => {
     const id = claimNodeId(node, nodePath);
-    permissionsByNode.set(id, new Set());
+    const linkPermissions = new Set(permissionsForNode(null, node));
+    permissionsByNode.set(id, linkPermissions);
+    for (const permission of linkPermissions) requestedPermissions.add(permission);
     projectRootsByNode.set(id, location.projectRoot);
+    diagnostics.push(...validateWatch(node, nodePath, { configLink: true }));
     if (node.children !== undefined) {
       diagnostics.push(diagnostic({
         code: "CONFIG_LINK_CHILDREN_UNSUPPORTED",
@@ -154,6 +159,7 @@ export async function resolveComponentTree(
       component: node.component,
       props: node.props ?? {},
       ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
+      ...(node.watch === undefined ? {} : { watch: structuredClone(node.watch) }),
       ...(linked ? { children: [{ node: linked.tree }] } : {}),
       source: "config",
       sourceConfigPath: location.configPath,
@@ -232,8 +238,9 @@ export async function resolveComponentTree(
     const configuredChildren = node.children;
     const configuredEdges = childEdges(configuredChildren);
     diagnostics.push(...validateNode(manifest, node, props, configuredEdges, nodePath));
+    diagnostics.push(...validateWatch(node, nodePath));
 
-    const nodePermissions = new Set(permissionsForComponent(manifest, props));
+    const nodePermissions = new Set(permissionsForNode(manifest, { props, watch: node.watch }));
     permissionsByNode.set(id, nodePermissions);
     projectRootsByNode.set(id, location.projectRoot);
     for (const permission of nodePermissions) requestedPermissions.add(permission);
@@ -309,6 +316,7 @@ export async function resolveComponentTree(
       props,
       ...(resolvedChildren === undefined ? {} : { children: resolvedChildren }),
       ...(node.persistOnFocus === undefined ? {} : { persistOnFocus: node.persistOnFocus }),
+      ...(node.watch === undefined ? {} : { watch: structuredClone(node.watch) }),
       source: node.component.startsWith("./components/external/") ? "external" : "local",
       sourceConfigPath: location.configPath,
       sourcePath,
@@ -341,6 +349,15 @@ export async function resolveComponentTree(
     }
     diagnostics.push(...migrateLegacyActionReferences(bundleNodes));
     diagnostics.push(...validateDeclaredComponentActionReferences(allNodes));
+    // Each bundle runs its own watches; linked bundles count theirs separately.
+    const watched = bundleNodes.filter((node) => node.watch !== undefined);
+    if (watched.length > WATCH_LIMIT_PER_DASHBOARD) {
+      diagnostics.push(diagnostic({
+        code: "COMPONENT_WATCH_LIMIT",
+        message: `A dashboard may declare at most ${WATCH_LIMIT_PER_DASHBOARD} watches; this one declares ${watched.length}. Remove the watch from ${watched.slice(WATCH_LIMIT_PER_DASHBOARD).map((node) => node.id).join(", ")} or watch fewer views.`,
+        path: `${watched[WATCH_LIMIT_PER_DASHBOARD]!.id}.watch`,
+      }));
+    }
   }
   return {
     tree,

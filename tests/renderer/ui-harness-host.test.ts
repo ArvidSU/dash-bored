@@ -79,4 +79,48 @@ describe("ui harness host", () => {
     expect(snapshots).toEqual([2]);
     await expect(host.saveDashboardConfig(saved, source.configRevision)).rejects.toThrow("DASHBOARD_CONFIG_CONFLICT");
   });
+
+  test("coalesces notifications by key like the host and pushes every change", async () => {
+    const host = createUiHarnessHost();
+    const pushes: number[] = [];
+    const unsubscribe = host.subscribe((event) => {
+      if (event.type === "notifications") pushes.push(event.state.entries.length);
+    });
+    expect(await host.getNotifications()).toEqual({ entries: [], history: [] });
+
+    const first = host.raiseNotification({ key: "run:qa", title: "QA failed", message: "Exited with code 1.", target: { kind: "node", nodeId: "status" } });
+    const other = host.raiseNotification({ key: "updates", level: "inform", configPath: null, title: "Updates", message: "2 packages", target: { kind: "updates" } });
+    const again = host.raiseNotification({ key: "run:qa", title: "QA failed", message: "Exited with code 2.", target: { kind: "node", nodeId: "status" } });
+    expect(first).toMatchObject({ level: "interrupt", count: 1, presentation: 1, configPath: "/ui-harness/.dash-bored/dash-bored.yaml", dashboardName: "Visual verification fixture" });
+    expect(other).toMatchObject({ level: "inform", presentation: 0, configPath: null, dashboardName: null });
+    expect(again).toMatchObject({ id: first.id, count: 2, presentation: 2, message: "Exited with code 2." });
+    expect((await host.getNotifications()).entries.map(({ key }) => key)).toEqual(["run:qa", "updates"]);
+
+    // A coalesced inform never downgrades an open interrupt; a quiet raise keeps its presentation.
+    expect(host.raiseNotification({ key: "run:qa", level: "inform", quiet: true, title: "QA failed", message: "Still failing." }))
+      .toMatchObject({ level: "interrupt", count: 3, presentation: 2 });
+
+    await host.notificationCommand({ type: "notify", nodeId: "status", message: "Fixture is ready", itemId: "row-1" });
+    const notified = (await host.getNotifications()).entries[0]!;
+    expect(notified).toMatchObject({ kind: "notify", title: "Renderer fixture", message: "Fixture is ready", target: { kind: "node", nodeId: "status", itemId: "row-1" } });
+    await expect(host.notificationCommand({ type: "notify", nodeId: "missing", message: "x" })).rejects.toThrow("No component with id missing");
+
+    await host.notificationCommand({ type: "read", ids: [first.id] });
+    expect((await host.getNotifications()).entries.find(({ id }) => id === first.id)).toMatchObject({ read: true });
+    await host.notificationCommand({ type: "dismiss", ids: [first.id] });
+    await host.notificationCommand({ type: "dismiss-all", configPath: null });
+    expect((await host.getNotifications()).entries.map(({ kind }) => kind)).toEqual(["notify"]);
+    host.resolveNotification(notified.key);
+    const closed = await host.getNotifications();
+    expect(closed.entries).toEqual([]);
+    expect(closed.history.map(({ key, closedBy }) => [key, closedBy])).toEqual([
+      [notified.key, "cleared"], ["updates", "dismissed"], ["run:qa", "dismissed"],
+    ]);
+    await host.notificationCommand({ type: "clear-history" });
+    expect((await host.getNotifications()).history).toEqual([]);
+    expect(host.getNotificationCommands().map(({ type }) => type))
+      .toEqual(["notify", "notify", "read", "dismiss", "dismiss-all", "clear-history"]);
+    unsubscribe();
+    expect(pushes).toEqual([1, 2, 2, 2, 3, 3, 2, 1, 0, 0]);
+  });
 });
