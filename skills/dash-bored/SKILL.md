@@ -208,11 +208,14 @@ Composition rules:
   unknown IDs.
 - A `group` with a `title` frames two or more related panels. Never wrap a
   single panel in one: it only adds a frame, and validation does not catch it.
-- The catalog still lists `card`, `tabs`, `todo-list`, `live-chart`,
-  `conditional`, `setup-agent`, and `focus-timer` for older dashboards until
-  a migration retires them. Don't add new ones: use a titled `group`, a
-  `selection` with a `variant: tabs` button, a `list` with `todos`, and a
-  `chart` with `source`. Leave existing uses alone unless asked.
+- Retiring core components are marked `retiring` with a `replacement` in
+  `inspect --summary` and in [references/builtins.md](references/builtins.md).
+  Don't add new ones. Replacements: a titled `group` for `card`; a `selection`
+  with a `variant: tabs` button for `tabs`; a `list` with `todos` for
+  `todo-list`; a `chart` with `source` for `live-chart`; a `button` running
+  `agent:prompt` for `setup-agent`; a project-local component for
+  `focus-timer`. `conditional` has no replacement yet. Leave existing uses
+  alone unless asked.
 - Paths in props (`path`, `cwd`, source `file`, script paths) are relative to
   the project root (the directory containing `.dash-bored/`). The top-level
   `icon` resolves from the bundle and is not validated: write a small,

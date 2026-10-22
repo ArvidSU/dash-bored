@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { isAppReady } from "../../src/cli/app";
 import { instanceSocketPath, listAppInstances, selectAppInstance } from "../../src/core/app-instances";
 import type { ProcessSnapshot } from "../../src/shared/contracts";
 import { startAgentControlServer, type AgentControlBridge } from "../../src/main/agent-control-server";
@@ -730,6 +731,20 @@ test("screenshots wait for idle but still capture, noting a timeout", async () =
   const response = await fetch("http://dash-bored/v1/screenshot", { method: "POST", unix: stuck.server.record.socketPath, body: "{}" } as RequestInit);
   expect(response.status).toBe(200);
   expect(response.headers.get("x-dash-bored-idle")).toBe("false");
+});
+
+test("GET /v1/idle reports the idle wait, and readiness needs status plus idle", async () => {
+  const homeDirectory = await home();
+  const ready = await serve(homeDirectory);
+  const response = await fetch("http://dash-bored/v1/idle?timeoutMs=750", { unix: ready.server.record.socketPath } as RequestInit);
+  expect(await response.json()).toEqual({ idle: true });
+  expect(ready.idleCalls).toEqual([750]);
+  expect(await isAppReady(ready.server.record)).toBe(true);
+
+  const busy = await serve(await home(), "dev.dash-bored.busy", { idle: async () => false });
+  expect(await isAppReady(busy.server.record)).toBe(false);
+  const invalid = await fetch("http://dash-bored/v1/idle?timeoutMs=soon", { unix: busy.server.record.socketPath } as RequestInit);
+  expect(invalid.ok).toBe(false);
 });
 
 test("unknown focus targets name the missing node and suggest close matches", async () => {

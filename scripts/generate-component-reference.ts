@@ -8,6 +8,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { coreManifests, coreReference } from "./core-package-fixture";
 import type { ComponentManifest } from "../src/shared/contracts";
+import { retiringReplacement } from "../src/shared/retiring-components";
 
 type Schema = Record<string, any>;
 
@@ -176,6 +177,12 @@ function renderActions(manifest: ComponentManifest): string[] {
   return lines;
 }
 
+function renderRetiring(reference: string): string[] {
+  const replacement = retiringReplacement(reference);
+  if (replacement === undefined) return [];
+  return [`**Retiring** — kept for older dashboards; replacement: ${replacement}.`, ""];
+}
+
 function renderComponent(manifest: ComponentManifest): string[] {
   return [
     `${manifest.name} — ${manifest.description}`,
@@ -206,7 +213,8 @@ export function generateComponentReference(): string {
     "",
   ];
   for (const manifest of manifests) {
-    lines.push(`## ${coreReference(manifest.id)}`, "", ...renderComponent(manifest));
+    const reference = coreReference(manifest.id);
+    lines.push(`## ${reference}`, "", ...renderRetiring(reference), ...renderComponent(manifest));
   }
   return lines.join("\n").replace(/\n+$/, "\n");
 }

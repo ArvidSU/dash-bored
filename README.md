@@ -94,6 +94,14 @@ For an agent-managed background instance, use `bun run dev:start`. Use
 restart it (needed after main-process or agent-tool changes), and `dev:stop` to
 stop this checkout's dev processes. Restart returns immediately so it can also
 be run from the app being restarted; use `dev:status` to check the new PID.
+Add `--wait` to `dev:start` or `dev:restart` (`bun run dev:start --wait`) to
+return only once the app is ready: its control channel answers a status request
+and reports no source fetch in flight, so `app` commands work at once. It
+prints the `dev:status` fields with `"ready": true`. With `--wait`, restart
+waits for a new PID; if the restart worker fails, the error and the last log
+lines are printed. Either form gives up after 180 seconds with an error naming
+`.hutch/dev.log` and leaves the app running. From inside the app being
+restarted, use plain `dev:restart`, which returns at once.
 Background output is in `.hutch/dev.log`. In the checkout,
 `bun run dash-bored -- <command>` runs the agent tool, and
 `bun run dash-bored -- app ...` automatically targets this checkout's instance.

@@ -28,6 +28,8 @@ Permissions: none.
 
 ## ./components/external/core/card
 
+**Retiring** — kept for older dashboards; replacement: a titled `group`.
+
 Card — Frames dashboard content with an optional title.
 
 Props:
@@ -96,6 +98,8 @@ Actions:
 
 ## ./components/external/core/conditional
 
+**Retiring** — kept for older dashboards; replacement: none yet; leave existing uses (planned: a source-bound `when` on the parent-child edge).
+
 Conditional visibility — Recovery visibility for one tiled child based on a bounded shell check. Starts visible and fails open before trust or on host errors; unsuitable for asserting healthy status.
 
 Props:
@@ -141,6 +145,8 @@ Actions:
 - `table` — Show environment variables
 
 ## ./components/external/core/focus-timer
+
+**Retiring** — kept for older dashboards; replacement: a project-local component under `./components/`.
 
 Focus timer — A focused work session and a breathing break, with pause, resume, and explicit session starts. Session state resets on unmount or duration changes.
 
@@ -216,6 +222,8 @@ Actions:
 
 ## ./components/external/core/live-chart
 
+**Retiring** — kept for older dashboards; replacement: a `chart` with `source`.
+
 Live chart — Polls a JSON endpoint and plots its chart-shaped response.
 
 Props:
@@ -285,6 +293,8 @@ Permissions: none.
 
 ## ./components/external/core/setup-agent
 
+**Retiring** — kept for older dashboards; replacement: a `button` running `agent:prompt` with the setup prompt.
+
 Dashboard setup agent — Runs the configured CLI agent to customize this starter dashboard.
 
 Props:
@@ -327,6 +337,8 @@ Actions:
 
 ## ./components/external/core/tabs
 
+**Retiring** — kept for older dashboards; replacement: a `selection` with a `variant: tabs` button.
+
 Tabs — Switches between labeled dashboard panels.
 
 Props:
@@ -347,6 +359,8 @@ Actions:
   - Arguments: JSON Schema `{"type":"object","additionalProperties":false,"properties":{"child":{"type":"string","minLength":1}}}`.
 
 ## ./components/external/core/todo-list
+
+**Retiring** — kept for older dashboards; replacement: a `list` with `todos`.
 
 YAML todo list — Keeps a small todo list in this component's dashboard YAML props.
 

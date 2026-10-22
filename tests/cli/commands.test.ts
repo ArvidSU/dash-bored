@@ -317,6 +317,24 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
 }, 15_000);
 
+test("inspect summary marks retiring core components with their replacement and leaves other catalog entries unmarked", async () => {
+  const project = await mkdtemp(join(tmpdir(), "dash-bored-retiring-inspect-"));
+  temporaryDirectories.push(project);
+  expect((await run(project, "init", ".")).exitCode).toBe(0);
+  const summary = await run(project, "inspect", ".", "--summary");
+  expect(summary.exitCode).toBe(0);
+  const catalog: Array<{ reference: string; retiring?: boolean; replacement?: string }> = JSON.parse(summary.stdout).componentCatalog;
+  expect(catalog.find((item) => item.reference === "./components/external/core/card")).toMatchObject({
+    retiring: true,
+    replacement: "a titled `group`",
+  });
+  expect(catalog.find((item) => item.reference === "./components/external/core/conditional")?.replacement).toStartWith("none yet");
+  const list = catalog.find((item) => item.reference === "./components/external/core/list");
+  expect(list).toBeDefined();
+  expect(list).not.toHaveProperty("retiring");
+  expect(list).not.toHaveProperty("replacement");
+}, 15_000);
+
 test("inspect summary discovers bundle overrides, scope, input and declared variables without prompt bodies or environment values", async () => {
   const project = await mkdtemp(join(tmpdir(), "dash-bored-template-inspect-"));
   temporaryDirectories.push(project);

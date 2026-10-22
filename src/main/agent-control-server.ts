@@ -239,6 +239,10 @@ export async function startAgentControlServer(
         if (request.method === "GET" && pathname === "/v1/status") {
           return json({ instance: record, state: await bridge.viewState() });
         }
+        if (request.method === "GET" && pathname === "/v1/idle") {
+          const requested = new URL(request.url).searchParams.get("timeoutMs");
+          return json({ idle: await idle(idleTimeout(requested === null ? undefined : Number(requested))) });
+        }
         if (request.method === "GET" && pathname === "/v1/processes") {
           return json({ processes: bridge.processes() });
         }

@@ -68,10 +68,9 @@ checkout's `configPath` (pass `--instance` when several run), navigate with
 `app actions <filter>` and `app run <reference>`, then
 `app screenshot --focus <node-id> --output <scratch>.png` and view the PNG.
 Restore the original `focusedNodeId` and selected tab afterwards. Right after
-a start or restart, `app` commands can report that no app is running, fail to
-connect, or say the app is still loading; wait until `dev:status` shows
-`"starting":false` with a PID and retry. Fall back to `ui:fixture` only when no
-dev instance is running.
+a start or restart, use `dev:start --wait` or `dev:restart --wait` instead of
+polling; they return once `app` commands answer. Fall back to `ui:fixture` only
+when no dev instance is running.
 
 When Computer Use is available, native app interaction is the second UI-proof
 layer. Every checkout's dev app is named `dash-bored-dev`, so target this
