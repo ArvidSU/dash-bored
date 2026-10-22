@@ -211,6 +211,24 @@ async function submitAddComponentWithEnter(active: Page): Promise<void> {
   }
 }
 
+/** Wait for the agent composer's "Full prompt" to show `text`, or fail with the panel's own preview state. */
+async function waitForFullAgentPrompt(composer: Locator, text: string): Promise<void> {
+  try {
+    await composer.getByLabel("Full agent prompt").getByText(text, { exact: false }).waitFor();
+  } catch (error) {
+    const evidence = await composer.evaluate((dialog) => ({
+      previewError: dialog.querySelector(".agent-prompt__error")?.textContent ?? null,
+      template: dialog.querySelector(".agent-prompt__template--selected")?.textContent ?? null,
+      values: [...dialog.querySelectorAll(".agent-prompt__var")].map((field) => ({
+        name: field.querySelector("span")?.textContent ?? "",
+        value: field.querySelector<HTMLInputElement>("input")?.value ?? "",
+      })),
+      fullPrompt: dialog.querySelector("[aria-label='Full agent prompt']")?.textContent ?? null,
+    }));
+    throw new Error(`Full agent prompt never showed ${JSON.stringify(text)}: ${JSON.stringify(evidence, null, 2)}\n${String(error)}`);
+  }
+}
+
 async function persistedGroupCount(active: Page = currentPage()): Promise<number> {
   return await active.evaluate(async () => {
     const host = window.__DASH_BORED_UI_HARNESS_HOST__;
@@ -1193,7 +1211,7 @@ describe("renderer fixture interactions", () => {
       await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Add a status beside this tile.");
       await composer.getByRole("tab", { name: "Full prompt" }).click();
       const preview = composer.getByLabel("Full agent prompt");
-      await preview.getByText("Add a status beside this tile.", { exact: false }).waitFor();
+      await waitForFullAgentPrompt(composer, "Add a status beside this tile.");
       const rendered = await preview.textContent();
       expect(rendered).toContain("Target component id: responsive-card");
       expect(rendered).toContain("User request:\nAdd a status beside this tile.");
@@ -1204,7 +1222,7 @@ describe("renderer fixture interactions", () => {
       expect(await composer.getByRole("tab", { name: "Request" }).getAttribute("aria-selected")).toBe("true");
       await composer.getByRole("textbox", { name: "id" }).fill("item-7");
       await composer.getByRole("tab", { name: "Full prompt" }).click();
-      await preview.getByText("Triage backlog item `item-7`.", { exact: false }).waitFor();
+      await waitForFullAgentPrompt(composer, "Triage backlog item `item-7`.");
       const projectPrompt = await preview.textContent();
       expect(projectPrompt).toContain("You were asked to do work in this project");
       expect(projectPrompt).toContain("Add a status beside this tile.");
