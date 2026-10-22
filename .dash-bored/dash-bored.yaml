@@ -242,7 +242,7 @@ root:
                             tags:
                               - release
                           - id: agent-preview-test-flake
-                            description: "Harden the renderer test 'Change with agent previews the dashboard template before sending'. On CI run 38443770552 (c2f21c7), the Full prompt preview never showed the item-7 render within 10 s after the id variable was filled. The preview is a debounced main-process render (AgentPromptPanel.tsx). On failure, report previewError and the shown prompt, as the library drag helpers in ui-interaction.test.ts do."
+                            description: "Find the cause of the flaky renderer test 'Change with agent previews the dashboard template before sending'. Attempt 1 of CI run 38443770552 (c2f21c7) timed out after 10 s waiting for the item-7 Full prompt render; attempt 2 passed. waitForFullAgentPrompt in ui-interaction.test.ts now reports previewError, the selected template, var values, and the shown prompt on failure, so read that evidence on the next hosted failure. Code reading found no renderer race in AgentPromptPanel.tsx. A lost id value would point at the fill racing the template switch; a slow host would call for a preview pending marker (aria-busy) to wait on."
                             done: false
                             tags:
                               - tests
@@ -541,6 +541,12 @@ root:
                               - agent-tool
                           - id: todo-catalog-retiring-builtins
                             description: Mark retiring builtins (card, tabs, todo-list, live-chart, conditional, setup-agent, focus-timer) in inspect --summary and the generated builtins reference so agents stop picking them from the catalog; the skill currently lists them by hand.
+                            done: true
+                            tags:
+                              - agent-tool
+                              - skill
+                          - id: todo-retiring-component-detail
+                            description: "Carry the retiring marker from src/shared/retiring-components.ts into `inspect --component <reference>` output too (only --summary has it), and derive SKILL.md's replacement list from the same map or drop it, since today both must be edited together."
                             done: false
                             tags:
                               - agent-tool
@@ -790,17 +796,17 @@ root:
                               - migrations
                           - id: todo-app-run-noop-focus
                             description: "`app run focus:<id>` exits 1 when the node is already focused (the action is disabled), which breaks `&&` chains in agent scripts. Report a no-op focus as success, or return a distinct documented result."
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                           - id: todo-app-run-raw-ids
                             description: "`app run` action references need percent-encoded node IDs (for example `%3A%3A` for linked-tree `::` segments), while `app screenshot --focus` encodes raw IDs itself. Accept raw node IDs in `app run` references too, or say so in `app actions` output."
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                           - id: todo-dev-ready-wait
                             description: "Add a readiness signal for the dev app, such as `dev:start --wait` and `dev:restart --wait` that return once the control socket answers, so agents stop hand-rolling wait loops and misreading the starting state as a failure."
-                            done: false
+                            done: true
                             tags:
                               - agent-tools
                               - tooling
