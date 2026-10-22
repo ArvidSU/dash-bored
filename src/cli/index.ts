@@ -16,6 +16,7 @@ import { runMigrateCommand } from "./migrate";
 import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
 import { watchSummaries } from "../shared/watches";
+import { retiringReplacement } from "../shared/retiring-components";
 import { installDashBoredSkill } from "./install-skill";
 
 const COMMANDS = new Set(["init", "install-skill", "validate", "inspect", "component", "theme", "animation", "migrate", "app"]);
@@ -295,8 +296,13 @@ async function main(): Promise<number> {
       animations: (result.animationCatalog ?? []).map(({ reference, name, manifest, error }) => ({
         reference, name, ...(manifest?.description ? { description: manifest.description } : {}), ...(error ? { error } : {}),
       })),
-      componentCatalog: catalog.map(({ reference, available, manifest }) => ({ reference, available,
-        name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions })),
+      // Retiring core components stay runnable for older dashboards; `replacement` says what to use instead.
+      componentCatalog: catalog.map(({ reference, available, manifest }) => {
+        const replacement = retiringReplacement(reference);
+        return { reference, available,
+          name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions,
+          ...(replacement === undefined ? {} : { retiring: true, replacement }) };
+      }),
       // Background watches this bundle runs: what each observes, how often, and on which transitions.
       watches: watchSummaries(result.tree, result.tree?.sourceConfigPath).map(({ nodeId, label, on, every, level, description, action }) => ({
         nodeId, label, on, every, level, runs: description, ...(action ? { action } : {}),

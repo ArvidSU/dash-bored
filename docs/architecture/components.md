@@ -3,7 +3,7 @@
 The pinned external core package includes inline display and managed-container components.
 `./components/external/core/group` supports optional `title` and `description` props. When
 present, they frame the same tiled child surface previously provided by card;
-without them the group remains transparent. The legacy card remains available; component retirement is a separate roadmap change.
+without them the group remains transparent. The legacy card remains available but is retiring: `src/shared/retiring-components.ts` lists the retiring pinned core components with their replacement hints, which `inspect --summary` and the generated builtins reference both show. Removing them is a separate roadmap change.
 `./components/external/core/status` accepts a source model `{ state, detail? }` or a supervised
 process snapshot, deriving warning (running) and healthy/error (exit code or
 signal) from its latest run; an interactive terminal that stays open between

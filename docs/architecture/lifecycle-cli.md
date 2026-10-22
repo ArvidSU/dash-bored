@@ -175,7 +175,11 @@ source equals the link target and that target is a bundled
   component preview command: add the node to a dashboard and use normal live
   reload plus the ordinary `app screenshot --focus <node-id>` workflow.
 - `inspect --summary` emits project status, diagnostics, permissions and a compact
-  catalog without schemas or repeated tree/config data. `--component <reference>`
+  catalog without schemas or repeated tree/config data. Each catalog entry is
+  `{ reference, available, name, description, permissions }`; a retiring pinned
+  core component (see `src/shared/retiring-components.ts`) also carries
+  `retiring: true` and a `replacement` hint, and other entries omit both. The
+  same map feeds the generated builtins reference. `--component <reference>`
   emits one authoritative catalog entry (including its schema) and project
   diagnostics. Unknown references fail; modes cannot be combined. Full
   `inspect` writes JSON describing the resolved tree, the complete component
