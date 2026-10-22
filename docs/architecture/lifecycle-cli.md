@@ -210,6 +210,11 @@ registered native app; `dev:status` reports its identity, PID, URL and log path;
 `dev:restart` and `dev:stop` stop only this checkout's dev process tree.
 Restart dispatches a detached worker and returns immediately, so it survives
 being invoked by the app it stops; poll `dev:status` for the replacement PID.
+`--wait` on `dev:start` or `dev:restart` instead stays in the foreground until
+the instance answers `GET /v1/status` and `GET /v1/idle` reports idle (see the
+routes below), then prints the `dev:status` fields with `ready: true`; restart
+first waits for the PID to change. Both give up after 180 seconds, leaving the
+app running.
 Foreground `dev` and `dev:desktop` use the same isolated environment and build
 the bundled tool at startup. Logs from detached runs live in `.hutch/dev.log`.
 
@@ -228,6 +233,7 @@ instances therefore never answer for the release app by accident.
 | Route | Behavior |
 | --- | --- |
 | `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, `editing` (unsaved dashboard changes or a save in progress; false for clean sessions), visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), read-only trust state (`trusted`, and the permissions awaiting approval while untrusted), and `selections`: the selected child of each selection container, derived from the palette's active `select:` actions so it includes defaults. |
+| `GET /v1/idle?timeoutMs=<ms>` | `{idle}`: runs the idle wait described below (default ten seconds, at most 60) and reports whether the app went idle in time. Dev tooling's `--wait` polls it after `/v1/status` answers; `app` does not call it. |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` summarizes each choice as `{id, label, optionCount}` (`--choices` includes the options) and hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
 | `GET /v1/processes/<id>/logs?tail=<n>` | Recent output lines of one command process from the log ring the process manager already retains (2,000 entries, 512 KiB). `tail` defaults to 200 and is capped at 1,000; lines are capped at 2,000 characters; an unknown id is `AGENT_CONTROL_NOT_FOUND`. `app logs` strips ANSI escapes and carriage-return overwrites. |

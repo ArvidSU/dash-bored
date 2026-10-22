@@ -131,6 +131,22 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
   return response;
 }
 
+/**
+ * One readiness probe for tooling that starts or restarts an app: the instance
+ * answers a status request and no source fetch is in flight for its mounted
+ * views (`GET /v1/idle`). Any failure counts as "not ready yet", so callers poll.
+ */
+export async function isAppReady(instance: AppInstanceRecord, idleTimeoutMs = 2_000): Promise<boolean> {
+  try {
+    if (!(await call(instance, "/v1/status")).ok) return false;
+    const probe = await call(instance, `/v1/idle?timeoutMs=${idleTimeoutMs}`);
+    if (!probe.ok) return false;
+    return (await probe.json() as { idle: boolean }).idle;
+  } catch {
+    return false;
+  }
+}
+
 // CSI and OSC sequences, then any other escape (keypad `ESC =`, charset `ESC ( B`).
 const ANSI_ESCAPES = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[ -/]*[0-~])/g;
 
