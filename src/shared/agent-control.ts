@@ -263,7 +263,8 @@ export const MAX_COMMAND_PALETTE_QUERY_CHARS = 200;
 
 export type AgentRunActionResult =
   /** `process: "started"` marks a command start; it keeps running after the run returns. */
-  | { status: "completed"; id: string; process?: "started" }
+  /** `noop: true` marks a run whose outcome already held, such as focusing the focused node; nothing changed. */
+  | { status: "completed"; id: string; process?: "started"; noop?: true }
   | { status: "refused" | "running" | "failed"; id?: string; reason: string }
   | { status: "unavailable"; id?: string; reason: string; suggestions?: string[] };
 

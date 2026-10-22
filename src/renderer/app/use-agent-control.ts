@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { activeSelections, agentActionRefusal, suggestActions, unknownActionReason, type AgentViewState } from "../../shared/agent-control";
+import { isFocusOfNode } from "../../shared/action-reference";
 import type { ResolvedComponentNode } from "../../shared/contracts";
 import type { AppView } from "../lib/action-providers";
 import { describeAgentAction, type ActionStore } from "../lib/actions";
@@ -59,6 +60,11 @@ export function useAgentControl(
         }
         const refusal = agentActionRefusal(action);
         if (refusal) return { status: "refused", id: action.id, reason: refusal };
+        // The palette disables focusing the node that is already focused, but the
+        // view already is that way: report it as done rather than unavailable.
+        if (isFocusOfNode(action.id, viewRef.current.focusedNodeId)) {
+          return { status: "completed", id: action.id, noop: true };
+        }
         const result = await store.run(action.id, selections, args);
         if (result.status === "completed") {
           return { status: "completed", id: action.id, ...(action.invocationOutcome === "started" ? { process: "started" as const } : {}) };

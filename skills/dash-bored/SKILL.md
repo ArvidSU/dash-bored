@@ -358,8 +358,9 @@ is out of scope here.
    (`process:<command-id>`, `select:<selection>/<child>`,
    `component:<node>:refresh`). Several panels can share a label; each
    action's `description` shows where it sits, and you should say which one
-   you used. Pass an action's `reference` to `dash-bored app run`; an unknown
-   one returns close `suggestions`. Choices show as counts; `--choices` lists
+   you used. Pass an action's `reference` to `dash-bored app run` (raw node IDs
+   with `::` work too, such as `focus:linked::pulse`); an unknown one returns
+   close `suggestions`. Choices show as counts; `--choices` lists
    options for `--select <choice>=<option>`. In the desktop command palette,
    users reach the same options by searching a name or node ID, which lists
    rows such as `Focus component › Backlog`. To prove palette changes, run

@@ -303,6 +303,33 @@ test("status reports diagnostic text, bounded, and the read-only trust state", a
   expect(bounded.items[0].message).toHaveLength(500);
 });
 
+test("run treats focusing the already-focused node as a successful no-op", async () => {
+  const homeDirectory = await home();
+  const received: string[] = [];
+  const { state } = await serve(homeDirectory, undefined, {
+    runAction: async (request) => {
+      received.push(request.reference);
+      return { status: "completed", id: request.reference, noop: true };
+    },
+  });
+  state.focusedNodeId = "logs";
+
+  const result = await cli(homeDirectory, "run", "focus:logs");
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ result: { status: "completed", id: "focus:logs", noop: true } });
+  expect(received).toEqual(["focus:logs"]);
+});
+
+test("run accepts raw node IDs and percent-encodes them before sending", async () => {
+  const homeDirectory = await home();
+  const { runs } = await serve(homeDirectory);
+
+  expect((await cli(homeDirectory, "run", "focus:linked::logs")).exitCode).toBe(0);
+  expect((await cli(homeDirectory, "run", "component:linked::logs:refresh")).exitCode).toBe(0);
+  expect(runs.map((run) => run.reference)).toEqual(["focus:linked%3A%3Alogs", "component:linked%3A%3Alogs:refresh"]);
+});
+
 test("run --until-exit waits for the started run, then reports its exit and output", async () => {
   const homeDirectory = await home();
   const { bridge, processes } = await serve(homeDirectory);

@@ -117,3 +117,24 @@ function remapPart(
 export function componentActionReference(nodeId: string, localActionId: string): string {
   return `component:${encodeURIComponent(nodeId)}:${encodeURIComponent(localActionId)}`;
 }
+
+/** True when a `focus:` action reference names the given node. */
+export function isFocusOfNode(reference: string, nodeId: string | null): boolean {
+  return nodeId !== null && reference.startsWith("focus:") && parseActionReferenceNodeId(reference) === nodeId;
+}
+
+/**
+ * Percent-encodes a raw node ID that contains `:` (linked namespaces use `::`)
+ * so the reference splits into the right segments. Encoded and colon-free
+ * references, `select:`, and everything else pass through unchanged.
+ */
+export function normalizeActionReference(reference: string): string {
+  const parts = reference.split(":");
+  if (SINGLE_NODE_VERBS.has(parts[0]!) && parts.length > 2) {
+    return `${parts[0]}:${encodeURIComponent(parts.slice(1).join(":"))}`;
+  }
+  if (parts[0] === "component" && parts.length > 3) {
+    return `component:${encodeURIComponent(parts.slice(1, -1).join(":"))}:${parts.at(-1)}`;
+  }
+  return reference;
+}

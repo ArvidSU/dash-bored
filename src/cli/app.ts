@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { listAppInstances, selectAppInstance } from "../core/app-instances";
 import { CoreError, resolveProjectLocation } from "../core/index";
+import { normalizeActionReference } from "../shared/action-reference";
 import { printJson as print } from "./print-json";
 import {
   AGENT_LOG_DEFAULT_TAIL,
@@ -37,7 +38,8 @@ and animate a component (or one of its items) when the user should look at it, a
 notifications across dashboards, whether the user has read them, and recently closed ones. \`screenshot\`
 captures the window; \`--node\` crops to one node and restores any view change it made;
 \`--focus\` focuses a node for the capture and then restores the previous focus unless
-\`--keep-focus\` is given.`;
+\`--keep-focus\` is given. Node IDs in references may be raw, such as \`focus:linked::pulse\`; the CLI
+percent-encodes them. Focusing the node that is already focused succeeds with \`noop: true\`.`;
 
 interface AppArguments {
   verb: string | undefined;
@@ -291,7 +293,7 @@ export async function runAppCommand(args: string[]): Promise<number> {
   }
 
   if (parsed.verb === "run" && parsed.positional.length === 1) {
-    const reference = parsed.positional[0]!;
+    const reference = normalizeActionReference(parsed.positional[0]!);
     if (parsed.query !== undefined && reference !== "app:open-palette") {
       throw new Error("--query is only supported with app:open-palette.");
     }
