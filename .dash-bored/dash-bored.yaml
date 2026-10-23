@@ -237,8 +237,8 @@ root:
                                   id: ${item.id}
                         todos:
                           - id: core-pin-on-main
-                            description: "The default core pin 0b121e2 (src/shared/default-component-package.ts and both bundle locks) exists only on the components repo branch codex/core-public-authoring. Merge that branch with a merge commit or fast-forward so the commit survives, or re-pin to the commit that lands on main, before releasing. A squash merge or deleted branch would make new dashboards and migrations unable to fetch core."
-                            done: false
+                            description: "The default core pin 0b121e2 (src/shared/default-component-package.ts and both bundle locks) exists only on the components repo branch codex/core-public-authoring. Merge that branch with a merge commit or fast-forward so the commit survives, or re-pin to the commit that lands on main, before releasing. A squash merge or deleted branch would make new dashboards and migrations unable to fetch core. Done 2026-10-23: fast-forwarded the components repo main to 0b121e2."
+                            done: true
                             tags:
                               - release
                               - components
