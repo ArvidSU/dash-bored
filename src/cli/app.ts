@@ -121,9 +121,11 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
       ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { "content-type": "application/json" } }),
     } as RequestInit);
   } catch (error) {
+    // Bun's hint about fetch's verbose option is meant for code, not a CLI user.
+    const reason = (error instanceof Error ? error.message : String(error)).replace(/\s*For more information, pass `verbose: true`.*$/s, "");
     throw new CoreError(
       "APP_CONTROL_UNREACHABLE",
-      `Could not reach dash-bored ${instance.identifier}: ${error instanceof Error ? error.message : String(error)}`,
+      `Could not reach dash-bored ${instance.identifier}: ${reason} If the app is running, ask the user to bring its window to the front or relaunch it.`,
     );
   }
   if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
@@ -133,6 +135,13 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
   return response;
 }
 
+/** The renderer's view state; a status without one means the window is not answering. */
+async function viewState(instance: AppInstanceRecord): Promise<AgentViewState> {
+  const status = await (await call(instance, "/v1/status")).json() as { state?: AgentViewState; warning?: string };
+  if (!status.state) throw new CoreError("APP_RENDERER_NOT_RESPONDING", status.warning ?? "The dash-bored window is not answering.");
+  return status.state;
+}
+
 /**
  * One readiness probe for tooling that starts or restarts an app: the instance
  * answers a status request and no source fetch is in flight for its mounted
@@ -140,7 +149,8 @@ async function call(instance: AppInstanceRecord, path: string, body?: unknown): 
  */
 export async function isAppReady(instance: AppInstanceRecord, idleTimeoutMs = 2_000): Promise<boolean> {
   try {
-    if (!(await call(instance, "/v1/status")).ok) return false;
+    const status = await call(instance, "/v1/status");
+    if (!status.ok || (await status.json() as { renderer?: string }).renderer === "unresponsive") return false;
     const probe = await call(instance, `/v1/idle?timeoutMs=${idleTimeoutMs}`);
     if (!probe.ok) return false;
     return (await probe.json() as { idle: boolean }).idle;
@@ -391,7 +401,7 @@ export async function runAppCommand(args: string[]): Promise<number> {
     let previousFocusedNodeId: string | null | undefined;
     let focusChanged = false;
     if (parsed.focus !== undefined) {
-      const { state } = await (await call(instance, "/v1/status")).json() as { state: AgentViewState };
+      const state = await viewState(instance);
       previousFocusedNodeId = state.focusedNodeId;
       if (state.focusedNodeId !== parsed.focus) {
         const focused = await runAction(instance, `focus:${encodeURIComponent(parsed.focus)}`, {}, { wait: false });
@@ -429,7 +439,7 @@ export async function runAppCommand(args: string[]): Promise<number> {
         }
       }
     }
-    const { state } = await (await call(instance, "/v1/status")).json() as { state: unknown };
+    const state = await viewState(instance);
     const output = resolve(parsed.output ?? defaultScreenshotPath(instance));
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, png);

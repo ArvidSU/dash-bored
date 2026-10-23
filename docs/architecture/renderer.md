@@ -818,7 +818,9 @@ one step; returning from the first step restores the action search text and
 selection, and Escape closes the palette only from the action search. The
 palette passes the completed selection map to the action. Choice options may
 depend on earlier selections; shortcuts open the same choice flow rather than
-bypassing it. Confirmation remains a separate dialog step.
+bypassing it. A choice with no options, static or resolved, leaves its action
+disabled with "No options are available right now." rather than failing the
+registration, because components register before their data loads. Confirmation remains a separate dialog step.
 
 A non-empty search also matches the options of each chooser's first choice by
 option label or stable value (not description). Up to three matching options

@@ -280,6 +280,7 @@ const agentControlBridge: typeof windowBridge = {
     }
   },
   viewState: async () => ({ ...await windowBridge.viewState(), notifications: agentNotificationSummary(notifications.state()) }),
+  mainState: () => ({ ...windowBridge.mainState(), notifications: agentNotificationSummary(notifications.state()) }),
 };
 const agentControl = await startAgentControlServer({
   identifier: appInstanceIdentifier,

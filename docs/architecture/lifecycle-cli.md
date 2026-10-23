@@ -239,7 +239,7 @@ instances therefore never answer for the release app by accident.
 
 | Route | Behavior |
 | --- | --- |
-| `GET /v1/status` | Instance record plus renderer view state: view, config path, dashboard name, focused node, `editing` (unsaved dashboard changes or a save in progress; false for clean sessions), visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), read-only trust state (`trusted`, and the permissions awaiting approval while untrusted), and `selections`: the selected child of each selection container, derived from the palette's active `select:` actions so it includes defaults. |
+| `GET /v1/status` | Instance record, `renderer: "responsive"`, plus renderer view state: view, config path, dashboard name, focused node, `editing` (unsaved dashboard changes or a save in progress; false for clean sessions), visible diagnostics (counts, total, and the first 50 with code, severity, message, file, path, line; renderer runtime diagnostics included), read-only trust state (`trusted`, and the permissions awaiting approval while untrusted), and `selections`: the selected child of each selection container, derived from the palette's active `select:` actions so it includes defaults. |
 | `GET /v1/idle?timeoutMs=<ms>` | `{idle}`: runs the idle wait described below (default ten seconds, at most 60) and reports whether the app went idle in time. Dev tooling's `--wait` polls it after `/v1/status` answers; `app` does not call it. |
 | `GET /v1/actions` | Every palette action with id, stable reference, availability, choices, and a refusal reason when the agent may not run it. `app actions` summarizes each choice as `{id, label, optionCount}` (`--choices` includes the options) and hides unavailable and refused actions unless `--all` is passed, and a `<filter>` keeps those whose id, reference, label, group, or source contains it (case-insensitive). |
 | `GET /v1/processes` | Declared command processes of the active dashboard from main's runtime snapshot: id (the command node id), label, state (`running`, `exited`, `idle`), phase, exit code, signal, start and end time. `app processes` prints it. |
@@ -274,6 +274,21 @@ next window-state change). A minimized or hidden window still stops painting;
 paint waits are therefore bounded at five seconds. Runs and opens then return
 their result with a `warning`, and screenshots fail with
 `APP_WINDOW_NOT_RENDERING` instead of capturing stale pixels.
+
+The renderer can also stop answering at all while main keeps running; this was
+seen on two instances at once after a Mac woke from a long sleep. Every view
+and action request is therefore bounded at five seconds, and a request that
+outlives Electrobun's 65-second webview limit is mapped the same way. Both fail
+with `APP_RENDERER_NOT_RESPONDING`, whose message names the remedy: bring
+the window to the front, then relaunch the app. `run` probes the renderer
+before it starts the action. `status` does not fail: it answers
+`renderer: "unresponsive"` with a `warning` and `main` (config path, dashboard
+name, trust, processes, and notifications from main) in place of `state`, and
+dev `--wait` readiness treats that as not ready. `processes` and `logs` never
+need the renderer. The socket server disables Bun's ten-second idle timeout,
+because routes bound their own waits (up to 60 seconds plus the paint backstop),
+and Bun's cut-off reached the CLI as an unexplained "socket connection was
+closed". The tool drops Bun's `verbose: true` hint from transport errors.
 
 For palette verification, `app run app:open-palette --query "Send prompt to agent"`
 opens a fresh search, including when the palette was already open. Capture it

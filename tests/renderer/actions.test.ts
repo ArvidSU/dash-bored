@@ -239,12 +239,15 @@ describe("ActionStore component registrations", () => {
     expect(action?.choices?.[1] && typeof action.choices[1].options === "function"
       ? action.choices[1].options({ kind: "a" })
       : []).toEqual([{ value: "one", label: "One" }]);
-    expect(() => store.register(owner, {
-      id: "invalid-choice",
-      label: "Invalid",
-      choices: [{ id: "bad", label: "Bad", options: [] }],
+    // Before its data loads, a component's chooser may be empty; it registers disabled.
+    store.register(owner, {
+      id: "pending-choice",
+      label: "Pending",
+      choices: [{ id: "item", label: "Item", options: [] }],
       run,
-    })).toThrow("options must be non-empty");
+    });
+    expect(store.getSnapshot().componentActions.find(({ id }) => id.endsWith(":pending-choice")))
+      .toMatchObject({ enabled: false, disabledReason: "No options are available right now." });
   });
 });
 

@@ -118,6 +118,12 @@ function fakeBridge() {
     },
     openDashboard: async (configPath) => { opened.push(configPath); },
     processes: () => processes.map((item) => agentProcessInfo(item, labels[item.id]!)),
+    mainState: () => ({
+      configPath: state.configPath,
+      dashboardName: state.dashboardName,
+      trusted: false,
+      processes: processes.map((item) => agentProcessInfo(item, labels[item.id]!)),
+    }),
     processLogs: (id, tail) => {
       tails.push(tail);
       const found = processes.find((item) => item.id === id);
@@ -146,6 +152,7 @@ async function serve(
   identifier = "dev.dash-bored.test",
   overrides: Partial<AgentControlBridge> = {},
   settleTimeoutMs?: number,
+  rendererTimeoutMs?: number,
 ) {
   const fake = fakeBridge();
   Object.assign(fake.bridge, overrides);
@@ -155,7 +162,11 @@ async function serve(
     version: "9.9.9",
     socketPath: instanceSocketPath(identifier, homeDirectory),
     toolPath: null,
-  }, fake.bridge, { homeDirectory, ...(settleTimeoutMs === undefined ? {} : { settleTimeoutMs }) });
+  }, fake.bridge, {
+    homeDirectory,
+    ...(settleTimeoutMs === undefined ? {} : { settleTimeoutMs }),
+    ...(rendererTimeoutMs === undefined ? {} : { rendererTimeoutMs }),
+  });
   cleanup.push(() => server.close());
   return { ...fake, server };
 }
@@ -607,6 +618,47 @@ test("a window that never paints fails screenshots and warns on runs instead of 
   const run = await cli(homeDirectory, "run", "focus:logs");
   expect(run.exitCode).toBe(0);
   expect(JSON.parse(run.stdout)).toMatchObject({ result: { status: "completed" }, warning: expect.stringContaining("minimized") });
+});
+
+test("a renderer that never answers degrades status and fails view requests with one remedy", async () => {
+  const homeDirectory = await home();
+  const never = <T>() => new Promise<T>(() => undefined);
+  const { runs, server } = await serve(homeDirectory, undefined, { viewState: never, listActions: never }, 50, 50);
+
+  const status = await cli(homeDirectory, "status");
+  expect(status.exitCode).toBe(0);
+  expect(JSON.parse(status.stdout)).toMatchObject({
+    renderer: "unresponsive",
+    main: { configPath: "/project/.dash-bored/dash-bored.yaml", trusted: false, processes: [{ id: "tests" }, { id: "serve" }] },
+    warning: expect.stringContaining("bring the window to the front"),
+  });
+  expect(JSON.parse(status.stdout).state).toBeUndefined();
+
+  for (const args of [["actions"], ["run", "focus:logs", "--no-wait"], ["screenshot", "--focus", "logs"]]) {
+    const failed = await cli(homeDirectory, ...args);
+    expect(failed.exitCode).toBe(1);
+    expect(failed.stderr).toContain("did not answer");
+    expect(failed.stderr).not.toContain("verbose");
+  }
+  expect(runs).toEqual([]);
+  expect((await cli(homeDirectory, "processes")).exitCode).toBe(0);
+  expect(await isAppReady(server.record)).toBe(false);
+});
+
+test("a request pending past Bun's ten-second idle timeout still gets its answer", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory, undefined, { idle: async () => { await Bun.sleep(10_500); return true; } });
+  const run = await cli(homeDirectory, "run", "focus:logs", "--timeout", "20000");
+  expect(run.stderr).toBe("");
+  expect(JSON.parse(run.stdout)).toMatchObject({ result: { status: "completed" }, idle: true });
+}, 20_000);
+
+test("an Electrobun RPC timeout reads as the renderer not answering", async () => {
+  const homeDirectory = await home();
+  await serve(homeDirectory, undefined, { runAction: () => Promise.reject(new Error("RPC request timed out.")) });
+  const run = await cli(homeDirectory, "run", "focus:logs", "--no-wait");
+  expect(run.exitCode).toBe(1);
+  expect(run.stderr).toContain("did not answer");
 });
 
 test("large action lists reach a slow pipe reader intact", async () => {

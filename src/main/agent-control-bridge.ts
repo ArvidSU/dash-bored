@@ -56,6 +56,10 @@ export function windowAgentControlBridge(
       return captureWindowPng({ windowPointer: current.ptr, frame: current.getFrame() }, Utils.screenCapture);
     },
     processes: () => processes().map(({ info }) => info),
+    mainState: () => {
+      const { configPath, dashboardName, trusted } = runtime.getSnapshot();
+      return { configPath: configPath ?? null, dashboardName, trusted, processes: processes().map(({ info }) => info) };
+    },
     processLogs: (id, tail) => {
       const found = processes().find(({ info }) => info.id === id);
       return found ? agentProcessLogs(found.info, found.snapshot, tail) : null;

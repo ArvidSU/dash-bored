@@ -242,6 +242,11 @@ root:
                             tags:
                               - release
                               - components
+                          - id: renderer-heartbeat
+                            description: "Agent control now reports a renderer that stops answering (APP_RENDERER_NOT_RESPONDING, status renderer: unresponsive), as seen on 2026-10-23 when two instances stopped answering after the Mac woke from a long sleep. Still open: confirm the cause with the repro (open a dashboard, sleep the Mac lid-closed for hours, wake, run app status without raising the window; also try minimized or on another Space), and add a main-process renderer heartbeat that could reload the webview when that loses no unsaved draft, or surface the state to the user."
+                            done: false
+                            tags:
+                              - agents
                           - id: setup-agent-pending-state
                             description: "Core's setup-agent component treats host.actions.invoke as synchronous: pending resets at once and its try/catch never sees launch errors. The host now refuses a second dashboard agent (DASHBOARD_AGENT_RUNNING), so this is cosmetic. Either let action invocation return a promise in the SDK, or make the component reflect the running agent from the action's enabled state."
                             done: false

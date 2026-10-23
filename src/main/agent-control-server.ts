@@ -6,6 +6,7 @@ import {
   MAX_IDLE_TIMEOUT_MS,
   type AgentActionDescriptor,
   type AgentAttentionArgs,
+  type AgentMainState,
   type AgentNodeMeasurement,
   type AgentNodeText,
   type AgentProcessInfo,
@@ -46,6 +47,8 @@ export interface AgentControlBridge {
   openDashboard(configPath: string): Promise<void>;
   /** Command processes of the active dashboard; main owns their state. */
   processes(): AgentProcessInfo[];
+  /** What main knows without the renderer, for status while it does not answer. */
+  mainState(): AgentMainState;
   /** Recent output of one command process, or null when none has that id. */
   processLogs(id: string, tail: number): AgentProcessLogs | null;
 }
@@ -60,6 +63,16 @@ const MAX_BODY_BYTES = 64 * 1024;
 const SETTLE_TIMEOUT_MS = 5_000;
 const NOT_RENDERING =
   "The dash-bored window is not rendering, usually because it is minimized or hidden. Ask the user to show it, then retry.";
+
+/** View and action requests are quick JavaScript calls; a suspended web view never answers them. */
+const RENDERER_TIMEOUT_MS = 5_000;
+const RENDERER_NOT_RESPONDING = "APP_RENDERER_NOT_RESPONDING";
+/** Electrobun's own error once a webview request passes its maxRequestTime. */
+const RPC_TIMED_OUT = "RPC request timed out.";
+const notResponding = (timeoutMs: number) => new CoreError(
+  RENDERER_NOT_RESPONDING,
+  `The dash-bored window did not answer within ${Math.round(timeoutMs / 1000)} s; its web view may be suspended, for example after the Mac slept. Ask the user to bring the window to the front, then retry; if it still does not answer, they should relaunch dash-bored. \`app status\`, \`app processes\`, and \`app logs\` still work.`,
+);
 
 const IDLE_TIMED_OUT = (timeoutMs: number) =>
   `The app was still loading after ${timeoutMs} ms; the state may not be final. Re-read status or retry with a larger --timeout.`;
@@ -158,11 +171,33 @@ function actionArgs(value: unknown, reference: string): { query?: string } | Age
 export async function startAgentControlServer(
   identity: Omit<AppInstanceRecord, "startedAt">,
   bridge: AgentControlBridge,
-  options: { homeDirectory?: string; settleTimeoutMs?: number } = {},
+  options: { homeDirectory?: string; settleTimeoutMs?: number; rendererTimeoutMs?: number } = {},
 ): Promise<AgentControlServer> {
   await mkdir(dirname(identity.socketPath), { recursive: true, mode: 0o700 });
   await chmod(dirname(identity.socketPath), 0o700);
   await rm(identity.socketPath, { force: true });
+
+  const rendererTimeoutMs = options.rendererTimeoutMs ?? RENDERER_TIMEOUT_MS;
+  /** Reports a webview request that outlived Electrobun's limit as the renderer not answering. */
+  async function answered<T>(request: Promise<T>): Promise<T> {
+    try {
+      return await request;
+    } catch (error) {
+      throw error instanceof Error && error.message === RPC_TIMED_OUT ? notResponding(rendererTimeoutMs) : error;
+    }
+  }
+  async function fromRenderer<T>(request: () => Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(notResponding(rendererTimeoutMs)), rendererTimeoutMs);
+    });
+    try {
+      return await Promise.race([answered(request()), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const viewState = () => fromRenderer(() => bridge.viewState());
 
   async function settled(): Promise<boolean> {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -198,7 +233,7 @@ export async function startAgentControlServer(
     if (capturingNode) throw busy();
     capturingNode = true;
     try {
-      return await bridge.readNode(nodeId, timeoutMs);
+      return await answered(bridge.readNode(nodeId, timeoutMs));
     } finally {
       capturingNode = false;
     }
@@ -231,13 +266,23 @@ export async function startAgentControlServer(
     }
   }
 
+  // Every route bounds its own waits, some up to a minute; Bun's 10 s idle timeout
+  // would close the socket under them with an error the CLI cannot explain. Bun
+  // honors idleTimeout on Unix sockets, but its option types omit it.
+  const noIdleTimeout: object = { idleTimeout: 0 };
   const server = Bun.serve({
     unix: identity.socketPath,
+    ...noIdleTimeout,
     async fetch(request) {
       const { pathname } = new URL(request.url);
       try {
         if (request.method === "GET" && pathname === "/v1/status") {
-          return json({ instance: record, state: await bridge.viewState() });
+          try {
+            return json({ instance: record, renderer: "responsive", state: await viewState() });
+          } catch (error) {
+            if (!(error instanceof CoreError && error.code === RENDERER_NOT_RESPONDING)) throw error;
+            return json({ instance: record, renderer: "unresponsive", main: bridge.mainState(), warning: error.message });
+          }
         }
         if (request.method === "GET" && pathname === "/v1/idle") {
           const requested = new URL(request.url).searchParams.get("timeoutMs");
@@ -258,7 +303,7 @@ export async function startAgentControlServer(
           return json({ logs });
         }
         if (request.method === "GET" && pathname === "/v1/actions") {
-          return json({ actions: await bridge.listActions() });
+          return json({ actions: await fromRenderer(() => bridge.listActions()) });
         }
         if (request.method === "POST" && pathname === "/v1/actions/run") {
           const body = await readBody(request);
@@ -267,11 +312,13 @@ export async function startAgentControlServer(
           }
           const selected = selections(body.selections);
           const args = actionArgs(body.args, body.reference);
-          const result = await bridge.runAction({
+          // Probe first: an action may legitimately run for a while, a suspended renderer never answers.
+          await viewState();
+          const result = await answered(bridge.runAction({
             reference: body.reference,
             ...(selected ? { selections: selected } : {}),
             ...(args ? { args } : {}),
-          });
+          }));
           if (body.wait !== undefined && typeof body.wait !== "boolean") {
             throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "wait must be true or false.");
           }
@@ -282,19 +329,19 @@ export async function startAgentControlServer(
             const quiet = await idle(timeoutMs);
             wait = quiet ? { idle: true } : { idle: false, warning: IDLE_TIMED_OUT(timeoutMs) };
           }
-          return json({ result, state: await bridge.viewState(), ...wait }, result.status === "completed" ? 200 : 409);
+          return json({ result, state: await viewState(), ...wait }, result.status === "completed" ? 200 : 409);
         }
         if (request.method === "POST" && pathname === "/v1/open") {
           const body = await readBody(request);
           if (typeof body.configPath !== "string" || body.configPath === "") {
             throw new CoreError("AGENT_CONTROL_BAD_REQUEST", "configPath must be a dashboard path.");
           }
-          if ((await bridge.viewState()).editing) {
+          if ((await viewState()).editing) {
             throw new CoreError("AGENT_CONTROL_DRAFT_OPEN", "The user has unsaved dashboard changes or a save in progress. Ask them to save or cancel the changes, or wait for the save to finish.");
           }
           await bridge.openDashboard(body.configPath);
           const warning = await settled() ? {} : { warning: NOT_RENDERING };
-          return json({ state: await bridge.viewState(), ...warning });
+          return json({ state: await viewState(), ...warning });
         }
         if (request.method === "POST" && pathname === "/v1/read") {
           const body = await readBody(request);

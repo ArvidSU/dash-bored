@@ -39,6 +39,18 @@ export interface AgentViewState {
   notifications?: AgentNotificationSummary;
 }
 
+/**
+ * What main reports on its own when the renderer does not answer: enough for
+ * an agent to tell which dashboard is open and what its commands are doing.
+ */
+export interface AgentMainState {
+  configPath: string | null;
+  dashboardName: string | null;
+  trusted: boolean;
+  processes: AgentProcessInfo[];
+  notifications?: AgentNotificationSummary;
+}
+
 export interface AgentNotificationSummary {
   open: number;
   /** Open interrupts, read or not: what still needs the user. */

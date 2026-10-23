@@ -94,6 +94,8 @@ function optionalText(value: unknown, field: string): string | undefined {
   return value.trim();
 }
 
+const NO_OPTIONS_REASON = "No options are available right now.";
+
 function validateChoiceOption(option: ComponentActionOption, choiceId: string): void {
   if (!option || typeof option !== "object") {
     throw new Error(`Options for component action choice ${choiceId} must be objects.`);
@@ -129,7 +131,6 @@ function validateChoices(choices: ComponentAction["choices"]): void {
       throw new Error(`Component action choice ${choice.id} options must be an array or resolver.`);
     }
     if (Array.isArray(choice.options)) {
-      if (choice.options.length === 0) throw new Error(`Component action choice ${choice.id} options must be non-empty.`);
       (choice.options as readonly ComponentActionOption[]).forEach((option) => validateChoiceOption(option, choice.id));
     }
   }
@@ -397,6 +398,8 @@ export class ActionStore {
       );
     }
 
+    // A component registers before its data loads; an empty chooser waits as a disabled action.
+    const noOptionsYet = action.choices?.some((choice) => Array.isArray(choice.options) && choice.options.length === 0) ?? false;
     const token = Symbol(id);
     this.componentActions.set(id, {
       ownerKey: ownerKey(owner),
@@ -411,13 +414,15 @@ export class ActionStore {
         keywords: (action.keywords ?? []).map((keyword) => keyword.trim()),
         group: `Component · ${owner.componentName}`,
         source: owner.nodeId,
-        enabled: action.enabled !== false,
+        enabled: action.enabled !== false && !noOptionsYet,
         ...(action.enabled === false
           ? {
               disabledReason:
                 action.disabledReason?.trim() || "This action is unavailable.",
             }
-          : {}),
+          : noOptionsYet
+            ? { disabledReason: NO_OPTIONS_REASON }
+            : {}),
         ...(action.confirmation === undefined
           ? {}
           : {
@@ -832,7 +837,7 @@ export function rankPaletteEntries(
   const unique = dedupePaletteActions(listed).map((action): PaletteAction => {
     const resolved = action.enabled ? firstChoiceOptions(action) : null;
     return resolved && "error" in resolved
-      ? { ...action, enabled: false, disabledReason: "No options are available right now." }
+      ? { ...action, enabled: false, disabledReason: NO_OPTIONS_REASON }
       : action;
   });
   const groupOrder = groupOrderOf(unique);
