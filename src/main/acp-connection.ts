@@ -13,6 +13,7 @@ import {
   type SessionNotification,
 } from "@agentclientprotocol/sdk";
 import { CoreError } from "../core/diagnostics";
+import { signalName } from "../core/process-signal";
 import { isSimpleInvocation } from "./agent-preflight";
 
 /** Default grace between closing stdin, SIGTERM, and SIGKILL. */
@@ -112,7 +113,7 @@ export class AcpAgentProcess {
     this.pid = subprocess.pid;
     this.graceMs = options.shutdownGraceMs ?? AGENT_SHUTDOWN_GRACE_MS;
     this.exited = subprocess.exited.then(
-      () => ({ code: subprocess.signalCode === null ? subprocess.exitCode : null, signal: subprocess.signalCode }),
+      () => ({ code: subprocess.signalCode === null ? subprocess.exitCode : null, signal: signalName(subprocess.signalCode) }),
       () => ({ code: null, signal: null }),
     ).then((exit) => {
       this.exitInfo = exit;

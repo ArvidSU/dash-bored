@@ -12,6 +12,7 @@ import type {
 } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveContainedPath, resolveUncontainedPath } from "./paths";
+import { signalName } from "./process-signal";
 import { resolveEnvironment, type PublishedEnvironment } from "./environment";
 import { writeFileAtomically } from "./fs-atomic";
 
@@ -410,7 +411,7 @@ export class CapabilityService {
       ]);
       return {
         exitCode: subprocess.signalCode === null ? exitCode : null,
-        signal: subprocess.signalCode,
+        signal: signalName(subprocess.signalCode),
         stdout,
         stderr,
         timedOut,

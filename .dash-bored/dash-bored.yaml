@@ -551,6 +551,11 @@ root:
                             tags:
                               - agent-tool
                               - skill
+                          - id: todo-dependency-majors
+                            description: "Major dependency upgrades deferred from the 2026-10-23 bump (patch/minor updates landed then): React 19 with @types/react(-dom) 19, @agentclientprotocol/sdk 2, Vite 8 with @vitejs/plugin-react 6, TypeScript 7, and concurrently 10. Take each as its own migration with qa:fast, the browser interaction suite, and a dev-app UI proof; the ACP SDK and React upgrades also need an agent session and component rendering check in the packaged app."
+                            done: false
+                            tags:
+                              - dependencies
                           - id: todo-validate-text-diagnostics
                             description: Include each diagnostic's path in validate's text output, and give ${item.*} inside command text a specific message instead of the schema's 'must NOT be valid'.
                             done: true

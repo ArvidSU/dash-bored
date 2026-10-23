@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import type { ProcessLogEntry, ProcessRunSnapshot, ProcessSnapshot } from "../shared/contracts";
 import { CoreError, errorMessage } from "./diagnostics";
 import { resolveContainedPath } from "./paths";
+import { signalName } from "./process-signal";
 import { resolveEnvironment, type PublishedEnvironment } from "./environment";
 
 const DEFAULT_MAX_LOG_BYTES = 512 * 1024;
@@ -384,7 +385,7 @@ export class ProcessManager {
       const exitCode = exitResult?.status === "fulfilled" ? exitResult.value : subprocess.exitCode;
       const now = Date.now();
       processState.exitCode = subprocess.signalCode === null ? exitCode : null;
-      processState.signal = subprocess.signalCode;
+      processState.signal = signalName(subprocess.signalCode);
       processState.phase = exitResult?.status === "rejected" ? "failed" : "exited";
       processState.durationMs = processState.startedAtMs === null ? null : Math.max(0, now - processState.startedAtMs);
       if (processState.run !== null) {
@@ -805,7 +806,7 @@ export class ProcessManager {
   ): void {
     if (processState.session !== session) return;
     const failed = error !== null;
-    const signal = session.subprocess.signalCode ?? null;
+    const signal = signalName(session.subprocess.signalCode);
     const code = failed || signal !== null ? null : exitCode;
     if (!session.replacing) this.append(processState, "stdout", session.decoder.decode());
     processState.session = null;

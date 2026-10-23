@@ -47,18 +47,18 @@
     "ajv": "^8.17.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "yaml": "^2.8.1",
-    "zod": "4.6.5"
+    "yaml": "^2.9.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.2.1",
-    "electrobun": "2.0.1",
-    "playwright-core": "^1.55.0",
+    "concurrently": "^9.2.5",
+    "electrobun": "2.0.4",
+    "playwright-core": "^1.64.1",
     "typescript": "^5.9.3",
-    "vite": "^6.4.3"
+    "vite": "^6.4.5"
   }
 }
