@@ -1,5 +1,5 @@
-import { agentSetup } from "../../shared/agent-setup";
-import { KNOWN_AGENTS } from "../../shared/agent-catalog";
+import { agentSetup } from "../../src/shared/agent-setup";
+import { KNOWN_AGENTS } from "../../src/shared/agent-catalog";
 import type {
   AgentCommandChoice,
   AgentCommandOptions,
@@ -12,8 +12,8 @@ import type {
   AgentTaskCommand,
   DetectedAgent,
   RememberedAgentConfig,
-} from "../../shared/agent-session";
-import type { ComponentAgentLaunch } from "../../shared/contracts";
+} from "../../src/shared/agent-session";
+import type { ComponentAgentLaunch } from "../../src/shared/contracts";
 
 /*
  * Deterministic ACP sessions for the UI fixture (`bun run ui:fixture` and the

@@ -2,7 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { access, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
-import { ensureProjectFiles, inspectProject, resolveProjectLocation } from "../../src/core";
+import { ensureProjectFiles, initializeProjectFiles, inspectProject, resolveProjectLocation } from "../../src/core";
+import { checkComponentDirectory } from "../../src/core/component-authoring";
+import { DEFAULT_COMPONENT_PACKAGE } from "../../src/shared/default-component-package";
 import {
   defaultConfig,
   installCoreFixture,
@@ -45,6 +47,41 @@ describe("ensureProjectFiles", () => {
     expect(authored).toContain("Set up the dash-bored dashboard");
     await installCoreFixture(join(root, ".dash-bored"));
     expect((await inspectProject(root)).ok).toBeTrue();
+  });
+
+  test("writes an offline placeholder when the default package is unreachable, and init later replaces it", async () => {
+    const root = await temporaryDirectory();
+    cleanup.push(root);
+    const directory = join(root, ".dash-bored");
+    const lockPath = join(directory, "dash-bored-lock.yaml");
+    await mkdir(directory);
+    // An unreachable pin stands in for having no network connection.
+    const unreachable = { ...DEFAULT_COMPONENT_PACKAGE, url: `file://${join(root, "missing-package.git")}` };
+    await writeFile(lockPath, stringify({ lockfileVersion: 1, components: { core: unreachable } }), "utf8");
+
+    const result = await ensureProjectFiles(root);
+
+    expect(result.created.config).toBeTrue();
+    expect(result.defaultDashboardUnavailable).toBeString();
+    const config = parse(await readFile(join(directory, "dash-bored.yaml"), "utf8"));
+    expect(config.root).toMatchObject({ id: "offline-start", component: "./components/offline-start" });
+    expect(config.root.props.reason).toBe(result.defaultDashboardUnavailable);
+    // The placeholder is an ordinary component that passes the public authoring checks.
+    const check = await checkComponentDirectory(join(directory, "components", "offline-start"));
+    expect(check.diagnostics).toEqual([]);
+    expect(check.ok).toBeTrue();
+    expect((await inspectProject(root)).ok).toBeTrue();
+
+    // Re-init with a reachable package replaces only the untouched placeholder.
+    await writeFile(lockPath, stringify({ lockfileVersion: 1, components: { core: DEFAULT_COMPONENT_PACKAGE } }), "utf8");
+    const reinitialized = await initializeProjectFiles(root);
+    expect(reinitialized.defaultDashboardUnavailable).toBeUndefined();
+    const replaced = parse(await readFile(join(directory, "dash-bored.yaml"), "utf8"));
+    expect(JSON.stringify(replaced)).toContain("Set up the dash-bored dashboard");
+    expect((await inspectProject(root)).ok).toBeTrue();
+
+    // Once the dashboard is real, init refuses to overwrite it again.
+    await expect(initializeProjectFiles(root)).rejects.toThrow("already initialized");
   });
 
   test("repairs missing artifacts without changing existing project configuration", async () => {

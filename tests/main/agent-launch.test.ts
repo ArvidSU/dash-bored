@@ -32,12 +32,13 @@ async function setup(environment: string, appSetting: { value: string | null; en
   runtimes.push(runtime);
   await runtime.load(root);
   const launches: AgentSessionLaunchOptions[] = [];
+  const tasks: Array<Record<string, unknown>> = [];
   const sessions = {
     launch: async (options: AgentSessionLaunchOptions) => {
       launches.push(options);
       return { taskId: `task-${launches.length}`, command: options.command, componentPath: options.componentPath, pid: 123 };
     },
-    list: () => [],
+    list: () => tasks,
     followUp: () => undefined,
     setValidation: () => undefined,
   } as unknown as AgentSessions;
@@ -50,7 +51,7 @@ async function setup(environment: string, appSetting: { value: string | null; en
     packageRunner: () => "npx",
     ...extra,
   });
-  return { root: await realpath(root), config, configPath: await realpath(configPath), runtime, launcher, launches };
+  return { root: await realpath(root), config, configPath: await realpath(configPath), runtime, launcher, launches, tasks };
 }
 
 test("diagnostics repair runs untrusted with a clean environment, then uses the trusted bundle environment", async () => {
@@ -184,6 +185,19 @@ test("project work is not validated; dashboard work validates on each turn end",
   await launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Retitle it.", template: "dashboard" });
   expect(launches[1]).toMatchObject({ purpose: "edit", template: "dashboard" });
   expect(launches[1]!.onTurnEnd).toBeFunction();
+});
+
+test("dashboard work is refused while another agent is changing the same dashboard", async () => {
+  const { configPath, runtime, launcher, launches, tasks } = await setup("", { value: "/usr/bin/true" });
+  await runtime.trust();
+  tasks.push({ configPath, purpose: "edit", state: "working" });
+  await expect(launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Set it up.", template: "dashboard" }))
+    .rejects.toMatchObject({ code: "DASHBOARD_AGENT_RUNNING" });
+  // Project work does not edit the dashboard, so it may run alongside.
+  await launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Implement it.", template: "project" });
+  tasks[0]!.state = "idle";
+  await launcher.launch({ kind: "component", nodeIds: ["test"], prompt: "Set it up.", template: "dashboard" });
+  expect(launches.map((launch) => launch.purpose)).toEqual(["project", "edit"]);
 });
 
 test("several picked components brief one agent; targets across bundles are refused", async () => {

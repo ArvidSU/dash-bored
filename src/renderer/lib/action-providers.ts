@@ -613,14 +613,11 @@ export function buildProcessActions(
     const live = isProcessLive(process);
     const stopping = process?.phase === "stopping";
     const interactive = process?.interactive === true || node.manifest?.resources?.process?.interactive === true;
-    const label =
-      typeof node.props.label === "string"
-        ? node.props.label
-        : typeof node.props.title === "string"
-          ? node.props.title
-          : node.id;
-    const command =
-      typeof node.props.command === "string" ? node.props.command : undefined;
+    const resource = node.manifest!.resources!.process!;
+    const labelValue = resource.labelProp ? node.props[resource.labelProp] : undefined;
+    const label = typeof labelValue === "string" && labelValue.trim() ? labelValue : node.id;
+    const commandValue = node.props[resource.commandProp];
+    const command = typeof commandValue === "string" ? commandValue : undefined;
     const trustReason = !snapshot.trusted ? "Trust this project before running configured commands." : undefined;
     const stoppingReason = stopping ? "This process is stopping." : undefined;
     const runDisabledReason = trustReason ?? stoppingReason

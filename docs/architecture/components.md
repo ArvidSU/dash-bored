@@ -3,7 +3,7 @@
 The pinned external core package includes inline display and managed-container components.
 `./components/external/core/group` supports optional `title` and `description` props. When
 present, they frame the same tiled child surface previously provided by card;
-without them the group remains transparent. The legacy card remains available but is retiring: `src/shared/retiring-components.ts` lists the retiring pinned core components with their replacement hints, which `inspect --summary` and the generated builtins reference both show. Removing them is a separate roadmap change.
+without them the group remains transparent. The legacy card remains available but is retiring: ordinary manifest `deprecated.replacement` metadata describes retiring components and their replacement hints, which `inspect --summary` and the generated builtins reference both show. Removing them is a separate roadmap change.
 `./components/external/core/status` accepts a source model `{ state, detail? }` or a supervised
 process snapshot, deriving warning (running) and healthy/error (exit code or
 signal) from its latest run; an interactive terminal that stays open between
@@ -52,8 +52,8 @@ available during migration.
 
 ## Standalone dashboard paths
 
-A component reference outside the legacy `@dash-bored/*` namespace and the
-bundle-local `./components/*` directory may resolve to another standalone
+A component reference outside the bundle-local `./components/*` directory
+may resolve to another standalone
 dashboard bundle or its `dash-bored.yaml`. For example,
 `component: "./arvid"` in the canonical config loads
 `.dash-bored/arvid/dash-bored.yaml`. This is a component boundary, not a
@@ -73,7 +73,7 @@ boundary.
 
 ## Resolution
 
-The `@dash-bored/*` namespace is reserved for legacy migration references. Project components are
+Manifest IDs follow the same rules for every package. Project components are
 referenced by a relative path below `./components/`, for example:
 
 ```yaml
@@ -127,7 +127,7 @@ Its manifest is self-describing:
 
 ```yaml
 schemaVersion: 3
-apiVersion: 1.0.0
+apiVersion: 2.0.0
 id: service-health
 name: Service health
 description: Shows project service health.
@@ -154,7 +154,7 @@ compilation or execution, using `COMPONENT_API_REQUIRED` or
 `COMPONENT_API_UNSUPPORTED`. Schema-v2 manifests stop with
 `MANIFEST_SCHEMA_MIGRATION_REQUIRED` and must be migrated explicitly.
 
-The stable public component API begins at 1.0.0. Additive optional API
+The current public component API target is 2.0.0. Additive optional API
 additions may use minor releases; deprecations include replacements and
 migration notes before removal in a major version. Capability-shaped host
 methods are optional. Declarations do not add runtime authority;
@@ -203,9 +203,9 @@ descriptors plus edge metadata. Supported permission names are:
 
 Managed children may add `select: single`. Selection is renderer-owned,
 persisted per dashboard, and does not enter a draft or dashboard YAML. Without
-an explicit saved selection, the instance's optional `props.defaultChild` node
-ID is used; otherwise the first child is selected. `defaultChild` is instance
-data, never manifest data, and must identify a direct child. Tiled children
+an explicit saved selection, `children.defaultChildProp` names the instance
+prop containing a direct child ID; otherwise the first child is selected. The
+app has no implicit `defaultChild` prop convention. Tiled children
 cannot use selection.
 
 - `filesystem:read`
@@ -248,15 +248,26 @@ declared by every resolved component, project-local or external.
 `skills/dash-bored/references/builtins.md`. Restore packages before regeneration.
 `bun run generate:components` emits deterministic props, permission, resource,
 action and children contracts; its drift test compares generated output.
-The component repository owns readable sources and committed self-contained
-`component.yaml`, `index.js`, `index.d.ts`, and `component.css` outputs for all
-17 components, including legacy forms. Manifests point at the JavaScript
-artifact with `entry: ./index.js` and its generated type contract with
-`types: ./index.d.ts`. Its deterministic build bundles dependencies, while
-React and `@dash-bored/component` remain external to use the application
-runtime.
-Installation needs Git, with no dependency installation. App compiler containment
-rules apply to every component directory.
+The component repository owns editable `component.yaml`, `index.tsx`, and
+component CSS files for all 17 components, including legacy forms. Manifests
+point directly at source and declare `sourceRoot: ..` to share package-owned
+helpers. Core uses the same public SDK setup, semantic checker, resolver, and
+runtime compiler as any external author. No core-only build generates runtime
+entries or declaration interfaces. Renderer fixtures also resolve core through
+the ordinary package loader before compiling it.
+
+Markdown and Command import committed browser dependencies prepared with
+public `component prepare`, leaving React and `@dash-bored/component` external.
+Command's xterm stylesheet and declarations are copied from the pinned
+`@xterm/xterm` release, because preparation emits JavaScript only. Prepared
+output labels bundled modules relative to the package, so it is identical
+wherever the command runs.
+Preparation bundles only third-party code; editing a component or its shared
+TypeScript needs no rebuild. Installation needs Git, with no dependency
+installation. The core authoring parity regression copies the real package
+without `node_modules`, checks every source entry with the shipped SDK, and
+verifies that source changes change the normal compiler output. Existing
+published JavaScript packages remain supported.
 
 ## External components
 
@@ -271,10 +282,11 @@ The name is the single directory segment below `components/external/`; deeper
 paths inside the submodule resolve as external components too (monorepo
 layouts). Reserved-namespace collisions are rejected by the same containment
 rules as local components. A published external component contains
-`component.yaml`, a browser JavaScript `entry`, its matching relative `.d.ts`
-file in `types`, and any emitted CSS; authoring TS/TSX sources may live
-separately in its repository. Runtime component directories may also use
-contained relative TS, TSX, JS, and CSS imports. The external component has the
+`component.yaml`, a TS/TSX source `entry` or browser JavaScript entry, and its
+styles and dependencies. JavaScript
+entries require a matching relative `.d.ts` file in `types`; source entries are
+checked directly. Runtime components use relative TS, TSX, JS, and CSS imports
+within their declared source boundary. The external component has the
 same manifest contract, and the same compile, host, and children behavior as a
 project-local component. Only provenance and trust differ.
 
@@ -372,10 +384,49 @@ Ordinary operations refuse parent-owned packages rather than converting them.
 
 The SDK exports `useComponentVisibility()` to pause hidden polling and
 `trackActivity(work)` to include asynchronous work in agent idle detection.
-`TerminalSurface` accepts `process?: ProcessSnapshot`, bound `onWrite` and
-`onResize` callbacks, and a numeric `scrollToLatest` trigger. Its xterm lifecycle
-and theme are app-owned; the external command and Agent work both use it.
-Supervision and capability checks remain in main.
+The command package owns xterm rendering, fit, styles, and theme adaptation.
+The host supplies only generic supervised process snapshots and bound PTY
+write/resize callbacks. `webview.render({url, style, reloadKey})` mounts a
+sandboxed native surface in the supplied box; presentation, controls, and
+aspect ratio are component-owned. Neither capability depends on component IDs.
+
+### Package-owned templates
+
+`src/core/package-templates.ts` reads optional `package.yaml` descriptors
+(`schemaVersion: 1`) from ordinary component packages. Each template declares
+`id`, `name`, `path`, optional `description`, and optional `role` (`starter` or
+`tutorial`). A role template is a complete dashboard; other templates are
+component nodes. Files and symlinks must stay inside the owning package.
+Only `${package}`, `${projectName}`, and `${environmentPath}` string tokens are
+substituted; item references and shell expressions remain literal.
+
+Initialization restores the default package before loading its starter role.
+When the restore or template load fails, for example offline, init writes an
+ordinary project-local `./components/offline-start` component and a dashboard
+whose root is that node (`src/core/offline-starter.ts`). It explains the
+failure and how to continue. A later `init` replaces that config only while its
+root is still the untouched placeholder, and fails without writing if the
+package is still unreachable.
+The component library displays all discovered templates generically. Insertion
+allocates collision-free node IDs and remaps declared action/process references
+and the manifest-bound initial selection. No app recipe names components or
+interprets their props. Package `migrations.references` provides legacy reference
+mapping data to the supervised migration workflow.
+
+### API 2 migration
+
+API 2 removes the SDK terminal renderer and `dashboard.setupWithAgent`.
+Components own terminal dependencies and use `agent:prompt` through the public
+action interface. Existing JavaScript entries remain supported when their
+manifests and implementation target API 2.
+
+Observation uses `resources.observation: {sourceProp, kind}` (`status` or
+`list`), independently of component prop names. Selection uses
+`children.defaultChildProp`; process action captions use `resources.process.labelProp`.
+Missing observation declarations or mismatched event families fail validation.
+Display captions use the ordered prop bindings in `labelProps`; no title,
+label, or name prop is inferred. Deprecation hints come from
+`deprecated: {replacement}` on any manifest.
 
 ### Package update checks
 
@@ -475,11 +526,27 @@ The production browser regression builds the actual renderer with production
 React, mounts pinned core output, and exercises button/selection navigation.
 No output directory is configured, so the runtime consumes
 the build's in-memory outputs without writing component bundles to disk. A
-component may use contained relative TS, TSX, JS, and CSS imports. Bare package
-imports, Node or Electrobun APIs, files outside that component directory, and
-unsupported asset types are rejected. The main process builds at most two local
-components at a time, then returns compiled components and diagnostics in the
-same order as the resolved local-component definitions.
+component may use relative TS, TSX, JS, and CSS imports within its component
+directory. An optional manifest `sourceRoot` declares an ancestor directory for
+shared sources. Resolution canonicalizes paths, including symlinks: the root
+must contain the component and stay within the owning external package, or
+within the bundle's components directory for project-local components.
+Standalone checks use the nearest package.json or Git root as the package
+boundary. Entry and declaration paths remain inside the component directory.
+Bare package imports, Node or Electrobun APIs, imports outside the declared
+source boundary, and unsupported asset types are rejected. The main process
+builds at most two local components at a time, then returns compiled components
+and diagnostics in the same order as the resolved local-component definitions.
+
+`component prepare <directory> --dependency <package> --output <relative.js>`
+bundles an already installed browser dependency into one self-contained file
+within the selected directory. It does not install packages. React and the SDK
+remain external; authors commit the prepared file and import it relatively.
+Preparation emits runtime JavaScript only; authors provide an adjacent `.d.ts`
+for the dependency interface their sources use.
+CSS and asset-emitting dependencies require another preparation strategy;
+the command rejects them. This is a public authoring operation, never a step
+performed implicitly while opening a dashboard.
 
 The compiled JavaScript and CSS travel in the project snapshot. The renderer
 imports JavaScript through a revisioned blob URL and owns a replaceable style

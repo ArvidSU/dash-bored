@@ -163,7 +163,9 @@ does not list, because they need a message.
 ## Watches
 
 A node's `watch` (contract in [Project contract](./project-contract.md))
-keeps its own `props.source` under observation in the main process.
+keeps its manifest-bound `resources.observation.sourceProp` under observation
+in the main process. The declared `kind` determines the public observation
+protocol; no component prop name is assumed.
 `src/shared/watches.ts` holds the Node-free parts: the event families, the
 source and shape parsers (mirroring the core status and list views), item
 templates, limits, and the summaries that trust review and

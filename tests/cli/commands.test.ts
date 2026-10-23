@@ -304,7 +304,7 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect((await run(project, "init", ".")).exitCode).toBe(0);
   const full = await run(project, "inspect", ".");
   const summary = await run(project, "inspect", ".", "--summary");
-  expect(summary.exitCode).toBe(0);
+  expect(summary.exitCode, `${summary.stdout}\n${summary.stderr}`).toBe(0);
   expect(summary.stdout.length).toBeLessThan(full.stdout.length / 2);
   expect(JSON.parse(summary.stdout).componentCatalog[0].manifest).toBeUndefined();
   expect(JSON.parse(summary.stdout).promptTemplates.map((template: { name: string }) => template.name)).toEqual(["dashboard", "project"]);
@@ -317,22 +317,60 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
 }, 15_000);
 
-test("inspect summary marks retiring core components with their replacement and leaves other catalog entries unmarked", async () => {
-  const project = await mkdtemp(join(tmpdir(), "dash-bored-retiring-inspect-"));
+test("inspect summary reports deprecation metadata for an unrelated local component", async () => {
+  const project = await mkdtemp(join(tmpdir(), "dash-bored-deprecated-inspect-"));
   temporaryDirectories.push(project);
-  expect((await run(project, "init", ".")).exitCode).toBe(0);
+  const configDirectory = join(project, ".dash-bored");
+  await mkdir(join(configDirectory, "components", "unrelated-widget"), { recursive: true });
+  await mkdir(join(configDirectory, "components", "current-widget"), { recursive: true });
+  await writeFile(join(configDirectory, "dash-bored.yaml"), [
+    "schemaVersion: 4",
+    "name: Deprecated metadata",
+    "root:",
+    "  id: root",
+    '  component: "./components/unrelated-widget"',
+    "",
+  ].join("\n"));
+  await writeFile(join(configDirectory, "dash-bored-lock.yaml"), "lockfileVersion: 1\ncomponents: {}\n");
+  const componentDirectory = join(configDirectory, "components", "unrelated-widget");
+  await writeFile(join(componentDirectory, "component.yaml"), [
+    "schemaVersion: 3",
+    'apiVersion: "2.0.0"',
+    "id: vendor/unrelated-widget",
+    "name: Unrelated widget",
+    "description: A third-party widget.",
+    "entry: ./index.tsx",
+    "propsSchema:",
+    "  type: object",
+    "deprecated:",
+    "  replacement: ./components/vendor/new-widget",
+    "",
+  ].join("\n"));
+  await writeFile(join(componentDirectory, "index.tsx"), "export default () => null;\n");
+  const currentDirectory = join(configDirectory, "components", "current-widget");
+  await writeFile(join(currentDirectory, "component.yaml"), [
+    "schemaVersion: 3",
+    'apiVersion: "2.0.0"',
+    "id: vendor/current-widget",
+    "name: Current widget",
+    "description: A current third-party widget.",
+    "entry: ./index.tsx",
+    "propsSchema:",
+    "  type: object",
+    "",
+  ].join("\n"));
+  await writeFile(join(currentDirectory, "index.tsx"), "export default () => null;\n");
   const summary = await run(project, "inspect", ".", "--summary");
-  expect(summary.exitCode).toBe(0);
+  expect(summary.exitCode, `${summary.stdout}\n${summary.stderr}`).toBe(0);
   const catalog: Array<{ reference: string; retiring?: boolean; replacement?: string }> = JSON.parse(summary.stdout).componentCatalog;
-  expect(catalog.find((item) => item.reference === "./components/external/core/card")).toMatchObject({
+  expect(catalog.find((item) => item.reference === "./components/unrelated-widget")).toMatchObject({
     retiring: true,
-    replacement: "a titled `group`",
+    replacement: "./components/vendor/new-widget",
   });
-  expect(catalog.find((item) => item.reference === "./components/external/core/conditional")?.replacement).toStartWith("none yet");
-  const list = catalog.find((item) => item.reference === "./components/external/core/list");
-  expect(list).toBeDefined();
-  expect(list).not.toHaveProperty("retiring");
-  expect(list).not.toHaveProperty("replacement");
+  const current = catalog.find((item) => item.reference === "./components/current-widget");
+  expect(current).toBeDefined();
+  expect(current).not.toHaveProperty("retiring");
+  expect(current).not.toHaveProperty("replacement");
 }, 15_000);
 
 test("inspect summary discovers bundle overrides, scope, input and declared variables without prompt bodies or environment values", async () => {

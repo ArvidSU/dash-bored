@@ -1,4 +1,4 @@
-import { CORE_PACKAGE } from "../../src/shared/core-package";
+import { DEFAULT_COMPONENT_PACKAGE } from "../../src/shared/default-component-package";
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -114,6 +114,7 @@ describe("initializeProject", () => {
     expect(agentCommand.id).toBe("setup-dashboard-with-agent");
     expect(agentCommand.component).toBe("./components/external/core/button");
     expect(agentCommand.props.action.run).toBe("agent:prompt");
+    expect(agentCommand.props.action.with.template).toBe("dashboard");
     expect(agentCommand.props.action.with.prompt).toContain("Set up the dash-bored dashboard");
     expect(agentCommand.props.env).toBeUndefined();
     expect(agentCommand.props.command).toBeUndefined();
@@ -121,7 +122,7 @@ describe("initializeProject", () => {
     expect(environment).not.toMatch(/^DASH_BORED_AGENT=/m);
     expect(environment).not.toContain("DASH_BORED_AGENT_PROMPT");
     expect((await stat(result.environmentPath)).mode & 0o777).toBe(0o600);
-    expect(lock).toEqual({ lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } });
+    expect(lock).toEqual({ lockfileVersion: 1, components: { core: { ...DEFAULT_COMPONENT_PACKAGE } } });
     expect((await stat(result.componentsPath)).isDirectory()).toBe(true);
     expect((await readdir(join(project, ".dash-bored"))).some((name) => name.endsWith(".tmp"))).toBeFalse();
 
@@ -144,7 +145,7 @@ describe("initializeProject", () => {
     const canonicalProject = await realpath(project);
     expect(result.configPath).toBe(join(canonicalProject, ".dash-bored", "people", "arvid", "dash-bored.yaml"));
     expect(parse(await readFile(result.configPath, "utf8")).name).toBe("arvid");
-    expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: { core: { ...CORE_PACKAGE } } });
+    expect(parse(await readFile(result.lockPath, "utf8"))).toEqual({ lockfileVersion: 1, components: { core: { ...DEFAULT_COMPONENT_PACKAGE } } });
     expect(await readFile(result.environmentPath, "utf8")).toContain('# DASH_BORED_AGENT="codex-acp"');
     expect(
       configuredNodes(parse(await readFile(result.configPath, "utf8")).root)
@@ -175,7 +176,7 @@ describe("initializeProject", () => {
     temporaryDirectories.push(project);
     const baseDirectory = join(project, ".dash-bored");
     const baseConfig = "schemaVersion: 1\nname: Keep me\nroot:\n  component: './components/external/core/markdown'\n  props:\n    content: custom\n";
-    const baseLock = "lockfileVersion: 1\ncomponents: { core: { ...CORE_PACKAGE } }\n";
+    const baseLock = "lockfileVersion: 1\ncomponents: { core: { ...DEFAULT_COMPONENT_PACKAGE } }\n";
     await mkdir(join(baseDirectory, "components"), { recursive: true });
     await writeFile(join(baseDirectory, "dash-bored.yaml"), baseConfig);
     await writeFile(join(baseDirectory, "dash-bored-lock.yaml"), baseLock);

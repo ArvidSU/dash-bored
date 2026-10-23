@@ -62,7 +62,7 @@ function asAnyItem(item: Pick<ComponentCatalogItem, "reference" | "manifest" | "
   return item as unknown as AnyCatalogItem;
 }
 
-/** True for stub or core-provided external (git-submodule) catalog entries. */
+/** True for external package catalog entries, including unavailable stubs. */
 export function isExternalCatalogItem(
   item: Pick<ComponentCatalogItem, "source"> | { source: string },
 ): boolean {

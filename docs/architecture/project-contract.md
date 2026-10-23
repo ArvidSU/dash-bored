@@ -341,7 +341,7 @@ and ratio when both sides survive, and one-sided splits collapse. The current
 focus target itself remains renderer-owned per-user state and never enters YAML.
 
 `watch` is optional composition intent: the app keeps observing the node's
-own `props.source` in the background and raises notification decisions on
+manifest-bound observable resource in the background and raises notification decisions on
 transitions of its data shape (see [Notifications and watches](./notifications.md#watches)).
 `on` names status states or list `added`, never both. Only a single `shell`,
 `file`, or `http` source can be watched: an `inline` source never changes, and
@@ -532,4 +532,3 @@ renderer call the same owner instead of carrying their own copies.
 | `app-theme-reference.ts` | An app default theme saved as a bare `./themes/<name>`. Main's `getAppSettings` pins it to `project:<active-config>:./themes/<name>` once the active dashboard provides that package, and persists the result. Until then app settings keep it readable. The renderer holds no migration logic; it re-reads settings when the active dashboard or theme catalog changes while the default is still unpinned. | main, settings read |
 | `skill-payloads.ts` | Skill installs without a `skill-version.json` receipt. A complete exact match of one published payload is adopted as owned; anything else stays a conflict. | agent tool `install-skill`, app skill refresh |
 | `cli-link.ts` | The `~/.local/bin/dash-bored` link earlier releases created, removed only when its receipt proves ownership. | main, app start |
-| `todo-ids.ts` | Todo props without stable `id`s, or with duplicate ones (`./components/external/core/todo-list` and list `todos`). `migrateTodoItems` backfills a `todo-<uuid>` ID for each and keeps unique existing IDs. Node-free: it imports only `shared/todo.ts`, because the renderer bundles it. | renderer, `todoItemsFromProps` and the todo-list component |

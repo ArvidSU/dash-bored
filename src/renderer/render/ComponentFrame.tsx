@@ -337,7 +337,7 @@ export function ComponentFrame({
       + " [data-composition-controls], [data-composition-drag-handle],"
       + " .component-node__menu, .component-node__menu-popover,"
       + " .component-node__height-resizer, .component-node__drag-handle,"
-      + " .composition-drop-indicator, .xterm",
+      + " .composition-drop-indicator, [data-dashboard-interactive]",
     )) return false;
     // A click that ends a text selection is not a collapse gesture.
     const selection = window.getSelection();

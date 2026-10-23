@@ -239,7 +239,7 @@ const tree: ResolvedComponentNode = {
   component: "./components/external/core/group",
   props: {},
   source: "external",
-  children: [{ node: { id: "run-qa", component: "./components/external/core/command", props: { title: "QA" }, source: "external" } }],
+  children: [{ node: { id: "run-qa", component: "./components/external/core/command", props: { title: "QA" }, manifest: { schemaVersion: 3, apiVersion: "2.0.0", id: "test/job", name: "Job", description: "Job", entry: "./index.tsx", propsSchema: {}, labelProps: ["title"] }, source: "external" } }],
 };
 
 function process(run: Partial<NonNullable<ProcessSnapshot["run"]>> & Pick<NonNullable<ProcessSnapshot["run"]>, "phase">): ProcessSnapshot {

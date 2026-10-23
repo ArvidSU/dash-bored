@@ -486,13 +486,13 @@ function plannedWatch(
 ): PlannedWatch | null {
   const watch = node.watch as NodeWatch;
   const family = watchFamily(watch.on);
-  const resolved = watchSource(node.props);
+  const resolved = watchSource(node.props, node.manifest?.resources?.observation);
   // Validation rejects both; a resolved tree never carries them.
-  if (!family || "error" in resolved) return null;
+  if (!family || family !== node.manifest?.resources?.observation?.kind || "error" in resolved) return null;
   const label = nodeLabel(tree, node.id);
   return {
     id: `${configPath}\0${node.id}`,
-    fingerprint: JSON.stringify({ watch, source: node.props.source, label }),
+    fingerprint: JSON.stringify({ watch, source: resolved.source, label }),
     subject: {
       configPath,
       dashboardName,

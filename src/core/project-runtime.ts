@@ -320,6 +320,7 @@ export class ProjectRuntime {
       configPath: definition.location.configPath,
       configRevision: definition.configRevision,
       componentCatalog: definition.componentCatalog,
+      componentTemplates: definition.componentTemplates,
       themeCatalog: definition.themeCatalog,
       animationCatalog: definition.animationCatalog,
       diagnostics: definition.diagnostics,
@@ -495,6 +496,7 @@ export class ProjectRuntime {
         config: structuredClone(definition.config),
         configRevision: definition.configRevision,
         componentCatalog: structuredClone(definition.componentCatalog),
+        componentTemplates: structuredClone(definition.componentTemplates),
       };
     });
   }

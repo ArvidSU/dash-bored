@@ -1,3 +1,4 @@
+import { declaredComponentLabel } from "../../shared/component-label";
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import type {
@@ -32,10 +33,7 @@ interface ComponentCompositorProps {
 }
 
 function childDisplayName(node: ResolvedComponentNode): string {
-  const title = node.props.title ?? node.props.label ?? node.props.name;
-  return typeof title === "string" && title.trim().length > 0
-    ? title.trim()
-    : node.manifest?.name ?? node.component;
+  return declaredComponentLabel(node) ?? node.manifest?.name ?? node.component;
 }
 
 function VisibleChild({

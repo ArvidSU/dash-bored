@@ -295,6 +295,11 @@ Below it, a tabbed component tour explains each component and shows it working
 on the project's own files. The setup action asks your coding agent to replace
 the starter with a project-specific cockpit.
 
+The starter comes from the default component package, which init downloads
+with Git. Offline, init instead writes a placeholder dashboard that explains
+what happened; build your own components meanwhile, or run `dash-bored init`
+again once online to replace the untouched placeholder with the starter.
+
 Each bundle's `README.md` explains the app, its files, and setup for teammates
 who have never used dash-bored. From the project root, run
 `sh .dash-bored/install-app.sh` to download, verify, and open the newest
@@ -933,7 +938,7 @@ Define its metadata, props, children contract, and least-privilege permissions i
 
 ```yaml
 schemaVersion: 3
-apiVersion: 1.0.0
+apiVersion: 2.0.0
 id: service-health
 name: Service health
 description: Checks the development service.
@@ -976,9 +981,10 @@ installation is needed. Inspect the API, scaffold an authoring directory, set up
 editor types, and check sources with:
 
 ```sh
-dash-bored component api [--api-version 1.0.0] [--json]
+dash-bored component api [--api-version 2.0.0] [--json]
 dash-bored component init <directory>
 dash-bored component setup <directory> [--tsconfig <file>]
+dash-bored component prepare <directory> --dependency <package> --output <relative.js>
 dash-bored component check <directory> [--source-project <tsconfig>] [--json]
 ```
 
@@ -989,14 +995,26 @@ bundle; for a published JavaScript entry (which must set `types: ./types.d.ts`)
 it checks the declaration against the render interface, and
 `--source-project` also checks the original TS/TSX sources. These checks do
 not execute or preview the component: add it to a dashboard and use the app's
-live reload and `app screenshot --focus <node-id>` to see it in context. The
-[component authoring reference](./skills/dash-bored/references/components.md)
+live reload and `app screenshot --focus <node-id>` to see it in context.
+
+Components may publish their editable TSX directly, as core does. A manifest
+can declare `sourceRoot: ..` to share relative source files inside its owning
+package; the default boundary is the component directory. Standalone checks
+recognize the nearest package.json or Git root. Dashboard loading never
+installs dependencies. When a component needs an npm library, its author
+installs it locally, uses `component prepare` to produce a committed browser
+bundle, and imports that file relatively. Add an adjacent `.d.ts` describing
+the dependency interface used by the component. React and the SDK stay
+app-owned.
+Editing TSX or shared helpers uses normal live reload without a build step.
+
+The [component authoring reference](./skills/dash-bored/references/components.md)
 covers the SDK in depth.
 
 A manifest must declare a supported exact stable-semver `apiVersion`. Missing
 and unsupported versions fail with migration guidance before any component
 executes. The component API version is independent of dashboard
-`schemaVersion`. API 1.0.0 uses SemVer: additive optional methods and types may
+`schemaVersion`. API 2.0.0 uses SemVer: additive optional methods and types may
 ship in a minor release, with deprecation notes before removal; breaking
 changes require a major release and migration guidance. Capabilities can be
 absent: authors handle optional host members and runtime denials. Component
@@ -1341,6 +1359,41 @@ and Intel Mac builds; model-provider keys or custom AI infrastructure; or
 isolation claims for trusted local components. [Distribution and
 exclusions](./docs/architecture/distribution.md#deliberate-exclusions) keeps the
 authoritative list.
+
+## Component API 2 migration
+
+API 2 keeps component implementation in packages. API 1 manifests are rejected
+with an unsupported-target diagnostic; migrate the implementation before
+changing its `apiVersion` to `2.0.0`. `migrate inspect <dashboard>` checks
+used component targets even when the dashboard schema is already current.
+App-driven migration can update an incompatible package's exact pin after
+reviewing its migration guidance, while preserving unrelated pins and files.
+Completion requires validation with the installed target app.
+
+- Replace SDK `TerminalSurface` with component-owned terminal UI and prepared
+  browser dependencies, using public process snapshots and PTY callbacks.
+- Replace `dashboard.setupWithAgent` with a declared `agent:prompt` invocation.
+- Declare `children.defaultChildProp` for an initial selection prop, and
+  `resources.process.labelProp` for a process caption prop.
+- Declare `resources.observation: {sourceProp: yourProp, kind: status}` (or
+  `list`) before adding background watches. There is no implicit `source` prop.
+- Declare ordered `labelProps: [yourCaptionProp]` for display captions; the
+  app never guesses title, label, or name fields. Put retirement hints in
+  manifest `deprecated: {replacement: ...}`.
+- A webview component supplies its own header and sized wrapper, then calls
+  `host.webview.render({url, style, reloadKey})` for the native surface.
+
+Packages may publish `package.yaml` with `schemaVersion: 1` and a `templates`
+list. Each entry has `id`, `name`, `path`, optional `description`, and optional
+`role: starter` or `tutorial`. Role templates contain a full dashboard; others
+contain a component node. Known string variables are `${package}`,
+`${projectName}`, and `${environmentPath}`. Unknown expressions remain literal.
+The component library discovers these templates and assigns fresh IDs when
+inserting them. Default initialization reads the package's starter template.
+
+Composite component inputs may mark their wrapper `data-dashboard-interactive`
+to keep parent frame drag and modal Escape handling from intercepting input.
+This is a public DOM interaction contract, available to any component.
 
 ## License
 

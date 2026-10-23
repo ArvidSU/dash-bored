@@ -1,3 +1,5 @@
+import { referenceLocations } from "../../shared/reference-locations";
+import { actionInvocation } from "../../shared/action-invocation";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type {
@@ -214,6 +216,7 @@ export function ComponentDialog({
   });
   const [applyError, setApplyError] = useState<string | null>(null);
   const [actionTargetPath, setActionTargetPath] = useState<NodePath | null>(null);
+  const [actionPropPath, setActionPropPath] = useState("");
   const [actionKind, setActionKind] = useState<"focus" | "component">("focus");
   const [localActionId, setLocalActionId] = useState("refresh");
   const available = catalog.filter((entry) => {
@@ -226,6 +229,11 @@ export function ComponentDialog({
   const metadataSchema = parent ? catalogManifest(catalog, parent.component)?.children?.metadataSchema : undefined;
   const canBuild = Boolean(target && onBuildWithAgent && projectRoot && configPath && agentCommand?.trim() && query.trim() && available.length === 0);
   const discardedRootNodes = replace && item ? countDiscardedRootNodes(config, item) : 0;
+  const actionSlots = Object.entries(item?.manifest?.references ?? {}).filter(([, entry]) => entry.resource === "action").flatMap(([path]) => {
+    const slots = referenceLocations(props, path).map((location) => location.path);
+    return slots.length || path.includes("*") ? slots : [path];
+  });
+  const selectedActionSlot = actionSlots.includes(actionPropPath) ? actionPropPath : actionSlots[0];
   const actionTargets: { path: NodePath; node: ComponentNode }[] = [];
   const collectActionTargets = (node: ComponentNode, path: NodePath): void => {
     actionTargets.push({ path, node });
@@ -272,8 +280,11 @@ export function ComponentDialog({
       ) : (
         <form className="component-config" onSubmit={(event) => {
           event.preventDefault();
-          if (item.reference === "./components/external/core/button" && typeof props.action === "string" && isLegacyActionTarget(props.action)) {
-            setApplyError("Choose a stable target ID before applying this action button.");
+          if (Object.entries(item.manifest?.references ?? {}).some(([path, definition]) => definition.resource === "action" && referenceLocations(props, path).some(({ parent, key }) => {
+            const invocation = actionInvocation(parent[key]);
+            return invocation && isLegacyActionTarget(invocation.run);
+          }))) {
+            setApplyError("Choose a stable target ID before applying this action reference.");
             return;
           }
           if (replace) {
@@ -329,9 +340,14 @@ export function ComponentDialog({
             </p>
           ) : null}
           {applyError ? <p className="inline-error" role="alert">{applyError}</p> : null}
-          {item.reference === "./components/external/core/button" ? (
+          {actionSlots.length ? (
             <fieldset className="action-target-picker">
               <legend>Stable action target</legend>
+              <label className="props-field"><span>Action property</span>
+                <select value={selectedActionSlot ?? ""} onChange={(event) => setActionPropPath(event.target.value)}>
+                  {actionSlots.map((path) => <option key={path} value={path}>{path}</option>)}
+                </select>
+              </label>
               <label className="props-field"><span>Target node</span>
                 <select value={actionTargetPath ? pathKey(actionTargetPath) : ""} onChange={(event) => {
                   const entry = actionTargets.find((candidate) => pathKey(candidate.path) === event.target.value);
@@ -357,7 +373,22 @@ export function ComponentDialog({
                 const reference = actionKind === "focus"
                   ? `focus:${encodeURIComponent(proposedTargetId)}`
                   : `component:${encodeURIComponent(proposedTargetId)}:${encodeURIComponent(localActionId.trim())}`;
-                setProps({ ...props, action: reference });
+                if (!selectedActionSlot) return;
+                const next = structuredClone(props);
+                const parts = selectedActionSlot.split(".");
+                let parent: Record<string, unknown> = next;
+                for (const part of parts.slice(0, -1)) {
+                  if (!Object.hasOwn(parent, part) || !parent[part] || typeof parent[part] !== "object") {
+                    Object.defineProperty(parent, part, { value: {}, enumerable: true, writable: true, configurable: true });
+                  }
+                  parent = parent[part] as Record<string, unknown>;
+                }
+                const key = parts.at(-1)!;
+                const current = parent[key];
+                const value = current && typeof current === "object" && !Array.isArray(current)
+                  ? { ...(current as Record<string, unknown>), run: reference } : reference;
+                Object.defineProperty(parent, key, { value, enumerable: true, writable: true, configurable: true });
+                setProps(next);
               }}>Use selected target</button>
             </fieldset>
           ) : null}

@@ -25,7 +25,7 @@ async function fixture(name: string, manifest: Record<string, unknown> = {}) {
   await mkdir(component, { recursive: true });
   await writeFile(join(component, "component.yaml"), [
     "schemaVersion: 3",
-    ...(manifest.apiVersion === null ? [] : [`apiVersion: ${String(manifest.apiVersion ?? "1.0.0")}`]),
+    ...(manifest.apiVersion === null ? [] : [`apiVersion: ${String(manifest.apiVersion ?? "2.0.0")}`]),
     `id: ${name}`,
     `name: ${name}`,
     "description: Component SDK test fixture.",
@@ -220,7 +220,7 @@ export default defineComponent<Props>(({ props, host }) => {
 
     const apiInfo = componentApiInfo();
     const sdkRoot = setup.sdkDirectory;
-    expect(apiInfo.apiVersion).toBe("1.0.0");
+    expect(apiInfo.apiVersion).toBe("2.0.0");
     expect(setup.sdkDigest).toBe(SDK_DIGEST);
     expect(JSON.parse(await readFile(join(sdkRoot, "sdk-version.json"), "utf8")).sdkDigest).toBe(SDK_DIGEST);
     expect(sdkCompilerPaths(sdkRoot)["@dash-bored/component"]).toEqual([join(sdkRoot, "index.d.ts")]);

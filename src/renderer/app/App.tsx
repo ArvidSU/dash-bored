@@ -509,7 +509,8 @@ export function App(): ReactNode {
         catalog={composition.catalog}
         onClose={interaction.closeLibrary}
         onInsert={composition.insert}
-        onInsertSwitchablePanels={() => void composition.insertSwitchablePanels()}
+        templates={composition.templates}
+        onInsertTemplate={(template) => void composition.insertTemplate(template)}
         onExternalOperation={async (operation) => (await host.manageExternalComponent(operation)).message}
         onBuildWithAgent={(description) => void composition.buildWithAgent(description)}
         onPointerDragMove={composition.libraryPointerDragMove}

@@ -1,8 +1,8 @@
 /** Public authoring entry. Only declarations ship; implementation remains app-owned. */
 import type { ComponentType } from "react";
-import type { LocalComponentRenderProps, TerminalSurfaceProps } from "../shared/contracts";
+import type { LocalComponentRenderProps } from "../shared/contracts";
 import type { ThemeAppearance, ThemeCatalogItem, ThemeTokens } from "../shared/themes";
-export type { LocalComponentRenderProps, LocalComponentHost, ComponentChildHandle, ComponentRenderedChildren, ComponentAction, ComponentActionChoice, ComponentActionOption, ComponentActionSelections, ComponentActionConfirmation, ResolvedComponentAction, ActionInvocationState, ActionInvocation, ComponentEnvironmentSnapshot, ComponentAgentLaunch, ProcessSnapshot, ProcessRunSnapshot, ProcessLogEntry, ProcessPhase, HttpResponsePayload, ShellRunResult, TerminalSurfaceProps, ComponentManifest, ComponentChildrenDefinition, ComponentProcessResourceDefinition, Permission, } from "../shared/contracts";
+export type { LocalComponentRenderProps, LocalComponentHost, ComponentChildHandle, ComponentRenderedChildren, ComponentAction, ComponentActionChoice, ComponentActionOption, ComponentActionSelections, ComponentActionConfirmation, ResolvedComponentAction, ActionInvocationState, ActionInvocation, ComponentEnvironmentSnapshot, ComponentAgentLaunch, ProcessSnapshot, ProcessRunSnapshot, ProcessLogEntry, ProcessPhase, HttpResponsePayload, ShellRunResult, ComponentManifest, ComponentChildrenDefinition, ComponentProcessResourceDefinition, Permission, } from "../shared/contracts";
 export type { ThemeTokens, ThemeToken, ThemeAppearance, ThemeCatalogItem } from "../shared/themes";
 export type HttpRequest = Omit<import("../shared/contracts").HttpRequest, "nodeId">;
 export type ShellRunRequest = Omit<import("../shared/contracts").ShellRunRequest, "nodeId">;
@@ -20,5 +20,4 @@ export declare function useTheme(): ComponentTheme;
 export declare function useComponentVisibility(): boolean;
 /** Includes bounded asynchronous work in screenshot/agent idle detection. Returns the same promise. */
 export declare function trackActivity<T>(work: Promise<T>): Promise<T>;
-export declare const TerminalSurface: ComponentType<TerminalSurfaceProps>;
 export { createElement, Fragment, useCallback, useContext, useDebugValue, useDeferredValue, useEffect, useId, useImperativeHandle, useInsertionEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, useTransition, } from "react";

@@ -64,6 +64,7 @@ Commands:
   dash-bored component init <directory>
   dash-bored component setup <directory> [--tsconfig <file>]
   dash-bored component check <directory> [--source-project <file>] [--json]
+  dash-bored component prepare <directory> --dependency <package> --output <relative.js>
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
   dash-bored component status [<name>] [project]

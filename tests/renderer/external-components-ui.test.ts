@@ -13,7 +13,7 @@ import {
 
 function testManifest(overrides: Partial<ComponentManifest> & Pick<ComponentManifest, "id" | "name">): ComponentManifest {
   return {
-    schemaVersion: 3, apiVersion: "1.0.0",
+    schemaVersion: 3, apiVersion: "2.0.0",
     description: "Test component",
     entry: "./index.tsx",
     propsSchema: {},

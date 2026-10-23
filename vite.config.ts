@@ -4,10 +4,21 @@ import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import { electrobunViteAliases } from "./.hutch/devkit/api/config/electrobun-vite";
 
-execFileSync("bun", ["scripts/build-core-fixture.ts"], { cwd: import.meta.dirname });
+const fixtures = process.env.DASH_BORED_FIXTURE === "1";
+if (fixtures) execFileSync("bun", ["scripts/build-core-fixture.ts"], { cwd: import.meta.dirname });
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: "isolated-test-fixture",
+    resolveId(id) {
+      if (id === "virtual:dash-bored-fixture-host") return fixtures
+        ? resolve(import.meta.dirname, "tests/helpers/ui-harness-host.ts")
+        : "\0empty-fixture-host";
+    },
+    load(id) {
+      if (id === "\0empty-fixture-host") return 'export function createUiHarnessHost() { throw new Error("Test fixtures are disabled"); }';
+    },
+  }],
   resolve: {
     alias: electrobunViteAliases(resolve(import.meta.dirname, ".hutch/devkit")),
   },

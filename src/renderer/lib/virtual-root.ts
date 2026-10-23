@@ -1,3 +1,4 @@
+import { declaredComponentLabel } from "../../shared/component-label";
 import type {
   ComponentChildLayout,
   ComponentChildren,
@@ -14,8 +15,8 @@ export interface VirtualRootCrumb {
 
 export function nodeLabel(node: ResolvedComponentNode, root: boolean): string {
   if (root) return "Dashboard";
-  const title = node.props.title ?? node.props.label ?? node.props.name;
-  if (typeof title === "string" && title.trim()) return title.trim();
+  const label = declaredComponentLabel(node);
+  if (label) return label;
   return node.manifest?.name ?? node.component.split("/").at(-1)!;
 }
 

@@ -342,7 +342,7 @@ export function buildComponentCreationAgentPrompt(
   return [
     "You are adding a component to a dash-bored dashboard from its structural editor.",
     "Use the installed dash-bored skill when available. Inspect the project and its instructions before editing, preserve unrelated changes, and validate the result.",
-    "The editor's catalog text search found no component for the user's description, but a built-in view (status, list, chart, or markdown) fed by a small source script often still fits, with item actions or agent:prompt for follow-up work. Prefer that; build a small project-local component only when no view can present it. Either way, add the new node exactly as the placement below says.",
+    "The editor's catalog text search found no component for the user's description. Inspect component manifests for matching props, children, actions, resources, and permissions, and check the project's source scripts. Compose declared capabilities when they fit; add a small project-local component only when the catalog and source-backed composition cannot express the request. Add the new node exactly as the placement below says.",
     `Project root: ${context.projectRoot}`,
     `Owning dashboard config: ${context.configPath}`,
     `YAML insertion path: ${context.insertion.path}`,

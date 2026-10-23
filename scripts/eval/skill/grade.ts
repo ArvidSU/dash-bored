@@ -4,8 +4,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
-import { parseDashboardList } from "../../../.dash-bored/components/external/core/src/renderer/lib/list-data";
-import { parseSourceChart, parseStatusValue } from "../../../.dash-bored/components/external/core/src/renderer/lib/view-shapes";
+import { parseDashboardList } from "../../../.dash-bored/components/external/core/shared/lib/list-data";
+import { parseSourceChart, parseStatusValue } from "../../../.dash-bored/components/external/core/shared/lib/view-shapes";
 
 const repo = resolve(import.meta.dir, "../../..");
 const evalDir = resolve(process.argv[2] ?? "");

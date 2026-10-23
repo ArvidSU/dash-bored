@@ -1,3 +1,4 @@
+import { discoverPackageTemplates } from "./package-templates";
 import { checkedOutCommit } from "./package-store";
 import { loadPromptTemplates, promptTemplateSummaries } from "./prompt-templates";
 import { loadThemeCatalog } from "./themes";
@@ -43,6 +44,7 @@ export interface ProjectDefinition {
   config: DashboardConfig | null;
   configRevision: string | null;
   componentCatalog: ComponentCatalogItem[];
+  componentTemplates?: import("../shared/package-templates").ComponentTemplate[];
   lock: DashboardLock | null;
   tree: ResolvedComponentNode | null;
   manifests: InspectResult["components"];
@@ -173,6 +175,9 @@ async function buildProjectDefinition(
   if (config?.theme) {
     for (const message of resolveTheme(themeCatalog, config.theme).errors) diagnostics.push(diagnostic({ code: "THEME_UNAVAILABLE", severity: "warning", message, file: location.configPath, path: "/theme" }));
   }
+  let componentTemplates: import("../shared/package-templates").ComponentTemplate[] = [];
+  try { componentTemplates = await discoverPackageTemplates(location); }
+  catch (error) { diagnostics.push(diagnostic({ severity: "warning", code: "PACKAGE_TEMPLATE_INVALID", message: errorMessage(error), file: location.configPath })); }
   const animationCatalog = await loadAnimationCatalog(location.configDirectory);
   diagnostics.push(...animationDiagnostics(animationCatalog, config?.attentionAnimation, location.configPath));
   const ok = !hasErrors(diagnostics) && tree !== null;
@@ -185,6 +190,7 @@ async function buildProjectDefinition(
     config,
     configRevision,
     componentCatalog,
+    componentTemplates,
     lock,
     tree,
     manifests,
@@ -316,6 +322,7 @@ export async function inspectProject(
       lock: definition.lock,
       tree: definition.tree,
       componentCatalog: definition.componentCatalog,
+      componentTemplates: definition.componentTemplates,
       components: definition.manifests,
       permissions: definition.permissions,
       diagnostics: definition.diagnostics,

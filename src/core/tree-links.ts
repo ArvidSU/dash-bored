@@ -1,3 +1,4 @@
+import { referenceLocations } from "../shared/reference-locations";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { realpath, stat } from "node:fs/promises";
 import type {
@@ -27,7 +28,7 @@ import type { ResolvedTreeResult } from "./tree-resolve";
 const MAX_CONFIG_LINK_DEPTH = 16;
 
 export function isConfigReference(reference: string): boolean {
-  return !reference.startsWith("@dash-bored/") && !isLocalReference(reference);
+  return !isLocalReference(reference);
 }
 
 export async function resolveConfigReferencePath(
@@ -45,44 +46,7 @@ export async function resolveConfigReferencePath(
   return realpath(configPath);
 }
 
-export interface ReferenceLocation {
-  parent: Record<string, unknown>;
-  key: string;
-  path: string;
-}
-
-/**
- * Find every prop location named by a manifest reference path such as
- * `items.*.action`. A trailing `*` makes each array item a reference; its
- * location is the array and the item's index, so writes replace the item.
- */
-export function referenceLocations(root: Record<string, unknown>, path: string): ReferenceLocation[] {
-  const parts = path.split(".");
-  const locations: ReferenceLocation[] = [];
-  const visit = (value: unknown, index: number, prefix: string[]): void => {
-    if (index >= parts.length) return;
-    const part = parts[index]!;
-    if (index === parts.length - 1) {
-      if (part === "*") {
-        if (Array.isArray(value)) value.forEach((_item, itemIndex) => {
-          locations.push({ parent: value as unknown as Record<string, unknown>, key: String(itemIndex), path: [...prefix, String(itemIndex)].join(".") });
-        });
-      } else if (value && typeof value === "object" && !Array.isArray(value) && part in value) {
-        locations.push({ parent: value as Record<string, unknown>, key: part, path: [...prefix, part].join(".") });
-      }
-      return;
-    }
-    if (part === "*") {
-      if (Array.isArray(value)) value.forEach((item, itemIndex) => visit(item, index + 1, [...prefix, String(itemIndex)]));
-      return;
-    }
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      visit((value as Record<string, unknown>)[part], index + 1, [...prefix, part]);
-    }
-  };
-  visit(root, 0, []);
-  return locations;
-}
+export { referenceLocations, type ReferenceLocation } from "../shared/reference-locations";
 
 function mapLayout<Node, Mapped>(
   layout: ComponentChildLayout<Node>,

@@ -40,7 +40,6 @@ const React = runtime.React;
 export const useTheme = runtime.useTheme;
 export const useComponentVisibility = runtime.useComponentVisibility;
 export const trackActivity = runtime.trackActivity;
-export const TerminalSurface = runtime.TerminalSurface;
 export const defineComponent = runtime.defineComponent;
 ${COMPONENT_REACT_EXPORTS.map((name) => `export const ${name} = React.${name};`).join("\n")}
 `;
@@ -88,8 +87,8 @@ function runtimePlugin(definition: LocalComponentDefinition): Bun.BunPlugin {
           throw new Error(`Cannot resolve ${JSON.stringify(args.path)}: ${errorMessage(error)}`);
         }
         resolvedPath = await realpath(resolvedPath);
-        if (!isPathContained(definition.directory, resolvedPath)) {
-          throw new Error(`Import ${JSON.stringify(args.path)} resolves outside the component directory.`);
+        if (!isPathContained(definition.sourceDirectory ?? definition.directory, resolvedPath)) {
+          throw new Error(`Import ${JSON.stringify(args.path)} resolves outside the component directory or its declared sourceRoot.`);
         }
         if (!ALLOWED_SOURCE_EXTENSIONS.has(extname(resolvedPath).toLowerCase())) {
           throw new Error(`Import ${JSON.stringify(args.path)} has an unsupported file type.`);

@@ -33,7 +33,7 @@ function catalogItem(
     source: "external",
     available: true,
     manifest: {
-      schemaVersion: 3, apiVersion: "1.0.0",
+      schemaVersion: 3, apiVersion: "2.0.0",
       id: reference,
       name: reference,
       description: `${reference} test component`,
@@ -152,7 +152,7 @@ describe("component agent context", () => {
     expect(prompt).toContain("- ERROR BUILTIN_COMPONENT_UNKNOWN: Unknown built-in component: @dash-bored/tabs (root.component)");
   });
 
-  test("prefers a source-backed built-in view and states the exact placement", () => {
+  test("uses catalog capabilities and states the exact placement", () => {
     const prompt = buildComponentCreationAgentPrompt({
       projectRoot: "/project",
       configPath: "/project/.dash-bored/dash-bored.yaml",
@@ -175,10 +175,10 @@ describe("component agent context", () => {
 
     expect(prompt).toContain("Use the installed dash-bored skill when available.");
     expect(prompt).not.toContain("No component in the dashboard catalog matched");
-    expect(prompt).toContain(
-      "a built-in view (status, list, chart, or markdown) fed by a small source script often still fits",
-    );
-    expect(prompt).toContain("build a small project-local component only when no view can present it");
+    expect(prompt).toContain("Inspect component manifests for matching props, children, actions, resources, and permissions");
+    expect(prompt).toContain("check the project's source scripts");
+    expect(prompt).toContain("add a small project-local component only when the catalog and source-backed composition cannot express the request");
+    expect(prompt).not.toContain("status, list, chart, or markdown");
     expect(prompt).toContain("YAML insertion path: root.children.second");
     expect(prompt).toContain(
       "Placement: Split the tile of node `status` (./components/external/core/status) so the new node sits below it: "

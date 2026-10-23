@@ -236,6 +236,18 @@ root:
                                 vars:
                                   id: ${item.id}
                         todos:
+                          - id: core-pin-on-main
+                            description: "The default core pin 0b121e2 (src/shared/default-component-package.ts and both bundle locks) exists only on the components repo branch codex/core-public-authoring. Merge that branch with a merge commit or fast-forward so the commit survives, or re-pin to the commit that lands on main, before releasing. A squash merge or deleted branch would make new dashboards and migrations unable to fetch core."
+                            done: false
+                            tags:
+                              - release
+                              - components
+                          - id: setup-agent-pending-state
+                            description: "Core's setup-agent component treats host.actions.invoke as synchronous: pending resets at once and its try/catch never sees launch errors. The host now refuses a second dashboard agent (DASHBOARD_AGENT_RUNNING), so this is cosmetic. Either let action invocation return a promise in the SDK, or make the component reflect the running agent from the action's enabled state."
+                            done: false
+                            tags:
+                              - components
+                              - agents
                           - id: release-cut-live-check
                             description: "Watch the Release tab's Cut release command succeed end to end, including its draft asset check and final message. During v0.5.2 (2026-10-13) it committed and pushed the bump, waited for CI, pushed the tag, and correctly stopped when the release workflow failed on a flaky test. The tag move and the draft check were then done by hand, because cut refuses an existing tag; consider a resume mode for that case."
                             done: false
@@ -899,13 +911,23 @@ root:
                                   command: bun test --timeout 30000 tests/main/agent-sessions.test.ts tests/main/agent-session-updates.test.ts tests/main/agent-config-memory.test.ts tests/main/dashboard-setup.test.ts tests/updates/migration-agent.test.ts
                                   cwd: .
                             second:
-                              node:
-                                id: verify-agent-session-ui
-                                component: "./components/external/core/command"
-                                props:
-                                  label: Verify Agent work session UI
-                                  command: bun test --timeout 60000 tests/renderer/agent-work-ui.test.ts tests/renderer/agent-tasks.test.ts tests/renderer/markdown-lite.test.ts
-                                  cwd: .
+                              axis: vertical
+                              first:
+                                node:
+                                  id: verify-agent-session-ui
+                                  component: "./components/external/core/command"
+                                  props:
+                                    label: Verify Agent work session UI
+                                    command: bun test --timeout 60000 tests/renderer/agent-work-ui.test.ts tests/renderer/agent-tasks.test.ts tests/renderer/markdown-lite.test.ts
+                                    cwd: .
+                              second:
+                                node:
+                                  id: verify-core-authoring
+                                  component: "./components/external/core/command"
+                                  props:
+                                    label: Verify core through public authoring
+                                    command: bun test --timeout 120000 tests/core/core-authoring-parity.test.ts tests/core/component-source-packages.test.ts tests/core/platform-metadata.test.ts tests/core/package-templates.test.ts tests/core/component-independence.test.ts
+                                    cwd: .
           - metadata:
               label: Changes
             node:

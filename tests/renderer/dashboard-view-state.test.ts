@@ -28,7 +28,7 @@ function node(
     ...(children === undefined ? {} : { children }),
     ...(select ? {
       manifest: {
-        schemaVersion: 3, apiVersion: "1.0.0",
+        schemaVersion: 3, apiVersion: "2.0.0",
         id,
         name: id,
         description: "",
@@ -38,7 +38,7 @@ function node(
       },
     } : id === "root" ? {
       manifest: {
-        schemaVersion: 3, apiVersion: "1.0.0",
+        schemaVersion: 3, apiVersion: "2.0.0",
         id,
         name: id,
         description: "",
@@ -48,7 +48,7 @@ function node(
       },
     } : {
       manifest: {
-        schemaVersion: 3, apiVersion: "1.0.0",
+        schemaVersion: 3, apiVersion: "2.0.0",
         id,
         name: id,
         description: "",

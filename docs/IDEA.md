@@ -54,6 +54,14 @@ its components through `./components/external/core/<name>`. These are ordinary
 external components, inspected before project trust and executed only after
 trust; the application does not carry a second core component registry.
 
+Core is the continuous consumer test of the public component-authoring path.
+Its component manifests point at editable TypeScript/TSX sources, checked with
+the shipped SDK and loaded through the ordinary component compiler. Shared
+sources and prepared third-party dependencies use documented mechanisms
+available to every author. Core has no private compilation path or privileged
+imports. A core change must pass the public authoring checks from a clean
+checkout without dependency installation by the dashboard consumer.
+
 ## Atoms, not a browser and not a product
 
 dash-bored sits deliberately between two failure modes. It must not reinvent
@@ -296,7 +304,17 @@ provenance; all require normal project trust before execution.
 
 Validation, editor behavior, and runtime behavior are generic. No logic is
 keyed to a component ID; differences come from declarative schemas, formats,
-and capabilities.
+and capabilities. Package-owned manifests declare resource bindings; the app
+never infers component semantics from prop names. Component packages own their
+rendering, dependencies, setup content, templates, and retirement metadata.
+The app retains generic process/PTY supervision, agent lifecycle, native-surface
+isolation, and composition. A thin native surface projects the component's box;
+component chrome and sizing policy stay in the package.
+
+Production builds do not require the standard component checkout. Independent
+packages with unrelated IDs and differently named props must exercise the same
+public capabilities and editor controls. Default package pins are distribution
+configuration, not a source of privileged behavior.
 
 ## External components direction
 
@@ -339,15 +357,17 @@ missing or unsupported API versions before loading component code and gives
 authors an actionable diagnostic. Schema-v2 manifests require an explicit
 migration; the app never upgrades their meaning silently.
 
-The public authoring SDK has its own stable version line, beginning at
-`1.0.0`. Its runtime contracts and offline type definitions ship with the app
+The public authoring SDK currently targets `2.0.0`. API 1 components require
+an explicit migration; the app rejects unsupported targets before execution. Its runtime contracts and offline type definitions ship with the app
 and are exposed to component authors through `@dash-bored/component`. Additive
 optional APIs may use minor releases, with deprecation notes before removal;
 breaking changes require a major release and migration guidance. Host
 capabilities remain optional and are checked at the boundary at runtime.
-Published components include generated JavaScript runtime and declaration
-output, and their source and declarations can be checked semantically before
-they are loaded.
+Published components may contain editable TypeScript/TSX sources or generated
+JavaScript runtime with matching declaration output. Core publishes source
+entries so our own dashboard exercises source authoring continuously. Source
+and declaration interfaces can be checked semantically before loading; the
+normal runtime compiler produces browser JavaScript for either form.
 
 ## Themes
 

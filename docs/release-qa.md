@@ -8,7 +8,7 @@ maintainer action.
 1. Start from a clean `main` that matches `origin/main`.
 2. Bump `version` in `package.json`, the only shipped version source.
 3. If the core component pin changes, update all three copies together:
-   `src/shared/core-package.ts`, `.dash-bored/dash-bored-lock.yaml`, and
+   `src/shared/default-component-package.ts`, `.dash-bored/dash-bored-lock.yaml`, and
    `.dash-bored/dogfood/dash-bored-lock.yaml`. Then run
    `bun run packages:verify-published`: a pin that is only local or was
    rewritten cannot be fetched by a fresh clone and fails the release.

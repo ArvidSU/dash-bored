@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkComponentDirectory, setupComponentAuthoring } from "../../src/core/component-authoring";
@@ -31,12 +31,12 @@ describe("component authoring CLI", () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-component-api-"));
     temporaryDirectories.push(cwd);
 
-    const result = await run(cwd, "component", "api", "--api-version", "1.0.0", "--json");
+    const result = await run(cwd, "component", "api", "--api-version", "2.0.0", "--json");
     expect(result.exitCode).toBe(0);
     const metadata = JSON.parse(result.stdout);
-    expect(metadata.apiVersion).toBe("1.0.0");
+    expect(metadata.apiVersion).toBe("2.0.0");
     expect(metadata).toHaveProperty("appVersion");
-    expect(metadata.supportedTargets).toContain("1.0.0");
+    expect(metadata.supportedTargets).toContain("2.0.0");
     expect(metadata.modules).toHaveProperty("@dash-bored/component");
     expect(metadata.modules).toHaveProperty("react");
     expect(metadata.sdkDigest).toMatch(/^[a-f0-9]{64}$/);
@@ -50,20 +50,16 @@ describe("component authoring CLI", () => {
     const result = await run(cwd, "component", "init", component);
     expect(result.exitCode).toBe(0);
     expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("schemaVersion: 3");
-    expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("apiVersion: 1.0.0");
+    expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("apiVersion: 2.0.0");
     expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("id: focus-timer");
     expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("permissions: []");
-    expect(await readFile(join(component, "index.tsx"), "utf8")).toContain("useComponentVisibility");
-    expect(await readFile(join(component, "index.tsx"), "utf8")).toContain("host.actions.register");
-    expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("id: start");
-    expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("id: pause");
-    expect(await readFile(join(component, "component.yaml"), "utf8")).toContain("id: reset");
+    expect(await readFile(join(component, "index.tsx"), "utf8")).toContain("defineComponent");
 
     const setup = await setupComponentAuthoring(component);
     expect(setup).toBeTruthy();
     const checked = await checkComponentDirectory(component);
     expect(checked.ok).toBeTrue();
-    expect(checked.apiVersion).toBe("1.0.0");
+    expect(checked.apiVersion).toBe("2.0.0");
     expect(checked.stages.length).toBeGreaterThan(0);
     expect(checked.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   }, CLI_TEST_TIMEOUT_MS);
@@ -122,9 +118,8 @@ describe("component authoring CLI", () => {
 
     const sourcePath = join(component, "index.tsx");
     const source = await readFile(sourcePath, "utf8");
-    expect(source).toContain("className=\"health-panel-timer\"");
-    expect(source).toContain("return () => cleanups.forEach((cleanup) => cleanup())");
-    expect(await readFile(join(component, "styles.css"), "utf8")).toContain(".health-panel-timer[data-phase=\"break\"]");
+    expect(source).toContain("className=\"health-panel-component\"");
+    expect(await readFile(join(component, "styles.css"), "utf8")).toContain(".health-panel-component");
     const invalidSource = `${source}\nconst invalidType: string = 42;\n`;
     await writeFile(sourcePath, invalidSource, "utf8");
     const result = await run(cwd, "component", "check", component, "--json");
@@ -152,8 +147,26 @@ describe("component authoring CLI", () => {
     expect(invalidInit.stderr).toContain("does not accept --json");
     expect(await readFile(join(component, "component.yaml"), "utf8").catch(() => null)).toBeNull();
 
-    const duplicate = await run(cwd, "component", "api", "--api-version", "1.0.0", "--api-version", "1.0.0");
+    const duplicate = await run(cwd, "component", "api", "--api-version", "2.0.0", "--api-version", "2.0.0");
     expect(duplicate.exitCode).toBe(2);
     expect(duplicate.stderr).toContain("may be specified only once");
   }, CLI_TEST_TIMEOUT_MS);
 });
+
+test("prepare validates required dependency options and writes a vendored browser module", async () => {
+  const root = await mkdtemp(join(tmpdir(), "dash-bored-prepare-cli-"));
+  temporaryDirectories.push(root);
+  const missing = await run(root, "component", "prepare", root);
+  expect(missing.exitCode).toBe(2);
+  expect(missing.stderr).toContain("requires --dependency and --output");
+  const invalid = await run(root, "component", "check", root, "--dependency", "example");
+  expect(invalid.exitCode).toBe(2);
+  const dependency = join(root, "node_modules", "example");
+  await mkdir(dependency, { recursive: true });
+  await writeFile(join(dependency, "package.json"), '{"name":"example","main":"index.js"}');
+  await writeFile(join(dependency, "index.js"), 'export const message = "prepared-by-cli";');
+  const prepared = await run(root, "component", "prepare", root, "--dependency", "example", "--output", "vendor/example.js");
+  expect(prepared.exitCode).toBe(0);
+  expect(JSON.parse(prepared.stdout).output).toBe(join(await realpath(root), "vendor/example.js"));
+  expect(await readFile(join(root, "vendor/example.js"), "utf8")).toContain("prepared-by-cli");
+}, CLI_TEST_TIMEOUT_MS);

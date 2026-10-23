@@ -4,11 +4,11 @@ import { buildRevealActions, buildSelectionActions, revealItemArgument } from ".
 import { getCoreManifest as getBuiltinManifest } from "../../scripts/core-package-fixture";
 import { rankActions, rankPaletteEntries } from "../../src/renderer/lib/actions";
 
-const child: ResolvedComponentNode = { id: "overview", component: "./components/external/core/status", props: { title: "Overview" }, source: "external" };
-const other: ResolvedComponentNode = { id: "details", component: "./components/external/core/markdown", props: { title: "Details" }, source: "external" };
+const child: ResolvedComponentNode = { id: "overview", component: "./components/external/core/status", props: { label: "Overview" }, manifest: getBuiltinManifest("./components/external/core/status")!, source: "external" };
+const other: ResolvedComponentNode = { id: "details", component: "./components/external/core/markdown", props: { title: "Details" }, manifest: getBuiltinManifest("./components/external/core/markdown")!, source: "external" };
 const container: ResolvedComponentNode = {
   id: "panels", component: "./components/external/core/group", props: {}, source: "external",
-  manifest: { schemaVersion: 3, apiVersion: "1.0.0", id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single" } },
+  manifest: { schemaVersion: 3, apiVersion: "2.0.0", id: "group", name: "Panels", description: "", entry: "./index", propsSchema: {}, children: { min: 0, presentation: { type: "managed" }, select: "single" } },
   children: [{ node: child }, { node: other }],
 };
 const snapshot = { tree: container } as ProjectSnapshot;
@@ -44,7 +44,7 @@ describe("selection and reveal actions", () => {
     expect(getBuiltinManifest("./components/external/core/selection")?.children).toMatchObject({
       presentation: { type: "managed" }, select: "single",
     });
-    const configured = { ...container, props: { defaultChild: "details" } };
+    const configured = { ...container, manifest: { ...container.manifest!, children: { ...container.manifest!.children!, defaultChildProp: "initialPanel" } }, props: { initialPanel: "details" } };
     const actions = buildSelectionActions({ ...snapshot, tree: configured }, {}, () => {});
     expect(actions.map(({ id, active }) => [id, active])).toEqual([
       ["project:select", undefined], ["select:panels/overview", false], ["select:panels/details", true],

@@ -81,7 +81,8 @@ Everything else lives in focused modules under feature directories:
 - `lib/` — shared model and services: `component-children.ts`,
   `component-height.ts`, `component-view-state.ts`, `component-updates.ts`,
   `component-library.ts`, `actions.ts`, `action-providers.ts`,
-  `rpc-client.ts`, `ui-harness-host.ts`, `ui-harness-agents.ts` (fixture ACP
+  `rpc-client.ts`, `tests/helpers/ui-harness-host.ts`,
+  `tests/helpers/ui-harness-agents.ts` (fixture ACP
   sessions), `agent-tasks.ts`, `agent-options.ts`, `markdown-lite.tsx`,
   `virtual-root.ts`,
   `clipboard.ts`, `pointer-session.ts`,
@@ -146,7 +147,8 @@ examples, not privileged component types:
   children presentation but do not own topology or resizing.
 - `./components/external/core/selection` is a generic managed-child layout boundary. Core
   persists its selected child and exposes `select:<container>/<child>` actions;
-  `props.defaultChild` selects a direct child when no local choice exists.
+  The manifest-bound `children.defaultChildProp` selects a direct child when
+  no local choice exists.
   Selection is local to a panel, while focus is dashboard-wide navigation.
 - `./components/external/core/button` resolves and invokes one action or an `items` action bar
   through the shared executor. It reflects active navigation, running work,
@@ -474,7 +476,7 @@ text, and links as their text plus the URL (only a URL, optionally with a quoted
 bracketed prose such as `arr[0](see below)` stays text). It emits only React text and fixed elements: raw HTML shows
 literally, nothing navigates, and parsing stays linear on pathological input.
 The UI fixture seeds one session per interesting state and answers task
-commands like main (`lib/ui-harness-agents.ts`). It queues a permission
+commands like main (`tests/helpers/ui-harness-agents.ts`). It queues a permission
 request behind an open one, and `setAgentCommandLatency` delays command
 answers and pushes, for example to push after answering.
 
@@ -1020,8 +1022,9 @@ refreshes receive the same props, action, and permission contract as the app.
 
 The renderer has no built-in component registry or rendering branch. Core is
 compiled and loaded by `render/local-components.tsx` through the same blob-module
-and CSS lifecycle as other external code. `render/TerminalSurface.tsx` is an
-app-owned SDK primitive for the external command component; it lazily
-loads `render/TerminalSurfaceView.tsx` and xterm when a terminal is mounted. Fixture
-coverage builds the pinned core with the actual compiler; fixture payloads are
-excluded from production through the development-only host branch.
+and CSS lifecycle as other external code. Terminal rendering lives in the
+component package. The native webview host measures a component-provided box
+and manages sandboxing, mounting, and visibility only. Fixtures live under
+`tests/helpers/`; a Vite virtual module includes them only when
+`DASH_BORED_FIXTURE=1`. Normal production builds neither read core sources nor
+generate or bundle their fixtures.

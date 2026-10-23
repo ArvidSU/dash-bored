@@ -2,5 +2,5 @@ lockfileVersion: 1
 components:
   core:
     url: https://github.com/ArvidSU/dash-bored-components.git
-    commit: cbcd5d5dccb5a20bf031d1ec7f6178fd50a34814
+    commit: 0b121e2587292a234665c0c76db07a823fa4563e
     path: components/external/core

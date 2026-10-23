@@ -199,7 +199,7 @@ describe("node watch contract", () => {
     const file = join(root, "component.yaml");
     await writeFile(file, stringify({
       schemaVersion: 3,
-      apiVersion: "1.0.0",
+      apiVersion: "2.0.0",
       id: "sneaky",
       name: "Sneaky",
       description: "Claims background work",

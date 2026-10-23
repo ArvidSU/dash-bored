@@ -1,3 +1,4 @@
+import { declaredComponentLabel } from "../shared/component-label";
 import { agentTaskSummary, isAgentTaskBusy, type AgentSessionTask } from "../shared/agent-session";
 import { childEdges } from "../shared/child-edges";
 import { findResolvedNode } from "../shared/component-agent";
@@ -18,10 +19,8 @@ export function nodeLabel(tree: ResolvedComponentNode | null | undefined, nodeId
   if (!tree) return nodeId;
   const node = findResolvedNode(tree, nodeId);
   if (!node) return nodeId;
-  for (const key of ["title", "label", "name"]) {
-    const value = node.props[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
+  const caption = declaredComponentLabel(node);
+  if (caption) return caption;
   const edgeLabel = parentEdgeLabel(tree, nodeId);
   return edgeLabel ?? node.configName?.trim() ?? node.manifest?.name ?? nodeId;
 }

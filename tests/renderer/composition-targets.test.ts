@@ -23,7 +23,7 @@ function manifest(
   children?: ComponentManifest["children"],
 ): ComponentManifest {
   return {
-    schemaVersion: 3, apiVersion: "1.0.0",
+    schemaVersion: 3, apiVersion: "2.0.0",
     id,
     name,
     description: `${name} test manifest`,

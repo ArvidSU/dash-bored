@@ -8,7 +8,7 @@ import { COMPONENT_API_VERSION, COMPONENT_CAPABILITIES, COMPONENT_RUNTIME_EXPORT
 import type { Diagnostic } from "../shared/contracts";
 import { CoreError, diagnostic, hasErrors } from "./diagnostics";
 import { writeFileAtomically } from "./fs-atomic";
-import { resolveContainedPath } from "./paths";
+import { isPathContained, resolveContainedPath } from "./paths";
 import { loadLocalDefinition, type LocalComponentDefinition } from "./tree-catalog";
 import { compileLocalComponents } from "./compiler";
 import { parseComponentManifest } from "./yaml";
@@ -45,7 +45,7 @@ export function componentApiInfo(version = COMPONENT_API_VERSION) {
     defaults: "JSON Schema defaults describe recommendations; component code implements runtime fallbacks.",
     compatibility: "Exact stable API targets; minor additions, major breaking changes. Supported targets retain matched declarations. Deprecations include replacements and migration notes before removal in a major API version.",
     securityBoundary: "Project trust. Trusted component code shares the renderer; permissions are not a component sandbox.",
-    imports: "Contained relative .ts/.tsx/.js/.css files and the listed virtual modules. Other bare packages must be bundled at publication; Node/Electrobun APIs and escaping imports are unsupported.",
+    imports: "Relative .ts/.tsx/.js/.css files within the component directory or its declared sourceRoot, and the listed virtual modules. sourceRoot must stay inside the owning package. Vendor installed npm dependencies with component prepare and commit the output; Node/Electrobun APIs and escaping imports are unsupported.",
   };
 }
 
@@ -122,7 +122,12 @@ export function checkComponentTypes(definition: LocalComponentDefinition): Diagn
   const getSourceFile = host.getSourceFile.bind(host);
   host.getSourceFile = (file, version, onError, fresh) => file === harnessPath ? ts.createSourceFile(file, harness, version, true) : getSourceFile(file, version, onError, fresh);
   const result = ts.createProgram([entry, harnessPath, join(sdkDirectory, "css.d.ts")], options, host);
-  return tsDiagnostics(ts.getPreEmitDiagnostics(result));
+  const escapedSources = result.getSourceFiles().filter((file) => !file.isDeclarationFile
+    && file.fileName !== harnessPath
+    && !isPathContained(definition.sourceDirectory ?? definition.directory, file.fileName));
+  return [...tsDiagnostics(ts.getPreEmitDiagnostics(result)), ...escapedSources.map((file) => diagnostic({
+    code: "COMPONENT_SOURCE_OUTSIDE_ROOT", message: "TypeScript source resolves outside the component directory or its declared sourceRoot.", file: file.fileName,
+  }))];
 }
 
 function checkSourceProject(configPath: string): Diagnostic[] {
@@ -135,13 +140,32 @@ function checkSourceProject(configPath: string): Diagnostic[] {
   return [...tsDiagnostics(parsed.errors), ...tsDiagnostics(ts.getPreEmitDiagnostics(program))];
 }
 
+/** Standalone packages declare their authoring boundary with package.json or a Git root. */
+async function componentAuthoringRoot(directory: string): Promise<string> {
+  let cursor = directory;
+  // A dashboard's normal component boundary takes precedence over authoring markers.
+  while (true) {
+    if (basename(cursor) === "components" && await Bun.file(join(dirname(cursor), "dash-bored.yaml")).exists()) return cursor;
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  cursor = directory;
+  while (true) {
+    if (await Bun.file(join(cursor, "package.json")).exists() || await lstat(join(cursor, ".git")).then(() => true, () => false)) return cursor;
+    const parent = dirname(cursor);
+    if (parent === cursor) return dirname(directory);
+    cursor = parent;
+  }
+}
+
 export async function checkComponentDirectory(directory: string, options: { sourceProject?: string } = {}): Promise<ComponentCheckResult> {
   const stages: ComponentCheckStage[] = [];
   const diagnostics: Diagnostic[] = [];
   const stage = (name: string, items: Diagnostic[], ran = true) => { diagnostics.push(...items); stages.push({ name, ok: ran && !hasErrors(items), status: !ran ? "not-run" : hasErrors(items) ? "failed" : "passed" }); };
-  const absolute = resolve(directory);
-  const parent = dirname(absolute);
-  const loaded = await loadLocalDefinition({ projectRoot: parent, configDirectory: parent, configPath: join(parent, "dash-bored.yaml"), lockPath: join(parent, "dash-bored-lock.yaml"), componentsDirectory: parent }, `./components/${basename(absolute)}`);
+  const absolute = await realpath(resolve(directory));
+  const packageRoot = await componentAuthoringRoot(absolute);
+  const loaded = await loadLocalDefinition({ projectRoot: packageRoot, configDirectory: packageRoot, configPath: join(packageRoot, "dash-bored.yaml"), lockPath: join(packageRoot, "dash-bored-lock.yaml"), componentsDirectory: packageRoot }, `./components/${(relative(packageRoot, absolute) || ".").replaceAll("\\", "/")}`);
   stage("manifest", loaded.diagnostics);
   if (loaded.definition) {
     stage(loaded.definition.entryPath.endsWith(".js") ? "declaration-interface" : "typescript-source", checkComponentTypes(loaded.definition));

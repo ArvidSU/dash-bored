@@ -26,14 +26,15 @@ export function serializeChildSelections(selections: ChildSelections): string {
   return JSON.stringify(Object.fromEntries(Object.entries(selections).sort(([left], [right]) => left.localeCompare(right)).slice(0, MAX_SELECTED_CHILDREN)));
 }
 
-/** The visible child of a single-select container: saved choice, then `props.defaultChild`, then the first child. */
+/** The visible child of a single-select container: saved choice, declared initial selection prop, then first child. */
 export function selectedChildId(
   node: ResolvedComponentNode,
   selections: ChildSelections,
 ): string | undefined {
   if (node.manifest?.children?.select !== "single" || !Array.isArray(node.children)) return undefined;
+  const prop = node.manifest.children.defaultChildProp;
   return selections[node.id]
-    ?? (typeof node.props.defaultChild === "string" ? node.props.defaultChild : undefined)
+    ?? (prop && typeof node.props[prop] === "string" ? node.props[prop] as string : undefined)
     ?? node.children[0]?.node.id;
 }
 

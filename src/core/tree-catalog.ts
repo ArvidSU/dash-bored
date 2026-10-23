@@ -40,6 +40,7 @@ export interface LocalComponentDefinition {
   directory: string;
   manifestPath: string;
   entryPath: string;
+  sourceDirectory?: string;
   manifest: ComponentManifest;
 }
 
@@ -217,12 +218,8 @@ export async function loadLocalDefinition(
       definition: null,
       diagnostics: [
         diagnostic({
-          code: reference.startsWith("@dash-bored/")
-            ? "BUILTIN_COMPONENT_UNKNOWN"
-            : "COMPONENT_SOURCE_UNSUPPORTED",
-          message: reference.startsWith("@dash-bored/")
-            ? `Unknown built-in component: ${reference}`
-            : `Use a ${LOCAL_REFERENCE_PREFIX} component path, including external packages.`,
+          code: "COMPONENT_SOURCE_UNSUPPORTED",
+          message: `Use a ${LOCAL_REFERENCE_PREFIX} component path, including external packages.`,
           path: reference,
         }),
       ],
@@ -239,20 +236,16 @@ export async function loadLocalDefinition(
     const manifestPath = await resolveContainedPath(directory, "component.yaml", { kind: "file" });
     const parsed = await parseComponentManifest(manifestPath);
     if (parsed.value === null) return { definition: null, diagnostics: parsed.diagnostics };
-    if (parsed.value.id.startsWith("@dash-bored/")) {
-      return {
-        definition: null,
-        diagnostics: [
-          diagnostic({
-            code: "COMPONENT_ID_RESERVED",
-            message: "The @dash-bored/* component id namespace is reserved for legacy dashboard references; use an ordinary component ID.",
-            file: manifestPath,
-            path: "/id",
-          }),
-        ],
-      };
+    const externalName = externalComponentNameFromReference(reference);
+    const packageDirectory = externalName
+      ? await resolveContainedPath(location.componentsDirectory, `external/${externalName}`, { kind: "directory" })
+      : location.componentsDirectory;
+    const sourceDirectory = parsed.value.sourceRoot === undefined
+      ? directory
+      : await resolveContainedPath(packageDirectory, (relative(packageDirectory, resolve(directory, parsed.value.sourceRoot)) || "."), { kind: "directory" });
+    if (!isPathContained(sourceDirectory, directory)) {
+      throw new Error("sourceRoot must contain the component directory.");
     }
-
     const entryPath = await resolveContainedPath(directory, parsed.value.entry, { kind: "file" });
     const extension = entryPath.slice(entryPath.lastIndexOf(".")).toLowerCase();
     if (extension !== ".ts" && extension !== ".tsx" && extension !== ".js") {
@@ -279,6 +272,7 @@ export async function loadLocalDefinition(
         directory,
         manifestPath,
         entryPath,
+        sourceDirectory,
         manifest: parsed.value,
       },
       diagnostics: [],

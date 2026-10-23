@@ -1,10 +1,8 @@
-import { basename } from "node:path";
 import { hasErrors, loadProjectDefinition } from "../core/index";
 import type { ProjectLocation } from "../core/paths";
 import type { AgentConfigChoices, AgentSessionTask } from "../shared/agent-session";
 import type { ComponentAgentLaunch, Diagnostic, Permission, ResolvedComponentNode } from "../shared/contracts";
-import { buildDiagnosticsAgentPrompt, componentPath, findResolvedNode } from "../shared/component-agent";
-import { starterAgentPrompt } from "../core/project-files";
+import { buildDiagnosticsAgentPrompt } from "../shared/component-agent";
 import type { AgentSessionLaunchOptions } from "./agent-sessions";
 
 export interface DashboardSetupRuntime {
@@ -73,16 +71,6 @@ export class DashboardSetupSupervisor {
     const current = this.options.runtime.getSnapshot();
     return current.configPath === this.activeConfig && current.projectRoot === this.activeRoot
       && this.options.runtime.getSessionToken?.() === this.session;
-  }
-
-  async launch(node: ResolvedComponentNode): Promise<ComponentAgentLaunch> {
-    const { location } = this.options;
-    if (this.approvedPermissions.size === 0) {
-      for (const permission of node.manifest?.permissions ?? []) this.approvedPermissions.add(permission);
-    }
-    const configPath = node.sourceConfigPath ?? location.configPath;
-    const prompt = starterAgentPrompt(basename(location.projectRoot) || "Project", configPath);
-    return this.launchRequest({ prompt, configPath, componentPath: componentPath(node), request: "Set up this dashboard", purpose: "setup" });
   }
 
   /**
@@ -186,10 +174,4 @@ export class DashboardSetupSupervisor {
       report("failed", [{ severity: "error", code: "DASHBOARD_SETUP_FOLLOWUP_FAILED", message: error instanceof Error ? error.message : String(error) }], "Validation or repair could not finish. Review the error and retry when ready.");
     }
   }
-}
-
-export function findSetupNode(runtime: DashboardSetupRuntime, nodeId: string): ResolvedComponentNode | null {
-  const snapshot = runtime.getSnapshot();
-  const node = snapshot.tree ? findResolvedNode(snapshot.tree, nodeId) : null;
-  return node?.manifest?.permissions?.includes("process:execute") ? node : null;
 }

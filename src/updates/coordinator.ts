@@ -1,3 +1,5 @@
+import { loadProjectDefinition } from "../core/project";
+import { resolveProjectLocation } from "../core/paths";
 import { randomUUID } from "node:crypto";
 import { join, isAbsolute } from "node:path";
 import { APP_VERSION } from "../shared/app-metadata";
@@ -210,12 +212,27 @@ export class UpdateCoordinator {
       const item = r.migrations[path];
       if (!item || item.status !== "pending") continue;
       if (!(await this.options.listDashboards()).includes(path)) { item.status = 'failed'; item.message = 'Dashboard is no longer registered or selected.'; await this.save(r); continue; }
-      const migration = await inspectMigration(path, r.release.metadata);
-      if (migration.status === 'current') { item.status = 'finished'; item.message = migration.message; await this.save(r); continue; }
+      const migration = await inspectMigration(path, r.release.metadata, { fresh: true });
+      if (migration.status === 'current') {
+        if (r.release.metadata.componentApiVersions) {
+          const definition = await loadProjectDefinition(await resolveProjectLocation(path), { compile: true });
+          item.status = definition.ok ? "finished" : "failed";
+          item.message = definition.ok ? "Dashboard and component compatibility validated." : `Dashboard validation failed: ${definition.diagnostics.filter(diagnostic => diagnostic.severity === "error").map(diagnostic => diagnostic.message).join("; ")}`;
+        } else { item.status = 'finished'; item.message = migration.message; }
+        await this.save(r); continue;
+      }
       if (migration.status === 'unsupported' || !this.options.migrate) { item.status = 'failed'; item.message = migration.status === 'unsupported' ? migration.message : 'Migration agent unavailable. Configure an agent and retry.'; await this.save(r); continue; }
       item.status = 'running';
       await this.save(r); // Durable claim before any edits; never auto-replay this state.
-      try { const result = await this.options.migrate(path, r, this.report, async snapshot => { item.snapshot = snapshot; await this.save(r); }); item.status = 'finished'; Object.assign(item, result); }
+      try {
+        const result = await this.options.migrate(path, r, this.report, async snapshot => { item.snapshot = snapshot; await this.save(r); });
+        Object.assign(item, result);
+        if (r.release.metadata.componentApiVersions) {
+          const definition = await loadProjectDefinition(await resolveProjectLocation(path), { compile: true });
+          if (!definition.ok) throw new Error(`Migration left an invalid dashboard: ${definition.diagnostics.filter(diagnostic => diagnostic.severity === "error").map(diagnostic => diagnostic.message).join("; ")}`);
+        }
+        item.status = 'finished';
+      }
       catch (error) { item.status = 'failed'; item.message = String(error); }
       await this.save(r);
     }

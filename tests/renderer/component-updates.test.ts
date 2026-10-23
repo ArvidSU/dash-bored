@@ -27,7 +27,7 @@ function localNode(id: string, componentId: string): ResolvedComponentNode {
     ...node(id, `./components/${componentId}`),
     source: "local",
     manifest: {
-      schemaVersion: 3, apiVersion: "1.0.0",
+      schemaVersion: 3, apiVersion: "2.0.0",
       id: componentId,
       name: componentId,
       description: `${componentId} test component`,

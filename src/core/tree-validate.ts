@@ -71,7 +71,7 @@ export function validateNode(
  * types, this owns what can be watched. Families are inferred from `on`
  * because a manifest does not declare its view's data shape.
  */
-export function validateWatch(node: ComponentNode, nodePath: string, options: { configLink?: boolean } = {}): Diagnostic[] {
+export function validateWatch(node: ComponentNode, nodePath: string, options: { configLink?: boolean; manifest?: ComponentManifest } = {}): Diagnostic[] {
   const watch = node.watch as unknown;
   if (watch === undefined) return [];
   const watchPath = `${nodePath}.watch`;
@@ -88,8 +88,10 @@ export function validateWatch(node: ComponentNode, nodePath: string, options: { 
   if (family === null && on.length > 0 && on.every((event) => (WATCH_EVENTS as readonly unknown[]).includes(event))) {
     diagnostics.push(invalid("watch.on cannot mix status states (unknown, warning, error) with list events (added).", `${watchPath}.on`));
   }
-  const source = watchSource(node.props ?? {});
-  if ("error" in source) diagnostics.push(invalid(source.error, `${nodePath}.props.source`));
+  const observation = options.manifest?.resources?.observation;
+  if (family && observation && family !== observation.kind) diagnostics.push(invalid(`watch events require a ${family} observation; this component declares ${observation.kind}.`, `${watchPath}.on`));
+  const source = watchSource(node.props ?? {}, observation);
+  if ("error" in source) diagnostics.push(invalid(source.error, observation ? `${nodePath}.props.${observation.sourceProp}` : watchPath));
   const action = record.action;
   if (family !== "list" && action && typeof action === "object" && containsItemTemplate((action as Record<string, unknown>).with)) {
     diagnostics.push(invalid("Item templates are only available in the action of an added watch.", `${watchPath}.action.with`));
@@ -106,7 +108,7 @@ function watchActionReference(node: ResolvedComponentNode): unknown {
 }
 
 function validateResourceProviderId(manifest: ComponentManifest, id: string | undefined, nodePath: string): Diagnostic[] {
-  if (!manifest.resources || Object.keys(manifest.resources).length === 0 || id !== undefined) return [];
+  if (!manifest.resources?.process || id !== undefined) return [];
   return [diagnostic({
     code: "NODE_ID_REQUIRED",
     message: `${manifest.name} provides app-owned resources and requires an explicit id so they remain stable across reloads.`,
@@ -206,12 +208,14 @@ function validateChildren(
       path: childrenPath,
     }));
   }
-  if (typeof props.defaultChild === "string" && definition?.select === "single"
-    && !edges.some((edge) => edge.node.id === props.defaultChild)) {
+  const defaultProp = definition?.defaultChildProp;
+  const defaultChild = defaultProp ? props[defaultProp] : undefined;
+  if (typeof defaultChild === "string" && definition?.select === "single"
+    && !edges.some((edge) => edge.node.id === defaultChild)) {
     diagnostics.push(diagnostic({
       code: "COMPONENT_DEFAULT_CHILD_MISSING",
-      message: `${manifest.name} defaultChild ${props.defaultChild} is not a direct child node ID.`,
-      path: `${nodePath}.props.defaultChild`,
+      message: `${manifest.name} ${defaultProp} ${defaultChild} is not a direct child node ID.`,
+      path: `${nodePath}.props.${defaultProp}`,
     }));
   }
   if (definition === undefined && children !== undefined) {
