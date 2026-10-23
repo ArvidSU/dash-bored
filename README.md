@@ -174,6 +174,9 @@ Run the smallest check that proves the change while iterating, and
 - The browser interaction suite shares one page, so one timeout can fail many
   later tests. Rerun the first failure alone with `-t` before investigating
   the rest.
+- `bun run test` runs each file isolated (`--isolate`). Without it, one browser
+  suite's teardown could cut the next suite's Chrome pipe, and its Playwright
+  calls then hung until the 30 s test timeout.
 - CI runs test files serially in one isolated worker (`--parallel=1`), which
   also kills each file's leftover child processes. When a hosted run fails but
   local QA passes, reproduce with `CI=true bun run test`. Some hosted failures
