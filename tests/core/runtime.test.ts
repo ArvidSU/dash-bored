@@ -249,7 +249,9 @@ describe("ProcessManager", () => {
     managers.push(manager);
     await manager.reconcile([{
       id: "slow",
-      command: "printf 'waiting\\n'; sleep 30",
+      // Replace the shell before announcing readiness, so Ctrl-C targets the
+      // ready process rather than racing the shell's foreground-job handoff.
+      command: "exec bun -e 'console.log(\"waiting\"); setInterval(() => {}, 1000)'",
       interactive: true,
       interactiveShell: ["/bin/sh", "-i"],
       env: { ENV: "/dev/null" },
@@ -257,18 +259,12 @@ describe("ProcessManager", () => {
 
     await manager.start("slow");
     await waitFor(() => outputText(manager.get("slow")).includes("waiting"), 15_000);
-    // An interrupt that lands after `printf` but before `sleep` owns the
-    // terminal reaches the interactive shell, which ignores it. Press Ctrl-C
-    // again, as a person would, until the run ends.
     const interruptedRun = () => manager.get("slow")?.run?.phase === "exited";
-    for (let attempt = 0; attempt < 15 && !interruptedRun(); attempt += 1) {
-      await manager.write("slow", "\x03");
-      await waitFor(interruptedRun, 1_000).catch(() => undefined);
-    }
-    expect(interruptedRun()).toBeTrue();
+    await manager.write("slow", "\x03");
+    await waitFor(interruptedRun, 15_000);
     const interrupted = manager.get("slow")!;
     expect(interrupted.phase).toBe("running");
-    expect(interrupted.run?.signal === "SIGINT" || interrupted.run?.exitCode === 130).toBeTrue();
+    expect(["SIGINT:null", "null:130"]).toContain(`${interrupted.run?.signal}:${interrupted.run?.exitCode}`);
 
     await startWhenIdle(() => manager.start("slow"));
     await waitFor(() => manager.get("slow")?.run?.phase === "running", 15_000);
