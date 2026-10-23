@@ -551,6 +551,12 @@ root:
                             tags:
                               - agent-tool
                               - skill
+                          - id: todo-local-browser-hook-hang
+                            description: "Local parallel test runs intermittently hang 30 s in the system-Chrome renderer suites (component-independence-ui, production-components): a test or the afterAll browser.close() never returns although every Playwright wait is 5 s, and Bun then reports 'killed 1 dangling process'. On 2026-10-23 it failed all three v0.5.5 cut attempts and 1 of 4 runs of the four browser suites alone with playwright-core 1.64.1, and 4 of 6 with 1.62.1, at a load average near 5.7; CI=true serial runs and hosted CI passed. Bound newPage, page.close and browser.close with their own timeouts, launch fewer Chromes per parallel run, or run the browser suites serially in qa:fast."
+                            done: false
+                            tags:
+                              - tests
+                              - bug
                           - id: todo-dependency-majors
                             description: "Major dependency upgrades deferred from the 2026-10-23 bump (patch/minor updates landed then): React 19 with @types/react(-dom) 19, @agentclientprotocol/sdk 2, Vite 8 with @vitejs/plugin-react 6, TypeScript 7, and concurrently 10. Take each as its own migration with qa:fast, the browser interaction suite, and a dev-app UI proof; the ACP SDK and React upgrades also need an agent session and component rendering check in the packaged app."
                             done: false
