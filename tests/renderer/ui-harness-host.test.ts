@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createUiHarnessHost } from "../../src/renderer/lib/ui-harness-host";
+import { createUiHarnessHost } from "../helpers/ui-harness-host";
 import { childNodes } from "../../src/renderer/lib/component-children";
 
 describe("ui harness host", () => {

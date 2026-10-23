@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 export declare const CONFIG_DIRECTORY = ".dash-bored";
 export declare const CONFIG_FILE = "dash-bored.yaml";
 export declare const LOCK_FILE = "dash-bored-lock.yaml";
@@ -9,7 +9,7 @@ export type Permission = "filesystem:read" | "filesystem:write" | "network:http"
 /** A transition of a view's data shape that a watch reports: status states, or new list items. */
 export type NodeWatchEvent = "unknown" | "warning" | "error" | "added";
 /**
- * Composition intent on a node: keep observing its `props.source` in the
+ * Composition intent on a node: keep observing its manifest-bound source in the
  * background and turn transitions of the view's data shape into
  * notifications. Events inform and never act.
  */
@@ -91,12 +91,16 @@ export interface ComponentChildrenDefinition {
     max?: number;
     presentation: ComponentChildPresentation;
     metadataSchema?: Record<string, unknown>;
-    /** Renderer-owned single selection for managed children; instances pick a default with `props.defaultChild`. */
+    /** Renderer-owned single selection for managed children. */
     select?: "single";
+    /** Prop containing the initial selected direct-child node ID. */
+    defaultChildProp?: string;
 }
 export interface ComponentProcessResourceDefinition {
     /** Prop containing the supervised command string. */
     commandProp: string;
+    /** Optional prop supplying the process action label. */
+    labelProp?: string;
     /** Run the command inside a persistent PTY-backed shell. */
     interactive?: boolean;
     /** Optional prop containing a project-relative working directory. */
@@ -106,6 +110,10 @@ export interface ComponentProcessResourceDefinition {
 }
 export interface ComponentResourceDefinitions {
     process?: ComponentProcessResourceDefinition;
+    observation?: {
+        sourceProp: string;
+        kind: "status" | "list";
+    };
 }
 export interface ComponentReferenceDefinition {
     resource: "process" | "action";
@@ -118,13 +126,20 @@ export interface ComponentActionDefinition {
     args?: Record<string, unknown>;
 }
 export interface ComponentManifest {
+    /** Ordered top-level props used for display captions; no prop names are inferred. */
+    labelProps?: string[];
     schemaVersion: 3;
     /** Exact supported component API target, independent of manifest and app versions. */
     apiVersion: string;
     id: string;
     name: string;
     description: string;
+    deprecated?: {
+        replacement: string;
+    };
     entry: string;
+    /** Optional relative root for shared source imports; contained by the owning package. */
+    sourceRoot?: string;
     /** Public declaration entry for generated JavaScript artifacts. */
     types?: string;
     /** Whether this node owns a resizable surface or follows descendant layout. */
@@ -310,6 +325,7 @@ export interface ProcessSnapshot {
     run?: ProcessRunSnapshot;
 }
 export interface ProjectSnapshot {
+    componentTemplates?: import("./package-templates").ComponentTemplate[];
     themeCatalog?: import("./themes").ThemeCatalogItem[];
     /** Attention animations for the palette; `attention:` re-reads non-built-ins when it plays. */
     animationCatalog?: import("./animations").AnimationCatalogItem[];
@@ -349,6 +365,7 @@ export interface DashboardDraftValidation {
     trusted: boolean;
 }
 export interface DashboardConfigSource {
+    componentTemplates?: import("./package-templates").ComponentTemplate[];
     configPath: string;
     config: DashboardConfig;
     configRevision: string;
@@ -402,6 +419,7 @@ export interface DeleteProjectRequest {
     removeFiles: boolean;
 }
 export interface InspectResult {
+    componentTemplates?: import("./package-templates").ComponentTemplate[];
     /** Effective prompt templates from this bundle; summaries never contain rendered environment values. */
     promptTemplates?: AgentPromptTemplateSummary[];
     themeCatalog?: import("./themes").ThemeCatalogItem[];
@@ -548,13 +566,6 @@ export interface ComponentEnvironmentSnapshot {
     }>;
     error?: string;
 }
-export interface TerminalSurfaceProps {
-    process?: ProcessSnapshot;
-    onWrite?: (input: string) => Promise<ProcessSnapshot>;
-    onResize?: (cols: number, rows: number) => Promise<ProcessSnapshot>;
-    scrollToLatest?: number;
-    label?: string;
-}
 export interface LocalComponentHost {
     /** Read-only, allowlisted configuration values and their winning source. */
     environment?: ComponentEnvironmentSnapshot;
@@ -562,8 +573,6 @@ export interface LocalComponentHost {
         reload(): Promise<void>;
         /** Replaces this component's props in the owning dashboard draft. */
         updateProps(props: Record<string, unknown>): Promise<void>;
-        /** Starts the app-owned starter setup agent for this component. */
-        setupWithAgent?(): Promise<ComponentAgentLaunch>;
     };
     actions: {
         register(action: ComponentAction): () => void;
@@ -600,7 +609,8 @@ export interface LocalComponentHost {
     webview?: {
         render(request: {
             url: string;
-            title?: string;
+            style?: CSSProperties;
+            reloadKey?: string | number;
         }): ReactNode;
     };
 }

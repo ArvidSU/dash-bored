@@ -111,7 +111,10 @@ source equals the link target and that target is a bundled
   starter presets a bundle-local `icon` (`./assets/icon.svg`, a silent generic
   glyph until the file exists), and its agent prompt instructs the agent to
   generate a project-customized SVG there while building the cockpit and to
-  check the result with `app screenshot`. It never overwrites existing files.
+  check the result with `app screenshot`. It never overwrites existing files,
+  except an untouched offline placeholder: when the default package cannot be
+  restored, init succeeds with a warning and writes a project-local
+  `offline-start` component instead, which a later online `init` replaces.
 - `init <name ...>` joins every positional name as another safe directory
   level and creates a complete standalone bundle at that leaf, including its
   own config, lock, environment file, and components directory. It does not
@@ -177,7 +180,7 @@ source equals the link target and that target is a bundled
 - `inspect --summary` emits project status, diagnostics, permissions and a compact
   catalog without schemas or repeated tree/config data. Each catalog entry is
   `{ reference, available, name, description, permissions }`; a retiring pinned
-  core component (see `src/shared/retiring-components.ts`) also carries
+  component (from its manifest `deprecated.replacement`) also carries
   `retiring: true` and a `replacement` hint, and other entries omit both. The
   same map feeds the generated builtins reference. `--component <reference>`
   emits one authoritative catalog entry (including its schema) and project

@@ -16,8 +16,8 @@ export function EditorModal({ title, children, className, onDismiss }: ModalProp
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const close = (event: KeyboardEvent): void => {
-      const inTerminal = event.target instanceof HTMLElement && event.target.closest(".xterm") !== null;
-      if (event.key === "Escape" && !event.defaultPrevented && !inTerminal) {
+      const inInteractiveSurface = event.target instanceof HTMLElement && event.target.closest("[data-dashboard-interactive]") !== null;
+      if (event.key === "Escape" && !event.defaultPrevented && !inInteractiveSurface) {
         event.preventDefault();
         dismissRef.current();
       }

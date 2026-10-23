@@ -156,9 +156,12 @@ const manifestSchema = {
     schemaVersion: { const: 3 },
     apiVersion: { type: "string", pattern: "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
     id: { type: "string", minLength: 1 },
+    labelProps: { type: "array", minItems: 1, maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1 } },
     name: { type: "string", minLength: 1 },
     description: { type: "string", minLength: 1 },
     entry: { type: "string", pattern: "^\\./", minLength: 3 },
+    deprecated: { type: "object", additionalProperties: false, required: ["replacement"], properties: { replacement: { type: "string", minLength: 1 } } },
+    sourceRoot: { type: "string", pattern: "^(?:\\.\\.?)(?:/|$)", minLength: 1 },
     types: { type: "string", pattern: "^\\./.+\\.d\\.ts$" },
     renderMode: { enum: ["surface", "layout"] },
     propsSchema: { type: "object" },
@@ -204,17 +207,20 @@ const manifestSchema = {
         },
         metadataSchema: { type: "object" },
         select: { const: "single" },
+        defaultChildProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
       },
     },
     resources: {
       type: "object",
       additionalProperties: false,
       properties: {
+        observation: { type: "object", additionalProperties: false, required: ["sourceProp", "kind"], properties: { sourceProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" }, kind: { enum: ["status", "list"] } } },
         process: {
           type: "object",
           additionalProperties: false,
           required: ["commandProp"],
           properties: {
+            labelProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
             commandProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
             interactive: { type: "boolean" },
             cwdProp: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]*$" },
@@ -596,6 +602,9 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
         path: "/children/max",
       })],
     };
+  }
+  if (result.value.children?.defaultChildProp && result.value.children.select !== "single") {
+    return { value: null, diagnostics: [diagnostic({ code: "MANIFEST_DEFAULT_CHILD_INVALID", message: "defaultChildProp requires select: single.", file, path: "/children/defaultChildProp" })] };
   }
   const permissions = new Set(result.value.permissions ?? []);
   const conditionalPermissions = new Set(Object.values(result.value.permissionsByProp ?? {}).flat());

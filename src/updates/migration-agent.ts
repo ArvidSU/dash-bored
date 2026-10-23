@@ -136,7 +136,7 @@ export async function superviseMigrationSession(options: MigrationSessionOptions
 export async function runMigrationAgent(options: MigrationAgentOptions): Promise<{ snapshot: string; message: string }> {
   const { receipt, configPath, report, trustStore, command } = options;
   const metadata = receipt.release.metadata;
-  if (metadata.version !== APP_VERSION || metadata.dashboardContract !== BUNDLED_MIGRATIONS.dashboardContract || metadata.minimumContract !== BUNDLED_MIGRATIONS.minimumContract || JSON.stringify(metadata.recipes) !== JSON.stringify(BUNDLED_MIGRATIONS.recipes)) throw new Error("Target release guidance does not match this executable. Install the exact target version first.");
+  if (metadata.version !== APP_VERSION || metadata.dashboardContract !== BUNDLED_MIGRATIONS.dashboardContract || metadata.minimumContract !== BUNDLED_MIGRATIONS.minimumContract || JSON.stringify(metadata.recipes) !== JSON.stringify(BUNDLED_MIGRATIONS.recipes) || JSON.stringify(metadata.componentApiVersions) !== JSON.stringify(BUNDLED_MIGRATIONS.componentApiVersions)) throw new Error("Target release guidance does not match this executable. Install the exact target version first.");
   const location = await resolveProjectLocation(configPath);
   if (await realpath(configPath) !== configPath) throw new Error("Dashboard path changed or became a symlink; explicitly select it again.");
   await assertProjectLocationContained(location);
@@ -144,7 +144,7 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
   if (!grant || !grant.permissions.includes('process:execute')) throw new Error("Review project trust in dash-bored before running a migration agent.");
   const toolVersion = Bun.spawn([options.toolPath, '--version'], { stdout: 'pipe', stderr: 'pipe' });
   if (await toolVersion.exited !== 0 || (await new Response(toolVersion.stdout).text()).trim() !== APP_VERSION) throw new Error("The migration agent tool is not the target release's executable.");
-  const migration = await inspectMigration(configPath, metadata);
+  const migration = await inspectMigration(configPath, metadata, { fresh: true });
   if (migration.status !== 'required') throw new Error(migration.message);
   const initial = await loadProjectDefinition(location, { compile: true });
   const env = { ...await resolveEnvironment(configPath, {}), DASH_BORED_TOOL: options.toolPath, DASH_BORED_AGENT: command };
@@ -169,10 +169,10 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
     `Migrate only the selected dashboard ${JSON.stringify(configPath)} to dash-bored ${APP_VERSION}.`,
     `Read the exact target skill ${JSON.stringify(join(handoff, 'SKILL.md'))} and its references/migrations.md, then ${JSON.stringify(join(handoff, 'migration.json'))}.`,
     `Agent tool: ${JSON.stringify(join(handoff, 'scripts', 'dash-bored'))} (resolves ${JSON.stringify(options.toolPath)}). Recovery snapshot: ${JSON.stringify(snapshot)}.`,
-    'Preserve unrelated files, environment files, customized guidance, and exact component pins. Do not grant trust. Do not edit the read-only handoff or snapshot.',
+    'Preserve unrelated files, environment files, customized guidance, and exact component pins except incompatible packages identified by the supplied component API migration instructions. Do not grant trust. Do not edit the read-only handoff or snapshot.',
     `Current diagnostics: ${JSON.stringify(initial.diagnostics)}`,
     `Guidance refresh conflicts (preserved): ${JSON.stringify(conflicts)}`,
-    'Apply the supplied cumulative recipes in order, then validate with that agent tool. When your turn ends, the host validates the dashboard and may ask for at most one repair in this session.',
+    'Apply the supplied cumulative recipes in order and the componentApi instructions when present, then validate with that agent tool. When your turn ends, the host validates the dashboard and may ask for at most one repair in this session.',
   ].join('\n');
   const { stopped } = await superviseMigrationSession({
     command, location, configPath, prompt, env, permissions: grant.permissions as Permission[],
@@ -180,7 +180,7 @@ export async function runMigrationAgent(options: MigrationAgentOptions): Promise
     isTrusted: () => trustStore.isTrusted(location.projectRoot, grant.permissions),
   });
   if (await options.cancelled() || stopped) throw new Error('Migration cancelled. Review the saved edits before retrying.');
-  if ((await inspectMigration(configPath, metadata)).status !== 'current') throw new Error('Agent finished but the dashboard contract was not migrated. Review the snapshot and retry.');
+  if ((await inspectMigration(configPath, metadata, { fresh: true })).status !== 'current') throw new Error('Agent finished but the dashboard contract was not migrated. Review the snapshot and retry.');
   // Read recovery metadata back before reporting a usable recovery path.
   await readFile(join(runDirectory, 'recovery.json'), 'utf8');
   return { snapshot, message: 'Dashboard migration and validation finished.' };

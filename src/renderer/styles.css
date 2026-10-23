@@ -4975,7 +4975,6 @@ select:focus,
   box-shadow: var(--shadow-panel);
 }
 
-.terminal-surface,
 .agent-task-modal__prompt-text,
 .agent-task-modal__launch {
   border-color: var(--border-dark);

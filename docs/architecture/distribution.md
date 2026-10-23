@@ -93,7 +93,7 @@ bundle identifiers and existing paths remain compatible; dashboards keep their
 user-defined names. `src/shared/updates.ts` defines the public release and receipt
 formats. `src/updates/releases.ts` discovers GitHub HTTPS releases, excludes
 drafts and older versions, validates canary/macOS/arm64 identity and cumulative
-recipes, and rejects incomplete metadata. Publication adds the native full
+recipes and optional exact `componentApiVersions`, and rejects incomplete metadata. Publication adds the native full
 archive, native manifest, `dash-bored-release.json`, `MIGRATIONS.md`, and SHA-256
 checksums alongside the verified DMG. No independent signing is claimed.
 
@@ -154,7 +154,22 @@ The current dashboard contract is 4, with minimum migratable contract 2
 wrappers and redundant ratios, preserving component nodes, edge metadata,
 binary grouping, and explicit horizontal widths. The v3-to-v4 recipe points
 the standard components at the pinned core package and adds its lock pin.
-Dashboard recipes never convert component manifests (now schema version 3).
+Dashboard schema recipes do not convert component manifests (now schema version 3).
+Releases also advertise exact `componentApiVersions`. Even when the dashboard
+schema is current, migration inspection reads used manifests without compiling
+or executing them and compares their API targets with the selected release.
+Unsupported targets and unavailable used packages produce a separate
+`componentApi` migration instruction; unrelated catalog entries do not.
+The agent reviews package migration guidance and can change only incompatible
+package pins or project-owned implementations in the selected bundle. Linked
+bundles need separate selection. Other pins and external checkout source stay
+unchanged. Migration completion is validated against the installed target,
+including the path that needs no agent; an agent's success message alone cannot
+mark an incompatible dashboard finished. Background status polling reuses a
+bounded 32-entry, 30-second compatibility cache, invalidated by config revisions
+and lock, manifest, linked-config and directory file stamps. Durable migration
+inspection bypasses the cache, so a poll result never authorizes completion. Older release metadata without API
+targets retains its schema-only inspection behavior.
 Subsequent contract changes must update the embedded cumulative recipes and minimum
 supported contract together with the actual schema implementation.
 Unknown/older unsupported schemas stay diagnosable even when the dashboard

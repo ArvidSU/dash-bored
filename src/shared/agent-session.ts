@@ -117,10 +117,6 @@ export interface ComponentAgentPreview {
   agents: AgentCommandOptions;
 }
 
-export interface DashboardSetupAgentRequest {
-  nodeId: string;
-}
-
 export interface ComponentCreationAgentRequest {
   configPath: string;
   target: import("./contracts").DashboardInsertionTarget;
@@ -131,8 +127,7 @@ export interface ComponentCreationAgentRequest {
 export type AgentLaunchRequest =
   | ({ kind: "component" } & ComponentAgentRequest)
   | ({ kind: "creation" } & ComponentCreationAgentRequest)
-  | { kind: "diagnostics" }
-  | ({ kind: "setup" } & DashboardSetupAgentRequest);
+  | { kind: "diagnostics" };
 
 export type AgentSessionState =
   /** Spawning the agent, initializing ACP, and creating the session. */

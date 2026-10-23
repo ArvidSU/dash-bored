@@ -121,10 +121,15 @@ command below; `dash-bored` is shorthand, not a command installed on PATH.
 4. Run `component check <directory> --json` until clean. A TypeScript entry is
    checked semantically; a JavaScript entry needs a contained `.d.ts` file in
    `types`. For publication, also use `--source-project <tsconfig>` to check
-   the original sources. Run the repository's tests and deterministic build;
-   its test host supplies virtual component APIs while installed React keeps
-   its ordinary runtime resolution. Bundle other dependencies before publishing,
-   leaving only the listed app-owned virtual modules external.
+   the original sources when publishing generated JavaScript. Run the
+   repository's tests; its test host supplies virtual component APIs while
+   installed React keeps its ordinary runtime resolution. Prefer editable
+   source entries so development and consumers use the same compiler. For
+   third-party browser dependencies, install them in the authoring repository,
+   then run `component prepare <directory> --dependency <package> --output
+   <relative.js>` and import the committed output relatively. Preparation
+   leaves React and the SDK external and never runs on dashboard open. Add an
+   adjacent `.d.ts` for the dependency interface used by the component.
 5. Preview in an existing development dashboard when available. Place the
    component below its owning bundle's `components/` directory and insert a
    stable node ID, preserving other YAML. Validate that dashboard, check its
@@ -155,7 +160,7 @@ minimal manifest is:
 
 ```yaml
 schemaVersion: 3
-apiVersion: 1.0.0
+apiVersion: 2.0.0
 id: service-health
 name: Service health
 description: Shows whether a project service responds.
@@ -195,12 +200,18 @@ validation. For JavaScript artifacts it checks the required `types` declaration
 against the component render interface, then bundles the shipped entry. Pass
 `--source-project` to check the original TS/TSX publication sources too. This
 keeps source, declaration-interface, and generated-runtime checks distinct.
-Published components include generated JavaScript and declarations. Runtime
-imports may use contained relative `.ts`, `.tsx`, `.js`, and `.css` files; a
-separate `node_modules` or React copy is not needed. Setup and checks do not
+Published components may include editable TS/TSX source entries or generated
+JavaScript with declarations. Core publishes editable sources and exercises
+this same workflow. Runtime imports may use relative `.ts`, `.tsx`, `.js`, and
+`.css` files within the component directory, or within an explicitly declared
+ancestor `sourceRoot`. For example, `sourceRoot: ..` lets sibling components
+share package-owned helpers. The root must stay inside the owning external
+package or the bundle's components directory; standalone checks recognize the
+nearest package.json or Git root. A separate `node_modules` or React copy is
+not needed by the dashboard consumer. Setup and checks do not
 install dependencies or execute the component.
 
-The public component API starts at 1.0.0 and follows SemVer: minor releases
+The public component API starts at 2.0.0 and follows SemVer: minor releases
 may add optional methods and types; deprecations include replacements and
 migration notes before removal in a major release. Optional host capabilities remain optional; a
 TypeScript fallback cannot grant a runtime capability, and the host checks
@@ -377,25 +388,26 @@ observe completion or failure. `host.processes.start(itemEnvironment?)` accepts
 per-run item values for a manifest-declared supervised process resource.
 
 Local components may import contained relative `.ts`, `.tsx`, `.js`, and `.css`
-files, `@dash-bored/component`, `react`, `react/jsx-runtime`, and
+files within the component directory or its declared `sourceRoot`,
+`@dash-bored/component`, `react`, `react/jsx-runtime`, and
 `react/jsx-dev-runtime`. These shared runtime modules do not require a local
 `node_modules` directory. Other bare package imports, Node or Electrobun APIs,
-absolute imports, paths outside the component directory (including escaping
-symlinks), and CSS asset URLs are unsupported. Do not import types from an
+absolute imports, paths outside the declared source boundary (including
+escaping symlinks), and CSS asset URLs are unsupported. Do not import types from an
 application source path; the interfaces here describe the contract, not extra
 runtime exports. Read `.dash-bored-sdk/index.d.ts` and its referenced declarations
 for types; private type aliases are not supported runtime imports.
 
 <!-- component-sdk-runtime-exports:start -->
-`@dash-bored/component` runtime exports: `defineComponent`, `useTheme`, `useComponentVisibility`, `trackActivity`, `TerminalSurface`, `createElement`, `Fragment`, `useCallback`, `useContext`, `useDebugValue`, `useDeferredValue`, `useEffect`, `useId`, `useImperativeHandle`, `useInsertionEffect`, `useLayoutEffect`, `useMemo`, `useReducer`, `useRef`, `useState`, `useSyncExternalStore`, `useTransition`.
+`@dash-bored/component` runtime exports: `defineComponent`, `useTheme`, `useComponentVisibility`, `trackActivity`, `createElement`, `Fragment`, `useCallback`, `useContext`, `useDebugValue`, `useDeferredValue`, `useEffect`, `useId`, `useImperativeHandle`, `useInsertionEffect`, `useLayoutEffect`, `useMemo`, `useReducer`, `useRef`, `useState`, `useSyncExternalStore`, `useTransition`.
 <!-- component-sdk-runtime-exports:end -->
 
 `useTheme()` reflects the active theme, appearance and tokens.
 `useComponentVisibility()` is false for hidden mounted panels: pause future
 polling without losing local state. `trackActivity(promise)` returns the same
 promise and counts its bounded work in app idle detection; clean up any timers
-separately. `TerminalSurface` uses the app's xterm/theme lifecycle with a
-supervised process snapshot and bound write/resize callbacks. Use the shared
+separately. Terminal UI and browser dependencies belong to the component; the host supplies
+process snapshots and bound PTY write/resize callbacks. Use the shared
 React runtime instead of bundling another copy.
 
 ## Validation loop
@@ -601,7 +613,7 @@ owning named bundle's `components/git-summary/`). No npm install is needed.
 
 ```yaml
 schemaVersion: 3
-apiVersion: 1.0.0
+apiVersion: 2.0.0
 id: git-summary
 name: Git summary
 description: Polls a read-only Git status command and offers manual refresh.
@@ -791,7 +803,9 @@ generated ignore rules and commit the lock. Older parent-owned packages need
 explicit `component migrate-ownership`, never automatic gitlink conversion.
 
 Use SDK `useComponentVisibility()` for hidden polling and `trackActivity(work)`
-for asynchronous idle tracking. `TerminalSurface` renders a supplied process
-snapshot with bound input/resize callbacks and a numeric scroll-to-latest trigger;
-keep process supervision in the host. Published components bundle dependencies
-inside their own directory, keeping React and @dash-bored/component external.
+for asynchronous idle tracking. Render terminals inside the component package
+using public process snapshots and PTY callbacks; keep supervision in the host. Published source components commit
+prepared dependencies within their declared source root, keeping React and
+@dash-bored/component external. `component prepare` accepts an installed npm
+package or subpath and a relative `.js` output; dependencies emitting CSS or
+assets are rejected. Commit their license notices alongside prepared code.

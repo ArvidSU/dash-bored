@@ -47,6 +47,7 @@ test("trust review lists each watch with what it runs and how often", () => {
         { node: {
           id: "ci",
           component: "./components/external/core/status",
+          manifest: { labelProps: ["label"], resources: { observation: { sourceProp: "source", kind: "status" } } },
           props: { label: "CI", source: { shell: "scripts/ci-status.sh", every: 30000 } },
           watch: { on: ["error"], every: 600000, action: { name: "Remediate with agent", run: "agent:prompt" } },
           source: "external",

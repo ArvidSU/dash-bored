@@ -1,3 +1,4 @@
+import type { ComponentTemplate } from "../../shared/package-templates";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CSSProperties,
@@ -35,7 +36,8 @@ export interface CompositionFlyoutProps {
   catalog: readonly ComponentCatalogItem[];
   onClose: () => void;
   onInsert: (entry: ComponentCatalogItem) => void;
-  onInsertSwitchablePanels?: () => void;
+  templates?: readonly ComponentTemplate[];
+  onInsertTemplate?: (template: ComponentTemplate) => void;
   onBuildWithAgent?: (description: string) => void;
   onDragStateChange?: (entry: ComponentCatalogItem | null) => void;
   onPointerDragMove?: (reference: string, point: ComponentPointerDragPoint) => void;
@@ -131,7 +133,8 @@ export function CompositionFlyout({
   catalog,
   onClose,
   onInsert,
-  onInsertSwitchablePanels,
+  templates = [],
+  onInsertTemplate,
   onBuildWithAgent,
   onDragStateChange,
   onPointerDragMove,
@@ -538,15 +541,13 @@ export function CompositionFlyout({
       )}
     >
       {dashboardAppearance}
-      {onInsertSwitchablePanels && (!query.trim() || "switchable panels tabs selection".includes(query.trim().toLowerCase())) ? (
-        <section aria-label="Component patterns" style={{ display: "grid", gap: "0.4rem" }}>
-          <h2 style={{ margin: 0, fontSize: "1rem" }}>Patterns</h2>
-          <button className="button button--secondary" type="button" disabled={loading} onClick={onInsertSwitchablePanels}>
-            Switchable panels
-          </button>
-          <small>Insert a selection container with two starter panels and a tab action bar at the selected target.</small>
+      {onInsertTemplate ? templates.filter((template) => !query.trim() || `${template.name} ${template.description ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).map((template) => (
+        <section style={cardStyle} key={template.reference}>
+          <strong>{template.name}</strong>
+          {template.description ? <p>{template.description}</p> : null}
+          <button className="button button--secondary" type="button" disabled={loading} onClick={() => onInsertTemplate(template)}>{template.name}</button>
         </section>
-      ) : null}
+      )) : null}
       <ul aria-label="Component catalog" style={{ display: "grid", gap: "0.75rem", margin: 0, padding: 0, listStyle: "none" }}>
         {filteredInternalCatalog.map(renderCatalogCard)}
       </ul>

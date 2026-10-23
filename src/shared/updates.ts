@@ -22,6 +22,8 @@ export interface ReleaseMetadata {
   dashboardContract: number;
   minimumContract: number;
   recipes: MigrationRecipe[];
+  /** Exact component API targets supported by this release. */
+  componentApiVersions?: string[];
   notes: string;
   updater: { file: string; sha256: string };
   archive: { file: string; sha256: string };
@@ -33,6 +35,7 @@ export interface DashboardMigration {
   contract: number | null;
   status: "current" | "required" | "unsupported";
   steps: MigrationRecipe[];
+  componentApi?: { supportedVersions: string[]; manifests: { path: string; version: string | null }[]; instructions: string };
   message: string;
 }
 export type MigrationChoice = "update-and-migrate" | "update-only";

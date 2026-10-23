@@ -474,7 +474,7 @@ describe("tree resolution and local compilation", () => {
       available: true,
       manifest: {
         schemaVersion: 3,
-        apiVersion: "1.0.0",
+        apiVersion: "2.0.0",
         id: "config:./arvid",
         name: "Arvid",
         entry: "config:link",
@@ -508,7 +508,7 @@ describe("tree resolution and local compilation", () => {
       })),
       writeFile(join(named, "dash-bored-lock.yaml"), stringify({ lockfileVersion: 1, components: {} })),
       writeFile(join(component, "component.yaml"), stringify({
-        schemaVersion: 3, apiVersion: "1.0.0",
+        schemaVersion: 3, apiVersion: "2.0.0",
         id: "personal-button",
         name: "Personal button",
         description: "A bundle-local button.",
@@ -669,7 +669,7 @@ export default defineComponent(({ props, host }) => {
     expect(result.diagnostics.map((item) => item.code)).toContain("COMPONENT_COMPILE_FAILED");
   });
 
-  test("keeps the built-in component id namespace reserved", async () => {
+  test("applies the same ID rules to every component namespace", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {
@@ -683,7 +683,7 @@ export default defineComponent(({ props, host }) => {
     await writeFile(manifestPath, manifest.replace("id: reserved", "id: '@dash-bored/markdown'"));
 
     const result = await inspectProject(root);
-    expect(result.ok).toBeFalse();
-    expect(result.diagnostics.map((item) => item.code)).toContain("COMPONENT_ID_RESERVED");
+    expect(result.ok).toBeTrue();
+    expect(result.diagnostics).toEqual([]);
   });
 });

@@ -41,7 +41,7 @@ import type {
   AgentViewState,
 } from "../../shared/agent-control";
 import type { DashboardRPC } from "../../shared/rpc";
-import type { UiHarnessHost } from "./ui-harness-host";
+import type { UiHarnessHost } from "../../../tests/helpers/ui-harness-host";
 
 export type HostEvent =
   | { type: "themes"; catalog: import("../../shared/themes").ThemeCatalogItem[] }
@@ -293,7 +293,7 @@ export function initializeHost(): Promise<void> {
   if (hostInitialization) return hostInitialization;
 
   if (import.meta.env.PROD) return Promise.resolve();
-  hostInitialization = import("./ui-harness-host").then(({ createUiHarnessHost }) => {
+  hostInitialization = import("virtual:dash-bored-fixture-host").then(({ createUiHarnessHost }) => {
     const uiHarnessHost = createUiHarnessHost();
     window.__DASH_BORED_UI_HARNESS_HOST__ = uiHarnessHost;
     host = uiHarnessHost;

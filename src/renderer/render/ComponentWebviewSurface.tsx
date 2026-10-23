@@ -1,129 +1,73 @@
 import { useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { WebviewTagElement } from "electrobun/view";
 import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
 
-export function ComponentWebviewSurface({
-  url,
-  title,
-  onNativeSurfaceSync,
-}: {
+/** Native mounting, visibility and security only. The component supplies its layout. */
+export function ComponentWebviewSurface({ url, style, reloadKey, onNativeSurfaceSync }: {
   url: string;
-  title?: string;
-  /** Used by the isolated native probe; ordinary component rendering ignores it. */
+  style?: CSSProperties;
+  reloadKey?: string | number;
+  /** Used by the isolated native probe. */
   onNativeSurfaceSync?: (state: { visible: boolean; mounted: boolean }) => void;
 }): ReactNode {
   const visible = useContext(ComponentVisibilityContext);
   const ref = useRef<WebviewTagElement>(null);
-  const shellRef = useRef<HTMLElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const previousReload = useRef(reloadKey);
   const validUrl = useMemo(() => {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-      return false;
-    }
+    try { return ["http:", "https:"].includes(new URL(url).protocol); } catch { return false; }
   }, [url]);
-
+  useLayoutEffect(() => {
+    if (previousReload.current !== reloadKey) ref.current?.reload();
+    previousReload.current = reloadKey;
+  }, [reloadKey]);
   useLayoutEffect(() => {
     if (!visible || !validUrl || mounted) return;
     let frame = 0;
     const mountWhenSized = (): void => {
       frame = 0;
       const rect = placeholderRef.current?.getBoundingClientRect();
-      if (!rect || rect.width <= 0 || rect.height <= 0) return;
-      const shellWidth = shellRef.current?.clientWidth ?? 0;
-      if (shellWidth <= 0) return;
-      setMounted(true);
+      if (rect && rect.width > 0 && rect.height > 0) setMounted(true);
     };
-    const scheduleMount = (): void => {
-      if (!frame) frame = requestAnimationFrame(mountWhenSized);
-    };
+    const scheduleMount = (): void => { if (!frame) frame = requestAnimationFrame(mountWhenSized); };
     const shell = shellRef.current;
-    const placeholder = placeholderRef.current;
-    if (!shell || !placeholder) return;
+    if (!shell) return;
     const observer = new ResizeObserver(scheduleMount);
     observer.observe(shell);
-    observer.observe(placeholder);
     scheduleMount();
-    return () => {
-      observer.disconnect();
-      if (frame) cancelAnimationFrame(frame);
-    };
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, [mounted, validUrl, visible]);
-
   useLayoutEffect(() => {
     const view = ref.current;
     if (!view) return;
     if (typeof view.toggleHidden === "function") view.toggleHidden(!visible);
-    if (!visible) {
-      onNativeSurfaceSync?.({ visible, mounted });
-      return;
-    }
+    if (!visible) { onNativeSurfaceSync?.({ visible, mounted }); return; }
     const shell = shellRef.current;
-    if (!shell) {
-      onNativeSurfaceSync?.({ visible, mounted });
-      return;
-    }
+    if (!shell) return;
     let frame = 0;
-    const applySize = (): void => {
-      const width = shell.getBoundingClientRect().width;
-      if (width <= 0) return;
-      const height = Math.max(320, Math.min(720, width * 9 / 16));
-      // Electrobun injects a default 800×300 style for every native tag. Set
-      // the measured frame imperatively before its next animation-frame init so
-      // the native child cannot retain that default rectangle.
-      view.style.setProperty("width", `${width}px`, "important");
-      view.style.setProperty("height", `${height}px`, "important");
-    };
     const sync = (): void => {
       frame = 0;
-      applySize();
+      const { width, height } = shell.getBoundingClientRect();
+      if (width <= 0 || height <= 0) return;
+      // Override Electrobun's injected dimensions with the caller's measured box.
+      view.style.setProperty("width", `${width}px`, "important");
+      view.style.setProperty("height", `${height}px`, "important");
       view.syncDimensions?.(true);
     };
-    const scheduleSync = (): void => {
-      if (!frame) frame = requestAnimationFrame(sync);
-    };
+    const scheduleSync = (): void => { if (!frame) frame = requestAnimationFrame(sync); };
     const observer = new ResizeObserver(scheduleSync);
     observer.observe(shell);
-    observer.observe(view);
     window.addEventListener("scroll", scheduleSync, true);
     scheduleSync();
     onNativeSurfaceSync?.({ visible, mounted });
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("scroll", scheduleSync, true);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, [mounted, onNativeSurfaceSync, visible]);
-
-  if (!validUrl) {
-    return (
-      <div className="component-state component-state--error" role="alert">
-        Native webviews require an absolute HTTP or HTTPS URL.
-      </div>
-    );
-  }
-
-  return (
-    <section className="webview-shell" ref={shellRef}>
-      <header className="webview-shell__header">
-        <span className="webview-shell__url" title={url}>{title?.trim() || url}</span>
-        <button className="button button--quiet" type="button" onClick={() => ref.current?.reload()}>
-          Reload
-        </button>
-      </header>
-      {mounted ? (
-        <electrobun-webview
-          ref={ref}
-          className="webview-shell__view"
-          renderer="native"
-          sandbox
-          src={url}
-        />
-      ) : <div className="webview-shell__placeholder" ref={placeholderRef} aria-hidden="true" />}
-    </section>
-  );
+    return () => { observer.disconnect(); window.removeEventListener("scroll", scheduleSync, true); if (frame) cancelAnimationFrame(frame); };
+  }, [mounted, onNativeSurfaceSync, validUrl, visible]);
+  if (!validUrl) return <div role="alert">Native webviews require an absolute HTTP or HTTPS URL.</div>;
+  return <div ref={shellRef} style={style}>
+    {mounted ? <electrobun-webview ref={ref} renderer="native" sandbox src={url} />
+      : <div ref={placeholderRef} style={{ width: "100%", height: "100%" }} aria-hidden="true" />}
+  </div>;
 }

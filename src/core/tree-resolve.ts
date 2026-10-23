@@ -238,7 +238,7 @@ export async function resolveComponentTree(
     const configuredChildren = node.children;
     const configuredEdges = childEdges(configuredChildren);
     diagnostics.push(...validateNode(manifest, node, props, configuredEdges, nodePath));
-    diagnostics.push(...validateWatch(node, nodePath));
+    diagnostics.push(...validateWatch(node, nodePath, { manifest }));
 
     const nodePermissions = new Set(permissionsForNode(manifest, { props, watch: node.watch }));
     permissionsByNode.set(id, nodePermissions);

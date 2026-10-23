@@ -44,7 +44,7 @@ async function sourceRepo(directory: string, file: string, content: string): Pro
 }
 
 const componentManifest = (label: string) => stringify({
-  schemaVersion: 3, apiVersion: "1.0.0", id: "widgets", name: "Widgets", description: label,
+  schemaVersion: 3, apiVersion: "2.0.0", id: "widgets", name: "Widgets", description: label,
   entry: "./index.tsx", propsSchema: { type: "object" },
 });
 const themeManifest = (accent: string) => stringify({ schemaVersion: 1, id: "ocean", name: "Ocean", light: { accent }, dark: { accent } });

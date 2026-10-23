@@ -3,7 +3,7 @@
 // Usage: bun scripts/eval/skill/prompts.ts <eval-dir>
 import { readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { starterAgentPrompt } from "../../../src/core/project-files";
+import { SETUP_PROMPT } from "../../../.dash-bored/components/external/core/shared/setup-prompt";
 import { builtinPromptTemplates, prepareAgentPrompt } from "../../../src/shared/prompt-templates";
 import {
   buildComponentCreationAgentPrompt,
@@ -18,7 +18,7 @@ for (const { name } of runs) {
   const configPath = join(root, ".dash-bored/dash-bored.yaml");
   let prompt: string;
   if (name.startsWith("acme-api-")) {
-    prompt = starterAgentPrompt("acme-api", configPath);
+    prompt = `Use ${configPath} as the exact owning configuration. ${SETUP_PROMPT}`;
   } else if (name.startsWith("ledger-tools-")) {
     // Change with agent renders the shipped dashboard template.
     prompt = prepareAgentPrompt({ templates: builtinPromptTemplates(), diagnostics: [] }, {

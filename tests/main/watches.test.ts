@@ -75,6 +75,7 @@ function node(id: string, watch: NodeWatch | undefined, source: Record<string, u
   return {
     id,
     component: "./components/external/core/status",
+    manifest: { schemaVersion: 3, apiVersion: "2.0.0", id: "status", name: "Status", description: "Status", entry: "./index.tsx", propsSchema: {}, resources: { observation: { sourceProp: "source", kind: "status" } } },
     props: { label: id.toUpperCase(), source },
     ...(watch ? { watch } : {}),
     source: "external",

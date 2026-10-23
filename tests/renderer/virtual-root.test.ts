@@ -12,6 +12,7 @@ const leaf: ResolvedComponentNode = {
   id: "only-button",
   component: "./components/external/core/command",
   props: { label: "Deploy" },
+  manifest: { schemaVersion: 3, apiVersion: "2.0.0", id: "test/action", name: "Action", description: "Action", entry: "./index.tsx", propsSchema: {}, labelProps: ["label"] },
   source: "external",
 };
 
@@ -23,6 +24,7 @@ const tree: ResolvedComponentNode = {
           id: "card",
           component: "./components/external/core/card",
           props: { title: "Operations" },
+          manifest: { schemaVersion: 3, apiVersion: "2.0.0", id: "test/container", name: "Container", description: "Container", entry: "./index.tsx", propsSchema: {}, labelProps: ["title"] },
           children: { node: leaf },
           source: "external"
       } },
@@ -33,7 +35,7 @@ describe("virtual dashboard roots", () => {
   test("uses readable component props for sidebar and breadcrumb labels", () => {
     expect(nodeLabel(tree, true)).toBe("Dashboard");
     expect(nodeLabel({ ...leaf, props: { label: "Deploy API" } }, false)).toBe("Deploy API");
-    expect(nodeLabel({ ...leaf, props: {} }, false)).toBe("command");
+    expect(nodeLabel({ ...leaf, props: {} }, false)).toBe("Action");
   });
 
   test("finds any nested component and builds human-readable breadcrumbs", () => {

@@ -34,9 +34,6 @@ export function createLocalHost(
       updateProps(props): Promise<void> {
         return onUpdateProps(props);
       },
-      ...(trusted && permissions.has("process:execute")
-        ? { setupWithAgent: () => host.launchAgent({ kind: "setup", nodeId: node.id }) }
-        : {}),
     },
     actions: {
       register(action) {
@@ -116,7 +113,7 @@ export function createLocalHost(
   if (trusted && permissions.has("webview:embed")) {
     componentHost.webview = {
       render(request) {
-        return <ComponentWebviewSurface url={request.url} title={request.title} />;
+        return <ComponentWebviewSurface url={request.url} style={request.style} reloadKey={request.reloadKey} />;
       },
     };
   }

@@ -44,7 +44,7 @@ async function buildProductionRenderer(outDir: string, logPath: string): Promise
       }));
     `], {
       stdin: "ignore", stdout: log, stderr: log,
-      env: { ...process.env, NODE_ENV: "production", DASH_BORED_PRODUCTION_TEST_OUT_DIR: outDir },
+      env: { ...process.env, NODE_ENV: "production", DASH_BORED_FIXTURE: "1", DASH_BORED_PRODUCTION_TEST_OUT_DIR: outDir },
     });
   } finally {
     closeSync(log);
@@ -160,7 +160,7 @@ test("local TSX and published jsxDEV calls preserve fragments, keys and children
     await writeFile(entryPath, source);
     await writeFile(join(directory, "tsconfig.json"), '{"compilerOptions":{"jsx":"react-jsxdev"}}');
     definitions.push({ directory, entryPath, manifestPath: join(directory, "component.yaml"),
-      reference: `./components/${id}`, manifest: { schemaVersion: 3, apiVersion: "1.0.0",
+      reference: `./components/${id}`, manifest: { schemaVersion: 3, apiVersion: "2.0.0",
         id, name: id, description: "Production JSX proof", entry: "./index.tsx", propsSchema: { type: "object" } },
     });
   }

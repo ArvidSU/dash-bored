@@ -68,7 +68,7 @@ export function startFixtureServer(options: FixtureServerOptions): FixtureServer
   const child = Bun.spawn({
     cmd: options.cmd,
     cwd: options.cwd,
-    env: options.env,
+    env: { ...process.env, ...options.env, DASH_BORED_FIXTURE: "1" },
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",

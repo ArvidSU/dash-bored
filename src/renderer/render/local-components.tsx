@@ -1,7 +1,6 @@
 import { COMPONENT_REACT_EXPORTS } from "../../shared/component-api";
 import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
 import { trackActivity } from "../lib/activity";
-import { TerminalSurface } from "./TerminalSurface";
 import { useTheme } from "../lib/theme";
 import React, {
   useContext,
@@ -58,7 +57,6 @@ export function installComponentRuntime(): void {
     useTheme,
     useComponentVisibility: () => useContext(ComponentVisibilityContext),
     trackActivity,
-    TerminalSurface,
   };
 
   Object.defineProperty(globalThis, "__DASH_BORED_COMPONENT_RUNTIME__", {

@@ -2417,6 +2417,9 @@ describe("renderer fixture interactions", () => {
       const bounds = await setup.boundingBox();
       expect(bounds!.width).toBeLessThanOrEqual(390);
       await setup.getByRole("button", { name: "Set up this dashboard", exact: true }).click();
+      const composer = proof.getByRole("dialog", { name: "Ask the agent" });
+      await composer.waitFor();
+      await composer.getByRole("button", { name: "Send", exact: true }).click();
       const activity = proof.getByRole("dialog", { name: "Agent work" });
       const row = activity.locator(".agent-task").first();
       await row.waitFor();

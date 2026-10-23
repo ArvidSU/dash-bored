@@ -1,5 +1,5 @@
 /** Read the pinned package for docs/tests; never a production component registry. */
-import { CORE_PACKAGE } from "../src/shared/core-package";
+import { DEFAULT_COMPONENT_PACKAGE } from "../src/shared/default-component-package";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -9,7 +9,7 @@ export const coreFixtureRoot = resolve(import.meta.dirname, "../.dash-bored/comp
 export const coreManifests: ComponentManifest[] = [];
 export function coreReference(name: string): string { return `./components/external/core/${name.replace(/^core\//, "")}`; }
 const checkedOut = execFileSync("git", ["-C", coreFixtureRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-if (checkedOut !== CORE_PACKAGE.commit) throw new Error("Restore the release-pinned core package before generating references or fixtures.");
+if (checkedOut !== DEFAULT_COMPONENT_PACKAGE.commit) throw new Error("Restore the release-pinned core package before generating references or fixtures.");
 for (const entry of readdirSync(coreFixtureRoot, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
   if (!entry.isDirectory()) continue;
   const path = resolve(coreFixtureRoot, entry.name, "component.yaml");

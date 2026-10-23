@@ -24,7 +24,6 @@ declare module "@dash-bored/component" {
   export type ProcessPhase = import("../component-api/index").ProcessPhase;
   export type HttpResponsePayload = import("../component-api/index").HttpResponsePayload;
   export type ShellRunResult = import("../component-api/index").ShellRunResult;
-  export type TerminalSurfaceProps = import("../component-api/index").TerminalSurfaceProps;
   export type ComponentManifest = import("../component-api/index").ComponentManifest;
   export type ComponentChildrenDefinition = import("../component-api/index").ComponentChildrenDefinition;
   export type ComponentProcessResourceDefinition = import("../component-api/index").ComponentProcessResourceDefinition;
@@ -36,7 +35,6 @@ declare module "@dash-bored/component" {
   export type HttpRequest = import("../component-api/index").HttpRequest;
   export type ShellRunRequest = import("../component-api/index").ShellRunRequest;
   export type ComponentTheme = import("../component-api/index").ComponentTheme;
-  export const TerminalSurface: typeof import("../component-api/index").TerminalSurface;
   export const createElement: typeof import("../component-api/index").createElement;
   export const Fragment: typeof import("../component-api/index").Fragment;
   export const useCallback: typeof import("../component-api/index").useCallback;

@@ -1,4 +1,5 @@
-import { CORE_PACKAGE } from "../shared/core-package";
+import { SUPPORTED_COMPONENT_API_VERSIONS } from "../shared/component-api";
+import { DEFAULT_COMPONENT_PACKAGE, DEFAULT_COMPONENT_PACKAGE_NAME } from "../shared/default-component-package";
 import { APP_VERSION } from "../shared/app-metadata";
 import { compareVersions, type PublishedRelease, type ReleaseMetadata } from "../shared/updates";
 
@@ -6,7 +7,8 @@ export const RELEASE_REPOSITORY = "ArvidSU/dash-bored";
 export const RELEASE_ASSET_BASE = `https://github.com/${RELEASE_REPOSITORY}/releases/download/`;
 export const RELEASE_METADATA_FILE = "dash-bored-release.json";
 export const DASHBOARD_CONTRACT = 4;
-export const BUNDLED_MIGRATIONS: Pick<ReleaseMetadata, "minimumContract" | "dashboardContract" | "recipes"> = {
+export const BUNDLED_MIGRATIONS: Pick<ReleaseMetadata, "minimumContract" | "dashboardContract" | "recipes" | "componentApiVersions"> = {
+  componentApiVersions: [...SUPPORTED_COMPONENT_API_VERSIONS],
   minimumContract: 2,
   dashboardContract: DASHBOARD_CONTRACT,
   recipes: [{
@@ -25,8 +27,8 @@ Validate with the version-matched CLI and inspect the diff against the host snap
     id: "external-core-components", from: 3, to: 4,
     title: "Load the standard components from the pinned core package",
     instructions: `Convert only the selected dashboard from schemaVersion 3 to 4.
-Replace recognized @dash-bored/<name> component references (button, card, chart, command, conditional, env, focus-timer, group, list, live-chart, markdown, selection, setup-agent, status, tabs, todo-list, webview) with ./components/external/core/<name>, preserving IDs, props, metadata, topology and action references. Do not rewrite strings inside props as component references.
-Add the release-owned core package URL, exact commit and path to the bundle lock, preserving all other pins. Use components.core: {url: "${CORE_PACKAGE.url}", commit: "${CORE_PACKAGE.commit}", path: "${CORE_PACKAGE.path}"}. Restore missing pins with component restore.
+Read the release-pinned component package's package.yaml migrations.references mapping. Replace matching component references with that package's mapped relative paths under its installed directory, preserving IDs, props, metadata, topology and action references. Do not rewrite strings inside props as component references.
+Add the release-owned default component package URL, exact commit and path to the bundle lock, preserving all other pins. Use components.${DEFAULT_COMPONENT_PACKAGE_NAME}: {url: "${DEFAULT_COMPONENT_PACKAGE.url}", commit: "${DEFAULT_COMPONENT_PACKAGE.commit}", path: "${DEFAULT_COMPONENT_PACKAGE.path}"}. Restore missing pins with component restore.
 Set schemaVersion to 4. This recipe does not convert component manifests, and lock files remain version 1. Linked dashboards are independent targets. Package ownership migration is a separate explicit operation; never remove parent-owned gitlinks as part of this recipe.
 Validate with the version-matched tool.`,
   }],
@@ -45,6 +47,7 @@ export function parseReleaseMetadata(value: unknown): ReleaseMetadata {
   if (m.updater.file !== 'canary-macos-arm64-update.json') throw new Error('Unexpected native updater manifest filename.');
   if (!m.archive.file.endsWith('.app.tar.zst') || !m.dmg.file.endsWith('.dmg')) throw new Error("Unexpected release artifact format.");
   if (!Number.isSafeInteger(m.dashboardContract) || !Number.isSafeInteger(m.minimumContract) || m.minimumContract < 2 || m.dashboardContract < m.minimumContract || m.dashboardContract > 1000 || typeof m.notes !== "string" || m.notes.length > 100_000 || !Array.isArray(m.recipes)) throw new Error("Invalid migration metadata.");
+  if (m.componentApiVersions !== undefined && (!Array.isArray(m.componentApiVersions) || m.componentApiVersions.length === 0 || m.componentApiVersions.length > 10 || new Set(m.componentApiVersions).size !== m.componentApiVersions.length || m.componentApiVersions.some(version => typeof version !== "string" || !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version)))) throw new Error("Invalid component API targets.");
   const ids = new Set<string>();
   for (const r of m.recipes) {
     if (!r || !/^[a-z0-9-]+$/.test(r.id) || ids.has(r.id) || !Number.isSafeInteger(r.from) || r.from < m.minimumContract || r.to !== r.from + 1 || r.to > m.dashboardContract || typeof r.title !== "string" || typeof r.instructions !== "string" || !r.instructions.trim() || r.instructions.length > 100_000) throw new Error("Invalid migration recipe.");

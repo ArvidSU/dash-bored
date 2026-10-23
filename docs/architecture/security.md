@@ -139,7 +139,6 @@ interface LocalComponentHost {
   dashboard: {
     reload(): Promise<void>;
     updateProps(props: Record<string, unknown>): Promise<void>;
-    setupWithAgent?(): Promise<ComponentAgentLaunch>;
   };
   actions: { register(action: ComponentAction): () => void };
   filesystem?: {
@@ -153,7 +152,7 @@ interface LocalComponentHost {
     start?(): Promise<ProcessSnapshot>;
     stop?(): Promise<ProcessSnapshot>;
   };
-  webview?: { render(request: { url: string; title?: string }): ReactNode };
+  webview?: { render(request: { url: string; style?: CSSProperties; reloadKey?: string | number }): ReactNode };
 }
 ```
 
@@ -162,9 +161,9 @@ shape: typed `props`, generic rendered `children` and handles, and a
 `LocalComponentHost`. The host is shaped solely by manifest permissions. No
 external component receives an API that a local component cannot declare.
 
-The optional `dashboard.setupWithAgent` method is exposed only to trusted
-nodes declaring `process:execute`. Its RPC rechecks the current node's permission
-and owning config before launching; automatic repair never expands project trust.
+Agent composition uses ordinary declared actions and the public `agent:prompt`
+flow. Components do not receive a starter-specific launch API. Agent approval,
+launch, validation, and bounded repair remain app-owned.
 
 Action registration is renderer-local and grants no host permission. A local
 action ID begins with an ASCII letter and contains only letters, digits,

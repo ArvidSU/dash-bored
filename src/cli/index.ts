@@ -16,7 +16,6 @@ import { runMigrateCommand } from "./migrate";
 import type { Diagnostic, InspectResult } from "../shared/contracts";
 import { APP_VERSION } from "../shared/app-metadata";
 import { watchSummaries } from "../shared/watches";
-import { retiringReplacement } from "../shared/retiring-components";
 import { installDashBoredSkill } from "./install-skill";
 
 const COMMANDS = new Set(["init", "install-skill", "validate", "inspect", "component", "theme", "animation", "migrate", "app"]);
@@ -45,6 +44,7 @@ Usage:
   dash-bored component init <directory>
   dash-bored component setup <directory> [--tsconfig <file>]
   dash-bored component check <directory> [--source-project <file>] [--json]
+  dash-bored component prepare <directory> --dependency <package> --output <relative.js>
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
   dash-bored component status [<name>] [project]
@@ -255,6 +255,7 @@ async function main(): Promise<number> {
     console.log(result.environmentPath);
     console.log(result.readmePath);
     console.log(result.installerPath);
+    if (result.warning) console.error(`Warning: ${result.warning}`);
     return 0;
   }
 
@@ -292,13 +293,14 @@ async function main(): Promise<number> {
     const output = summary ? {
       ok: result.ok, projectRoot: result.projectRoot, permissions: result.permissions, diagnostics: result.diagnostics,
       promptTemplates: result.promptTemplates,
+      componentTemplates: (result.componentTemplates ?? []).map(({ reference, name, description, role }) => ({ reference, name, description, role })),
       // What `attention:<node>` can play; a broken bundle animation shows its error.
       animations: (result.animationCatalog ?? []).map(({ reference, name, manifest, error }) => ({
         reference, name, ...(manifest?.description ? { description: manifest.description } : {}), ...(error ? { error } : {}),
       })),
-      // Retiring core components stay runnable for older dashboards; `replacement` says what to use instead.
+      // Deprecated components remain inspectable; `replacement` points to their successor.
       componentCatalog: catalog.map(({ reference, available, manifest }) => {
-        const replacement = retiringReplacement(reference);
+        const replacement = manifest?.deprecated?.replacement;
         return { reference, available,
           name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions,
           ...(replacement === undefined ? {} : { retiring: true, replacement }) };

@@ -12,6 +12,8 @@ export interface InitResult {
   readmePath: string;
   installerPath: string;
   componentsPath: string;
+  /** Set when an offline placeholder was written instead of the default dashboard. */
+  warning?: string;
 }
 
 export async function initializeProject(
@@ -21,7 +23,9 @@ export async function initializeProject(
   const result = configName === "."
     ? await initializeProjectFiles(projectInput)
     : await initializeNamedProjectFiles(projectInput, configName);
-  const diagnostics = await restoreMissingPackages(result.location.configPath);
+  const unavailable = result.defaultDashboardUnavailable;
+  // The placeholder needs no package; a failed restore is the reason it exists.
+  const diagnostics = unavailable === undefined ? await restoreMissingPackages(result.location.configPath) : [];
   if (diagnostics.length) throw new Error(diagnostics.map((item) => item.message).join("; "));
   return {
     projectRoot: result.location.projectRoot,
@@ -31,5 +35,8 @@ export async function initializeProject(
     readmePath: result.readmePath,
     installerPath: result.installerPath,
     componentsPath: result.location.componentsDirectory,
+    ...(unavailable === undefined ? {} : {
+      warning: `The default dashboard could not be created, so dash-bored wrote an offline placeholder. Run dash-bored init again when online to replace it. Cause: ${unavailable}`,
+    }),
   };
 }

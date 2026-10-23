@@ -33,8 +33,9 @@ export function windowAgentControlBridge(
   const processes = (): { info: AgentProcessInfo; snapshot: ProcessSnapshot }[] => {
     const { processes: snapshots, tree } = runtime.getSnapshot();
     return snapshots.map((snapshot) => {
-      const props = (tree ? findResolvedNode(tree, snapshot.id)?.props : undefined) ?? {};
-      const label = props.label ?? props.title;
+      const node = tree ? findResolvedNode(tree, snapshot.id) : undefined;
+      const labelProp = node?.manifest?.resources?.process?.labelProp;
+      const label = labelProp ? node?.props[labelProp] : undefined;
       return { snapshot, info: agentProcessInfo(snapshot, typeof label === "string" && label !== "" ? label : snapshot.id) };
     });
   };

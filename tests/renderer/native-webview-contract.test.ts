@@ -9,15 +9,20 @@ describe("native webview proof foundation", () => {
     expect(source).toContain("typeof view.toggleHidden");
     expect(source).toContain("window.addEventListener(\"scroll\", scheduleSync, true)");
     expect(source).toContain("placeholderRef.current?.getBoundingClientRect()");
-    expect(source).toContain("shellRef.current?.clientWidth");
+    expect(source).toContain("const { width, height } = shell.getBoundingClientRect()");
+    expect(source).not.toContain("Math.max(320");
+    expect(source).not.toContain("<header");
+    expect(source).not.toContain("<button");
     expect(source).toContain('view.style.setProperty("width", `${width}px`, "important")');
     expect(source).toContain('view.style.setProperty("height", `${height}px`, "important")');
     expect(source).toContain("ComponentVisibilityContext");
   });
 
-  test("waits for an in-flow placeholder before mounting the native tag", async () => {
-    const styles = await readFile(".dash-bored/components/external/core/webview/component.css", "utf8");
-    expect(styles).toContain(`.webview-shell__placeholder, .webview-shell__view {\n  display: block;\n  aspect-ratio: 16 / 9;\n  width: 100%;\n  min-height: 320px;\n  max-height: 720px;`);
-    expect(styles).not.toContain("position: fixed;");
+  test("accepts caller-owned layout and reload intent", async () => {
+    const source = await readFile("src/renderer/render/ComponentWebviewSurface.tsx", "utf8");
+    expect(source).toContain("style={style}");
+    expect(source).toContain("previousReload.current !== reloadKey");
+    expect(source).toContain("sandbox src={url}");
+    expect(source).not.toContain("aspect-ratio");
   });
 });

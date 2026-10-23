@@ -22,7 +22,7 @@ function NativeWebviewProbe() {
       </button>
       <p role="status">{sync}</p>
       <ComponentVisibilityContext.Provider value={visible}>
-        <ComponentWebviewSurface url="https://example.com" title="Native probe content" onNativeSurfaceSync={onNativeSurfaceSync} />
+        <ComponentWebviewSurface url="https://example.com" style={{ width: "100%", height: 360 }} onNativeSurfaceSync={onNativeSurfaceSync} />
       </ComponentVisibilityContext.Provider>
     </main>
   );

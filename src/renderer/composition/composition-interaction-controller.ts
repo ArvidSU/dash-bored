@@ -20,6 +20,7 @@ export interface CompositionDialogState {
  * before a draft exists. It is current only for the snapshot it was read at.
  */
 export interface DashboardCompositionSource {
+  componentTemplates?: import("../../shared/package-templates").ComponentTemplate[];
   projectRoot: string;
   activeDashboardPath: string;
   focusedSourcePath: string;

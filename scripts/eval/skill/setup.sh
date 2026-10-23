@@ -30,7 +30,7 @@ EOF
   chmod +x "$eval_dir/skill-$skill/scripts/dash-bored"
 done
 tool="$eval_dir/skill-candidate/scripts/dash-bored"
-core_pin=$(cd "$repo" && bun -e 'import { CORE_PACKAGE } from "./src/shared/core-package.ts"; console.log(JSON.stringify(CORE_PACKAGE));')
+core_pin=$(cd "$repo" && bun -e 'import { DEFAULT_COMPONENT_PACKAGE } from "./src/shared/default-component-package.ts"; console.log(JSON.stringify(DEFAULT_COMPONENT_PACKAGE));')
 commit() { git -C "$1" add -A && git -C "$1" -c user.name="Dana Reyes" -c user.email=dana@example.com commit -qm "$2"; }
 
 # Fixture 1: acme-api — Node service with the starter dashboard (setup path).

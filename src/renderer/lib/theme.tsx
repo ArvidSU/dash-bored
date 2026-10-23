@@ -67,9 +67,6 @@ export function applyTheme(catalog: ThemeCatalogItem[], requested: string | unde
   state = next;
   for (const listener of listeners) listener();
 }
-export function terminalTheme(tokens: ThemeTokens): Record<string, string> {
-  return Object.fromEntries(Object.entries(tokens).filter(([key]) => key.startsWith('terminal-')).map(([key, value]) => [key === 'terminal-selection' ? 'selectionBackground' : key.slice(9), value]));
-}
 export function ThemeSelect({ value, onChange, appDefault = false, inherit = false, dashboardConfigPath, ariaLabel }: { value?: string; onChange: (value: string) => void; appDefault?: boolean; inherit?: boolean; dashboardConfigPath?: string; ariaLabel?: string }) {
   const { catalog } = useTheme();
   const items = catalog.filter((item) => {

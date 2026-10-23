@@ -11,7 +11,7 @@ const cleanup: string[] = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((path) => rm(path, { recursive: true, force: true }))); });
 const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
-async function fixture(apiVersion = "1.0.0") {
+async function fixture(apiVersion = "2.0.0") {
   const root = await mkdtemp(join(tmpdir(), "dash-bored-published-core-test-")); cleanup.push(root);
   const source = join(root, "source"), remote = join(root, "remote.git");
   await mkdir(join(source, "group"), { recursive: true });
@@ -26,9 +26,41 @@ async function fixture(apiVersion = "1.0.0") {
   return { source, pin: { url: pathToFileURL(remote).href, commit } };
 }
 
+async function sourceFixture(source: string) {
+  const root = await mkdtemp(join(tmpdir(), "dash-bored-source-core-test-")); cleanup.push(root);
+  const sourceRoot = join(root, "source"), remote = join(root, "remote.git");
+  await mkdir(join(sourceRoot, "group"), { recursive: true });
+  git(sourceRoot, "init", "--quiet");
+  git(sourceRoot, "config", "user.name", "Test"); git(sourceRoot, "config", "user.email", "test@example.com"); git(sourceRoot, "config", "commit.gpgsign", "false");
+  await writeFile(join(sourceRoot, "group", "component.yaml"), stringify({
+    schemaVersion: 3, apiVersion: "2.0.0", id: "core/group", name: "Group", description: "Test",
+    entry: "./index.tsx", propsSchema: { type: "object", additionalProperties: false },
+  }));
+  await writeFile(join(sourceRoot, "group", "index.tsx"), source);
+  git(sourceRoot, "add", "."); git(sourceRoot, "commit", "--quiet", "-m", "Source component");
+  const commit = git(sourceRoot, "rev-parse", "HEAD");
+  git(root, "clone", "--quiet", "--bare", sourceRoot, remote);
+  return { pin: { url: pathToFileURL(remote).href, commit } };
+}
+
 test("a fresh checkout validates a published core pin without installed SDK files", async () => {
   const { pin } = await fixture();
   await verifyCorePackagePublished(pin);
+}, 30_000);
+
+test("a fresh checkout checks editable TSX source against the shipped SDK without node_modules", async () => {
+  const { pin } = await sourceFixture(`import { defineComponent } from "@dash-bored/component";
+export default defineComponent<{ title: string }>(({ props }) => <section>{props.title}</section>);
+`);
+  await verifyCorePackagePublished(pin);
+}, 30_000);
+
+test("published TSX source cannot import an unbundled bare dependency", async () => {
+  const { pin } = await sourceFixture(`import { defineComponent } from "@dash-bored/component";
+import external from "unbundled-dependency";
+export default defineComponent<{ title: string }>(({ props }) => <section>{external}{props.title}</section>);
+`);
+  await expect(verifyCorePackagePublished(pin)).rejects.toThrow("Import \"unbundled-dependency\" is not allowed");
 }, 30_000);
 
 test("a commit present only in the author's checkout fails publication verification", async () => {

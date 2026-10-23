@@ -1,3 +1,5 @@
+import type { ComponentTemplate } from "../../shared/package-templates";
+import { instantiateTemplateNode } from "../composition/templates";
 import { useEffect, useMemo, useRef } from "react";
 import type { ComponentCatalogItem, DashboardConfig, ProjectSnapshot, ResolvedComponentNode } from "../../shared/contracts";
 import { planCompositionOperation } from "../composition/composition-operation";
@@ -12,7 +14,6 @@ import {
   insertNode,
   nodeAtPath,
   removeNode,
-  switchablePanelsNode,
   updateTiledSplitRatio,
   type InsertionTarget,
   type NodePath,
@@ -99,7 +100,7 @@ export function useCompositionSession({
       if (source.configPath !== request.configPath) return;
       const validation = await host.validateDashboardDraft(source.config, source.configPath, request.sourceNodeId);
       if (requestId !== sourceRequestId.current) return;
-      interaction.setSource({ ...request, config: source.config, componentCatalog: source.componentCatalog, validation });
+      interaction.setSource({ ...request, config: source.config, componentCatalog: source.componentCatalog, componentTemplates: source.componentTemplates, validation });
     } catch (error) {
       if (requestId !== sourceRequestId.current) return;
       setError(errorMessage(error));
@@ -272,27 +273,18 @@ export function useCompositionSession({
     void openDialog(target, entry.reference);
   }
 
-  async function insertSwitchablePanels(): Promise<void> {
+  async function insertTemplate(template: ComponentTemplate): Promise<void> {
     if (!sourceIsReady()) return;
     const target = interaction.selectedTarget ?? targets.defaultTarget();
     if (!target || isRootCompositionTarget(target)) {
-      setError("Choose a non-root insertion target for switchable panels.");
+      setError("Choose a non-root insertion target for this template.");
       return;
     }
     const session = await draft.ensureCurrent();
     if (!session) return;
-    const planned = planCompositionOperation({
-      config: session.draft,
-      catalog: session.componentCatalog,
-      payload: { type: "component", reference: "./components/external/core/group" },
-      target,
-    });
-    if (planned.status !== "planned") {
-      setError(planned.reason);
-      return;
-    }
     try {
-      draft.setDraft(insertNode(session.draft, target, switchablePanelsNode(session.draft), session.componentCatalog), session.configPath);
+      const node = instantiateTemplateNode(template, session.draft, session.componentCatalog);
+      draft.setDraft(insertNode(session.draft, target, node, session.componentCatalog), session.configPath);
       interaction.closeLibrary();
       interaction.clearTarget();
     } catch (error) {
@@ -515,7 +507,8 @@ export function useCompositionSession({
     contextValue,
     dragChip,
     insert,
-    insertSwitchablePanels,
+    insertTemplate,
+    templates: activeSource?.componentTemplates ?? snapshot?.componentTemplates ?? [],
     buildWithAgent,
     requestCreationAgent,
     libraryPointerDragMove: (reference: string, point: ComponentPointerDragPoint) =>

@@ -1,5 +1,6 @@
+import { declaredComponentLabel } from "./component-label";
 import { childEdges } from "./child-edges";
-import type { NodeWatch, NodeWatchEvent, ResolvedComponentNode } from "./contracts";
+import type { ComponentResourceDefinitions, NodeWatch, NodeWatchEvent, ResolvedComponentNode } from "./contracts";
 
 /*
  * Node-free watch helpers shared by validation, the main-process runner, and
@@ -70,10 +71,11 @@ export function watchLevel(watch: Pick<NodeWatch, "level">, family: WatchFamily)
 }
 
 /** The single observable source of a node's props, or why it cannot be watched. */
-export function watchSource(props: Record<string, unknown>): { source: WatchSource } | { error: string } {
-  const source = props.source;
+export function watchSource(props: Record<string, unknown>, observation?: ComponentResourceDefinitions["observation"]): { source: WatchSource } | { error: string } {
+  if (!observation) return { error: "This component does not declare an observation resource." };
+  const source = props[observation.sourceProp];
   if (!isRecord(source)) {
-    return { error: "A watch needs props.source with exactly one of shell, file, or http." };
+    return { error: `A watch needs props.${observation.sourceProp} with exactly one of shell, file, or http.` };
   }
   const kinds = (["shell", "file", "http"] as const).filter((kind) => kind in source);
   if ("inline" in source) {
@@ -83,12 +85,12 @@ export function watchSource(props: Record<string, unknown>): { source: WatchSour
     return { error: "A run the user starts already raises a notification when it fails, so a process source needs no watch. Watch a shell, file, or http source." };
   }
   if (kinds.length !== 1) {
-    return { error: "A watch needs props.source with exactly one of shell, file, or http." };
+    return { error: `A watch needs props.${observation.sourceProp} with exactly one of shell, file, or http.` };
   }
   const kind = kinds[0]!;
   const value = source[kind];
   if (typeof value !== "string" || value.trim() === "") {
-    return { error: `props.source.${kind} must be a non-empty string.` };
+    return { error: `props.${observation.sourceProp}.${kind} must be a non-empty string.` };
   }
   const env = isRecord(source.env) && Object.values(source.env).every((entry) => typeof entry === "string")
     ? source.env as Record<string, string>
@@ -113,7 +115,7 @@ export function decodeWatchSourceText(text: string): unknown {
   }
 }
 
-/** Mirror of the core status view's `{ state, detail? }` shape; null when the value does not match it. */
+/** Public observable status protocol: `{ state, detail? }` shape; null when the value does not match it. */
 export function parseWatchStatus(value: unknown): WatchStatus | null {
   if (!isRecord(value)) return null;
   const state = value.state;
@@ -123,7 +125,7 @@ export function parseWatchStatus(value: unknown): WatchStatus | null {
 }
 
 /**
- * Mirror of the core list view's item identity: a JSON array of objects with
+ * Public observable item protocol: a JSON array of objects with
  * unique, non-empty string IDs. Items are tracked by ID alone, so a missing or
  * duplicated ID makes the whole observation a shape error.
  */
@@ -208,13 +210,9 @@ export function describeWatchSource(source: WatchSource): string {
   }
 }
 
-/** The label a watched node shows: its title, label, or name prop, else its ID. */
-export function watchNodeLabel(node: Pick<ResolvedComponentNode, "id" | "props">): string {
-  for (const key of ["title", "label", "name"]) {
-    const value = node.props[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return node.id;
+/** The label bound by the component manifest, else the node ID. */
+export function watchNodeLabel(node: Pick<ResolvedComponentNode, "id" | "props" | "manifest">): string {
+  return declaredComponentLabel(node) ?? node.id;
 }
 
 export interface WatchSummary {
@@ -239,7 +237,7 @@ export function watchSummaries(tree: ResolvedComponentNode | null | undefined, c
     const watch = node.watch;
     if (watch && Array.isArray(watch.on) && (configPath === undefined || (node.sourceConfigPath ?? configPath) === configPath)) {
       const family = watchFamily(watch.on) ?? "status";
-      const resolved = watchSource(node.props);
+      const resolved = watchSource(node.props, node.manifest?.resources?.observation);
       const source = "source" in resolved ? resolved.source : null;
       const every = watchInterval(watch);
       summaries.push({

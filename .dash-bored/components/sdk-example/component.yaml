@@ -1,6 +1,7 @@
 schemaVersion: 3
-apiVersion: 1.0.0
+apiVersion: 2.0.0
 id: sdk-example
+labelProps: [title]
 name: Focus timer
 description: A small work and break timer with clear, local controls.
 entry: ./index.tsx

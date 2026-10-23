@@ -31,7 +31,7 @@ import type { AgentConfigMemory } from "./agent-config-memory";
 import { MAX_CONFIG_OPTIONS, MAX_LABEL_LENGTH } from "./agent-session-updates";
 import type { AgentSessions } from "./agent-sessions";
 import { AppSettingsStore, normalizeDashBoredAgent } from "./app-settings";
-import { DashboardSetupSupervisor, findSetupNode } from "./dashboard-setup";
+import { DashboardSetupSupervisor } from "./dashboard-setup";
 
 export interface AgentLauncherOptions {
   runtime: ProjectRuntime;
@@ -145,7 +145,6 @@ export class AgentLauncher {
       case "component": return this.launchComponent(request);
       case "creation": return this.launchCreation(request);
       case "diagnostics": return this.launchDiagnostics();
-      case "setup": return this.launchSetup(request.nodeId);
     }
   }
 
@@ -240,6 +239,11 @@ export class AgentLauncher {
     const { template, prompt, source, sourceLocation, locator } = await this.prepareComponent(request);
     const { command } = await this.resolve(source.configPath, request.agent);
     const dashboardWork = template.scope === "dashboard";
+    // Two agents editing one dashboard race on its YAML; components cannot see each other's launches.
+    if (dashboardWork && this.options.sessions.list().some((task) => task.configPath === source.configPath
+      && task.purpose !== undefined && task.purpose !== "project" && isAgentTaskBusy(task))) {
+      throw new CoreError("DASHBOARD_AGENT_RUNNING", "Agent work is already changing this dashboard. Open Agent work to view or stop it.");
+    }
     const launched = await this.supervisor(command, sourceLocation).launchRequest({
       prompt,
       // Only dashboard work is validated when a turn ends and may receive the
@@ -318,28 +322,4 @@ export class AgentLauncher {
     });
   }
 
-  private async launchSetup(nodeId: string): Promise<ComponentAgentLaunch> {
-    const { runtime, sessions } = this.options;
-    const snapshot = runtime.getSnapshot();
-    const session = runtime.getSessionToken();
-    if (!snapshot.projectRoot || !snapshot.configPath || !snapshot.tree) {
-      throw new CoreError("PROJECT_NOT_LOADED", "Open a dashboard before running its setup agent.");
-    }
-    if (!snapshot.trusted) {
-      throw new CoreError("PROJECT_UNTRUSTED", "Trust this project before running its setup agent.");
-    }
-    const node = findSetupNode(runtime, nodeId);
-    if (!node) {
-      throw new CoreError("DASHBOARD_SETUP_NODE_INVALID", "That setup action is no longer present in the active dashboard.");
-    }
-    const configPath = node.sourceConfigPath ?? snapshot.configPath;
-    if (sessions.list().some((task) => task.configPath === configPath
-      && task.purpose !== undefined && isAgentTaskBusy(task))) {
-      throw new CoreError("DASHBOARD_SETUP_RUNNING", "Agent work is already active for this dashboard. Open Agent work to view or stop it.");
-    }
-    const sourceLocation = await resolveProjectLocation(configPath);
-    const command = await this.command(configPath);
-    if (runtime.getSessionToken() !== session) throw new CoreError("DASHBOARD_SETUP_STALE", "The active dashboard changed. Run setup from its current panel.");
-    return this.supervisor(command, sourceLocation).launch(node);
-  }
 }

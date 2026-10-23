@@ -5,8 +5,8 @@ import { parse } from "yaml";
 import { loadProjectDefinition } from "../../src/core";
 import { checkComponentDirectory } from "../../src/core/component-authoring";
 import type { DashboardConfig } from "../../src/shared/contracts";
-import { parseDashboardList } from "../../.dash-bored/components/external/core/src/renderer/lib/list-data";
-import { parseStatusValue } from "../../.dash-bored/components/external/core/src/renderer/lib/view-shapes";
+import { parseDashboardList } from "../../.dash-bored/components/external/core/shared/lib/list-data";
+import { parseStatusValue } from "../../.dash-bored/components/external/core/shared/lib/view-shapes";
 import { createProject, removeTemporaryDirectory, temporaryDirectory } from "./helpers";
 
 const cleanup: string[] = [];

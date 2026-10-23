@@ -126,11 +126,10 @@ Core is discovered from the bundle's pinned external manifests and compiled
 through the normal component compiler. The renderer loads trusted outputs as
 blob modules and installs their CSS per component revision. There is no shipped
 manifest catalog or renderer registry. Heavy Markdown dependencies are bundled
-at publication; React and the SDK use the app's runtime. The generic app-owned
-TerminalSurface keeps xterm lifecycle and theme in the app and is shared by the
-external command and Agent work. Fixture coverage builds pinned output with the
+at publication; React and the SDK use the app's runtime. Component packages own terminal rendering and dependencies; the app supplies
+generic supervised process and PTY capabilities. Fixture coverage builds pinned output with the
 same compiler and checks insertion, polling, editing and terminal interaction.
-Production excludes fixture host data.
+Production excludes fixture host data and does not generate core fixtures.
 
 `ui-harness.html` is a development-only renderer proof surface. It selects an
 in-memory `DashboardHost` before mounting the normal application entrypoint,

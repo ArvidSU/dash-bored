@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { CORE_PACKAGE } from "../../src/shared/core-package";
+import { DEFAULT_COMPONENT_PACKAGE } from "../../src/shared/default-component-package";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -38,7 +38,7 @@ export async function createProject(
 ): Promise<void> {
   const directory = join(root, ".dash-bored");
   if (JSON.stringify(config).includes("./components/external/core/")) {
-    lock = { ...lock, components: { ...lock.components, core: { ...CORE_PACKAGE } } };
+    lock = { ...lock, components: { ...lock.components, core: { ...DEFAULT_COMPONENT_PACKAGE } } };
     await installCoreFixture(directory);
   }
   await mkdir(join(directory, "components"), { recursive: true });
@@ -65,7 +65,7 @@ export async function writeLocalComponent(
   await writeFile(
     join(directory, "component.yaml"),
     stringify({
-      schemaVersion: 3, apiVersion: "1.0.0",
+      schemaVersion: 3, apiVersion: "2.0.0",
       id: name,
       name,
       description: `${name} component`,
@@ -96,7 +96,7 @@ export async function waitFor(
   }
 }
 
-/** Static fixtures contain the exact published output, with no network or built-in registry. */
+/** Fixtures clone the exact pinned package sources, with no network or built-in registry. */
 export async function installCoreFixture(bundle: string): Promise<void> {
  await mkdir(join(bundle, "components", "external"), {recursive:true});
  const target = join(bundle,"components","external","core");
