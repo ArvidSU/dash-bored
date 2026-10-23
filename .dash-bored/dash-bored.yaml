@@ -259,8 +259,8 @@ root:
                             tags:
                               - release
                           - id: agent-preview-test-flake
-                            description: "Find the cause of the flaky renderer test 'Change with agent previews the dashboard template before sending'. Attempt 1 of CI run 38443770552 (c2f21c7) timed out after 10 s waiting for the item-7 Full prompt render; attempt 2 passed. waitForFullAgentPrompt in ui-interaction.test.ts now reports previewError, the selected template, var values, and the shown prompt on failure, so read that evidence on the next hosted failure. Code reading found no renderer race in AgentPromptPanel.tsx. A lost id value would point at the fill racing the template switch; a slow host would call for a preview pending marker (aria-busy) to wait on."
-                            done: false
+                            description: "Find the cause of the flaky renderer test 'Change with agent previews the dashboard template before sending'. Attempt 1 of CI run 38443770552 (c2f21c7) timed out after 10 s waiting for the item-7 Full prompt render; attempt 2 passed. waitForFullAgentPrompt in ui-interaction.test.ts now reports previewError, the selected template, var values, and the shown prompt on failure, so read that evidence on the next hosted failure. Code reading found no renderer race in AgentPromptPanel.tsx. A lost id value would point at the fill racing the template switch; a slow host would call for a preview pending marker (aria-busy) to wait on. Done 2026-10-23: CI run 39989498064 showed id empty and item-7 appended to the request, because chooseTemplate refocuses the prompt on the next animation frame after the fill had focused the var field. The test now waits for that focus before filling."
+                            done: true
                             tags:
                               - tests
                           - id: agent-options-first-session

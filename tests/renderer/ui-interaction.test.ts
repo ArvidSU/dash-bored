@@ -1220,6 +1220,9 @@ describe("renderer fixture interactions", () => {
       // A bundle template switches scope, asks for its declared vars, and keeps the request.
       await composer.getByText("triage-item", { exact: true }).click();
       expect(await composer.getByRole("tab", { name: "Request" }).getAttribute("aria-selected")).toBe("true");
+      // Choosing a template refocuses the prompt on the next frame; filling a var
+      // before then sends its text into the prompt on a slow host.
+      await composer.getByRole("textbox", { name: "Agent prompt" }).and(proof.locator(":focus")).waitFor();
       await composer.getByRole("textbox", { name: "id" }).fill("item-7");
       await composer.getByRole("tab", { name: "Full prompt" }).click();
       await waitForFullAgentPrompt(composer, "Triage backlog item `item-7`.");
