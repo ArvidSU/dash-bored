@@ -26,6 +26,7 @@ export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boo
   const chosen = selected.filter(p => migratable.includes(p));
   const toggle = (path: string, on: boolean) => setSelected(old => on ? [...old, path] : old.filter(p => p !== path));
   const problem = state.phase === 'problem' ? state.message : '';
+  const check = <button className="button button--quiet" type="button" disabled={working} onClick={() => void act({ type: 'check' })}>Check for updates</button>;
   const footer = <UpdateFooter state={state} disabled={pending} onChange={settings => void act({ type: 'settings', settings })} />;
   const dashboards = (selectable: boolean) => attention.length > 0 && <MigrationList
     dashboards={attention} receipt={state.receipt} selected={chosen} disabled={working || !selectable} onToggle={toggle} />;
@@ -60,6 +61,7 @@ export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boo
     return <Shell tone="fresh">
       <Hero eyebrow="Ready to install" title={`${version} is downloaded`} version={version}
         body={state.directInstallAvailable ? 'dash-bored restarts straight into the new version. Running terminals and agent work must finish first; nothing is stopped for you.' : 'Open the verified installer, quit dash-bored, replace the app, then open it again. macOS may ask you to choose Open Anyway.'} />
+      {target && compareVersions(target, version) > 0 && <p className="updates-panel__note">{target} is now available. Cancel this update to download the newer release.</p>}
       {receipt.selected.length > 0 && <p className="updates-panel__note">{plural(receipt.selected.length, 'dashboard')} will migrate after the restart.</p>}
       {draftsOpen && <p className="updates-panel__alert" role="alert">Save or cancel the open dashboard draft before installing.</p>}
       {alerts}
@@ -69,6 +71,7 @@ export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boo
             <button className="button button--quiet" type="button" disabled={blocked} onClick={() => void act({ type: 'install', method: 'dmg' })}>Use the installer instead</button></>
           : <button className="button button--primary button--large" type="button" disabled={blocked} onClick={() => void act({ type: 'install', method: 'dmg' })}>Open installer</button>}
         <button className="button button--quiet" type="button" disabled={pending} onClick={() => void act({ type: 'cancel' })}>Cancel update</button>
+        {check}
       </div>
     </Shell>;
   }
@@ -94,6 +97,7 @@ export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boo
             </button>
             <button className="button button--secondary" type="button" disabled={working} onClick={() => void act({ type: 'prepare', choice: 'update-only', selected: [] })}>Update without migrating</button></>
           : <button className="button button--primary button--large" type="button" disabled={working} onClick={() => void act({ type: 'prepare', choice: 'update-and-migrate', selected: [] })}>Update to {target}</button>}
+        {check}
       </div>
       {migratable.length > 0 && chosen.length === 0 && <p className="updates-panel__note">Select the dashboards to migrate, or update now and migrate them later.</p>}
       {footer}
@@ -114,7 +118,7 @@ export function UpdatesPanel({ draftsOpen = false, updates }: { draftsOpen?: boo
       {installedHere && migratable.length > 0 && <button className="button button--primary" type="button" disabled={working || draftsOpen || chosen.length === 0} onClick={() => void act({ type: 'migrate', selected: chosen })}>
         {chosen.length ? `Migrate ${plural(chosen.length, 'dashboard')}` : 'Migrate'}
       </button>}
-      {!justInstalled && <button className={`button ${upToDate ? 'button--quiet' : 'button--primary'}`} type="button" disabled={working} onClick={() => void act({ type: 'check' })}>{upToDate ? 'Check again' : 'Check for updates'}</button>}
+      {check}
     </div>
     {installedHere && draftsOpen && migratable.length > 0 && <p className="updates-panel__alert" role="alert">Save or cancel the open dashboard draft before migrating.</p>}
     {footer}

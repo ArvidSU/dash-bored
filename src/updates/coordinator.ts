@@ -97,7 +97,14 @@ export class UpdateCoordinator {
           if (!["update-only", "update-and-migrate"].includes(action.choice)) throw new Error("Choose Update and migrate or Update only explicitly.");
           const previous = await this.receipt();
           if (previous && !['installed', 'failed'].includes(previous.installation) && !await this.cancelled(previous)) throw new Error("An update is already pending. Cancel it before selecting another release.");
-          const release = this.discovered ?? await discoverRelease(this.current, this.options.fetcher);
+          const previouslyDiscovered = this.discovered;
+          const release = await discoverRelease(this.current, this.options.fetcher);
+          this.discovered = release;
+          this.checkedAt = new Date().toISOString();
+          if (release && previouslyDiscovered && release.metadata.version !== previouslyDiscovered.metadata.version) {
+            this.report("available", `Release availability changed. Review ${release.metadata.version} before downloading.`);
+            return this.state();
+          }
           if (!release || compareVersions(release.metadata.version, this.current) <= 0) throw new Error("No newer published update is available.");
           const selected = await this.selected(action.selected);
           if (action.choice === 'update-and-migrate') {

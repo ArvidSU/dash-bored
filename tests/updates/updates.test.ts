@@ -51,6 +51,37 @@ describe('release identity and discovery', () => {
     expect((await discoverRelease('0.2.6', fetcher()))?.metadata.version).toBe('0.3.0');
     expect(await discoverRelease('0.3.0', fetcher())).toBeNull();
   });
+  test('two releases behind selects the newest version regardless of list order', async () => {
+    const older = metadata('0.3.0');
+    const latest = metadata('0.3.1');
+    const mock = (async (url: string | URL | Request) => {
+      if (String(url).includes('api.github.com')) return Response.json([older, latest].map(m => ({
+        tag_name: `v${m.version}`, draft: false,
+        assets: ['dash-bored-release.json', m.dmg.file, m.archive.file, m.updater.file].map(name => ({ name })),
+      })));
+      return Response.json(String(url).includes('v0.3.1/') ? latest : older);
+    }) as typeof fetch;
+    expect((await discoverRelease('0.2.6', mock))?.metadata.version).toBe('0.3.1');
+  });
+  test('a newer release published during the session is reviewed before download without restarting', async () => {
+    const { dir } = await fixture();
+    let published = metadata('0.3.0');
+    const c = new UpdateCoordinator({ directory: dir, currentVersion: '0.2.6', listDashboards: async () => [],
+      fetcher: ((...args) => fetcher(published)(...args)) as typeof fetch });
+    expect((await c.check()).release?.metadata.version).toBe('0.3.0');
+    published = metadata('0.3.1');
+    const refreshed = await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect(refreshed).toMatchObject({ phase: 'available', release: { metadata: { version: '0.3.1' } }, receipt: null });
+    const ready = await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect(ready.receipt).toMatchObject({ installation: 'ready', release: { metadata: { version: '0.3.1' } } });
+    published = metadata('0.3.2');
+    const checked = await c.check();
+    expect(checked.release?.metadata.version).toBe('0.3.2');
+    expect(checked.receipt).toEqual(ready.receipt);
+    await c.action({ type: 'cancel' });
+    const replaced = await c.action({ type: 'prepare', choice: 'update-only', selected: [] });
+    expect(replaced.receipt).toMatchObject({ installation: 'ready', release: { metadata: { version: '0.3.2' } } });
+  });
   test('offline check is recoverable and does not destroy pending authorization', async () => {
     const { dir, config } = await fixture(); await atomicJson(join(dir, 'receipt.json'), receipt(config));
     const c = new UpdateCoordinator({ directory: dir, listDashboards: async () => [config], fetcher: (async () => { throw new Error('offline'); }) as unknown as typeof fetch });

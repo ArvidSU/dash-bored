@@ -106,6 +106,13 @@ channel-enablement package will publish beta/stable, default new installs to
 stable, and explicitly define transitions for existing canary users without
 silently switching them.
 
+The Updates panel keeps a manual check available when a release is offered,
+downloaded, or just installed. Download preparation refreshes discovery; if
+its target changed since the displayed check, it returns the new release for
+review before downloading. An existing verified download stays pinned to its
+receipt. Checking again can advertise a newer release, with cancellation
+required before preparing its replacement.
+
 The coordinator serializes mutations with an atomic directory lock. An explicit
 recovery action removes a stale lock only after its recorded owner has exited.
 The one automatic exception is the native updater, which quits the app while

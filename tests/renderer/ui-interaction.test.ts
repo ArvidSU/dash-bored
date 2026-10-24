@@ -2809,7 +2809,7 @@ test('updates say up to date plainly and show migrations only when dashboards ne
     expect(await panel.getByRole('combobox', { name: 'Release channel' }).count()).toBe(0);
     await panel.getByRole('button', { name: 'Check for updates', exact: true }).click();
     await panel.getByRole('heading', { name: "You're up to date" }).waitFor();
-    expect(await panel.getByRole('button', { name: 'Check again', exact: true }).count()).toBe(1);
+    expect(await panel.getByRole('button', { name: 'Check for updates', exact: true }).count()).toBe(1);
     expect(await panel.getByRole('group', { name: /migrating/ }).count()).toBe(0);
     expect(await panel.getByRole('button', { name: /Update/ }).count()).toBe(0);
     await proof.screenshot({ path: '/tmp/dash-bored-updates-current.png', fullPage: true });
@@ -2830,6 +2830,7 @@ test('updates say up to date plainly and show migrations only when dashboards ne
       dashboards: [{ configPath: '/projects/other/.dash-bored/dash-bored.yaml', contract: 4, status: 'current', steps: [], message: 'No dashboard migration required.' }] } as never), [release] as const);
     await panel.getByRole('heading', { name: '0.3.0 is here' }).waitFor();
     await panel.getByRole('button', { name: 'Update to 0.3.0', exact: true }).waitFor();
+    expect(await panel.getByRole('button', { name: 'Check for updates', exact: true }).isEnabled()).toBe(true);
     // Release notes render as Markdown, without repeating the version title,
     // and keep their text clear of the scrollbar.
     const notes = panel.locator('.updates-panel__notes-body');
@@ -2854,6 +2855,22 @@ test('updates say up to date plainly and show migrations only when dashboards ne
     await proof.setViewportSize({ width: 390, height: 844 });
     await proof.screenshot({ path: '/tmp/dash-bored-updates-narrow.png', fullPage: true });
     expect(await proof.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // Checking stays available for a downloaded target and after installation.
+    await proof.evaluate(([release]) => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({
+      phase: 'ready', dashboards: [],
+      release: { ...release, metadata: { ...release.metadata, version: '0.3.1' } },
+      receipt: { format: 1, id: 'ui-update', release, choice: 'update-only', selected: [], migrations: {}, cancelled: false, installation: 'ready' },
+    } as never), [release] as const);
+    await panel.getByRole('heading', { name: '0.3.0 is downloaded' }).waitFor();
+    await panel.getByText('0.3.1 is now available. Cancel this update to download the newer release.').waitFor();
+    expect(await panel.getByRole('button', { name: 'Check for updates', exact: true }).isEnabled()).toBe(true);
+    await proof.evaluate(([release]) => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState({
+      currentVersion: '0.3.0', phase: 'finished', dashboards: [], release, installedThisLaunch: true,
+      receipt: { format: 1, id: 'ui-update', release, choice: 'update-only', selected: [], migrations: {}, cancelled: false, installation: 'installed' },
+    } as never), [release] as const);
+    await panel.getByRole('heading', { name: 'Welcome to 0.3.0' }).waitFor();
+    await panel.getByRole('button', { name: 'Check for updates', exact: true }).click();
+    expect(await proof.evaluate(async () => Boolean((await window.__DASH_BORED_UI_HARNESS_HOST__!.getUpdateState()).checkedAt))).toBe(true);
     await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.setUpdateState(null));
   } finally { await proof.close(); }
 }, 30_000);
