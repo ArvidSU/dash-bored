@@ -9,6 +9,8 @@ import type { ThemeCatalogItem } from "../shared/themes";
 import type { AgentLauncher } from "./agent-launch";
 import type { AgentSessions } from "./agent-sessions";
 import type { InstalledToolDiagnostics } from "./installed-tools";
+import { nativeAppBundleIdentifier } from "./window-capture";
+import { resetScreenCapturePermission, screenCapturePermissionCommand } from "./screen-capture-permission";
 import { runExternalComponentOperation, runThemePackageOperation } from "./package-management";
 import type { PackageUpdates } from "./package-updates";
 import { deleteRegisteredProject, getProjectDeletionPreview } from "./project-deletion";
@@ -74,6 +76,24 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
         previewComponentAgent: (request) => agents.preview(request),
         getPromptTemplates: ({ nodeId }) => agents.promptTemplates(nodeId),
         launchAgent: (request) => agents.launch(request),
+        screenCapturePermission: ({ command }) => screenCapturePermissionCommand(command, {
+          supported: process.platform === "darwin",
+          permission: Utils.screenCapture,
+          bundleIdentifier: nativeAppBundleIdentifier,
+          confirmReset: async () => (await Utils.showMessageBox({
+            type: "warning",
+            title: "Reset Screen Recording permission?",
+            message: "Clear this app’s saved Screen Recording decision?",
+            detail: "Use this when screenshots remain blocked after an app update. Other apps and permissions are unaffected. Relaunch dash-bored afterwards, then request access again in Settings → General → Agent screenshots.",
+            buttons: ["Cancel", "Reset permission"], defaultId: 0, cancelId: 0,
+          })).response === 1,
+          openSettings() {
+            if (!Utils.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")) {
+              throw new Error("Open System Settings → Privacy & Security → Screen Recording.");
+            }
+          },
+          reset: resetScreenCapturePermission,
+        }),
         repairInstalledTools: () => installedTools.repairConflicts(),
         manageExternalComponent: async (operation) => {
           const configPath = runtime.getSnapshot().configPath;

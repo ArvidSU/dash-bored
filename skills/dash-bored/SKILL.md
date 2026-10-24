@@ -442,7 +442,11 @@ missing and fall back to screenshots and the YAML.
   git-ignored by default.
 - **Screenshots need macOS Screen Recording permission.** If `app screenshot`
   fails with `SCREEN_RECORDING_PERMISSION_REQUIRED`, ask the user to allow it
-  and relaunch the app. The app renders while covered by other windows, so you
+  and relaunch the app. If access stays denied after an app update, direct them
+  to Settings → General → Agent screenshots → Reset Screen Recording permission.
+  They confirm, quit and reopen the app, then choose Request access there and
+  allow the current build in System Settings. Agents cannot reset or grant it.
+  The app renders while covered by other windows, so you
   never need the user to switch to it; `APP_WINDOW_NOT_RENDERING` (or a
   `warning` on `app run`) means it is minimized or hidden: ask them to show it.
 - **Several app instances can run** (for example a release and a dev build).

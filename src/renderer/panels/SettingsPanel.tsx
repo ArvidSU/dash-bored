@@ -1,3 +1,4 @@
+import { ScreenCaptureSettings } from "./ScreenCaptureSettings";
 import { UpdatesPanel } from "./UpdatesPanel";
 import { PackageUpdatesPanel } from "./PackageUpdatesPanel";
 import { pendingUpdateCount } from "../lib/update-actions";
@@ -444,6 +445,7 @@ export function SettingsPanel({
         disabled={savingSettings}
         onUpdate={onUpdateSettings}
       />
+      <ScreenCaptureSettings />
       <AgentSettings
         setting={appSettings.dashBoredAgent}
         options={agentOptions}

@@ -475,6 +475,7 @@ export interface UiHarnessHost extends DashboardHost, FixtureAgentControls {
   setDiagnostics(diagnostics: Diagnostic[]): Promise<void>;
   /** Test-only record of package operations the UI asked the app to run. */
   getPackageOperations(): readonly unknown[];
+  getScreenCaptureCommands(): readonly string[];
   /** Test-only override for the Updates panel state; null restores the idle fixture. */
   setUpdateState(state: Partial<UpdateState> | null): void;
   /** Test-only package update state, pushed like the host's; null restores the unchecked fixture. */
@@ -519,6 +520,8 @@ export function createUiHarnessHost(): UiHarnessHost {
   let updateOverride: Partial<UpdateState> | null = null;
   let packageUpdates: PackageUpdateState = structuredClone(INITIAL_PACKAGE_UPDATE_STATE);
   const packageUpdateCommands: PackageUpdateCommand[] = [];
+  const screenCaptureCommands: string[] = [];
+  let screenCaptureGranted = false;
   const publishPackageUpdates = (patch: Partial<PackageUpdateState>): void => {
     packageUpdates = { ...packageUpdates, ...structuredClone(patch) };
     emit({ type: "package-updates", state: structuredClone(packageUpdates) });
@@ -750,6 +753,13 @@ export function createUiHarnessHost(): UiHarnessHost {
         return agents.launch({ purpose: "edit", template: "dashboard", request: request.prompt, prompt: request.prompt, componentPath: `${CONFIG_PATH}#create` });
       }
       return launchComponent(request);
+    },
+    getScreenCaptureCommands() { return [...screenCaptureCommands]; },
+    async screenCapturePermission(command) {
+      screenCaptureCommands.push(command);
+      if (command === "request") screenCaptureGranted = true;
+      if (command === "repair") screenCaptureGranted = false;
+      return { supported: true, granted: screenCaptureGranted, ...(command === "repair" ? { reset: true } : {}) };
     },
     async repairInstalledTools() {
       currentDiagnostics = [];

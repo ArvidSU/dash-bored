@@ -1101,6 +1101,25 @@ describe("renderer fixture interactions", () => {
     if (originalViewport) await active.setViewportSize(originalViewport);
   });
 
+  test("screenshot settings explain recovery after a reset and refresh the granted state", async () => {
+    const proof = await openPage();
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Settings", exact: true }).click();
+      const card = proof.getByRole("region", { name: "Agent screenshots" });
+      await card.getByText("Screen Recording is not allowed for this build.", { exact: true }).waitFor();
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getScreenCaptureCommands().every((command) => command === "status"))).toBeTrue();
+      // The inert fixture simulates the host's successful, user-confirmed reset.
+      await card.getByRole("button", { name: "Reset Screen Recording permission", exact: true }).click();
+      await card.getByText(/Permission reset. Quit and reopen dash-bored/).waitFor();
+      await card.getByRole("button", { name: "Request access", exact: true }).click();
+      await card.getByText("Screen Recording is allowed.", { exact: true }).waitFor();
+      expect(await card.getByRole("button", { name: "Request access", exact: true }).isDisabled()).toBeTrue();
+      expect(await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.getScreenCaptureCommands().filter((command) => command !== "status"))).toEqual(["repair", "request"]);
+      await proof.screenshot({ path: "/tmp/dash-bored-screen-capture-settings.png", fullPage: true });
+    } finally { await proof.close(); }
+  });
+
   test("settings tabs manage action favorites and shortcuts reflected in the palette", async () => {
     const active = currentPage();
     await active.getByRole("button", { name: "Settings", exact: true }).click();

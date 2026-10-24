@@ -66,6 +66,7 @@ export interface DashboardHost {
   previewComponentAgent(request: ComponentAgentRequest): Promise<ComponentAgentPreview>;
   getPromptTemplates(nodeId: string): Promise<import("../../shared/contracts").AgentPromptTemplateSummary[]>;
   launchAgent(request: AgentLaunchRequest): Promise<ComponentAgentLaunch>;
+  screenCapturePermission(command: import("../../shared/screen-capture").ScreenCaptureCommand): Promise<import("../../shared/screen-capture").ScreenCaptureStatus>;
   repairInstalledTools(): Promise<{ conflictsRemain: boolean }>;
   manageExternalComponent(operation: ExternalComponentOperation): Promise<PackageOperationResult>;
   manageThemePackage(operation: ThemePackageOperation): Promise<PackageOperationResult>;
@@ -206,6 +207,7 @@ const liveHost: DashboardHost = {
   async previewComponentAgent(request) { ensureTransport(); return rpc.request.previewComponentAgent(request); },
   async getPromptTemplates(nodeId) { ensureTransport(); return rpc.request.getPromptTemplates({ nodeId }); },
   async launchAgent(request) { ensureTransport(); return rpc.request.launchAgent(request); },
+  async screenCapturePermission(command) { ensureTransport(); return rpc.request.screenCapturePermission({ command }); },
   async repairInstalledTools() { ensureTransport(); return rpc.request.repairInstalledTools({}); },
   async manageExternalComponent(operation) { ensureTransport(); return rpc.request.manageExternalComponent(operation); },
   async manageThemePackage(operation) { ensureTransport(); return rpc.request.manageThemePackage(operation); },

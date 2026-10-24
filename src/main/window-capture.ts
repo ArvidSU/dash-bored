@@ -1,4 +1,4 @@
-import { dlopen, FFIType, type Pointer } from "bun:ffi";
+import { CString, dlopen, FFIType, type Pointer } from "bun:ffi";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +18,7 @@ export interface ScreenCapturePermission {
 
 let objc: {
   selector(name: string): Pointer | null;
+  bundleIdentifier(): string | null;
   windowNumber(window: Pointer): number | null;
   disableWebViewOcclusionDetection(window: Pointer): number;
 } | null | undefined;
@@ -84,6 +85,14 @@ function objcRuntime() {
     };
     objc = {
       selector,
+      bundleIdentifier() {
+        const bundleClass = base.symbols.objc_getClass(Buffer.from("NSBundle\0")) as Pointer | null;
+        if (!bundleClass) return null;
+        const bundle = object.symbols.objc_msgSend(bundleClass, selector("mainBundle")) as Pointer | null;
+        const identifier = bundle && object.symbols.objc_msgSend(bundle, selector("bundleIdentifier")) as Pointer | null;
+        const utf8 = identifier && object.symbols.objc_msgSend(identifier, selector("UTF8String")) as Pointer | null;
+        return utf8 ? new CString(utf8).toString() : null;
+      },
       disableWebViewOcclusionDetection(window) {
         if (!windowClass || !occlusionSetter || !contentView || !performOnMainThread) return 0;
         if (!binary.symbols.objc_msgSend(window, isKindOfClass, windowClass)) return 0;
@@ -112,6 +121,11 @@ function objcRuntime() {
     objc = null;
   }
   return objc;
+}
+
+/** The running bundle's actual CFBundleIdentifier, rather than a control-channel identifier. */
+export function nativeAppBundleIdentifier(): string | null {
+  return process.platform === "darwin" ? objcRuntime()?.bundleIdentifier() ?? null : null;
 }
 
 /** Resolves the Quartz window number used by `screencapture -l`. */
@@ -153,7 +167,7 @@ export async function captureWindowPng(
     permission.requestAccess();
     throw new CoreError(
       "SCREEN_RECORDING_PERMISSION_REQUIRED",
-      "dash-bored needs Screen Recording permission to capture its window. Ask the user to allow it in System Settings → Privacy & Security → Screen Recording, relaunch the app, and try again.",
+      "dash-bored needs Screen Recording permission to capture its window. Ask the user to allow it in System Settings → Privacy & Security → Screen Recording, relaunch the app, and try again. If permission stays denied after an app update, use Settings → General → Agent screenshots → Reset Screen Recording permission, then relaunch and request access again.",
     );
   }
   const directory = await mkdtemp(join(tmpdir(), "dash-bored-capture-"));

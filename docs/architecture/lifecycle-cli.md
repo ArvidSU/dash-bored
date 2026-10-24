@@ -349,6 +349,22 @@ current. Commands run in the user's interactive shell, so the tool fetches a
 few extra lines and, for an exited process, drops everything after the
 process manager's last `Command exited ...` line: the shell prompt.
 
+#### Screen Recording recovery
+
+Settings → General → Agent screenshots reads the current macOS grant, requests
+access, opens the system privacy pane, and offers an explicitly confirmed reset
+for stale grants after ad hoc signed updates. Its `screenCapturePermission`
+host RPC accepts only a command, never a bundle ID or path. Main reads the
+running `NSBundle`'s actual `CFBundleIdentifier` (distinct from the control
+channel's instance identifier), and invokes `/usr/bin/tccutil reset ScreenCapture <identifier>` without a shell.
+An absent or malformed identifier fails closed. The native confirmation defaults
+to Cancel; no capture or startup path resets permissions. Reset failures reach
+the UI. After a successful reset the UI tells the user to relaunch before
+requesting again, avoiding the existing process's cached denial. The agent
+control channel has no recovery action; the user owns reauthorization.
+A stable signing identity is required to preserve grants across app updates;
+recovery makes ad hoc releases usable without promising grant persistence.
+
 #### Screenshots of a node
 
 `app screenshot --node <node-id>` captures one node without taking over the

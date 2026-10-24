@@ -54,6 +54,7 @@ export type DashboardRPC = {
       previewComponentAgent: { params: ComponentAgentRequest; response: ComponentAgentPreview };
       getPromptTemplates: { params: { nodeId: string }; response: import("./contracts").AgentPromptTemplateSummary[] };
       launchAgent: { params: AgentLaunchRequest; response: ComponentAgentLaunch };
+      screenCapturePermission: { params: { command: import("./screen-capture").ScreenCaptureCommand }; response: import("./screen-capture").ScreenCaptureStatus };
       repairInstalledTools: { params: {}; response: { conflictsRemain: boolean } };
       manageExternalComponent: { params: ExternalComponentOperation; response: PackageOperationResult };
       manageThemePackage: { params: ThemePackageOperation; response: PackageOperationResult };

@@ -259,7 +259,17 @@ saving, or cancelling a dashboard edit, the Add dashboard chooser, and any
 action that asks for confirmation are refused and left to you. Opening a
 dashboard is refused while you have unsaved dashboard changes or a save in
 progress. Screenshots use macOS Screen Recording permission; the first capture
-asks for it. The app keeps rendering while other windows cover it, so agents
+asks for it. Manage access in **Settings → General → Agent screenshots**.
+If an ad hoc signed app update leaves permission denied even with the system
+toggle enabled, choose **Reset Screen Recording permission** and confirm. This
+clears only this app’s Screen Recording decision. Quit and reopen dash-bored,
+return to that section, and choose **Request access**. Allow the current build
+in System Settings → Privacy & Security → Screen Recording (Screen & System
+Audio Recording on newer macOS), then relaunch if macOS asks. Ad hoc signed
+updates can require this again; a stable signing identity is needed to retain
+grants across builds.
+
+The app keeps rendering while other windows cover it, so agents
 can drive and capture it without you switching to it; a minimized or hidden
 window cannot be captured. When work is done or blocked, agents leave a
 [notification](#notifications-and-watches) instead of taking focus; they bring
