@@ -196,6 +196,7 @@ const conn = new AgentSideConnection(
 
       if (has("always")) return askOnce("always", "edit", [{ path: `${s.cwd}/.dash-bored/dash-bored.yaml` }], ALWAYS);
       if (has("switch-mode")) return askOnce("switch-mode", "switch_mode", []);
+      if (has("outside-read")) return askOnce("outside-read", "read", [{ path: `${s.cwd}/README.md` }]);
       if (has("linked-edit")) return askOnce("linked-edit", "edit", [{ path: `${s.cwd}/.dash-bored/linked/escape.txt` }]);
       if (has("late-permission")) {
         await aborted(turn.signal);
@@ -218,7 +219,7 @@ const conn = new AgentSideConnection(
       }
       if (has("execute")) {
         await update({ sessionUpdate: "tool_call", toolCallId: "call-x", title: "Run tests", kind: "execute", status: "pending" });
-        const answer = chosen(await ask("call-x", "Run tests", "execute", []));
+        const answer = chosen(await ask("call-x", "Run tests", "execute", [{ path: s.cwd }]));
         console.error(`fake-acp-agent: execute ${answer}`);
         await update({ sessionUpdate: "tool_call_update", toolCallId: "call-x", status: answer === "allow" ? "completed" : "failed" });
         return { stopReason: "end_turn" };

@@ -265,7 +265,7 @@ export interface AgentSessionTask {
   dashboardChanged: boolean;
   /** Explicitly stopped by the user or application shutdown. */
   cancelled?: boolean;
-  /** Untrusted repair: permission requests outside the bundle are refused automatically. */
+  /** Untrusted repair: reads and commands need one-time approval; direct edits stay in the bundle. */
   untrusted?: boolean;
   error?: string;
   /** Bounded agent stderr tail, for troubleshooting launch and protocol failures. */

@@ -74,16 +74,16 @@ export interface AgentSessionLaunchOptions {
   command: string;
   prompt: string;
   projectRoot: string;
-  /** The owning bundle directory: the only place an untrusted repair may touch. */
+  /** The owning bundle directory: the only place an untrusted repair may edit. */
   bundleDirectory: string;
   componentPath: string;
   configPath: string;
   request: string;
   env?: Record<string, string>;
   /**
-   * Untrusted repair: permission requests outside the bundle, for commands,
-   * fetches, or mode switches are refused automatically; "always allow" is
-   * never offered and the agent's mode cannot be changed.
+   * Untrusted repair: reads and commands can receive one-time approval. Edits
+   * outside the bundle, fetches, and mode switches are refused automatically;
+   * "always allow" is never offered and the agent's mode cannot be changed.
    */
   untrusted?: boolean;
   /**
@@ -146,7 +146,7 @@ interface SessionRecord {
 
 const CANCELLED: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
 const FILE_TOOL_KINDS = new Set<AgentToolKind>(["read", "edit", "delete", "move"]);
-const REFUSED_UNTRUSTED_KINDS = new Set<AgentToolKind>(["execute", "fetch", "switch_mode", "other"]);
+const REFUSED_UNTRUSTED_KINDS = new Set<AgentToolKind>(["fetch", "switch_mode", "other"]);
 
 function taskNotFound(): CoreError {
   return new CoreError("AGENT_TASK_NOT_FOUND", "That agent task is no longer available.");
@@ -901,7 +901,9 @@ export class AgentSessions {
       // Bounded lists and paths may have been cut, so the whole request cannot be checked.
       reason = "the request names more files, or longer paths, than the app can check";
     } else {
-      for (const path of paths) {
+      // Read and command locations describe context, not declared file edits.
+      const edits = kind === "execute" || kind === "read" ? editedPaths : paths;
+      for (const path of edits) {
         if (!(await pathWithin(record.options.bundleDirectory, path, record.options.projectRoot))) {
           reason = `${path} is outside the dashboard bundle`;
           break;
@@ -912,7 +914,7 @@ export class AgentSessions {
     const option = permission.options.find((candidate) => candidate.kind === "reject_once")
       ?? permission.options.find((candidate) => candidate.kind === "reject_always");
     addNotice(record.task, record.transcript, "warning",
-      `Refused “${permission.title}” automatically: ${reason}. This project is not trusted, so the repair may only work on files inside its dashboard bundle.`);
+      `Refused “${permission.title}” automatically: ${reason}. This project is not trusted, so the repair may only edit files inside its dashboard bundle; reads and commands need one-time approval.`);
     return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : CANCELLED;
   }
 

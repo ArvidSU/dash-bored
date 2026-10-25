@@ -78,7 +78,8 @@ export class DashboardSetupSupervisor {
    * repair, for project work. `untrustedRepair` starts the request without a
    * trust grant and without the project-controlled bundle environment: it
    * requires the caller to supply a clean `env`, never calls the trust-gated
-   * launch environment, refuses out-of-bundle permission requests, and
+   * launch environment, refuses out-of-bundle edits, permits one-time approval
+   * of reads and commands, and
    * reports review-required instead of repairing.
    */
   async launchRequest(request: { prompt: string; configPath: string; componentPath: string; request: string; purpose?: AgentSessionTask["purpose"]; template?: string; followUp?: boolean; untrustedRepair?: boolean; env?: Record<string, string>; config?: AgentConfigChoices }): Promise<ComponentAgentLaunch> {

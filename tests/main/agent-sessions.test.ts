@@ -360,7 +360,7 @@ describe("AgentSessions", () => {
     expect(lastEmitted(third.taskId)?.state).toBe("closed");
   });
 
-  test("an untrusted repair refuses tools outside the bundle and execute requests", async () => {
+  test("an untrusted repair refuses outside edits but permits one-time commands and reads", async () => {
     const root = await project();
     const manager = sessions();
     const outside = await manager.launch(options(root, { untrusted: true }));
@@ -371,16 +371,23 @@ describe("AgentSessions", () => {
     expect(refused.entries.at(-1)).toMatchObject({ kind: "agent", text: "Edit rejected." });
 
     manager.prompt(outside.taskId, "execute");
+    const command = await until(manager, outside.taskId, (task) => task.state === "waiting");
+    manager.answerPermission(outside.taskId, command.permission!.id, "allow");
     const executed = await until(manager, outside.taskId, (task) => task.state === "idle" && task.turns === 2);
-    expect(executed.log).toContain("fake-acp-agent: execute reject");
-    expect(JSON.stringify(executed.entries)).toContain("execute tools are not allowed");
+    expect(executed.log).toContain("fake-acp-agent: execute allow");
+
+    manager.prompt(outside.taskId, "outside-read");
+    const read = await until(manager, outside.taskId, (task) => task.state === "waiting");
+    expect(read.permission?.locations[0]?.path).toBe(`${root}/README.md`);
+    manager.answerPermission(outside.taskId, read.permission!.id, "allow");
+    await until(manager, outside.taskId, (task) => task.state === "idle" && task.turns === 3);
 
     // Inside the bundle the user still decides.
     manager.prompt(outside.taskId, "bundle-edit");
     const asked = await until(manager, outside.taskId, (task) => task.state === "waiting");
     expect(asked.permission?.locations[0]?.path).toBe(`${root}/.dash-bored/dash-bored.yaml`);
     manager.answerPermission(outside.taskId, asked.permission!.id, "allow");
-    expect((await until(manager, outside.taskId, (task) => task.state === "idle" && task.turns === 3)).entries.at(-1))
+    expect((await until(manager, outside.taskId, (task) => task.state === "idle" && task.turns === 4)).entries.at(-1))
       .toMatchObject({ kind: "agent", text: "Done." });
   });
 

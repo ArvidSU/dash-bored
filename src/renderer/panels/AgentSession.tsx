@@ -358,7 +358,7 @@ function AgentPermissionCard({
       ) : null}
       {untrusted ? (
         <p className="agent-permission__note">
-          This repair runs untrusted: requests outside the dashboard bundle are refused automatically.
+          This repair leaves the project untrusted. Approve reads and commands once to unblock the fix; file edits stay inside the dashboard bundle.
         </p>
       ) : null}
       <div

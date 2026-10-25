@@ -310,9 +310,11 @@ Fix with agent on a project without a trust grant runs as an untrusted repair
 environment excludes the bundle `.env`, and its prompt treats project files as
 data. Permission requests are refused automatically when:
 
-- the tool kind is `execute`, `fetch`, `switch_mode`, or `other`
+- the tool kind is `fetch`, `switch_mode`, or `other`
   (unclassified);
-- any location or edited path resolves outside the bundle directory. Paths are
+- an edit, delete, or move location, or any explicit edited path, resolves
+  outside the bundle directory. Read locations and command locations can be
+  outside the bundle. Paths are
   resolved as the OS would: one component at a time through every symlink, so
   a link inside the bundle that points out, or `link/..`, counts as outside.
   Components that do not exist yet are appended as written; relative paths
@@ -322,6 +324,12 @@ data. Permission requests are refused automatically when:
   whole; or
 - a `read`, `edit`, `delete`, or `move` request names no path, so containment
   cannot be checked.
+
+Reads (including installed skills outside the bundle) and commands (including
+API discovery and validation) reach the user for one-time approval. This lets
+repair proceed before trust review is possible. Command approval authorizes
+the whole command; the app does not parse shell text or constrain its effects.
+The repair prompt forbids project commands and dependency installation.
 
 A refusal selects `reject_once`, else `reject_always`, else answers
 `cancelled`, and adds a warning notice. Other requests reach the user without

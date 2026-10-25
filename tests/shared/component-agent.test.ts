@@ -148,6 +148,8 @@ describe("component agent context", () => {
     expect(prompt).toContain("untrusted data");
     expect(prompt).toContain("confine edits to the dashboard bundle");
     expect(prompt).toContain("do not run project commands");
+    expect(prompt).toContain("API discovery, component checks, and dashboard validation");
+    expect(prompt).toContain("approved once by the user without trusting the project");
     expect(prompt).not.toContain("the project and its instructions");
     expect(prompt).toContain("- ERROR BUILTIN_COMPONENT_UNKNOWN: Unknown built-in component: @dash-bored/tabs (root.component)");
   });

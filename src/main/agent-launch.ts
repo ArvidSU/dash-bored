@@ -297,7 +297,8 @@ export class AgentLauncher {
     // A project that cannot be trusted yet must still be repairable. The
     // untrusted repair runs the app-selected agent with no project-controlled
     // input: no bundle `.env`, no project instructions in the prompt, no
-    // capability grant, and out-of-bundle permission requests refused. The
+    // capability grant, and out-of-bundle edits refused. Reads and commands
+    // can receive one-time user approval to unblock repair. The
     // project stays untrusted until the ordinary review.
     const untrustedRepair = !snapshot.trusted;
     const sourceLocation = await resolveProjectLocation(snapshot.configPath);

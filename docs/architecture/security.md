@@ -74,10 +74,12 @@ setting or a detected agent), resolved and executed without the bundle `.env`,
 so no project-controlled environment or agent selection reaches the process.
 Its prompt frames project files as untrusted data, confines edits to the
 dashboard bundle, and forbids project commands and dependency installation.
-The app automatically refuses the agent's permission requests to execute,
-fetch, switch modes, use unclassified tools, or touch paths that resolve
-outside the bundle (symlinks are followed component by component). It never
-offers "always allow", and it refuses mode changes, so every approval covers
+The app lets the user approve reads and commands once, including installed
+skill references, API discovery, and validation, so repair can proceed before
+trust review. Commands are approved as a whole; their effects are not sandboxed.
+It automatically refuses permission requests to fetch, switch modes, use
+unclassified tools, or edit paths that resolve outside the bundle (symlinks
+are followed component by component). It never offers "always allow", and it refuses mode changes, so every approval covers
 one call. That narrows the agent but does not sandbox it: an ACP agent need not
 ask before acting, and because it runs with the untrusted project as its
 working directory, the agent's own configuration there (for example

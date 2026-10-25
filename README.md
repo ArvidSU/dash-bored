@@ -387,9 +387,11 @@ marker, invalid props or action references, or a compile failure does not
 erase trust, and the dashboard loads after the errors are fixed. Unreadable
 YAML, unsafe paths, or missing capability declarations block approval, but not
 repair: **Fix with agent** then runs a capability-free repair session that
-leaves the project untrusted. Its refusals narrow the agent but do not sandbox
-it; see the [untrusted repair
-policy](./docs/architecture/acp-client.md#untrusted-repair-policy).
+leaves the project untrusted. You can approve reads of installed guidance and
+repair commands once, including API discovery and validation, before trusting
+the dashboard. Direct file edits remain limited to the bundle. Command approval
+covers the whole command; these checks do not sandbox the agent. See the
+[untrusted repair policy](./docs/architecture/acp-client.md#untrusted-repair-policy).
 
 A button can invoke an action with typed YAML arguments, for example
 `action: { run: "agent:prompt", with: { prompt: "Review the failing checks." } }`.

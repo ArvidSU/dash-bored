@@ -455,8 +455,9 @@ follows new entries while the reader is within 32 px of the end, otherwise
 keeps their place and offers Latest, and notes how many earlier entries main
 dropped. A permission request is a card with the requested files, the agent's
 options (allow or reject, once or always), Dismiss (answers without a choice,
-which the agent treats as cancelled), and a note when an untrusted repair
-refuses requests outside the bundle. A newly shown card keeps its options
+which the agent treats as cancelled), and a note explaining that untrusted
+repair reads and commands can be approved once while direct edits stay in the
+bundle. A newly shown card keeps its options
 disabled for 400 ms and options ignore the second click of a double-click, so
 a click aimed at an answered request cannot answer the queued one that replaces
 it. A request that arrives while the Session tab shows and focus is in the

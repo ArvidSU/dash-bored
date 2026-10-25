@@ -143,7 +143,9 @@ then repaired with the configured agent. Fatal errors that prevent safe,
 complete capability inspection block a new trust decision, but not repair: the
 configured agent can run as an untrusted repair that grants no capabilities,
 receives no project-controlled environment or agent selection, and leaves the
-normal review to follow. Invalid dashboards
+normal review to follow. Repair takes priority over trust: users can approve
+agent reads and repair commands once without granting project capabilities;
+direct file edits stay within the dashboard bundle. Invalid dashboards
 still do not execute; after repair, added permissions require another review.
 When an installed-tool conflict is shown, the user may explicitly move the
 conflicting managed install to the OS Trash and reinstall the current payload.
