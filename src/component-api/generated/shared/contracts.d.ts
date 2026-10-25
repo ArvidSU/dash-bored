@@ -611,6 +611,7 @@ export interface LocalComponentHost {
             url: string;
             style?: CSSProperties;
             reloadKey?: string | number;
+            renderer?: "iframe" | "native";
         }): ReactNode;
     };
 }

@@ -656,7 +656,7 @@ export interface LocalComponentHost {
     stop?(): Promise<ProcessSnapshot>;
   };
   webview?: {
-    render(request: { url: string; style?: CSSProperties; reloadKey?: string | number }): ReactNode;
+    render(request: { url: string; style?: CSSProperties; reloadKey?: string | number; renderer?: "iframe" | "native" }): ReactNode;
   };
 }
 

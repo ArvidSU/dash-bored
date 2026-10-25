@@ -1,10 +1,51 @@
 import { useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { WebviewTagElement } from "electrobun/view";
-import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
+import { ComponentLayoutVisibilityContext, ComponentVisibilityContext } from "../composition/ComponentCompositor";
+
+/** Host-owned embedding; components keep control of layout and presentation. */
+export function ComponentWebviewSurface({ renderer = "iframe", ...request }: {
+  url: string;
+  style?: CSSProperties;
+  reloadKey?: string | number;
+  renderer?: "iframe" | "native";
+  onNativeSurfaceSync?: (state: { visible: boolean; mounted: boolean }) => void;
+}): ReactNode {
+  // Accepted temporary risk: Electrobun 2.0.4 exposes privileged preload and
+  // bridge handlers to subframes. Track the runtime upgrade and native proof
+  // in dashboard todo iframe-runtime-isolation and architecture/security.md.
+  return renderer === "native" ? <NativeWebviewSurface {...request} /> : <IframeSurface {...request} />;
+}
+
+function IframeSurface({ url, style, reloadKey }: {
+  url: string;
+  style?: CSSProperties;
+  reloadKey?: string | number;
+}): ReactNode {
+  const visible = useContext(ComponentLayoutVisibilityContext);
+  const [mounted, setMounted] = useState(visible);
+  useLayoutEffect(() => { if (visible) setMounted(true); }, [visible]);
+  let valid = false;
+  let sameOrigin = false;
+  try {
+    const parsed = new URL(url);
+    valid = ["http:", "https:"].includes(parsed.protocol);
+    sameOrigin = parsed.origin === window.location.origin;
+  } catch { /* Invalid URL. */ }
+  if (!valid) return <div role="alert">Embedded pages require an absolute HTTP or HTTPS URL.</div>;
+  if (sameOrigin) return <div role="alert">The dashboard's own origin cannot be embedded. Use a separate preview server.</div>;
+  // Preserve the embedded app's storage and module loading. The renderer uses
+  // views: in production (excluded by frame-src); development responses carry
+  // frame-ancestors 'none' to prevent redirects back into the privileged origin.
+  return <div style={{ ...style, display: visible ? undefined : "none" }}>
+    {mounted && <iframe key={reloadKey} src={url} title="Embedded application"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerPolicy="no-referrer"
+      style={{ width: "100%", height: "100%", border: 0, display: "block" }} />}
+  </div>;
+}
 
 /** Native mounting, visibility and security only. The component supplies its layout. */
-export function ComponentWebviewSurface({ url, style, reloadKey, onNativeSurfaceSync }: {
+function NativeWebviewSurface({ url, style, reloadKey, onNativeSurfaceSync }: {
   url: string;
   style?: CSSProperties;
   reloadKey?: string | number;

@@ -27,5 +27,5 @@ export const COMPONENT_CAPABILITIES = [
   { permission: "network:http", methods: ["http.request"], access: "Absolute HTTP(S) URLs; default 10 s, maximum 30 s; request and response bodies bounded to 2 MiB. HTTP error statuses return payloads." },
   { permission: "process:execute", methods: ["shell.run", "processes.start", "processes.open", "processes.runQuickAction", "processes.write", "processes.resize", "processes.stop"], access: "Shell calls default to 10 s, maximum 30 s, 1 MiB per output stream; processes require declarative resources. Commands retain the user's OS access." },
   { permission: "process:observe", methods: ["processes.get"], access: "Read supervised process snapshots by node ID; also available with process:execute." },
-  { permission: "webview:embed", methods: ["webview.render"], access: "Trusted host-owned webviews; embedded pages have no dashboard RPC bridge." },
+  { permission: "webview:embed", methods: ["webview.render"], access: "Trusted host-owned iframe or native surfaces. Electrobun iframe bridge exposure is an accepted temporary risk; native surfaces have no dashboard RPC bridge." },
 ] as const;

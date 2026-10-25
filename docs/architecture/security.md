@@ -154,7 +154,7 @@ interface LocalComponentHost {
     start?(): Promise<ProcessSnapshot>;
     stop?(): Promise<ProcessSnapshot>;
   };
-  webview?: { render(request: { url: string; style?: CSSProperties; reloadKey?: string | number }): ReactNode };
+  webview?: { render(request: { url: string; style?: CSSProperties; reloadKey?: string | number; renderer?: "iframe" | "native" }): ReactNode };
 }
 ```
 
@@ -226,8 +226,35 @@ Capability behavior is bounded:
 The renderer CSP permits revisioned blob modules and the local websocket origins
 needed for Vite, while blocking direct application HTTP requests from component
 code. Supported HTTP access goes through the checked host RPC. Embedded
-application pages use sandboxed `<electrobun-webview>` elements and receive no
-dash-bored RPC bridge.
+application pages default to iframes with `frame-src http: https:`. Both renderer
+choices require the trusted `webview:embed` capability and absolute HTTP(S) URLs.
+
+**Accepted temporary runtime risk (2026-10-25):** native proof with Electrobun
+2.0.4 showed privileged preload globals, an RPC credential global, and WK message
+handlers in iframe documents. The user explicitly accepted this exposure to
+enable iframe rendering. The iframe sandbox does not isolate Electrobun's native
+bridge; embedded pages must be treated as trusted code with potential access to
+the application's privileges. Exposure was verified by inspecting presence and
+types, without reading credential values or attempting privileged operations.
+
+Track the upgrade under dashboard todo `iframe-runtime-isolation`. Adopt an
+Electrobun runtime that supports main-frame-only privileged preload injection
+AND rejection of subframe calls in all privileged native message handlers,
+including handlers with replies. Before considering the risk resolved, prove
+that iframe documents have neither credentials nor privileged initialization,
+direct bridge calls from subframes are rejected, and ordinary dashboard RPC
+still works. Browser-only tests cannot establish this boundary.
+
+Iframes enable scripts, forms, downloads, and the page's own origin so module
+scripts and storage work. Direct renderer-origin URLs are rejected. Production
+uses a `views:` renderer origin excluded by `frame-src`; the privileged Vite
+server sends `frame-ancestors 'none'` on every response to block iframe redirects
+back into the dashboard origin. Fixture servers have no privileged bridge and
+remain frameable. Browser origin isolation blocks parent-document access;
+top navigation and popups are blocked. These restrictions do not fix native
+bridge exposure. Framing restrictions from target pages are respected and never
+proxied or stripped. The explicit `renderer: native` compatibility mode uses a
+separate sandboxed `<electrobun-webview>` without a dash-bored RPC bridge.
 
 The app never opens secondary windows. New-window requests from the main
 webview (`target="_blank"` links, Cmd-click, `window.open`) are handed to the

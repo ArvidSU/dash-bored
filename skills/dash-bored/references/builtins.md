@@ -395,6 +395,7 @@ Props:
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `url` | string | yes | must match `^https?://` |
+| `renderer` | `iframe` \| `native` | no |  |
 
 Children: none (leaf component).
 

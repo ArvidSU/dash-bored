@@ -393,8 +393,10 @@ The SDK exports `useComponentVisibility()` to pause hidden polling and
 `trackActivity(work)` to include asynchronous work in agent idle detection.
 The command package owns xterm rendering, fit, styles, and theme adaptation.
 The host supplies only generic supervised process snapshots and bound PTY
-write/resize callbacks. `webview.render({url, style, reloadKey})` mounts a
-sandboxed native surface in the supplied box; presentation, controls, and
+write/resize callbacks. `webview.render({url, style, reloadKey, renderer?})` mounts a
+sandboxed iframe by default, or a native surface with `renderer: "native"`,
+in the supplied box. Electrobun iframe bridge exposure is an accepted temporary
+risk (see [Security](./security.md)); presentation, controls, and
 aspect ratio are component-owned. Neither capability depends on component IDs.
 
 ### Package-owned templates

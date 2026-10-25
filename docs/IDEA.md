@@ -310,7 +310,12 @@ and capabilities. Package-owned manifests declare resource bindings; the app
 never infers component semantics from prop names. Component packages own their
 rendering, dependencies, setup content, templates, and retirement metadata.
 The app retains generic process/PTY supervision, agent lifecycle, native-surface
-isolation, and composition. A thin native surface projects the component's box;
+isolation, and composition. Web previews use ordinary iframes so they participate
+in the app's layout and layering, with native embedding as an explicit
+compatibility option. The current Electrobun iframe bridge exposure is an
+accepted temporary tradeoff for trusted preview pages; the runtime upgrade and
+required isolation proof are tracked in [Security](./architecture/security.md).
+A thin native surface projects the component's box in compatibility mode;
 component chrome and sizing policy stay in the package.
 
 Production builds do not require the standard component checkout. Independent

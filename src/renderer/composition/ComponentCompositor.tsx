@@ -17,6 +17,8 @@ import {
 } from "../render/split-layout";
 
 export const ComponentVisibilityContext = createContext(true);
+/** Structural visibility, independent of overlays that hide native surfaces. */
+export const ComponentLayoutVisibilityContext = createContext(true);
 
 interface ComponentCompositorProps {
   node: ResolvedComponentNode;
@@ -46,9 +48,12 @@ function VisibleChild({
   renderNode: (node: ResolvedComponentNode) => ReactNode;
 }): ReactNode {
   const parentVisible = useContext(ComponentVisibilityContext);
+  const parentLayoutVisible = useContext(ComponentLayoutVisibilityContext);
   return (
     <ComponentVisibilityContext.Provider value={parentVisible && visible}>
-      {renderNode(node)}
+      <ComponentLayoutVisibilityContext.Provider value={parentLayoutVisible && visible}>
+        {renderNode(node)}
+      </ComponentLayoutVisibilityContext.Provider>
     </ComponentVisibilityContext.Provider>
   );
 }

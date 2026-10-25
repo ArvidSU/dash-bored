@@ -1123,7 +1123,7 @@ declares the corresponding permission:
 | `network:http` | `host.http.request(request)` | Make a bounded, timed `http:` or `https:` request. |
 | `process:execute` | `host.shell.run(request)` and `host.processes.start/stop` for a declared resource | Run a bounded short command or control the node's supervised process. |
 | `process:observe` | `host.processes.get(nodeId)` | Observe a declared supervised process resource. |
-| `webview:embed` | `host.webview.render(request)` | Embed a native sandboxed webview surface. |
+| `webview:embed` | `host.webview.render(request)` | Embed a sandboxed iframe or native webview surface. |
 
 Register actions in an effect and return the disposer, as in the example.
 Local action IDs start with a letter and may contain letters, digits,
@@ -1396,7 +1396,18 @@ Completion requires validation with the installed target app.
   app never guesses title, label, or name fields. Put retirement hints in
   manifest `deprecated: {replacement: ...}`.
 - A webview component supplies its own header and sized wrapper, then calls
-  `host.webview.render({url, style, reloadKey})` for the native surface.
+  `host.webview.render({url, style, reloadKey, renderer?})`. The default is a
+  sandboxed iframe that participates in normal app layout. Electrobun 2.0.4
+  exposes its privileged bridge to iframe documents; this is an explicitly
+  accepted temporary runtime risk. Embed only pages you trust until the runtime
+  upgrade and native isolation checks described in
+  [Security](./docs/architecture/security.md) are complete.
+  Set `renderer: native` in the webview component props (or host request) for
+  pages that block framing.
+  Iframes preserve the embedded origin and allow scripts, forms, and downloads,
+  and block browser-level parent-document access, popups, and top navigation.
+  These browser restrictions do not isolate the Electrobun native bridge.
+  Use Open in browser for pages that do not work embedded.
 
 Packages may publish `package.yaml` with `schemaVersion: 1` and a `templates`
 list. Each entry has `id`, `name`, `path`, optional `description`, and optional

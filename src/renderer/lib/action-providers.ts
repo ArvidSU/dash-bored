@@ -23,7 +23,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "network:http": "Make HTTP requests",
   "process:execute": "Run project commands",
   "process:observe": "Observe project process output",
-  "webview:embed": "Embed native web pages",
+  "webview:embed": "Embed web pages",
   "background:watch": "Watch views in the background",
 };
 

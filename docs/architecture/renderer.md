@@ -251,8 +251,19 @@ examples, not privileged component types:
   `itemActions` use the shared item-template resolver and action executor;
   invoking an agent prompt never toggles completion. Its
   interactions use the normal draft Save/Cancel boundary.
-- `./components/external/core/webview` embeds a sandboxed application page. Native child
-  webviews are initialized only while their tab is visible and are explicitly
+- `./components/external/core/webview` requests a sandboxed iframe by default.
+  It follows normal DOM clipping, stacking, scrolling, and visibility. Its
+  structural visibility context ignores the overlay visibility used to hide
+  native surfaces, so opening the palette or component library leaves the page
+  visible beneath those controls. Reload
+  replaces the iframe. The current runtime bridge exposure is an accepted
+  temporary risk documented in [Security](./security.md);
+  structurally hidden surfaces preserve their document while mounted; selecting
+  another child may unmount a panel and reset its page state. The iframe
+  preserves the page's origin for storage and module scripts; pages refusing
+  framing need native mode or the external browser. Native child
+  webviews in explicit native mode initialize only while their tab is visible
+  and are explicitly
   hidden while an already-initialized tab is inactive. The native surface is an
   overlay rather than a DOM descendant, so the component first reserves a
   normal document-flow placeholder and creates the native tag only after that
@@ -1026,8 +1037,10 @@ refreshes receive the same props, action, and permission contract as the app.
 The renderer has no built-in component registry or rendering branch. Core is
 compiled and loaded by `render/local-components.tsx` through the same blob-module
 and CSS lifecycle as other external code. Terminal rendering lives in the
-component package. The native webview host measures a component-provided box
-and manages sandboxing, mounting, and visibility only. Fixtures live under
+component package. The webview host defaults to an iframe with browser sandbox
+restrictions; Electrobun bridge isolation remains an accepted temporary risk.
+Explicit native compatibility mode measures
+a component-provided box and manages sandboxing, mounting, and visibility only. Fixtures live under
 `tests/helpers/`; a Vite virtual module includes them only when
 `DASH_BORED_FIXTURE=1`. Normal production builds neither read core sources nor
 generate or bundle their fixtures.

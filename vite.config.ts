@@ -31,5 +31,8 @@ export default defineConfig({
     host: "127.0.0.1",
     port: Number(process.env.DASH_BORED_VITE_PORT ?? 5173),
     strictPort: true,
+    // The privileged dev renderer must never be framed, including through a
+    // redirect from a preview. Fixture servers carry no real host bridge.
+    headers: fixtures ? {} : { "Content-Security-Policy": "frame-ancestors 'none'" },
   },
 });

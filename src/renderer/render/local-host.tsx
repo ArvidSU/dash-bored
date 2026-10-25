@@ -113,7 +113,7 @@ export function createLocalHost(
   if (trusted && permissions.has("webview:embed")) {
     componentHost.webview = {
       render(request) {
-        return <ComponentWebviewSurface url={request.url} style={request.style} reloadKey={request.reloadKey} />;
+        return <ComponentWebviewSurface url={request.url} style={request.style} reloadKey={request.reloadKey} renderer={request.renderer} />;
       },
     };
   }
