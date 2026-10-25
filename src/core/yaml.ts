@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
 import { compileActionArgsSchema } from "./action-arguments";
+import { compileJsonSchema } from "./json-schema";
 import { parseDocument, stringify } from "yaml";
 import type {
   ComponentManifest,
@@ -558,7 +559,7 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
   }
 
   try {
-    ajv.compile(result.value.propsSchema);
+    compileJsonSchema(result.value.propsSchema);
   } catch (error) {
     return {
       value: null,
@@ -574,7 +575,7 @@ export async function parseComponentManifest(file: string): Promise<ParsedYaml<C
   }
   try {
     if (result.value.children?.metadataSchema !== undefined) {
-      ajv.compile(result.value.children.metadataSchema);
+      compileJsonSchema(result.value.children.metadataSchema);
     }
   } catch (error) {
     return {
@@ -644,7 +645,7 @@ export function validatePropsSchema(
   value: Record<string, unknown>,
 ): ErrorObject[] {
   try {
-    const validate = ajv.compile(schema);
+    const validate = compileJsonSchema(schema);
     return validate(value) ? [] : [...(validate.errors ?? [])];
   } catch (error) {
     return [

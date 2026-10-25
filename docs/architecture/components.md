@@ -109,6 +109,13 @@ Tree handling in `src/core/` is split along its jobs:
   references, process working directories, declared component actions) run
   over the resolved bundle afterwards.
 
+Dynamic props, child metadata, and action argument schemas share the bounded
+content cache in `src/core/json-schema.ts` (at most 256 validators). Fresh YAML
+objects must not accumulate in Ajv's identity cache: compilation removes its
+registration even on failure, and rotates the compiler after 256 compilation
+attempts to bound Ajv's generated-code scope too. Static dashboard, lock, and
+manifest schemas remain registered separately in `yaml.ts`.
+
 The only prop rewrite during resolution is the schema-v3 positional action
 reference migration in `src/migrations/action-references.ts`, which runs after
 reference validation as its own pass (see
