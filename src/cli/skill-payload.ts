@@ -7,6 +7,7 @@ import skillMarkdown from "../../skills/dash-bored/SKILL.md" with { type: "text"
 import openAiMetadata from "../../skills/dash-bored/agents/openai.yaml" with { type: "text" };
 import componentReference from "../../skills/dash-bored/references/components.md" with { type: "text" };
 import appRuntimeReference from "../../skills/dash-bored/references/app-runtime.md" with { type: "text" };
+import runningAppReference from "../../skills/dash-bored/references/running-app.md" with { type: "text" };
 import builtinsReference from "../../skills/dash-bored/references/builtins.md" with { type: "text" };
 import sourcesReference from "../../skills/dash-bored/references/sources.md" with { type: "text" };
 import toolLauncher from "../../skills/dash-bored/scripts/dash-bored" with { type: "text" };
@@ -21,6 +22,7 @@ const SKILL_CONTENTS = {
   "references/components.md": componentReference,
   "references/builtins.md": builtinsReference,
   "references/app-runtime.md": appRuntimeReference,
+  "references/running-app.md": runningAppReference,
   "references/sources.md": sourcesReference,
   "scripts/dash-bored": toolLauncher,
 } as const;

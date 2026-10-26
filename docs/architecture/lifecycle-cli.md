@@ -132,7 +132,11 @@ source equals the link target and that target is a bundled
   than a runtime dependency. The skill, metadata, launcher, and
   local-component reference are text assets embedded in the standalone
   executable. Detailed app-state guidance lives in the separately embedded
-  `references/app-runtime.md` so routine dashboard authoring need not load it.
+  `references/app-runtime.md` so routine dashboard authoring need not load it,
+  and `references/running-app.md` covers driving the app through `app`
+  commands. `SKILL.md` itself stays under 20,000 characters, enforced by
+  `tests/cli/skill-size.test.ts` in CI and by the `.githooks/pre-commit` hook
+  that `bun install` enables through `core.hooksPath`.
   `references/sources.md` carries the source contract, view shapes, the
   app's source shell environment, and tested source-script examples; the
   skill loads it when a panel shows observed data.

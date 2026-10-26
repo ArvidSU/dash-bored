@@ -9,6 +9,7 @@
     "dash-bored": "sh ./scripts/with-worktree-env.sh bun ./src/cli/index.ts",
     "setup": "sh ./scripts/with-worktree-env.sh electrobun prepare",
     "worktree:setup": "bun ./scripts/worktree-setup.ts",
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "bun ./scripts/dev.ts run",
     "dev:desktop": "bun ./scripts/dev.ts desktop",
     "dev:start": "bun ./scripts/dev.ts start",

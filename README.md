@@ -60,6 +60,9 @@ bun run setup
 `setup` runs `electrobun prepare`, which installs the pinned Electrobun
 toolchain through Hutch (Electrobun's toolchain manager) into this checkout's
 ignored `.hutch/` directory. The `:fast` checks reuse those prepared files.
+`bun install` also points Git's `core.hooksPath` at `.githooks/`, whose
+pre-commit hook rejects a staged `skills/dash-bored/SKILL.md` of 20,000
+characters or more (the same check runs in CI).
 
 For a new Git worktree, including worktrees a coding agent creates (for example
 under `.claude/worktrees/`), use the one-step setup instead:
@@ -154,7 +157,7 @@ Run the smallest check that proves the change while iterating, and
 | Local component sources | `bun run dash-bored -- component check <directory>` |
 | Change visible in the app | The [agent UI proof](./AGENTS.md#agent-only-ui-verification): `app status`, `app screenshot --focus <node-id> --output <file>.png`, then view the PNG |
 | Renderer-only proof with no dev app running | `bun run ui:fixture`, or `bun run test:renderer-ui` |
-| Agent skill text | `bun test tests/core/component-authoring.test.ts`; for behavior changes, the work-in-progress [skill A/B eval](./scripts/eval/README.md) |
+| Agent skill text | `bun test ./tests/core/component-authoring.test.ts ./tests/cli/skill-size.test.ts` (SKILL.md must stay under 20,000 characters; move detail into `references/`); for behavior changes, the work-in-progress [skill A/B eval](./scripts/eval/README.md) |
 | Release QA harness | `bun run qa:release:test`, then the relevant [release QA scenario](./docs/release-qa.md) |
 | Documentation only | `git diff --check` |
 
