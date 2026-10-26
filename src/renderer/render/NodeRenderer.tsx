@@ -11,7 +11,7 @@ import { composeComponentChildren } from "../composition/ComponentCompositor";
 import { LocalComponentErrorBoundary } from "./local-components";
 import type { LoadedLocalComponent } from "./local-components";
 import type { ActionStore } from "../lib/actions";
-import { ComponentFrame } from "./ComponentFrame";
+import { ComponentFrame, type ComponentFrameProps } from "./ComponentFrame";
 import { createLocalHost } from "./local-host";
 
 /**
@@ -153,131 +153,68 @@ export function NodeRenderer({ node }: { node: ResolvedComponentNode }): ReactNo
         renderNode: (child) => <NodeRenderer key={child.id} node={child} />,
       });
 
+  let stateFrame: Pick<ComponentFrameProps, "className" | "as" | "role" | "ariaLive">;
+  let content: ReactNode;
   if (node.source === "config") {
     const name = node.configName?.trim() || node.component;
-    return (
-      <ComponentFrame
-        {...frameProps}
-        as="section"
-        className="component-node config-link"
-      >
-        {!collapsed ? (
-          <>
-            {node.configError ? (
-              <div className="component-state component-state--error" role="alert">
-                <strong>Could not load {name}</strong>
-                <span>{node.configError}</span>
-                <code>{node.configPath ?? node.component}</code>
-              </div>
-            ) : (
-              <div className="config-link__content">
-                {renderedChildren?.type === "tiled" ? renderedChildren.surface : null}
-              </div>
-            )}
-            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-          </>
-        ) : null}
-      </ComponentFrame>
+    stateFrame = { as: "section", className: "component-node config-link" };
+    content = node.configError ? (
+      <div className="component-state component-state--error" role="alert">
+        <strong>Could not load {name}</strong>
+        <span>{node.configError}</span>
+        <code>{node.configPath ?? node.component}</code>
+      </div>
+    ) : (
+      <div className="config-link__content">
+        {renderedChildren?.type === "tiled" ? renderedChildren.surface : null}
+      </div>
     );
-  }
-
-  const name = node.manifest?.name ?? node.component;
-  if (!trusted) {
-    return (
-      <ComponentFrame
-        {...frameProps}
-        className="component-node component-state component-state--locked"
-      >
-        {!collapsed ? (
-          <>
-            <span className="component-state__icon" aria-hidden="true">◇</span>
-            <strong>{name}</strong>
-            <span>Trust this project to load its local component code.</span>
-            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-          </>
-        ) : null}
-      </ComponentFrame>
-    );
-  }
-
-  const componentId = node.manifest?.id;
-  const loaded = componentId ? localComponents.get(componentId) : undefined;
-  if (!componentId) {
-    return (
-      <ComponentFrame
-        {...frameProps}
-        className="component-node component-state component-state--error"
-        role="alert"
-      >
-        {!collapsed ? (
-          <>
-            Local component <code>{node.component}</code> has no manifest ID.
-            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-          </>
-        ) : null}
-      </ComponentFrame>
-    );
-  }
-
-  if (!loaded || (loaded.loading && !loaded.component)) {
-    return (
-      <ComponentFrame
-        {...frameProps}
-        className="component-node component-state"
-        ariaLive="polite"
-      >
-        {!collapsed ? (
-          <>
-            <span className="spinner" aria-hidden="true" />
-            Loading {name}…
-            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-          </>
-        ) : null}
-      </ComponentFrame>
-    );
-  }
-
-  if (!loaded.component) {
-    return (
-      <ComponentFrame
-        {...frameProps}
-        className="component-node component-state component-state--error"
-        role="alert"
-      >
-        {!collapsed ? (
-          <>
-            <strong>Could not load {name}</strong>
-            <span>{loaded.error ?? "The compiled module has no component export."}</span>
-            <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
-          </>
-        ) : null}
-      </ComponentFrame>
-    );
-  }
-
-  const Component = loaded.component;
-  return (
-    <ComponentFrame
-      {...frameProps}
-      className="component-node component-node--local"
-    >
-      {!collapsed ? (
+  } else {
+    const name = node.manifest?.name ?? node.component;
+    const componentId = node.manifest?.id;
+    const loaded = componentId ? localComponents.get(componentId) : undefined;
+    if (!trusted) {
+      stateFrame = { className: "component-node component-state component-state--locked" };
+      content = <>
+        <span className="component-state__icon" aria-hidden="true">◇</span>
+        <strong>{name}</strong>
+        <span>Trust this project to load its local component code.</span>
+      </>;
+    } else if (!componentId) {
+      stateFrame = { className: "component-node component-state component-state--error", role: "alert" };
+      content = <>Local component <code>{node.component}</code> has no manifest ID.</>;
+    } else if (!loaded || (loaded.loading && !loaded.component)) {
+      stateFrame = { className: "component-node component-state", ariaLive: "polite" };
+      content = <><span className="spinner" aria-hidden="true" />Loading {name}…</>;
+    } else if (!loaded.component) {
+      stateFrame = { className: "component-node component-state component-state--error", role: "alert" };
+      content = <>
+        <strong>Could not load {name}</strong>
+        <span>{loaded.error ?? "The compiled module has no component export."}</span>
+      </>;
+    } else {
+      const Component = loaded.component;
+      stateFrame = { className: "component-node component-node--local" };
+      content = (
         <>
-          <LocalComponentErrorBoundary
-            name={name}
-            resetKey={`${node.id}:${loaded.revision}`}
-          >
+          <LocalComponentErrorBoundary name={name} resetKey={`${node.id}:${loaded.revision}`}>
             <Component props={node.props} children={renderedChildren} host={localHost} />
           </LocalComponentErrorBoundary>
           {loaded.error ? (
-            <span
-              className="component-node__stale-warning"
-              role="status"
-              title={loaded.error}
-            >
+            <span className="component-node__stale-warning" role="status" title={loaded.error}>
               Update failed; showing previous version
             </span>
           ) : null}
+        </>
+      );
+    }
+  }
+
+  return (
+    <ComponentFrame {...frameProps} {...stateFrame}>
+      {!collapsed ? (
+        <>
+          {content}
           <ComponentUpdatePolish batch={updateBatch} nodeId={node.id} />
         </>
       ) : null}
