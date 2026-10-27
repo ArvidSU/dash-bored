@@ -91,6 +91,8 @@ override, allowing the owning bundle's `.env` value to win.
 
 At launch, each command or shell call resolves the `.env` beside its owning
 `dash-bored.yaml`, including when a node comes from a named or linked bundle.
+`src/shared/env.ts` only parses ordered entries and counts invalid lines;
+formatting and editing belong to the external environment component.
 The effective order is component request, app setting, inherited process
 environment, then bundle defaults. When the app setting is cleared, the
 remaining environment resolution uses the inherited process value or owning

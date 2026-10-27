@@ -7,7 +7,6 @@ import type {
 } from "../../src/shared/contracts";
 import { childEdges } from "../../src/shared/child-edges";
 import {
-  canPlanCompositionOperation,
   planCompositionOperation,
   type CompositionOperationRequest,
 } from "../../src/renderer/composition/composition-operation";
@@ -72,7 +71,6 @@ describe("composition operation planner", () => {
       },
     };
     const planned = planCompositionOperation(request);
-    expect(canPlanCompositionOperation(request)).toBe(planned.status === "planned");
     if (planned.status !== "planned") throw new Error(planned.message);
     expect(planned.kind).toBe("insert");
     expect(childEdges(planned.nextConfig.root.children).map((edge) => edge.node)).toContainEqual({
@@ -91,7 +89,6 @@ describe("composition operation planner", () => {
       target: { type: "root-replacement" as const, path: [] as [] },
     };
     const planned = planCompositionOperation(request);
-    expect(canPlanCompositionOperation(request)).toBe(true);
     if (planned.status !== "planned") throw new Error(planned.message);
     expect(planned.kind).toBe("replace-root");
     expect(planned.nextConfig.root).toMatchObject({

@@ -79,18 +79,6 @@ export function nodePathById(
   return null;
 }
 
-export function collapsibleNodePaths(
-  root: ComponentNode,
-  path: NodePath = [],
-): NodePath[] {
-  const paths = childEdges(root.children).length > 0 ? [path] : [];
-  for (const locator of childLocators(root.children)) {
-    const child = edgeAtLocator(root.children, locator).node;
-    paths.push(...collapsibleNodePaths(child, [...path, locator]));
-  }
-  return paths;
-}
-
 function parentOf(root: ComponentNode, path: NodePath): {
   parent: ComponentNode;
   locator: ComponentChildLocator;

@@ -1,7 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { ComponentEnvironmentSnapshot } from "../shared/contracts";
-import { envEntries, invalidEnvLineCount, parseEnv } from "../shared/env";
+import { parseEnv } from "../shared/env";
 import { CoreError } from "./diagnostics";
 import { resolveContainedPath } from "./paths";
 
@@ -19,11 +19,11 @@ export async function readBundleEnvironment(configPath?: string): Promise<Record
     if (bytes.byteLength > 1024 * 1024) {
       throw new CoreError("ENV_FILE_TOO_LARGE", "The bundle .env file may not exceed 1 MiB.");
     }
-    const document = parseEnv(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    if (invalidEnvLineCount(document) > 0) {
+    const parsed = parseEnv(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    if (parsed.invalidLines > 0) {
       throw new CoreError("ENV_FILE_INVALID", "The bundle .env contains invalid entries. Open its environment editor and correct the raw file.");
     }
-    return Object.fromEntries(envEntries(document).map(({ entry }) => [entry.key, entry.value]));
+    return Object.fromEntries(parsed.entries.map(({ key, value }) => [key, value]));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     if (error instanceof CoreError) throw error;

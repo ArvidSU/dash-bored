@@ -208,8 +208,3 @@ export function planCompositionOperation(
     return rejected("constraint", error instanceof Error ? error.message : String(error));
   }
 }
-
-/** Small boolean adapter for render-time eligibility checks. */
-export function canPlanCompositionOperation(request: CompositionOperationRequest): boolean {
-  return planCompositionOperation(request).status === "planned";
-}

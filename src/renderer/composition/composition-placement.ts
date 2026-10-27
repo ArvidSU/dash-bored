@@ -6,18 +6,9 @@ import type {
   DashboardInsertionTarget,
 } from "../../shared/contracts";
 import { childEdges } from "../../shared/child-edges";
-import {
-  childLocators,
-  sameLocator,
-  type LayoutBranch,
-} from "../lib/component-children";
-import type { DashboardRootReplacementTarget } from "./dashboard-editor";
-
-export type { DashboardRootReplacementTarget } from "./dashboard-editor";
+import { childLocators, sameLocator } from "../lib/component-children";
 
 type TiledPlacement = Extract<ComponentChildPlacement, { type: "tiled" }>;
-
-export type TiledDirection = Pick<TiledPlacement, "axis" | "position">;
 
 export interface CompositionPlacementContext {
   /** Component whose declared child boundary is being targeted. */
@@ -28,26 +19,13 @@ export interface CompositionPlacementContext {
   /** Fail-closed snapshot of the child count observed by the caller. */
   currentChildCount?: number;
   /** Optional existing child around which insertion targets should be derived. */
-  targetChildPath?: ComponentChildLocator | readonly LayoutBranch[];
+  targetChildPath?: ComponentChildLocator;
 }
-
-export type DashboardCompositionPlacementTarget =
-  | DashboardRootReplacementTarget
-  | { type: "insertion"; target: DashboardInsertionTarget };
 
 function cloneLocator(locator: ComponentChildLocator): ComponentChildLocator {
   return locator.type === "managed"
     ? { type: "managed", index: locator.index }
     : { type: "tiled", path: [...locator.path] };
-}
-
-function normalizeTargetChildPath(
-  value: CompositionPlacementContext["targetChildPath"],
-): ComponentChildLocator | undefined {
-  if (value === undefined) return undefined;
-  return Array.isArray(value)
-    ? { type: "tiled", path: [...value] }
-    : cloneLocator(value as ComponentChildLocator);
 }
 
 function cardinalityIsUsable(manifest: ComponentManifest, count: number): boolean {
@@ -100,7 +78,7 @@ export function deriveInsertionTargets(
   if (target.children && (Array.isArray(target.children) ? "managed" : "tiled") !== presentation.type) return [];
 
   const parentPath = context.parentPath ?? [];
-  const requestedChild = normalizeTargetChildPath(context.targetChildPath);
+  const requestedChild = context.targetChildPath;
 
   if (presentation.type === "managed") {
     if (requestedChild?.type === "tiled") return [];
@@ -146,88 +124,4 @@ export function deriveInsertionTargets(
         position,
       })));
   });
-}
-
-export function deriveRootReplacementTarget(
-  targetPath: readonly ComponentChildLocator[],
-): DashboardRootReplacementTarget | null {
-  return targetPath.length === 0 ? { type: "root-replacement", path: [] } : null;
-}
-
-/** Includes root replacement when the targeted component is the dashboard root. */
-export function deriveCompositionPlacementTargets(
-  context: CompositionPlacementContext,
-): DashboardCompositionPlacementTarget[] {
-  const rootTarget = deriveRootReplacementTarget(context.parentPath ?? []);
-  return [
-    ...(rootTarget ? [rootTarget] : []),
-    ...deriveInsertionTargets(context).map((target) => ({
-      type: "insertion" as const,
-      target,
-    })),
-  ];
-}
-
-/**
- * Pick the nearest allowed edge of a normalized pointer rectangle. Ties are
- * deterministic and prefer horizontal before vertical, then first before second.
- */
-export function inferTiledDirection(
-  xRatio: number,
-  yRatio: number,
-  axes: "horizontal" | "vertical" | "both",
-): TiledDirection | null {
-  if (
-    !Number.isFinite(xRatio)
-    || !Number.isFinite(yRatio)
-    || xRatio < 0
-    || xRatio > 1
-    || yRatio < 0
-    || yRatio > 1
-  ) return null;
-
-  const candidates: Array<TiledDirection & { distance: number; order: number }> = [];
-  if (axes !== "vertical") {
-    candidates.push(
-      { axis: "horizontal", position: "first", distance: xRatio, order: 0 },
-      { axis: "horizontal", position: "second", distance: 1 - xRatio, order: 1 },
-    );
-  }
-  if (axes !== "horizontal") {
-    candidates.push(
-      { axis: "vertical", position: "first", distance: yRatio, order: 2 },
-      { axis: "vertical", position: "second", distance: 1 - yRatio, order: 3 },
-    );
-  }
-  candidates.sort((left, right) => left.distance - right.distance || left.order - right.order);
-  const selected = candidates[0];
-  return selected ? { axis: selected.axis, position: selected.position } : null;
-}
-
-/** Resolve pointer geometry through the same compatibility set used by keyboard insertion. */
-export function resolvePointerInsertionTarget(
-  context: CompositionPlacementContext,
-  xRatio: number,
-  yRatio: number,
-): DashboardInsertionTarget | null {
-  const targets = deriveInsertionTargets(context);
-  if (targets.length === 0) return null;
-  if (!context.target.children) return targets[0]!;
-
-  const presentation = context.manifest?.children?.presentation;
-  if (presentation?.type === "managed") {
-    if (!Number.isFinite(xRatio) || xRatio < 0 || xRatio > 1) return null;
-    const requested = normalizeTargetChildPath(context.targetChildPath);
-    if (requested?.type !== "managed") return targets[0]!;
-    const preferredIndex = xRatio <= 0.5 ? requested.index : requested.index + 1;
-    return targets.find(({ placement }) =>
-      placement.type === "managed" && placement.index === preferredIndex,
-    ) ?? null;
-  }
-  if (presentation?.type !== "tiled") return null;
-  const direction = inferTiledDirection(xRatio, yRatio, presentation.axes);
-  if (!direction) return null;
-  return targets.find(({ placement }) => placement.type === "tiled"
-    && placement.axis === direction.axis
-    && placement.position === direction.position) ?? null;
 }

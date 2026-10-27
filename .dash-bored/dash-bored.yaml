@@ -5,13 +5,13 @@ theme: builtin:default
 themeMode: system
 root:
   id: project-cockpit
-  component: "./components/external/core/group"
+  component: ./components/external/core/group
   children:
     axis: vertical
     first:
       node:
         id: project-section-tabs
-        component: "./components/external/core/button"
+        component: ./components/external/core/button
         persistOnFocus: true
         props:
           variant: tabs
@@ -35,7 +35,7 @@ root:
     second:
       node:
         id: project-sections
-        component: "./components/external/core/selection"
+        component: ./components/external/core/selection
         props:
           defaultChild: cockpit
         children:
@@ -43,7 +43,7 @@ root:
               label: Overview
             node:
               id: cockpit
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               children:
                 axis: vertical
                 first:
@@ -54,7 +54,7 @@ root:
                     first:
                       node:
                         id: workspace-status
-                        component: "./components/external/core/status"
+                        component: ./components/external/core/status
                         props:
                           label: Working tree
                           source:
@@ -66,9 +66,10 @@ root:
                       first:
                         node:
                           id: dashboard-health
-                          component: "./components/external/core/status"
+                          component: ./components/external/core/status
                           watch:
-                            on: [error]
+                            on:
+                              - error
                             every: 600000
                             action:
                               name: Fix with agent
@@ -85,7 +86,7 @@ root:
                       second:
                         node:
                           id: qa-status
-                          component: "./components/external/core/status"
+                          component: ./components/external/core/status
                           props:
                             label: Last QA run
                             source:
@@ -95,7 +96,7 @@ root:
                     first:
                       node:
                         id: todo-status
-                        component: "./components/external/core/status"
+                        component: ./components/external/core/status
                         props:
                           label: Backlog
                           source:
@@ -105,9 +106,10 @@ root:
                     second:
                       node:
                         id: ci-status
-                        component: "./components/external/core/status"
+                        component: ./components/external/core/status
                         watch:
-                          on: [error]
+                          on:
+                            - error
                           every: 300000
                           action:
                             name: Fix with agent
@@ -126,7 +128,7 @@ root:
                   first:
                     node:
                       id: cockpit-actions
-                      component: "./components/external/core/button"
+                      component: ./components/external/core/button
                       persistOnFocus: true
                       props:
                         items:
@@ -143,11 +145,11 @@ root:
                     first:
                       node:
                         id: project-pulse
-                        component: "./components/external/core/group"
+                        component: ./components/external/core/group
                         children:
                           node:
                             id: commit-pulse
-                            component: "./components/external/core/status"
+                            component: ./components/external/core/status
                             props:
                               label: Commits · last 14 days
                               source:
@@ -160,9 +162,10 @@ root:
                     second:
                       node:
                         id: cockpit-attention
-                        component: "./components/external/core/list"
+                        component: ./components/external/core/list
                         watch:
-                          on: [added]
+                          on:
+                            - added
                           every: 300000
                           action:
                             name: Show in backlog
@@ -189,7 +192,7 @@ root:
               label: Work
             node:
               id: project-work
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               props:
                 title: Project work
                 description: The full editable backlog and checks. Overview shows the first five open items, with bugs first.
@@ -198,7 +201,7 @@ root:
                 first:
                   node:
                     id: work-actions
-                    component: "./components/external/core/button"
+                    component: ./components/external/core/button
                     persistOnFocus: true
                     props:
                       variant: buttons
@@ -223,7 +226,7 @@ root:
                   first:
                     node:
                       id: yaml-todo
-                      component: "./components/external/core/list"
+                      component: ./components/external/core/list
                       props:
                         title: Project backlog
                         itemActions:
@@ -237,7 +240,7 @@ root:
                                   id: ${item.id}
                         todos:
                           - id: iframe-runtime-isolation
-                            description: "Upgrade to an Electrobun runtime that supports isolating embedded iframe documents from the privileged host bridge when available. Iframes are enabled by explicit user acceptance of the temporary risk on 2026-10-25. Native proof with Electrobun 2.0.4 found hostBridge, bunBridge, internalBridge, __electrobunHostBridge, __electrobun and an RPC credential global present in an HTTP iframe. The upgrade must restrict privileged preload injection to main frames AND reject subframe calls in native script-message handlers (including reply handlers). After upgrading, prove bridge and credentials absent, direct calls rejected, and normal dashboard RPC working in the real app; browser-only tests do not prove runtime isolation. Core renderer options and Open in browser were published and pinned at 5b6ac77 on 2026-10-25."
+                            description: Upgrade to an Electrobun runtime that supports isolating embedded iframe documents from the privileged host bridge when available. Iframes are enabled by explicit user acceptance of the temporary risk on 2026-10-25. Native proof with Electrobun 2.0.4 found hostBridge, bunBridge, internalBridge, __electrobunHostBridge, __electrobun and an RPC credential global present in an HTTP iframe. The upgrade must restrict privileged preload injection to main frames AND reject subframe calls in native script-message handlers (including reply handlers). After upgrading, prove bridge and credentials absent, direct calls rejected, and normal dashboard RPC working in the real app; browser-only tests do not prove runtime isolation. Core renderer options and Open in browser were published and pinned at 5b6ac77 on 2026-10-25.
                             done: false
                             tags:
                               - security
@@ -260,7 +263,7 @@ root:
                               - components
                               - agents
                           - id: release-cut-live-check
-                            description: "Watch the Release tab's Cut release command succeed end to end, including its draft asset check and final message. During v0.5.2 (2026-10-13) it committed and pushed the bump, waited for CI, pushed the tag, and correctly stopped when the release workflow failed on a flaky test. The tag move and the draft check were then done by hand, because cut refuses an existing tag; consider a resume mode for that case."
+                            description: Watch the Release tab's Cut release command succeed end to end, including its draft asset check and final message. During v0.5.2 (2026-10-13) it committed and pushed the bump, waited for CI, pushed the tag, and correctly stopped when the release workflow failed on a flaky test. The tag move and the draft check were then done by hand, because cut refuses an existing tag; consider a resume mode for that case.
                             done: false
                             tags:
                               - release
@@ -270,7 +273,7 @@ root:
                             tags:
                               - tests
                           - id: agent-options-first-session
-                            description: "The composer offers an agent's model, mode, and effort only after the app's first session with that launch command, because ACP lists options only in the session/new answer. Consider a way to show them earlier, such as an opt-in probe session from the composer. Also consider offering the options in the component library's Build with agent, which launches with the agent's defaults today."
+                            description: The composer offers an agent's model, mode, and effort only after the app's first session with that launch command, because ACP lists options only in the session/new answer. Consider a way to show them earlier, such as an opt-in probe session from the composer. Also consider offering the options in the component library's Build with agent, which launches with the agent's defaults today.
                             done: false
                             tags:
                               - agents
@@ -285,12 +288,12 @@ root:
                             tags:
                               - packages
                           - id: package-update-ancestry
-                            description: "Package update checks cannot order commits without fetching, so a pin on another branch that is ahead of the default branch is still listed as updatable and Update moves it back. Once checks fetch (see package-update-preview), offer Update only when the head descends from the pin and label other pins as on a different branch."
+                            description: Package update checks cannot order commits without fetching, so a pin on another branch that is ahead of the default branch is still listed as updatable and Update moves it back. Once checks fetch (see package-update-preview), offer Update only when the head descends from the pin and label other pins as on a different branch.
                             done: false
                             tags:
                               - packages
                           - id: package-update-linked-bundles
-                            description: "Package update checks cover registered dashboards, the active one, and personal themes. Linked bundles that were never opened as dashboards keep their own locks and are not checked; include the bundles a registered dashboard links to."
+                            description: Package update checks cover registered dashboards, the active one, and personal themes. Linked bundles that were never opened as dashboards keep their own locks and are not checked; include the bundles a registered dashboard links to.
                             done: false
                             tags:
                               - packages
@@ -489,7 +492,7 @@ root:
                             tags:
                               - chore
                           - id: todo-flaky-timeouts-under-load
-                            description: "The runtime file-watcher test keeps its observable snapshot wait with an explicit 15 s test budget; the renderer interaction suite's cleanup hook has 30 s. This removes bun's unrelated 5 s default as their limit without adding fixed sleeps."
+                            description: The runtime file-watcher test keeps its observable snapshot wait with an explicit 15 s test budget; the renderer interaction suite's cleanup hook has 30 s. This removes bun's unrelated 5 s default as their limit without adding fixed sleeps.
                             done: true
                             tags:
                               - chore
@@ -500,32 +503,32 @@ root:
                             tags:
                               - chore
                           - id: todo-package-pipeline
-                            description: "Merge component and theme package add/update/sync/remove into one strategy-driven PackageStore pipeline once their rules are reconciled (remote-advertised vs any full SHA, fetch tolerance, force vs refuse-dirty removal, per-checkout validation and rollback, updateAvailable, coded vs plain errors)."
+                            description: Merge component and theme package add/update/sync/remove into one strategy-driven PackageStore pipeline once their rules are reconciled (remote-advertised vs any full SHA, fetch tolerance, force vs refuse-dirty removal, per-checkout validation and rollback, updateAvailable, coded vs plain errors).
                             done: false
                             tags:
                               - chore
                           - id: todo-child-edges-shared
-                            description: "Consolidate the ~5 childEdges copies across core, renderer, and shared into one shared helper."
+                            description: Consolidate the ~5 childEdges copies across core, renderer, and shared into one shared helper.
                             done: true
                             tags:
                               - chore
                           - id: todo-legacy-action-target-leaf
-                            description: "The extracted ComponentDialog, action-reference migration, and tree validator share isLegacyActionTarget from the Node-free src/migrations/action-target.ts leaf. Remove this schema-v3 compatibility check with the future atoms migration."
+                            description: The extracted ComponentDialog, action-reference migration, and tree validator share isLegacyActionTarget from the Node-free src/migrations/action-target.ts leaf. Remove this schema-v3 compatibility check with the future atoms migration.
                             done: true
                             tags:
                               - chore
                           - id: todo-config-link-manifest
-                            description: "Replace the hand-built config-link catalog manifest in project.ts (missing renderMode layout) with configLinkManifest from tree-links."
+                            description: Replace the hand-built config-link catalog manifest in project.ts (missing renderMode layout) with configLinkManifest from tree-links.
                             done: true
                             tags:
                               - chore
                           - id: todo-todo-id-migration
-                            description: "Todo ID backfill now lives in src/migrations/todo-ids.ts and is shared with the extracted core components."
+                            description: Todo ID backfill now lives in src/migrations/todo-ids.ts and is shared with the extracted core components.
                             done: true
                             tags:
                               - chore
                           - id: todo-reference-walkers
-                            description: "Decide the trailing-star semantics so the referenceValues walker in tree-validate can merge into referenceLocations."
+                            description: Decide the trailing-star semantics so the referenceValues walker in tree-validate can merge into referenceLocations.
                             done: true
                             tags:
                               - chore
@@ -580,7 +583,7 @@ root:
                               - agent-tool
                               - skill
                           - id: todo-retiring-component-detail
-                            description: "Carry the retiring marker from src/shared/retiring-components.ts into `inspect --component <reference>` output too (only --summary has it), and derive SKILL.md's replacement list from the same map or drop it, since today both must be edited together."
+                            description: Carry the retiring marker from src/shared/retiring-components.ts into `inspect --component <reference>` output too (only --summary has it), and derive SKILL.md's replacement list from the same map or drop it, since today both must be edited together.
                             done: false
                             tags:
                               - agent-tool
@@ -646,7 +649,7 @@ root:
                               - bug
                               - renderer
                           - id: todo-screenshot-focus-timeout
-                            description: "Investigate the historical intermittent `app screenshot --focus <id>` RPC timeout. Already-focused captures passed 4/4 in the checkout dev app on 2026-10-11; the CLI skips redundant focus and has regression coverage. The broader intermittent failure remains unproven."
+                            description: Investigate the historical intermittent `app screenshot --focus <id>` RPC timeout. Already-focused captures passed 4/4 in the checkout dev app on 2026-10-11; the CLI skips redundant focus and has regression coverage. The broader intermittent failure remains unproven.
                             done: false
                             tags:
                               - bug
@@ -690,41 +693,41 @@ root:
                             tags:
                               - agent-tools
                           - id: todo-shortcuts-in-text-fields
-                            description: "Default shortcuts skip editable controls, so Command-S cannot save a dashboard draft while an inspector field has focus. Mirror save (and settings) in the native menu or allow chosen Mod shortcuts inside inputs. Agents also need an app-control key press to prove shortcuts in the dev app."
+                            description: Default shortcuts skip editable controls, so Command-S cannot save a dashboard draft while an inspector field has focus. Mirror save (and settings) in the native menu or allow chosen Mod shortcuts inside inputs. Agents also need an app-control key press to prove shortcuts in the dev app.
                             done: false
                             tags:
                               - feature
                           - id: todo-acp-plan-capability
-                            description: "Show ACP markdown and file plans (plan_update), then advertise the unstable ACP `plan` client capability; today only item plans are shown, so the capability stays off (docs/architecture/acp-client.md#handshake-and-sign-in)."
+                            description: Show ACP markdown and file plans (plan_update), then advertise the unstable ACP `plan` client capability; today only item plans are shown, so the capability stays off (docs/architecture/acp-client.md#handshake-and-sign-in).
                             done: false
                             tags:
                               - acp
                           - id: todo-acp-permission-notify
-                            description: "Notify (native notification or dock badge) when an ACP agent waits for permission or sign-in while the dash-bored window is in the background."
+                            description: Notify (native notification or dock badge) when an ACP agent waits for permission or sign-in while the dash-bored window is in the background.
                             done: true
                             tags:
                               - acp
                               - agent
                           - id: todo-notification-click-routing
-                            description: "Route a click on a system notification to its own decision. Electrobun's showNotification reports no click, so the app shows the newest pending decision when it comes forward; a UNUserNotificationCenter delegate (with Show/Dismiss notification actions) would land on the clicked one. See docs/architecture/notifications.md."
+                            description: Route a click on a system notification to its own decision. Electrobun's showNotification reports no click, so the app shows the newest pending decision when it comes forward; a UNUserNotificationCenter delegate (with Show/Dismiss notification actions) would land on the clicked one. See docs/architecture/notifications.md.
                             done: false
                             tags:
                               - notifications
                               - native
                           - id: todo-watch-shared-observation
-                            description: "Let a visible view's source observations count as its watch's, so a watched node shown on screen is not polled twice (once by the view, once by the main-process watch runner)."
+                            description: Let a visible view's source observations count as its watch's, so a watched node shown on screen is not polled twice (once by the view, once by the main-process watch runner).
                             done: false
                             tags:
                               - notifications
                               - watches
                           - id: todo-notification-cross-dashboard-ui-test
-                            description: "Add a second dashboard to the UI fixture host so tests cover Show and declared actions on a notification from another dashboard (open it, wait for its snapshot, run attention). It is only covered by code review today; the native app has no click injection here."
+                            description: Add a second dashboard to the UI fixture host so tests cover Show and declared actions on a notification from another dashboard (open it, wait for its snapshot, run attention). It is only covered by code review today; the native app has no click injection here.
                             done: false
                             tags:
                               - notifications
                               - tests
                           - id: todo-notification-run-control-on-screen
-                            description: "Skip a failed-run decision when the control that started the run (not only the command node) is on screen; the button already shows the failure."
+                            description: Skip a failed-run decision when the control that started the run (not only the command node) is on screen; the button already shows the failure.
                             done: false
                             tags:
                               - notifications
@@ -736,12 +739,12 @@ root:
                               - notifications
                               - bug
                           - id: todo-notification-history-persist
-                            description: "Persist open notifications and their Earlier history across app restarts (bounded, per user, never YAML), so a decision raised before quitting is still listed with whether it cleared. Today both last for the app session."
+                            description: Persist open notifications and their Earlier history across app restarts (bounded, per user, never YAML), so a decision raised before quitting is still listed with whether it cleared. Today both last for the app session.
                             done: false
                             tags:
                               - notifications
                           - id: todo-notifications-component-api
-                            description: "Decide whether custom components get a host notify API (declared permission, rate limits). They only run while mounted, so background state belongs in a script-backed watch; revisit when a dashboard needs it."
+                            description: Decide whether custom components get a host notify API (declared permission, rate limits). They only run while mounted, so background state belongs in a script-backed watch; revisit when a dashboard needs it.
                             done: false
                             tags:
                               - notifications
@@ -753,31 +756,31 @@ root:
                               - acp
                               - agent
                           - id: todo-acp-custom-resume
-                            description: "Let a custom ACP agent command declare a resume command template ({sessionId}, {cwd}) in Settings so hand-off works beyond the known-agent catalog."
+                            description: Let a custom ACP agent command declare a resume command template ({sessionId}, {cwd}) in Settings so hand-off works beyond the known-agent catalog.
                             done: false
                             tags:
                               - acp
                               - agent
                           - id: todo-acp-desktop-handoff
-                            description: "Offer desktop-app hand-off where agents support it (codex://threads/<id>, goose://resume/<id>, claude --desktop --resume <id>) alongside the terminal resume."
+                            description: Offer desktop-app hand-off where agents support it (codex://threads/<id>, goose://resume/<id>, claude --desktop --resume <id>) alongside the terminal resume.
                             done: false
                             tags:
                               - acp
                               - agent
                           - id: todo-acp-session-restore
-                            description: "Restore ACP sessions after an app restart with session/load or session/resume when the agent advertises it, instead of keeping sessions app-session only."
+                            description: Restore ACP sessions after an app restart with session/load or session/resume when the agent advertises it, instead of keeping sessions app-session only.
                             done: false
                             tags:
                               - acp
                               - agent
                           - id: todo-acp-setup-detected-agent
-                            description: "The core setup-agent component (dash-bored-components repo) reports 'configure an agent' when DASH_BORED_AGENT is unset even if the app detected an ACP agent; expose the effective detected agent to components (environment snapshot source) and update the component."
+                            description: The core setup-agent component (dash-bored-components repo) reports 'configure an agent' when DASH_BORED_AGENT is unset even if the app detected an ACP agent; expose the effective detected agent to components (environment snapshot source) and update the component.
                             done: false
                             tags:
                               - acp
                               - agent
                           - id: todo-acp-slash-commands
-                            description: "Surface agent-advertised commands (ACP available_commands_update) in the follow-up composer."
+                            description: Surface agent-advertised commands (ACP available_commands_update) in the follow-up composer.
                             done: false
                             tags:
                               - acp
@@ -795,24 +798,24 @@ root:
                               - acp
                               - agent
                           - id: todo-acp-task-deltas
-                            description: "Push per-task deltas instead of full AgentSessionTask snapshots for streaming updates; renderer use-host-session also keeps a never-pruned last-state map."
+                            description: Push per-task deltas instead of full AgentSessionTask snapshots for streaming updates; renderer use-host-session also keeps a never-pruned last-state map.
                             done: false
                             tags:
                               - acp
                               - agent
                           - id: todo-palette-recents-clear
-                            description: "Let users clear the command palette's Recent history or remove one recent run (from the palette row or Settings → Actions). Recent runs are stored per dashboard in renderer localStorage today and only drop out at the 25-run cap or when the dashboard is removed."
+                            description: Let users clear the command palette's Recent history or remove one recent run (from the palette row or Settings → Actions). Recent runs are stored per dashboard in renderer localStorage today and only drop out at the 25-run cap or when the dashboard is removed.
                             done: false
                             tags:
                               - renderer
                           - id: todo-ci-pipe-stall
-                            description: "Find why Bun stops delivering a child's piped stdout/stderr in the hosted CI suite (`bun test --parallel=1`). In CI run 38245113350 the production renderer build exited 0 after 2.9 s, but neither pipe produced data or closed. production-components now writes the build to a log file; other test helpers (component-authoring and CLI `run()`) still wait for pipe EOF. Reduce it to a Bun repro and report it, or move those helpers to file output."
+                            description: Find why Bun stops delivering a child's piped stdout/stderr in the hosted CI suite (`bun test --parallel=1`). In CI run 38245113350 the production renderer build exited 0 after 2.9 s, but neither pipe produced data or closed. production-components now writes the build to a log file; other test helpers (component-authoring and CLI `run()`) still wait for pipe EOF. Reduce it to a Bun repro and report it, or move those helpers to file output.
                             done: false
                             tags:
                               - qa
                               - tests
                           - id: todo-ci-cache-hutch
-                            description: "Cache the Hutch/Electrobun downloads in CI and release workflows. CI run 38246330604 (attempt 1) failed before any test because GitHub returned HTTP 504 for electrobun-artifacts.json during `electrobun prepare`."
+                            description: Cache the Hutch/Electrobun downloads in CI and release workflows. CI run 38246330604 (attempt 1) failed before any test because GitHub returned HTTP 504 for electrobun-artifacts.json during `electrobun prepare`.
                             done: false
                             tags:
                               - qa
@@ -823,7 +826,7 @@ root:
                               - tests
                               - qa
                           - id: todo-retire-legacy-migrations
-                            description: "Decide when to delete the legacy migrations in src/migrations/ (action-references, app-theme-reference, skill-payloads, cli-link). Their headers said 'delete at dashboard schema v4', but contract 4 shipped without retiring them; positional action references also need the contract migration planned in atoms WP9."
+                            description: Decide when to delete the legacy migrations in src/migrations/ (action-references, app-theme-reference, skill-payloads, cli-link). Their headers said 'delete at dashboard schema v4', but contract 4 shipped without retiring them; positional action references also need the contract migration planned in atoms WP9.
                             done: false
                             tags:
                               - chore
@@ -839,7 +842,7 @@ root:
                             tags:
                               - agent-tools
                           - id: todo-dev-ready-wait
-                            description: "Add a readiness signal for the dev app, such as `dev:start --wait` and `dev:restart --wait` that return once the control socket answers, so agents stop hand-rolling wait loops and misreading the starting state as a failure."
+                            description: Add a readiness signal for the dev app, such as `dev:start --wait` and `dev:restart --wait` that return once the control socket answers, so agents stop hand-rolling wait loops and misreading the starting state as a failure.
                             done: true
                             tags:
                               - agent-tools
@@ -850,18 +853,18 @@ root:
                             tags:
                               - tooling
                           - id: todo-reload-drops-component-css
-                            description: "Core component styles disappeared from the whole dev dashboard (tab bars and Markdown headers rendered as unstyled stacked buttons) after watcher reloads caused by editing dash-bored-lock.yaml and dash-bored.yaml on 2026-10-12; Reload app restored them. Reproduce with a lock-file edit and check whether package reloads drop injected component CSS."
+                            description: Core component styles disappeared from the whole dev dashboard (tab bars and Markdown headers rendered as unstyled stacked buttons) after watcher reloads caused by editing dash-bored-lock.yaml and dash-bored.yaml on 2026-10-12; Reload app restored them. Reproduce with a lock-file edit and check whether package reloads drop injected component CSS.
                             done: false
                             tags:
                               - bug
                               - renderer
                           - id: todo-split-renderer-doc
-                            description: "Split docs/architecture/renderer.md (~960 lines, grep-only in practice) into module map, shell/palette/visuals, and agent UI pages, and move per-component behavior to the component repository's docs."
+                            description: Split docs/architecture/renderer.md (~960 lines, grep-only in practice) into module map, shell/palette/visuals, and agent UI pages, and move per-component behavior to the component repository's docs.
                             done: false
                             tags:
                               - docs
                           - id: todo-idea-mechanism-trim
-                            description: "Move implementation mechanism out of docs/IDEA.md (palette recents and shortcuts, flyout drafts, package and lock mechanics, update receipts, theme pins) into the architecture pages that already own it, keeping IDEA.md to product intent."
+                            description: Move implementation mechanism out of docs/IDEA.md (palette recents and shortcuts, flyout drafts, package and lock mechanics, update receipts, theme pins) into the architecture pages that already own it, keeping IDEA.md to product intent.
                             done: false
                             tags:
                               - docs
@@ -878,7 +881,7 @@ root:
                               - visuals
                               - renderer
                           - id: todo-narrow-tab-bar
-                            description: "At phone widths the 76 px sidebar stays expanded and the eight project tabs wrap into three rows. Collapse the sidebar below a breakpoint and decide between a scrolling tab row and an overflow menu for tab bars."
+                            description: At phone widths the 76 px sidebar stays expanded and the eight project tabs wrap into three rows. Collapse the sidebar below a breakpoint and decide between a scrolling tab row and an overflow menu for tab bars.
                             done: false
                             tags:
                               - visuals
@@ -890,7 +893,7 @@ root:
                               - visuals
                               - renderer
                           - id: todo-fixture-replay
-                            description: "Add a replay mode to the UI fixture that renders a bundle's real dashboard with recorded source outputs (one run per shell source), so renderer visuals can be reviewed against real content in headless Chrome when the native window cannot be captured, such as on a locked screen."
+                            description: Add a replay mode to the UI fixture that renders a bundle's real dashboard with recorded source outputs (one run per shell source), so renderer visuals can be reviewed against real content in headless Chrome when the native window cannot be captured, such as on a locked screen.
                             done: false
                             tags:
                               - tooling
@@ -898,7 +901,7 @@ root:
                   second:
                     node:
                       id: checks
-                      component: "./components/external/core/group"
+                      component: ./components/external/core/group
                       props:
                         title: Checks
                         description: The status tiles above observe these supervised processes.
@@ -907,7 +910,7 @@ root:
                         first:
                           node:
                             id: run-qa
-                            component: "./components/external/core/command"
+                            component: ./components/external/core/command
                             props:
                               label: Run QA (reuse prepared Hutch)
                               command: bun run qa:fast
@@ -917,7 +920,7 @@ root:
                           first:
                             node:
                               id: validate-dashboard
-                              component: "./components/external/core/command"
+                              component: ./components/external/core/command
                               props:
                                 label: Validate dashboard configuration
                                 command: bun run dash-bored -- validate .
@@ -927,7 +930,7 @@ root:
                             first:
                               node:
                                 id: verify-agent-sessions
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Verify ACP agent sessions
                                   command: bun test --timeout 30000 tests/main/agent-sessions.test.ts tests/main/agent-session-updates.test.ts tests/main/agent-config-memory.test.ts tests/main/dashboard-setup.test.ts tests/updates/migration-agent.test.ts
@@ -937,7 +940,7 @@ root:
                               first:
                                 node:
                                   id: verify-agent-session-ui
-                                  component: "./components/external/core/command"
+                                  component: ./components/external/core/command
                                   props:
                                     label: Verify Agent work session UI
                                     command: bun test --timeout 60000 tests/renderer/agent-work-ui.test.ts tests/renderer/agent-tasks.test.ts tests/renderer/markdown-lite.test.ts
@@ -945,7 +948,7 @@ root:
                               second:
                                 node:
                                   id: verify-core-authoring
-                                  component: "./components/external/core/command"
+                                  component: ./components/external/core/command
                                   props:
                                     label: Verify core through public authoring
                                     command: bun test --timeout 120000 tests/core/core-authoring-parity.test.ts tests/core/component-source-packages.test.ts tests/core/platform-metadata.test.ts tests/core/package-templates.test.ts tests/core/component-independence.test.ts
@@ -954,13 +957,13 @@ root:
               label: Changes
             node:
               id: changes
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               children:
                 axis: vertical
                 first:
                   node:
                     id: changes-actions
-                    component: "./components/external/core/button"
+                    component: ./components/external/core/button
                     props:
                       variant: buttons
                       items:
@@ -986,7 +989,7 @@ root:
                     first:
                       node:
                         id: git-changes
-                        component: "./components/external/core/list"
+                        component: ./components/external/core/list
                         props:
                           title: Working tree
                           sort: source-order
@@ -1008,7 +1011,7 @@ root:
                     second:
                       node:
                         id: git-diff-runner
-                        component: "./components/external/core/command"
+                        component: ./components/external/core/command
                         props:
                           label: Diff selected file
                           command: if git ls-files --error-unmatch -- "$DASH_ITEM_PATH" >/dev/null 2>&1; then git --no-pager diff --color=always HEAD -- "$DASH_ITEM_PATH"; else git --no-pager diff --color=always --no-index -- /dev/null "$DASH_ITEM_PATH" || test $? -eq 1; fi
@@ -1018,7 +1021,7 @@ root:
                     first:
                       node:
                         id: git-activity
-                        component: "./components/external/core/chart"
+                        component: ./components/external/core/chart
                         props:
                           title: Commits · last 14 days
                           type: bar
@@ -1034,7 +1037,7 @@ root:
                         first:
                           node:
                             id: recent-commits
-                            component: "./components/external/core/list"
+                            component: ./components/external/core/list
                             props:
                               title: Recent commits
                               sort: source-order
@@ -1051,7 +1054,7 @@ root:
                         second:
                           node:
                             id: git-show-runner
-                            component: "./components/external/core/command"
+                            component: ./components/external/core/command
                             props:
                               label: Show selected commit
                               command: git --no-pager show --stat --patch --color=always "$DASH_ITEM_SHA"
@@ -1062,7 +1065,7 @@ root:
                         first:
                           node:
                             id: git-branches
-                            component: "./components/external/core/list"
+                            component: ./components/external/core/list
                             props:
                               title: Branches
                               source:
@@ -1080,7 +1083,7 @@ root:
                         second:
                           node:
                             id: git-branch-log
-                            component: "./components/external/core/command"
+                            component: ./components/external/core/command
                             props:
                               label: Log selected branch against main
                               command: git --no-pager log --color=always --graph --oneline --decorate -30 "$DASH_ITEM_NAME" --not main --
@@ -1089,7 +1092,7 @@ root:
               label: Develop
             node:
               id: development
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               children:
                 axis: vertical
                 first:
@@ -1137,7 +1140,7 @@ root:
                     first:
                       node:
                         id: composition-workflow
-                        component: "./components/external/core/markdown"
+                        component: ./components/external/core/markdown
                         props:
                           content: |
                             **Arrange this cockpit.** Focus a panel's frame menu and choose **Move up** or
@@ -1150,7 +1153,7 @@ root:
                     second:
                       node:
                         id: palette-workflow
-                        component: "./components/external/core/markdown"
+                        component: ./components/external/core/markdown
                         props:
                           title: Run several palette actions
                           content: |
@@ -1179,7 +1182,7 @@ root:
                   first:
                     node:
                       id: development-controls
-                      component: "./components/external/core/group"
+                      component: ./components/external/core/group
                       props:
                         title: Dev commands
                       children:
@@ -1190,7 +1193,7 @@ root:
                           first:
                             node:
                               id: start-development
-                              component: "./components/external/core/command"
+                              component: ./components/external/core/command
                               props:
                                 label: Start dev app
                                 command: bun run dev:start
@@ -1200,7 +1203,7 @@ root:
                             first:
                               node:
                                 id: stop-development
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Stop dev app
                                   command: bun run dev:stop
@@ -1210,7 +1213,7 @@ root:
                               first:
                                 node:
                                   id: restart-development
-                                  component: "./components/external/core/command"
+                                  component: ./components/external/core/command
                                   props:
                                     label: Restart dev app
                                     command: bun run dev:restart
@@ -1220,7 +1223,7 @@ root:
                                 first:
                                   node:
                                     id: development-status
-                                    component: "./components/external/core/status"
+                                    component: ./components/external/core/status
                                     props:
                                       label: This checkout's dev app
                                       density: compact
@@ -1230,7 +1233,7 @@ root:
                                 second:
                                   node:
                                     id: ui-fixture
-                                    component: "./components/external/core/command"
+                                    component: ./components/external/core/command
                                     props:
                                       label: Serve UI fixture (renderer only)
                                       command: bun run ui:fixture
@@ -1242,7 +1245,7 @@ root:
                             first:
                               node:
                                 id: typecheck-fast
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Typecheck (fast)
                                   command: bun run typecheck:fast
@@ -1250,7 +1253,7 @@ root:
                             second:
                               node:
                                 id: build-renderer-fast
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Build renderer (fast)
                                   command: bun run build:renderer:fast
@@ -1260,7 +1263,7 @@ root:
                             first:
                               node:
                                 id: test-suite
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Full test suite
                                   command: bun run test
@@ -1268,102 +1271,93 @@ root:
                             second:
                               node:
                                 id: renderer-ui-test
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Renderer interaction suite
                                   command: bun run test:renderer-ui
                                   cwd: .
                   second:
-                    axis: vertical
+                    axis: horizontal
+                    ratio: 0.5
                     first:
-                      axis: horizontal
-                      ratio: 0.5
-                      first:
-                        node:
-                          id: package-scripts
-                          component: "./components/external/core/group"
-                          props:
-                            title: Package scripts
-                            description: Run passes the script name and runner as DASH_ITEM_* values.
-                          children:
-                            axis: vertical
-                            first:
-                              node:
-                                id: package-script-catalog
-                                component: "./components/external/core/list"
-                                props:
-                                  title: Package scripts
-                                  source:
-                                    shell: bun run .dash-bored/scripts/package-scripts.ts
-                                    cwd: .
-                                    every: 30000
-                                  sort: source-order
-                                  itemActions:
-                                    - name: Run
-                                      action:
-                                        run: component:package-script-runner:run
-                                        with:
-                                          name: ${item.name}
-                                          runner: ${item.runner}
-                            second:
-                              node:
-                                id: package-script-runner
-                                component: "./components/external/core/command"
-                                props:
-                                  label: Run selected package script
-                                  command: '"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"'
-                                  cwd: .
-                      second:
-                        axis: vertical
-                        first:
+                      node:
+                        id: package-scripts
+                        component: ./components/external/core/group
+                        props:
+                          title: Package scripts
+                          description: Run passes the script name and runner as DASH_ITEM_* values.
+                        children:
                           axis: vertical
                           first:
                             node:
-                              id: project-pulse-status
-                              component: "./components/external/core/status"
+                              id: package-script-catalog
+                              component: ./components/external/core/list
                               props:
-                                label: Project pulse
-                                density: compact
+                                title: Package scripts
                                 source:
-                                  shell: bun run .dash-bored/scripts/project-pulse.ts status
+                                  shell: bun run .dash-bored/scripts/package-scripts.ts
                                   cwd: .
                                   every: 30000
+                                sort: source-order
+                                itemActions:
+                                  - name: Run
+                                    action:
+                                      run: component:package-script-runner:run
+                                      with:
+                                        name: ${item.name}
+                                        runner: ${item.runner}
                           second:
                             node:
-                              id: project-pulse-chart
-                              component: "./components/external/core/chart"
+                              id: package-script-runner
+                              component: ./components/external/core/command
                               props:
-                                title: Package scripts by category
-                                type: bar
-                                source:
-                                  shell: bun run .dash-bored/scripts/project-pulse.ts chart
-                                  cwd: .
-                                  every: 30000
+                                label: Run selected package script
+                                command: '"$DASH_ITEM_RUNNER" run "$DASH_ITEM_NAME"'
+                                cwd: .
+                    second:
+                      axis: vertical
+                      first:
+                        axis: vertical
+                        first:
+                          node:
+                            id: project-pulse-status
+                            component: ./components/external/core/status
+                            props:
+                              label: Project pulse
+                              density: compact
+                              source:
+                                shell: bun run .dash-bored/scripts/project-pulse.ts status
+                                cwd: .
+                                every: 30000
                         second:
                           node:
-                            id: worktree-environment
-                            component: "./components/external/core/env"
+                            id: project-pulse-chart
+                            component: ./components/external/core/chart
                             props:
-                              path: .env.worktree
-                    second:
-                      node:
-                        id: renderer-preview
-                        component: "./components/external/core/webview"
-                        props:
-                          url: http://127.0.0.1:5488/iframe-demo.html
-                          renderer: iframe
+                              title: Package scripts by category
+                              type: bar
+                              source:
+                                shell: bun run .dash-bored/scripts/project-pulse.ts chart
+                                cwd: .
+                                every: 30000
+                      second:
+                        node:
+                          id: worktree-environment
+                          component: ./components/external/core/env
+                          props:
+                            path: .env.worktree
           - metadata:
               label: Roadmap
             node:
               id: roadmap
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               children:
                 axis: horizontal
                 ratio: 0.55
                 first:
                   node:
                     id: roadmap-packages
-                    component: "./components/external/core/list"
+                    component: ./components/external/core/list
                     props:
                       title: Atoms roadmap · implementation status
                       sort: source-order
@@ -1384,7 +1378,7 @@ root:
                   first:
                     node:
                       id: todo-chart
-                      component: "./components/external/core/chart"
+                      component: ./components/external/core/chart
                       props:
                         title: Todos by tag
                         type: bar
@@ -1395,7 +1389,7 @@ root:
                   second:
                     node:
                       id: roadmap-todos
-                      component: "./components/external/core/button"
+                      component: ./components/external/core/button
                       props:
                         variant: buttons
                         items:
@@ -1410,13 +1404,13 @@ root:
               label: Release
             node:
               id: release
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               children:
                 axis: vertical
                 first:
                   node:
                     id: release-intro
-                    component: "./components/external/core/markdown"
+                    component: ./components/external/core/markdown
                     props:
                       content: |
                         **Unsigned macOS prerelease** for Apple Silicon on macOS 14+. Pick the next version, then cut it:
@@ -1432,7 +1426,7 @@ root:
                     first:
                       node:
                         id: release-controls
-                        component: "./components/external/core/group"
+                        component: ./components/external/core/group
                         props:
                           title: Release pipeline
                           description: Set the next version, then cut it. Cutting asks you to type the tag before it changes anything.
@@ -1441,7 +1435,7 @@ root:
                           first:
                             node:
                               id: release-readiness
-                              component: "./components/external/core/status"
+                              component: ./components/external/core/status
                               props:
                                 label: Release readiness
                                 source:
@@ -1454,7 +1448,7 @@ root:
                             first:
                               node:
                                 id: release-versions
-                                component: "./components/external/core/list"
+                                component: ./components/external/core/list
                                 props:
                                   title: 1 · Next version
                                   sort: source-order
@@ -1475,7 +1469,7 @@ root:
                               first:
                                 node:
                                   id: set-release-version
-                                  component: "./components/external/core/command"
+                                  component: ./components/external/core/command
                                   props:
                                     label: Set another version (prompts)
                                     command: bun run .dash-bored/scripts/release.ts set
@@ -1485,7 +1479,7 @@ root:
                                 first:
                                   node:
                                     id: cut-release
-                                    component: "./components/external/core/command"
+                                    component: ./components/external/core/command
                                     props:
                                       label: 2 · Cut release (QA, push, CI, tag)
                                       command: bun run .dash-bored/scripts/release.ts cut
@@ -1493,7 +1487,7 @@ root:
                                 second:
                                   node:
                                     id: release-rehearsal
-                                    component: "./components/external/core/group"
+                                    component: ./components/external/core/group
                                     props:
                                       title: Local rehearsal
                                       description: Optional. The release workflow runs these on the tag.
@@ -1502,7 +1496,7 @@ root:
                                       first:
                                         node:
                                           id: run-release-qa
-                                          component: "./components/external/core/command"
+                                          component: ./components/external/core/command
                                           props:
                                             label: Run release QA
                                             command: bun run qa && bun run dash-bored -- validate .
@@ -1512,7 +1506,7 @@ root:
                                         first:
                                           node:
                                             id: build-macos-release
-                                            component: "./components/external/core/command"
+                                            component: ./components/external/core/command
                                             props:
                                               label: Build clean macOS prerelease
                                               command: bun run build:release
@@ -1520,7 +1514,7 @@ root:
                                         second:
                                           node:
                                             id: prepare-macos-release
-                                            component: "./components/external/core/command"
+                                            component: ./components/external/core/command
                                             props:
                                               label: Verify and stage release assets
                                               command: bun run release:prepare
@@ -1530,7 +1524,7 @@ root:
                       first:
                         node:
                           id: github-releases
-                          component: "./components/external/core/list"
+                          component: ./components/external/core/list
                           props:
                             title: Published GitHub releases
                             sort: source-order
@@ -1542,7 +1536,7 @@ root:
                       second:
                         node:
                           id: update-workflow
-                          component: "./components/external/core/group"
+                          component: ./components/external/core/group
                           props:
                             title: Updates and migrations
                             description: Canary is available; Beta and Stable come later. Nothing below installs anything.
@@ -1551,7 +1545,7 @@ root:
                             first:
                               node:
                                 id: update-check
-                                component: "./components/external/core/button"
+                                component: ./components/external/core/button
                                 props:
                                   items:
                                     - name: App updates
@@ -1561,7 +1555,7 @@ root:
                             second:
                               node:
                                 id: migration-inspect
-                                component: "./components/external/core/command"
+                                component: ./components/external/core/command
                                 props:
                                   label: Inspect dashboard migration requirements
                                   command: bun run dash-bored -- migrate inspect .
@@ -1569,14 +1563,14 @@ root:
                   second:
                     node:
                       id: release-workflow-markdown
-                      component: "./components/external/core/markdown"
+                      component: ./components/external/core/markdown
                       props:
                         path: .github/workflows/release.yml
           - metadata:
               label: Agent
             node:
               id: agent-setup
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               props:
                 title: Configure with an agent
                 description: Exercise the same self-contained setup flow generated for new projects.
@@ -1587,7 +1581,7 @@ root:
                   first:
                     node:
                       id: agent-setup-guide
-                      component: "./components/external/core/markdown"
+                      component: ./components/external/core/markdown
                       props:
                         content: |
                           Choose the CLI coding agent in Settings, install the version-matched dash-bored skill
@@ -1602,7 +1596,7 @@ root:
                   second:
                     node:
                       id: agent-window-attention
-                      component: "./components/external/core/button"
+                      component: ./components/external/core/button
                       props:
                         variant: buttons
                         items:
@@ -1631,13 +1625,13 @@ root:
                     first:
                       node:
                         id: agent-environment
-                        component: "./components/external/core/env"
+                        component: ./components/external/core/env
                         props:
                           path: .dash-bored/.env
                     second:
                       node:
                         id: configure-with-agent
-                        component: "./components/external/core/button"
+                        component: ./components/external/core/button
                         props:
                           name: Configure with agent
                           action:
@@ -1650,7 +1644,7 @@ root:
                     first:
                       node:
                         id: capture-agent-view
-                        component: "./components/external/core/command"
+                        component: ./components/external/core/command
                         props:
                           label: Capture the app window as an agent sees it
                           command: '"$DASH_BORED_TOOL" app screenshot --output "${TMPDIR:-/tmp}/dash-bored-agent-view.png" && open "${TMPDIR:-/tmp}/dash-bored-agent-view.png"'
@@ -1660,7 +1654,7 @@ root:
                       first:
                         node:
                           id: list-agent-actions
-                          component: "./components/external/core/command"
+                          component: ./components/external/core/command
                           props:
                             label: List actions an agent can run in this app
                             command: '"$DASH_BORED_TOOL" app actions'
@@ -1672,7 +1666,7 @@ root:
                           first:
                             node:
                               id: agent-skill-global-status
-                              component: "./components/external/core/status"
+                              component: ./components/external/core/status
                               props:
                                 label: Skill · global
                                 density: compact
@@ -1683,7 +1677,7 @@ root:
                           second:
                             node:
                               id: agent-skill-project-status
-                              component: "./components/external/core/status"
+                              component: ./components/external/core/status
                               props:
                                 label: Skill · this repository
                                 density: compact
@@ -1696,7 +1690,7 @@ root:
                           first:
                             node:
                               id: install-agent-skill-global
-                              component: "./components/external/core/command"
+                              component: ./components/external/core/command
                               props:
                                 label: Install or update dash-bored skill globally
                                 command: '"$DASH_BORED_TOOL" install-skill --global'
@@ -1704,7 +1698,7 @@ root:
                           second:
                             node:
                               id: install-agent-skill
-                              component: "./components/external/core/command"
+                              component: ./components/external/core/command
                               props:
                                 label: Install or update portable dash-bored skill for this project
                                 command: '"$DASH_BORED_TOOL" install-skill .'
@@ -1713,13 +1707,13 @@ root:
               label: Docs
             node:
               id: documentation
-              component: "./components/external/core/group"
+              component: ./components/external/core/group
               children:
                 axis: vertical
                 first:
                   node:
                     id: documentation-tabs
-                    component: "./components/external/core/button"
+                    component: ./components/external/core/button
                     persistOnFocus: true
                     props:
                       variant: tabs
@@ -1749,7 +1743,7 @@ root:
                 second:
                   node:
                     id: documentation-panels
-                    component: "./components/external/core/selection"
+                    component: ./components/external/core/selection
                     props:
                       defaultChild: readme-markdown
                     children:
@@ -1757,76 +1751,76 @@ root:
                           label: README
                         node:
                           id: readme-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: README.md
                       - metadata:
                           label: Agent guide
                         node:
                           id: agents-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: AGENTS.md
                       - metadata:
                           label: Dashboard setup
                         node:
                           id: dashboard-readme
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: .dash-bored/README.md
                       - metadata:
                           label: Product vision
                         node:
                           id: idea-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/IDEA.md
                       - metadata:
                           label: Architecture
                         node:
                           id: architecture-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: ARCHITECTURE.md
                       - metadata:
                           label: Atoms roadmap
                         node:
                           id: roadmap-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/roadmap/atoms.md
                       - metadata:
                           label: Components
                         node:
                           id: components-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/architecture/components.md
                       - metadata:
                           label: Renderer
                         node:
                           id: renderer-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/architecture/renderer.md
                       - metadata:
                           label: Runtime
                         node:
                           id: runtime-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/architecture/runtime.md
                       - metadata:
                           label: Security
                         node:
                           id: security-markdown
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/architecture/security.md
                       - metadata:
                           label: Releases
                         node:
                           id: onboarding-qa-guide
-                          component: "./components/external/core/markdown"
+                          component: ./components/external/core/markdown
                           props:
                             path: docs/release-qa.md

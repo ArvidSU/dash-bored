@@ -137,6 +137,29 @@ export function createCompositionTargets(resolution: CompositionResolution): {
       : { ...target, placement: { ...target.placement, metadata } };
   }
 
+  function insertionZones(
+    parentPath: NodePath,
+    payload: CompositionDragPayload | null,
+    targetChildPath?: NodePath[number],
+  ): CompositionDropZone[] {
+    const parent = nodeAtPath(compositionConfig!.root, parentPath);
+    const manifest = catalogManifest(compositionCatalog, parent.component);
+    const childCount = childEdges(parent.children).length;
+    return compatibleCompositionDropZones(
+      deriveInsertionTargets({ target: parent, manifest, parentPath, targetChildPath }).map((target) => {
+        const decorated = decorateCompositionInsertionTarget(target, manifest, childCount);
+        return {
+          id: compositionTargetId(decorated),
+          label: contextualInsertionLabel(parent, decorated, compositionCatalog),
+          side: targetChildPath ? compositionDropZoneSide(decorated, targetChildPath) : "inside",
+          target: decorated,
+        };
+      }),
+      payload,
+      compositionTargetIsValid,
+    );
+  }
+
   function compositionDropZonesForNode(
     node: ResolvedComponentNode,
     payload: CompositionDragPayload | null = compositionDrag,
@@ -146,78 +169,14 @@ export function createCompositionTargets(resolution: CompositionResolution): {
     if (!path) return [];
     try {
       if (path.length === 0) {
-        const rawRoot = nodeAtPath(compositionConfig.root, path);
-        if (rawRoot.children) return [];
-        const manifest = catalogManifest(compositionCatalog, rawRoot.component);
-        return compatibleCompositionDropZones(
-          deriveInsertionTargets({
-            target: rawRoot,
-            manifest,
-            parentPath: path,
-            currentChildCount: childEdges(rawRoot.children).length,
-          }).map((target) => {
-            const decorated = decorateCompositionInsertionTarget(target, manifest, 0);
-            return {
-              id: compositionTargetId(decorated),
-              label: contextualInsertionLabel(rawRoot, decorated, compositionCatalog),
-              side: "inside" as const,
-              target: decorated,
-            };
-          }),
-          payload,
-          compositionTargetIsValid,
-        );
+        return compositionConfig.root.children ? [] : insertionZones(path, payload);
       }
-      const parentPath = path.slice(0, -1);
-      const targetChildPath = path.at(-1);
-      if (!targetChildPath) return [];
-      const parent = nodeAtPath(compositionConfig.root, parentPath);
-      const manifest = catalogManifest(compositionCatalog, parent.component);
-      const childCount = childEdges(parent.children).length;
-      const siblingZones = compatibleCompositionDropZones(
-        deriveInsertionTargets({
-          target: parent,
-          manifest,
-          parentPath,
-          targetChildPath,
-          currentChildCount: childCount,
-        }).map((target) => {
-          const decorated = decorateCompositionInsertionTarget(target, manifest, childCount);
-          return {
-            id: compositionTargetId(decorated),
-            label: contextualInsertionLabel(parent, decorated, compositionCatalog),
-            side: compositionDropZoneSide(decorated, targetChildPath),
-            target: decorated,
-          };
-        }),
-        payload,
-        compositionTargetIsValid,
-      );
-      // A container also accepts drops into itself, not just tiling beside
-      // it. Validity stays planner-checked, so moves into the node's own
-      // subtree are rejected exactly like any other invalid target.
-      const rawNode = nodeAtPath(compositionConfig.root, path);
-      const ownManifest = catalogManifest(compositionCatalog, rawNode.component);
-      const ownChildCount = childEdges(rawNode.children).length;
-      const insideZones = compatibleCompositionDropZones(
-        deriveInsertionTargets({
-          target: rawNode,
-          manifest: ownManifest,
-          parentPath: path,
-          currentChildCount: ownChildCount,
-        }).map((target) => {
-          const decorated = decorateCompositionInsertionTarget(target, ownManifest, ownChildCount);
-          return {
-            id: compositionTargetId(decorated),
-            label: contextualInsertionLabel(rawNode, decorated, compositionCatalog),
-            side: "inside" as const,
-            target: decorated,
-          };
-        }),
-        payload,
-        compositionTargetIsValid,
-      );
-      return [...siblingZones, ...insideZones];
+      // Sibling edges and drops inside a container share derivation, metadata,
+      // labels, and planner checks, including the own-descendant move guard.
+      return [
+        ...insertionZones(path.slice(0, -1), payload, path.at(-1)!),
+        ...insertionZones(path, payload),
+      ];
     } catch {
       return [];
     }

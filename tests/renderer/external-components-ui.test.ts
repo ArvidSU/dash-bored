@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ComponentCatalogItem, ComponentManifest } from "../../src/shared/contracts";
 import {
-  componentCatalogParity,
   componentProvenanceLabel,
   externalComponentInfo,
   filterComponentCatalog,
@@ -77,19 +76,13 @@ describe("external components flyout contract", () => {
       .toEqual(["./components/external/clock"]);
   });
 
-  test("labels external provenance and counts parity without renaming existing fields", () => {
+  test("labels external and project-local provenance", () => {
     const catalog = [
       localItem("./components/group"),
       externalItem("./components/external/clock", { url: "https://example.com/clock.git", commit: COMMIT }),
     ];
     expect(componentProvenanceLabel(catalog[1]!)).toBe("External");
     expect(componentProvenanceLabel(catalog[0]!)).toBe("Project-local");
-    expect(componentCatalogParity(catalog)).toMatchObject({
-      total: 2,
-      projectLocal: 1,
-      external: 1,
-      dashboardLinks: 0,
-    });
   });
 
   test("add dialog accepts an empty name but rejects bad URLs, names, and refs", () => {

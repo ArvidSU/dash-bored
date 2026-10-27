@@ -42,6 +42,23 @@ async function bundle(values: string): Promise<string> {
 }
 
 describe("environment contracts", () => {
+  test.each([
+    ["A=one\r\nA=two\r\nEMPTY=\r\n", { A: "two", EMPTY: "" }],
+    ["A=hash#value\nB=value # comment\n", { A: "hash#value", B: "value" }],
+    [" A = \"first\nsecond\" # comment\n", { A: "first\nsecond" }],
+    ["export A='it\\'s literal $HOME'\n", { A: "it's literal $HOME" }],
+    ["A=\"\\n\\r\\t\\$\\\\\"\n", { A: "\n\r\t$\\" }],
+    ["__proto__=data\n", { ["__proto__"]: "data" }],
+  ] as const)("reads bundle syntax without editor formatting state: %s", async (source, expected) => {
+    expect(await readBundleEnvironment(await bundle(source))).toEqual(expected);
+  });
+
+  test.each(["A='unterminated", 'A="value" trailing', "not an assignment", "9A=value"])(
+    "rejects invalid bundle syntax: %s", async (source) => {
+      await expect(readBundleEnvironment(await bundle(source))).rejects.toMatchObject({ code: "ENV_FILE_INVALID" });
+    },
+  );
+
   test("parses dotenv syntax as data and applies the documented precedence", async () => {
     const configPath = await bundle([
       "export DASH_BORED_AGENT='bundle command' # note",

@@ -118,7 +118,10 @@ Pure helpers and their contracts:
   `lib/markdown-lite.css`.
 - `composition/composition-labels.ts` — human labels for drop targets and dragged payloads.
 - `composition/composition-targets.ts` — pure drop-zone/validity/default-target resolution
-  over a draft config (`createCompositionTargets`, memoized per render).
+  over a draft config (`createCompositionTargets`, memoized per render). Sibling
+  and inside zones share insertion derivation, metadata, labels, and planner
+  checks; pointer geometry chooses among those zones. `composition-placement.ts`
+  only derives insertion targets, using the editor's typed child locators.
 - `render/local-host.tsx` — permission-gated `LocalComponentHost` factory.
 - `render/ComponentFrame.tsx` — per-node frame: menu, collapse shell,
   single-click collapse / double-click edit on frame chrome, height

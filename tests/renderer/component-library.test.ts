@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { ComponentCatalogItem, ComponentManifest, Permission } from "../../src/shared/contracts";
+import type { ComponentCatalogItem, ComponentManifest } from "../../src/shared/contracts";
 import {
-  componentCatalogParity,
   componentContractLabel,
-  componentPermissionLabels,
   componentProvenanceLabel,
   filterComponentCatalog,
 } from "../../src/renderer/lib/component-library";
@@ -27,16 +25,6 @@ function item(
     diagnostics: options.diagnostics ?? [],
   };
 }
-
-const labels: Record<Permission, string> = {
-  "filesystem:read": "Read files",
-  "filesystem:write": "Write files",
-  "network:http": "HTTP",
-  "process:execute": "Run commands",
-  "process:observe": "Observe processes",
-  "webview:embed": "Embed web pages",
-  "background:watch": "Watch in the background",
-};
 
 describe("component library catalog helpers", () => {
   const catalog = [
@@ -92,22 +80,12 @@ describe("component library catalog helpers", () => {
       children: { min: 1, max: 3, presentation: { type: "tiled", axes: "both" } },
     }, { source: "local" });
     expect(componentContractLabel(packaged)).toBe(componentContractLabel(local));
-    expect(componentCatalogParity([packaged, local])).toMatchObject({
-      total: 2,
-      withManifest: 2,
-      external: 1,
-      projectLocal: 1,
-      manifestShaped: 2,
-      equivalentManifestShape: true,
-    });
   });
 
-  test("labels managed, tiled, and absent contracts and ordered permissions", () => {
+  test("labels managed, tiled, and absent contracts and provenance", () => {
     expect(componentContractLabel(item("none", { id: "none", name: "None" }))).toBe("no children");
     expect(componentContractLabel(chart)).toBe("min 1, max 2 · tiled horizontal");
     expect(componentContractLabel(notebook)).toBe("min 0, max unlimited · managed");
-    expect(componentPermissionLabels(notebook, labels)).toEqual(["Read files", "Write files"]);
-    expect(componentPermissionLabels(notebook, { "filesystem:write": "Write" })).toEqual(["Write"]);
     expect(componentProvenanceLabel(chart)).toBe("External");
     expect(componentProvenanceLabel(notebook)).toBe("Project-local");
     expect(componentProvenanceLabel({ source: "config" })).toBe("Dashboard link");

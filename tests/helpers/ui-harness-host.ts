@@ -41,7 +41,7 @@ import { childEdges } from "../../src/shared/child-edges";
 import type { DashboardHost, HostEvent } from "../../src/renderer/lib/rpc-client";
 import type { UpdateState } from "../../src/shared/updates";
 import { INITIAL_PACKAGE_UPDATE_STATE, type PackageUpdateCommand, type PackageUpdateItem, type PackageUpdateState } from "../../src/shared/package-updates";
-import { envEntries, parseEnv } from "../../src/shared/env";
+import { parseEnv } from "../../src/shared/env";
 import { componentPath, findResolvedNode, promptComponent } from "../../src/shared/component-agent";
 import { builtinPromptTemplates, prepareAgentPrompt, promptTemplateSummaries, promptTemplateSummary, type PromptTemplate } from "../../src/shared/prompt-templates";
 import { createFixtureAgents, type FixtureAgentControls } from "./ui-harness-agents";
@@ -557,8 +557,8 @@ export function createUiHarnessHost(): UiHarnessHost {
   const snapshot = (): ProjectSnapshot => {
   const tree = resolveFixtureNode(persistedConfig.root);
   const environmentByNode: NonNullable<ProjectSnapshot["environmentByNode"]> = {};
-  const bundleAgent = envEntries(parseEnv(files.get(".dash-bored/.env") ?? ""))
-    .find(({ entry }) => entry.key === "DASH_BORED_AGENT")?.entry.value;
+  const bundleAgent = parseEnv(files.get(".dash-bored/.env") ?? "").entries
+    .find((entry) => entry.key === "DASH_BORED_AGENT")?.value;
   const visitEnvironment = (node: ResolvedComponentNode): void => {
     environmentByNode[node.id] = {
       values: [{
@@ -596,8 +596,8 @@ export function createUiHarnessHost(): UiHarnessHost {
     emit({ type: "snapshot", snapshot: currentSnapshot });
     return currentSnapshot;
   };
-  const bundleAgent = (): string | null => envEntries(parseEnv(files.get(".dash-bored/.env") ?? ""))
-    .find(({ entry }) => entry.key === "DASH_BORED_AGENT")?.entry.value.trim() || null;
+  const bundleAgent = (): string | null => parseEnv(files.get(".dash-bored/.env") ?? "").entries
+    .find((entry) => entry.key === "DASH_BORED_AGENT")?.value.trim() || null;
   const agents = createFixtureAgents({
     projectRoot: PROJECT_ROOT,
     configPath: CONFIG_PATH,

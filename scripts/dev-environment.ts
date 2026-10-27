@@ -3,7 +3,7 @@ import { access, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { envEntries, parseEnv } from "../src/shared/env";
+import { parseEnv } from "../src/shared/env";
 
 export async function exists(path: string): Promise<boolean> {
   try { await access(path); return true; } catch { return false; }
@@ -11,8 +11,8 @@ export async function exists(path: string): Promise<boolean> {
 
 export async function readDevEnvironment(root: string): Promise<Record<string, string>> {
   try {
-    const document = parseEnv(await readFile(join(root, ".env.worktree"), "utf8"));
-    return Object.fromEntries(envEntries(document).map(({ entry }) => [entry.key, entry.value]));
+    const parsed = parseEnv(await readFile(join(root, ".env.worktree"), "utf8"));
+    return Object.fromEntries(parsed.entries.map(({ key, value }) => [key, value]));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw error;

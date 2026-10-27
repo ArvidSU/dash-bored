@@ -7,7 +7,6 @@ import type {
 } from "../../src/shared/contracts";
 import { childEdges } from "../../src/shared/child-edges";
 import {
-  collapsibleNodePaths,
   countDiscardedRootNodes,
   countNodes,
   createNode,
@@ -15,7 +14,6 @@ import {
   managedChildEdges,
   moveNode,
   nodePathById,
-  pathKey,
   removeNode,
   replaceRoot,
   updateChildMetadata,
@@ -271,10 +269,6 @@ describe("dashboard editor tree operations", () => {
     expect(nodePathById(config().root, "nested")).toEqual([
       { type: "tiled", path: ["first"] },
       { type: "tiled", path: [] },
-    ]);
-    expect(collapsibleNodePaths(config().root).map(pathKey)).toEqual([
-      "root",
-      "tiled:first",
     ]);
   });
 

@@ -5,11 +5,7 @@ import type {
   ComponentNode,
 } from "../../src/shared/contracts";
 import {
-  deriveCompositionPlacementTargets,
   deriveInsertionTargets,
-  deriveRootReplacementTarget,
-  inferTiledDirection,
-  resolvePointerInsertionTarget,
 } from "../../src/renderer/composition/composition-placement";
 
 function manifest(
@@ -78,7 +74,7 @@ describe("generic composition placement", () => {
       target,
       manifest: manifest({ min: 0, presentation: { type: "tiled", axes: "both" } }),
       currentChildCount: 3,
-      targetChildPath: ["second", "first"],
+      targetChildPath: { type: "tiled", path: ["second", "first"] },
     });
     expect(targets.map(({ placement }) => placement)).toEqual([
       { type: "tiled", path: ["second", "first"], axis: "horizontal", position: "first" },
@@ -128,73 +124,6 @@ describe("generic composition placement", () => {
     ]);
   });
 
-  test("exposes root replacement separately from child insertion", () => {
-    expect(deriveRootReplacementTarget([])).toEqual({ type: "root-replacement", path: [] });
-    expect(deriveRootReplacementTarget([{ type: "managed", index: 0 }])).toBeNull();
-    expect(deriveCompositionPlacementTargets({
-      target: { id: "root", component: "leaf" },
-      manifest: manifest(),
-      parentPath: [],
-      currentChildCount: 0,
-    })).toEqual([{ type: "root-replacement", path: [] }]);
-  });
-
-  test("infers pointer direction and resolves it to an explicit compatible target", () => {
-    expect(inferTiledDirection(0.9, 0.45, "both"))
-      .toEqual({ axis: "horizontal", position: "second" });
-    expect(inferTiledDirection(0.45, 0.05, "vertical"))
-      .toEqual({ axis: "vertical", position: "first" });
-    expect(inferTiledDirection(-0.1, 0.5, "both")).toBeNull();
-
-    const target: ComponentNode = {
-      id: "tiles",
-      component: "container",
-      children: tiledLayout(),
-    };
-    expect(resolvePointerInsertionTarget({
-      target,
-      manifest: manifest({ min: 0, presentation: { type: "tiled", axes: "both" } }),
-      currentChildCount: 3,
-      targetChildPath: ["first"],
-    }, 0.45, 0.95)).toEqual({
-      parentPath: [],
-      placement: { type: "tiled", path: ["first"], axis: "vertical", position: "second" },
-    });
-  });
-
-  test("resolves managed pointer drops to generic before and after boundaries", () => {
-    const target: ComponentNode = {
-      id: "managed",
-      component: "container",
-      children: [{ node: leaf("one") }, { node: leaf("two") }],
-    };
-    const children = manifest({ min: 0, presentation: { type: "managed" } });
-    expect(resolvePointerInsertionTarget({
-      target,
-      manifest: children,
-      currentChildCount: 2,
-      targetChildPath: { type: "managed", index: 1 },
-    }, 0.2, 0.5)).toEqual({
-      parentPath: [],
-      placement: { type: "managed", index: 1 },
-    });
-    expect(resolvePointerInsertionTarget({
-      target,
-      manifest: children,
-      currentChildCount: 2,
-      targetChildPath: { type: "managed", index: 1 },
-    }, 0.8, 0.5)).toEqual({
-      parentPath: [],
-      placement: { type: "managed", index: 2 },
-    });
-    expect(resolvePointerInsertionTarget({
-      target,
-      manifest: children,
-      currentChildCount: 2,
-      targetChildPath: { type: "managed", index: 1 },
-    }, Number.NaN, 0.5)).toBeNull();
-  });
-
   test("fails closed for stale counts, invalid paths, presentation mismatches, and childless manifests", () => {
     const tiled: ComponentNode = {
       id: "tiles",
@@ -207,7 +136,7 @@ describe("generic composition placement", () => {
       target: tiled,
       manifest: both,
       currentChildCount: 3,
-      targetChildPath: ["first", "second"],
+      targetChildPath: { type: "tiled", path: ["first", "second"] },
     })).toEqual([]);
     expect(deriveInsertionTargets({
       target: tiled,
