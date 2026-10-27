@@ -482,7 +482,8 @@ survives tab switches and closing the modal. The Prompt tab shows the launch com
 full first prompt, each with a copy action.
 
 `lib/markdown-lite.tsx` renders agent messages and update release notes as a
-safe subset: paragraphs and line breaks, bold, italic, inline code, fenced
+safe subset, using markdown-it for inline tokenization: paragraphs and line
+breaks, bold, italic, inline code, fenced
 code, lists, quotes, rules, headings as bold text, pipe tables as monospace
 text, and links as their text plus the URL (only a URL, optionally with a quoted title, makes a link, so
 bracketed prose such as `arr[0](see below)` stays text). It emits only React text and fixed elements: raw HTML shows

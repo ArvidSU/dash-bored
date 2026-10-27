@@ -8,7 +8,6 @@ import {
   removePackage,
   snapshotPackageMetadata,
   resolveRemoteCommit,
-  restoreClone,
   assertManagedCheckout,
   recordSubmodulePin,
   checkedOutCommit,
@@ -134,8 +133,7 @@ export async function syncThemes(target: ThemeInstallTarget, options: { missingO
             if (store.strategy === "clone" || !await hasMissingManagedMetadata(store,path)) throw new Error(`Unmanaged files at ${path}; refusing to overwrite them.`);
           } else await rm(path, { recursive: true });
         }
-        if (store.strategy === "clone") await restoreClone(store, entry.url, entry.commit, path, readTheme);
-        else await installPackage(store, { url: entry.url, commit: entry.commit, checkout: path, validate: readTheme, commitLock: async () => {} });
+        await installPackage(store, { url: entry.url, commit: entry.commit, checkout: path, validate: readTheme, commitLock: async () => {} });
       } else {
         if (store.strategy === "submodule") await assertManagedCheckout(store, path);
         await cleanCheckout(path);

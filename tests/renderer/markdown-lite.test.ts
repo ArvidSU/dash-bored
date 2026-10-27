@@ -69,6 +69,19 @@ describe("markdown-lite inline parser", () => {
       { type: "link", children: [{ type: "text", text: "a" }], url: "https://y.dev" },
     ]);
   });
+
+  test("preserves literal escapes, entities, and unsupported autolinks", () => {
+    expect(parseMarkdownInline("\\@user \\% &amp; <user@example.com> <ftp://example.com>"))
+      .toEqual([{ type: "text", text: "\\@user \\% &amp; <user@example.com> <ftp://example.com>" }]);
+    expect(parseMarkdownInline("a  \nb")).toEqual([
+      { type: "text", text: "a  " }, { type: "break" }, { type: "text", text: "b" },
+    ]);
+    expect(parseMarkdownInline("[**empty**]()")).toEqual([
+      { type: "text", text: "[" },
+      { type: "strong", children: [{ type: "text", text: "empty" }] },
+      { type: "text", text: "]()" },
+    ]);
+  });
 });
 
 describe("markdown-lite block parser", () => {

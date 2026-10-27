@@ -376,19 +376,6 @@ export async function installPackage(
   }
 }
 
-/** Clone a pinned package into a clone store whose checkout is missing. */
-export async function restoreClone(store: PackageStore, url: string, commit: string, checkout: string, validate?: (directory: string) => Promise<unknown>): Promise<void> {
-  const stage = packageWorkPath(store, "stage");
-  try {
-    await git(store.root, ["clone", "--no-checkout", "--", url, stage]);
-    await git(stage, ["checkout", "--detach", commit]);
-    await validate?.(stage);
-    await rename(stage, checkout);
-  } finally {
-    await rm(stage, { recursive: true, force: true });
-  }
-}
-
 /**
  * Detach a submodule package and drop its object store below the git common
  * directory, which would otherwise block re-adding the same path. `force`

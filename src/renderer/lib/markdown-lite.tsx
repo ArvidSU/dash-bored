@@ -1,5 +1,6 @@
 import { Fragment, memo, useMemo } from "react";
 import type { ReactNode } from "react";
+import MarkdownIt, { type Token } from "markdown-it";
 import "./markdown-lite.css";
 
 /*
@@ -44,7 +45,6 @@ const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+([\s\S]*)|\s*$)/;
 const QUOTE = /^\s{0,3}>\s?([\s\S]*)$/;
 const TABLE = /^\s*\|/;
-const ESCAPABLE = /[\\`*_{}[\]()#+\-.!|>~<]/;
 /** Quotes and lists nested deeper than this keep their markers as text. */
 const MAX_NESTING = 8;
 
@@ -266,179 +266,67 @@ export function parseMarkdownBlocks(source: string, depth = 0): MarkdownBlock[] 
   return blocks;
 }
 
-const WORD = /[\p{L}\p{N}]/u;
-
-function isSpace(character: string | undefined): boolean {
-  return character === undefined || /\s/.test(character);
-}
-
-/**
- * The index of the delimiter that closes an emphasis run opened before
- * `from`, or -1. A closer follows non-space text; `_` never closes inside a
- * word, and a single `*` is never half of `**`.
- */
-function findEmphasisCloser(text: string, delimiter: string, from: number): number {
-  let index = text.indexOf(delimiter, from);
-  while (index !== -1) {
-    const before = text[index - 1];
-    const after = text[index + delimiter.length];
-    const doubled = delimiter.length === 1 && (after === delimiter || before === delimiter);
-    const intraword = delimiter[0] === "_" && after !== undefined && WORD.test(after);
-    if (index > from && !isSpace(before) && !doubled && !intraword) return index;
-    index = text.indexOf(delimiter, index + delimiter.length);
-  }
-  return -1;
-}
-
-/** Start positions of every maximal backtick run, in order, by run length. */
-function backtickRuns(text: string): Map<number, number[]> {
-  const runs = new Map<number, number[]>();
-  let index = text.indexOf("`");
-  while (index !== -1) {
-    let end = index + 1;
-    while (text[end] === "`") end += 1;
-    const positions = runs.get(end - index);
-    if (positions) positions.push(index);
-    else runs.set(end - index, [index]);
-    index = text.indexOf("`", end);
-  }
-  return runs;
-}
-
-/** A link destination plus an optional quoted title; anything else is not a link. */
-const LINK_TARGET = /^\s*(\S+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*$/;
-/** Targets with whitespace (a title) are checked only up to this length. */
-const MAX_TITLED_TARGET = 2_048;
+// Tokenize inline Markdown with a maintained parser, then render only our
+// fixed React elements. HTML, images, and entities remain literal. Even an
+// unsafe URL is safe here because the renderer never creates a link or href.
+const inlineMarkdown = new MarkdownIt("commonmark", { html: false }).disable(["entity", "image"]);
+inlineMarkdown.validateLink = () => true;
+inlineMarkdown.normalizeLink = (url) => url;
+inlineMarkdown.normalizeLinkText = (url) => url;
+inlineMarkdown.inline.ruler.at("escape", (state, silent) => {
+  const next = state.src[state.pos + 1];
+  if (state.src[state.pos] !== "\\" || !next || !/[\\`*_{}[\]()#+\-.!|>~<]/.test(next)) return false;
+  if (!silent) state.pending += next;
+  state.pos += 2;
+  return true;
+});
+inlineMarkdown.inline.ruler.at("newline", (state, silent) => {
+  if (state.src[state.pos] !== "\n") return false;
+  if (!silent) state.push("softbreak", "br", 0);
+  state.pos += 1;
+  return true;
+});
 
 export function parseMarkdownInline(text: string): MarkdownInline[] {
-  const output: MarkdownInline[] = [];
-  // Once a delimiter has no closer from some position, none exists further on:
-  // remembering that keeps pathological input linear.
-  const unmatched = new Set<string>();
-  // A code span closes on the next maximal backtick run of the same length.
-  // Runs are indexed once, and since the scan only moves forward each length
-  // keeps a cursor, so matching stays linear however the runs are ordered.
-  let runs: Map<number, number[]> | null = null;
-  const runCursors = new Map<number, number>();
-  const codeSpanCloser = (length: number, from: number): number => {
-    runs ??= backtickRuns(text);
-    const positions = runs.get(length);
-    if (!positions) return -1;
-    let cursor = runCursors.get(length) ?? 0;
-    while (cursor < positions.length && positions[cursor]! < from) cursor += 1;
-    runCursors.set(length, cursor);
-    return positions[cursor] ?? -1;
-  };
-  // The scan only moves forward, so the first match after an earlier position
-  // is still the first match after a later one until the scan passes it.
-  const found = new Map<string, number>();
-  const firstAfter = (needle: string, from: number): number => {
-    const known = found.get(needle);
-    if (known !== undefined && (known === -1 || known >= from)) return known;
-    const next = text.indexOf(needle, from);
-    found.set(needle, next);
-    return next;
-  };
-  const whitespace = /\s/g;
-  let whitespaceAt: number | undefined;
-  const firstWhitespaceAfter = (from: number): number => {
-    if (whitespaceAt !== undefined && (whitespaceAt === -1 || whitespaceAt >= from)) return whitespaceAt;
-    whitespace.lastIndex = from;
-    whitespaceAt = whitespace.exec(text)?.index ?? -1;
-    return whitespaceAt;
-  };
-  /** The URL of a link target, or null when the parentheses hold prose such as `arr[0](see below)`. */
-  const linkUrl = (start: number, end: number): string | null => {
-    const space = firstWhitespaceAfter(start);
-    // Without whitespace the whole target is the URL; a link consumes it, so this stays linear.
-    if (space === -1 || space >= end) return text.slice(start, end) || null;
-    if (end - start > MAX_TITLED_TARGET) return null;
-    return LINK_TARGET.exec(text.slice(start, end))?.[1] ?? null;
-  };
-  let buffer = "";
-  const flush = () => {
-    if (buffer) output.push({ type: "text", text: buffer });
-    buffer = "";
-  };
-  let index = 0;
-  while (index < text.length) {
-    const character = text[index]!;
-    if (character === "\\" && index + 1 < text.length && ESCAPABLE.test(text[index + 1]!)) {
-      buffer += text[index + 1];
-      index += 2;
-      continue;
-    }
-    if (character === "\n") {
-      flush();
-      output.push({ type: "break" });
-      index += 1;
-      continue;
-    }
-    if (character === "`") {
-      let run = 1;
-      while (text[index + run] === "`") run += 1;
-      const close = codeSpanCloser(run, index + run);
-      if (close === -1) {
-        buffer += "`".repeat(run);
-        index += run;
-        continue;
-      }
-      flush();
-      let code = text.slice(index + run, close).replace(/\n/g, " ");
-      if (code.length > 2 && code.startsWith(" ") && code.endsWith(" ")) code = code.slice(1, -1);
-      output.push({ type: "code", text: code });
-      index = close + run;
-      continue;
-    }
-    if (character === "*" || character === "_") {
-      const delimiter = text[index + 1] === character ? character + character : character;
-      const before = text[index - 1];
-      const after = text[index + delimiter.length];
-      const canOpen = !isSpace(after) && !(character === "_" && before !== undefined && WORD.test(before));
-      if (canOpen && !unmatched.has(delimiter)) {
-        const close = findEmphasisCloser(text, delimiter, index + delimiter.length);
-        if (close === -1) {
-          unmatched.add(delimiter);
-        } else {
-          flush();
-          const children = parseMarkdownInline(text.slice(index + delimiter.length, close));
-          output.push(delimiter.length === 2 ? { type: "strong", children } : { type: "em", children });
-          index = close + delimiter.length;
-          continue;
-        }
-      }
-      buffer += delimiter;
-      index += delimiter.length;
-      continue;
-    }
-    if (character === "[") {
-      // Labels do not nest; the first `]` ends one.
-      const labelEnd = firstAfter("]", index + 1);
-      if (labelEnd !== -1 && text[labelEnd + 1] === "(") {
-        const urlEnd = firstAfter(")", labelEnd + 2);
-        const url = urlEnd === -1 ? null : linkUrl(labelEnd + 2, urlEnd);
-        if (url) {
-          flush();
-          output.push({ type: "link", children: parseMarkdownInline(text.slice(index + 1, labelEnd)), url: url.replace(/^<|>$/g, "") });
-          index = urlEnd + 1;
-          continue;
+  const tokens: Token[] = inlineMarkdown.parseInline(text, {})[0]?.children ?? [];
+  let position = 0;
+  function parse(): MarkdownInline[] {
+    const nodes: MarkdownInline[] = [];
+    const appendText = (value: string): void => {
+      if (!value) return;
+      const previous = nodes.at(-1);
+      if (previous?.type === "text") previous.text += value;
+      else nodes.push({ type: "text", text: value });
+    };
+    while (position < tokens.length) {
+      const token = tokens[position++]!;
+      if (token.nesting === -1) break;
+      switch (token.type) {
+        case "text": appendText(token.content); break;
+        case "softbreak": case "hardbreak": nodes.push({ type: "break" }); break;
+        case "code_inline": nodes.push({ type: "code", text: token.content }); break;
+        case "strong_open": nodes.push({ type: "strong", children: parse() }); break;
+        case "em_open": nodes.push({ type: "em", children: parse() }); break;
+        case "link_open": {
+          const children = parse();
+          const url = String(token.attrGet("href") ?? "");
+          // An empty destination is prose in this subset, not a link.
+          if (!url) {
+            appendText("[");
+            for (const child of children) child.type === "text" ? appendText(child.text) : nodes.push(child);
+            appendText("]()");
+          } else if (token.markup === "autolink" && (!/^(?:https?|mailto):/i.test(url)
+            || (url.startsWith("mailto:") && inlineText(children) !== url))) {
+            // Bare email addresses and other schemes were not part of the subset.
+            appendText(`<${inlineText(children)}>`);
+          } else nodes.push({ type: "link", children: token.markup === "autolink" ? [] : children, url });
+          break;
         }
       }
     }
-    if (character === "<") {
-      const autolink = /^<((?:https?|mailto):[^\s<>]+)>/i.exec(text.slice(index, index + 2_048));
-      if (autolink) {
-        flush();
-        output.push({ type: "link", children: [], url: autolink[1]! });
-        index += autolink[0].length;
-        continue;
-      }
-    }
-    buffer += character;
-    index += 1;
+    return nodes;
   }
-  flush();
-  return output;
+  return parse();
 }
 
 function inlineText(nodes: readonly MarkdownInline[]): string {

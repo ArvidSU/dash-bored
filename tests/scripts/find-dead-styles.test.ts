@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { analyzeStyles, collectRuntimeSourceFiles } from "../../scripts/find-dead-styles";
 
 describe("dead style analyzer", () => {
@@ -42,9 +44,45 @@ describe("dead style analyzer", () => {
     expect(analysis.dead).toEqual([]);
   });
 
+  test("handles nested selectors, quoted commas, escapes, and keyframes", () => {
+    const analysis = analyzeStyles(`
+@media (min-width: 1px) {
+  .first,
+  :is(.second, [data-value="a,b"]) .escaped\\.name { color: red; }
+}
+@keyframes move { from { opacity: 0; } to { opacity: 1; } }
+`, [{ content: '<div class="first second escaped.name" />' }]);
+    expect(analysis.dead).toEqual([]);
+    expect(analysis.used.map(({ name, lines }) => [name, lines])).toEqual([
+      ["first", [3]], ["escaped.name", [4]], ["second", [4]],
+    ]);
+  });
+
   test("collects runtime sources recursively, including built-ins", async () => {
     const files = await collectRuntimeSourceFiles(resolve(import.meta.dirname, "../../src/renderer"));
 
     expect(files.some((file) => file.path.endsWith("src/renderer/render/ComponentWebviewSurface.tsx"))).toBe(true);
+  });
+
+  test("skips hidden directories and symlinks while retaining hidden source files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "style-sources-"));
+    try {
+      await mkdir(join(root, ".private"));
+      await writeFile(join(root, ".private", "ignored.ts"), "");
+      await writeFile(join(root, ".visible.ts"), "");
+      await symlink(join(root, ".visible.ts"), join(root, "link.ts"));
+      expect((await collectRuntimeSourceFiles(root)).map(({ path }) => path)).toEqual([join(root, ".visible.ts")]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  test("CLI reports dead hooks in JSON and exits nonzero with --check", async () => {
+    const root = await mkdtemp(join(tmpdir(), "style-cli-"));
+    try {
+      const css = join(root, "test.css");
+      await writeFile(css, ".unique-unused-test-hook { color: red; }");
+      const result = Bun.spawnSync([process.execPath, resolve(import.meta.dirname, "../../scripts/find-dead-styles.ts"), "--check", "--json", css]);
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout.toString()).dead[0].name).toBe("unique-unused-test-hook");
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
