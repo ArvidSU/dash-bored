@@ -47,6 +47,31 @@ jobs:
           bun run dash-bored -- validate .
           bun run dash-bored -- validate .dash-bored/dogfood
 
+      - name: Import release signing identity
+        # A self-signed certificate, not a Developer ID: Gatekeeper still treats
+        # the app as unidentified, but its designated requirement stays stable,
+        # so Screen Recording grants survive updates.
+        env:
+          SIGNING_CERTIFICATE_P12: ${{ secrets.MACOS_SIGNING_CERTIFICATE_P12 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_CERTIFICATE_P12" ] || [ -z "$SIGNING_CERTIFICATE_PASSWORD" ]; then
+            echo "Release signing secrets are missing; see docs/release-qa.md#release-signing-identity." >&2
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/release-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          certificate="$RUNNER_TEMP/release-signing.p12"
+          printf '%s' "$SIGNING_CERTIFICATE_P12" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          rm "$certificate"
+          echo "DASH_BORED_SIGNING_IDENTITY=dash-bored release signing" >> "$GITHUB_ENV"
+          echo "DASH_BORED_SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
       - name: Build clean unsigned macOS artifacts
         run: bun run build:release
 

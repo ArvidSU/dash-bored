@@ -325,8 +325,8 @@ automation surface for the user's own agents, not a new capability.
   falls back to the window's frame region, which includes anything covering
   it. Capture requires macOS Screen Recording permission; without it the app
   asks macOS once and returns `SCREEN_RECORDING_PERMISSION_REQUIRED`. The PNG
-  is returned to the caller and not retained by the app. Stale grants after an
-  ad hoc signed update have a desktop-only, confirmed, app-scoped reset; see
+  is returned to the caller and not retained by the app. Stale grants, such as
+  those left by ad hoc signed builds, have a desktop-only, confirmed, app-scoped reset; see
   [Screen Recording recovery](./lifecycle-cli.md#screen-recording-recovery).
   This never grants access or runs through an agent action. Keeping the webview
   rendering while covered (see

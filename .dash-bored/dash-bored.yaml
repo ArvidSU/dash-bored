@@ -1595,9 +1595,10 @@ root:
                           the bundle environment below. The skill statuses report each install scope's check result.
 
                           **Screenshot access.** In Settings → General → Agent screenshots, request Screen Recording
-                          access for the running build. If an ad hoc signed update leaves access stuck, choose
-                          Reset Screen Recording permission and confirm, quit and reopen the app, then request
-                          access again. Only this app's Screen Recording decision is cleared.
+                          access for the running build. Signed releases keep the grant across updates. If access
+                          stays stuck after updating from an ad hoc build (0.6.0 or earlier), choose Reset Screen
+                          Recording permission and confirm, quit and reopen the app, then request access again.
+                          Only this app's Screen Recording decision is cleared.
                   second:
                     node:
                       id: agent-window-attention

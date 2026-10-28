@@ -263,14 +263,14 @@ action that asks for confirmation are refused and left to you. Opening a
 dashboard is refused while you have unsaved dashboard changes or a save in
 progress. Screenshots use macOS Screen Recording permission; the first capture
 asks for it. Manage access in **Settings → General → Agent screenshots**.
-If an ad hoc signed app update leaves permission denied even with the system
+Releases are signed with a stable project certificate, so a grant survives
+later updates. Builds signed before that certificate (0.6.0 and earlier) need
+one last grant after updating. If permission stays denied even with the system
 toggle enabled, choose **Reset Screen Recording permission** and confirm. This
 clears only this app’s Screen Recording decision. Quit and reopen dash-bored,
 return to that section, and choose **Request access**. Allow the current build
 in System Settings → Privacy & Security → Screen Recording (Screen & System
-Audio Recording on newer macOS), then relaunch if macOS asks. Ad hoc signed
-updates can require this again; a stable signing identity is needed to retain
-grants across builds.
+Audio Recording on newer macOS), then relaunch if macOS asks.
 
 The app keeps rendering while other windows cover it, so agents
 can drive and capture it without you switching to it; a minimized or hidden

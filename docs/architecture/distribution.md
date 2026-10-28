@@ -47,9 +47,21 @@ uses the verified native updater with a DMG fallback.
 
 Because the DMG is neither Developer ID signed nor notarized, first launch may
 require the user's explicit **Open Anyway** decision in macOS Privacy & Security.
-Release packaging still applies a valid ad-hoc bundle signature and verifies it
-on the app, update archive, and DMG copies; this prevents macOS from reporting a
-malformed bundle as damaged while retaining the unsigned-prerelease boundary.
+Release packaging signs the app and the update archive's expanded app with a
+self-signed project certificate and verifies both; the DMG carries the signed
+app. A valid signature prevents macOS from reporting a malformed bundle as
+damaged, while the untrusted certificate keeps the unsigned-prerelease boundary
+for Gatekeeper. The certificate pins the designated requirement to
+`identifier "dev.dash-bored.app" and certificate root = H"<hash>"`, which does
+not change between builds, so macOS privacy grants such as Screen Recording
+survive updates. An ad hoc signature's requirement is its code hash, which
+every build changes. `scripts/repair-macos-release-artifacts.ts` signs with the
+identity in `DASH_BORED_SIGNING_IDENTITY` (optionally from
+`DASH_BORED_SIGNING_KEYCHAIN`) and fails unless the resulting requirement names
+a certificate; without the variable it signs ad hoc, which only local and
+acceptance builds do. The release workflow imports the certificate from
+repository secrets into a temporary keychain and fails when they are missing.
+See [Release signing identity](../release-qa.md#release-signing-identity).
 Release documentation must state that friction and must not present the build
 as a trusted broad-consumer installer. Signing and notarization can later be
 inserted into the same build-and-verify boundary without changing the project

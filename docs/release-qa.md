@@ -37,6 +37,26 @@ version is not newer than the latest tag. It asks for the tag to be typed
 (`--confirm v<version>` when run without a terminal) and checks again after
 QA. Step 7 stays manual.
 
+### Release signing identity
+
+`release.yml` signs the app with a self-signed code-signing certificate named
+`dash-bored release signing`, read from two repository secrets:
+`MACOS_SIGNING_CERTIFICATE_P12` (the base64-encoded `.p12` with its private
+key) and `MACOS_SIGNING_CERTIFICATE_PASSWORD`. The release fails when either is
+missing. Gatekeeper still treats the app as unidentified; the certificate only
+keeps the designated requirement stable so Screen Recording grants survive
+updates (see [Distribution](./architecture/distribution.md#macos-prerelease-distribution)).
+
+Keep the `.p12` and its password backed up outside the repository. Replacing
+the certificate changes the requirement, so every installed app needs Screen
+Recording granted again once. To create one, generate an RSA key and a
+certificate with `CN = dash-bored release signing`, `extendedKeyUsage =
+critical, codeSigning` and `keyUsage = critical, digitalSignature`, then export
+it with `openssl pkcs12 -export -legacy` (macOS `security import` rejects the
+OpenSSL 3 default encryption). To sign a local `build:release`, import the
+`.p12` into a keychain and set `DASH_BORED_SIGNING_IDENTITY` and, for a keychain
+outside the search list, `DASH_BORED_SIGNING_KEYCHAIN`.
+
 ## Release onboarding QA
 
 Run this suite for a release candidate, separately from per-change QA. It uses

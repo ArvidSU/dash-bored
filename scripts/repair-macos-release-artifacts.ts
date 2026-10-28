@@ -47,8 +47,28 @@ async function requireDirectory(path: string): Promise<void> {
   if (!info?.isDirectory()) throw new Error(`Required app bundle is missing: ${path}`);
 }
 
-export async function verifyAdHocBundleSignature(path = appPath): Promise<void> {
+/**
+ * Keychain identity that signs release bundles. Its certificate pins the
+ * designated requirement, so macOS privacy grants such as Screen Recording
+ * survive updates. Unset, bundles are sealed ad hoc, which changes the
+ * requirement with every build; only local acceptance builds do that.
+ */
+const signingIdentity = process.env.DASH_BORED_SIGNING_IDENTITY?.trim() || null;
+/** Optional keychain holding that identity, outside the user's search list. */
+const signingKeychain = process.env.DASH_BORED_SIGNING_KEYCHAIN?.trim() || null;
+
+async function signBundle(path: string): Promise<void> {
+  await run([
+    "codesign", "--force", "--deep", "--sign", signingIdentity ?? "-",
+    ...(signingIdentity && signingKeychain ? ["--keychain", signingKeychain] : []),
+    "--timestamp=none", path,
+  ]);
   await run(["codesign", "--verify", "--deep", "--strict", path]);
+  if (!signingIdentity) return;
+  const requirement = await run(["codesign", "--display", "--requirements", "-", path]);
+  if (!requirement.includes("certificate")) {
+    throw new Error(`Signed bundle lacks a certificate-pinned designated requirement: ${requirement || "none"}`);
+  }
 }
 
 async function repair(): Promise<void> {
@@ -67,10 +87,9 @@ async function repair(): Promise<void> {
     await Promise.all([mkdir(stagingDirectory), mkdir(updateExtractionDirectory)]);
 
     // Electrobun's launcher is linker-signed, but the enclosing app bundle is
-    // otherwise unsigned. Seal the bundle ad hoc so Gatekeeper sees a valid
-    // unsigned app and can offer the normal explicit user override.
-    await run(["codesign", "--force", "--deep", "--sign", "-", "--timestamp=none", appPath]);
-    await verifyAdHocBundleSignature();
+    // otherwise unsigned. Seal the bundle so Gatekeeper sees a valid app from
+    // an unidentified developer and can offer the normal explicit override.
+    await signBundle(appPath);
 
     await cp(appPath, join(stagingDirectory, appBundleName), { recursive: true });
     await symlink("/Applications", join(stagingDirectory, "Applications"));
@@ -93,19 +112,10 @@ async function repair(): Promise<void> {
     await run(["tar", "-xf", updateArchivePath, "-C", updateExtractionDirectory]);
     const expandedAppPath = join(updateExtractionDirectory, appBundleName);
     await requireDirectory(expandedAppPath);
-    await run([
-      "codesign",
-      "--force",
-      "--deep",
-      "--sign",
-      "-",
-      "--timestamp=none",
-      expandedAppPath,
-    ]);
-    await verifyAdHocBundleSignature(expandedAppPath);
+    await signBundle(expandedAppPath);
 
     // Native updater accepts portable tar entries, not macOS provenance/PAX
-    // extensions. Keep ad-hoc signatures as files while excluding host xattrs.
+    // extensions. Keep signatures as files while excluding host xattrs.
     await run(["tar", "--format", "ustar", "--no-xattrs", "--no-acls", "-cf", temporaryArchive, "-C", updateExtractionDirectory, appBundleName]);
     await run(["zstd", "-q", "-f", temporaryArchive, "-o", updateArchivePath]);
   } finally {
