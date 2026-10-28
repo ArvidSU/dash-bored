@@ -68,8 +68,13 @@ jobs:
           security unlock-keychain -p "$keychain_password" "$keychain"
           security import "$certificate" -k "$keychain" -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk '/"dash-bored release signing"/ { print $2; exit }')"
+          if [ -z "$identity" ]; then
+            echo "The release signing identity was imported but is unavailable for code signing." >&2
+            exit 1
+          fi
           rm "$certificate"
-          echo "DASH_BORED_SIGNING_IDENTITY=dash-bored release signing" >> "$GITHUB_ENV"
+          echo "DASH_BORED_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
           echo "DASH_BORED_SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 
       - name: Build clean unsigned macOS artifacts
