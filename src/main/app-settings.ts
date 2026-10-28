@@ -1,6 +1,5 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { writeFileAtomically } from "../core/fs-atomic";
+import { readFile } from "node:fs/promises";
+import { atomicJson } from "../core/fs-atomic";
 import { CoreError } from "../core/diagnostics";
 import type { AppSettings } from "../shared/contracts";
 import {
@@ -146,11 +145,8 @@ export class AppSettingsStore {
         const settings = normalizeSettings(candidate, this.defaultAgent);
         if (candidate.version !== SETTINGS_VERSION && settings.dashBoredAgent === LEGACY_DEFAULT_AGENT) settings.dashBoredAgent = null;
         this.settings = candidate.version === 1 || candidate.version === 2 ? withNewDefaultShortcuts(settings) : settings;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          // Invalid settings fall back to a usable default without blocking app startup.
-          this.settings = defaults(this.defaultAgent);
-        }
+      } catch {
+        // Missing or invalid settings keep the defaults without blocking app startup.
       }
     })();
     return this.loadPromise;
@@ -178,12 +174,7 @@ export class AppSettingsStore {
       const previous = this.settings!;
       this.settings = next;
       try {
-        await mkdir(dirname(this.path), { recursive: true });
-        await writeFileAtomically(
-          this.path,
-          `${JSON.stringify({ version: SETTINGS_VERSION, ...next }, null, 2)}\n`,
-          { mode: 0o600 },
-        );
+        await atomicJson(this.path, { version: SETTINGS_VERSION, ...next });
         return structuredClone(next);
       } catch (error) {
         this.settings = previous;

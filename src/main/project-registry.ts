@@ -1,8 +1,8 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import type { ProjectListItem, ProjectSnapshot } from "../shared/contracts";
 import { CONFIG_DIRECTORY, CONFIG_FILE } from "../shared/contracts";
-import { writeFileAtomically } from "../core/fs-atomic";
+import { atomicJson } from "../core/fs-atomic";
 
 interface StoredProjectRegistry {
   version: 1;
@@ -34,10 +34,6 @@ function parseProjectListItem(value: unknown): ProjectListItem | null {
   };
 }
 
-function dashboardKey(item: Pick<ProjectListItem, "configPath">): string {
-  return item.configPath;
-}
-
 export class ProjectRegistry {
   private projects: ProjectListItem[] = [];
   private loadPromise: Promise<void> | null = null;
@@ -54,13 +50,22 @@ export class ProjectRegistry {
     return result;
   }
 
-  private async persist(): Promise<void> {
-    await mkdir(dirname(this.path), { recursive: true });
-    await writeFileAtomically(
-      this.path,
-      `${JSON.stringify({ version: 1, projects: this.projects }, null, 2)}\n`,
-      { mode: 0o600 },
-    );
+  /** Persist `next`, keeping the previous list when the write fails. */
+  private async commit(next: ProjectListItem[]): Promise<void> {
+    const previous = this.projects;
+    this.projects = next;
+    try {
+      await atomicJson(this.path, { version: 1, projects: next });
+    } catch (error) {
+      this.projects = previous;
+      throw error;
+    }
+  }
+
+  /** Insert `item` or replace the entry for the same dashboard. */
+  private upserted(item: ProjectListItem): ProjectListItem[] {
+    const index = this.projects.findIndex((project) => project.configPath === item.configPath);
+    return index === -1 ? [...this.projects, item] : this.projects.map((project, i) => (i === index ? item : project));
   }
 
   private load(): Promise<void> {
@@ -71,15 +76,12 @@ export class ProjectRegistry {
         const seen = new Set<string>();
         this.projects = candidate.projects.flatMap((item) => {
           const parsed = parseProjectListItem(item);
-          if (parsed === null || seen.has(dashboardKey(parsed))) return [];
-          seen.add(dashboardKey(parsed));
+          if (parsed === null || seen.has(parsed.configPath)) return [];
+          seen.add(parsed.configPath);
           return [parsed];
         });
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          // A corrupt registry must not prevent the application from opening.
-          this.projects = [];
-        }
+      } catch {
+        // A missing or corrupt registry must not prevent the application from opening.
       }
     })();
     return this.loadPromise;
@@ -103,13 +105,7 @@ export class ProjectRegistry {
       const next = previous.filter((project) => project !== source);
       const targetIndex = next.findIndex((project) => project.configPath === targetConfigPath);
       next.splice(targetIndex + (before ? 0 : 1), 0, source);
-      this.projects = next;
-      try {
-        await this.persist();
-      } catch (error) {
-        this.projects = previous;
-        throw error;
-      }
+      await this.commit(next);
       return structuredClone(next);
     });
   }
@@ -133,26 +129,9 @@ export class ProjectRegistry {
     };
 
     await this.enqueueWrite(async () => {
-      const existingIndex = this.projects.findIndex(
-        (project) => dashboardKey(project) === dashboardKey(item),
-      );
-      if (
-        existingIndex !== -1 &&
-        this.projects[existingIndex]?.dashboardName === item.dashboardName &&
-        this.projects[existingIndex]?.iconDataUrl === item.iconDataUrl
-      ) {
-        return;
-      }
-      const previous = existingIndex === -1 ? undefined : this.projects[existingIndex];
-      if (existingIndex === -1) this.projects.push(item);
-      else this.projects[existingIndex] = item;
-      try {
-        await this.persist();
-      } catch (error) {
-        if (existingIndex === -1) this.projects.pop();
-        else if (previous !== undefined) this.projects[existingIndex] = previous;
-        throw error;
-      }
+      const existing = this.projects.find((project) => project.configPath === item.configPath);
+      if (existing && existing.dashboardName === item.dashboardName && existing.iconDataUrl === item.iconDataUrl) return;
+      await this.commit(this.upserted(item));
     });
   }
 
@@ -163,34 +142,14 @@ export class ProjectRegistry {
         (project) => project.projectRoot === projectRoot && project.configPath === configPath,
       );
       if (index === -1) return null;
-      const [removed] = this.projects.splice(index, 1);
-      try {
-        await this.persist();
-      } catch (error) {
-        if (removed !== undefined) this.projects.splice(index, 0, removed);
-        throw error;
-      }
-      return removed ? structuredClone(removed) : null;
+      const removed = this.projects[index]!;
+      await this.commit(this.projects.filter((_, i) => i !== index));
+      return structuredClone(removed);
     });
   }
 
   async restore(project: ProjectListItem): Promise<void> {
     await this.load();
-    await this.enqueueWrite(async () => {
-      const index = this.projects.findIndex(
-        (candidate) => dashboardKey(candidate) === dashboardKey(project),
-      );
-      const previous = index === -1 ? undefined : this.projects[index];
-      const restored = structuredClone(project);
-      if (index === -1) this.projects.push(restored);
-      else this.projects[index] = restored;
-      try {
-        await this.persist();
-      } catch (error) {
-        if (index === -1) this.projects.pop();
-        else if (previous !== undefined) this.projects[index] = previous;
-        throw error;
-      }
-    });
+    await this.enqueueWrite(() => this.commit(this.upserted(structuredClone(project))));
   }
 }

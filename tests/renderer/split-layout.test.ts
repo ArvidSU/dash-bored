@@ -41,9 +41,9 @@ describe("core tiled split sizing", () => {
     expect(normalizeSplitRatio(undefined)).toBe(0.5);
     expect(normalizeSplitRatio(0.02)).toBe(0.1);
     expect(normalizeSplitRatio(1.2)).toBe(0.9);
-    expect(clampSplitRatioForSize(0.05, 1_000, 200, 300)).toBe(0.202);
-    expect(clampSplitRatioForSize(0.95, 1_000, 200, 300)).toBe(0.696);
-    expect(clampSplitRatioForSize(0.2, 300, 240, 160)).toBe(0.2);
+    expect(clampSplitRatioForSize(0.05, 1_000)).toBe(0.182);
+    expect(clampSplitRatioForSize(0.95, 1_000)).toBe(0.818);
+    expect(clampSplitRatioForSize(0.2, 300)).toBe(0.2);
   });
 
   test("keeps vertical topology in document flow without pane scrollbars or separators", async () => {
@@ -60,7 +60,7 @@ describe("core tiled split sizing", () => {
     expect(styles).not.toContain("split__separator-handle");
     expect(styles).not.toMatch(/\.split__separator-line[^}]*background:\s*var\(--accent\)/s);
     expect(splitLayout).not.toContain("split__separator-handle");
-    expect(splitLayout).toContain('axis === "horizontal" && resizable');
+    expect(splitLayout).toContain('const enabled = axis === "horizontal";');
   });
 
   test("round-trips bounded per-dashboard overrides and rejects malformed entries", () => {

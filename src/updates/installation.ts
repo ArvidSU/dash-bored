@@ -1,10 +1,8 @@
 import { readFile, realpath } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { APP_IDENTIFIER } from "../shared/app-metadata";
 import type { UpdateReceipt } from "../shared/updates";
 
-export function releaseAppDataDirectory(): string { return join(homedir(), 'Library', 'Application Support', APP_IDENTIFIER, 'canary'); }
 export async function bundledInstallation(cliPath = process.execPath): Promise<{ cliPath: string; appPath: string }> {
   const actual = await realpath(cliPath);
   const suffix = '/Contents/Resources/app/tools/dash-bored';

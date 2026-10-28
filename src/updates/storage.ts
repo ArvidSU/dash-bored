@@ -1,18 +1,16 @@
 import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { UpdateSettings } from "../shared/updates";
-import { writeFileAtomically } from "../core/fs-atomic";
+import { atomicJson } from "../core/fs-atomic";
+
+export { atomicJson };
 
 /** Shared by all release app/CLI entrypoints; never inside a replaced bundle. */
 export function updateDirectory(): string { return join(homedir(), ".config", "dash-bored", "updates"); }
 export async function readJson(path: string): Promise<unknown | null> {
   try { return JSON.parse(await readFile(path, "utf8")); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
-}
-export async function atomicJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFileAtomically(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 }
 export function validateUpdateSettings(value: unknown): UpdateSettings {
   const s = value as UpdateSettings;

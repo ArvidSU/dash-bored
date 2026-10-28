@@ -898,6 +898,11 @@ root:
                             tags:
                               - tooling
                               - visuals
+                          - id: simplify-remaining-duplication
+                            description: "Simplification candidates found on 2026-10-28 and not yet done: one record codec for the view-state parse/serialize pairs (component-height, split-layout, component-view-state); selector lists for CSS rules with identical bodies (drag-handle svg, sidebar hovers, drawer captions); one bounded fetch helper for CapabilityGateway image and http reads; one config-load helper for the two session loads in use-dashboard-draft (run its tests); a shared Objective-C bridge for dock-badge and window-capture. Each must keep user-visible output identical."
+                            done: false
+                            tags:
+                              - tooling
                   second:
                     node:
                       id: checks

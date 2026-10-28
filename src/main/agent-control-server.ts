@@ -186,41 +186,25 @@ export async function startAgentControlServer(
       throw error instanceof Error && error.message === RPC_TIMED_OUT ? notResponding(rendererTimeoutMs) : error;
     }
   }
-  async function fromRenderer<T>(request: () => Promise<T>): Promise<T> {
+  /** `request`, or the result of `late` once `ms` passes first. */
+  async function within<T>(request: Promise<T>, ms: number, late: () => T): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(notResponding(rendererTimeoutMs)), rendererTimeoutMs);
+    const timeout = new Promise<T>((resolve, reject) => {
+      timer = setTimeout(() => { try { resolve(late()); } catch (error) { reject(error); } }, ms);
     });
     try {
-      return await Promise.race([answered(request()), timeout]);
+      return await Promise.race([request, timeout]);
     } finally {
       clearTimeout(timer);
     }
   }
+  const fromRenderer = <T>(request: () => Promise<T>): Promise<T> =>
+    within(answered(request()), rendererTimeoutMs, () => { throw notResponding(rendererTimeoutMs); });
   const viewState = () => fromRenderer(() => bridge.viewState());
-
-  async function settled(): Promise<boolean> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), options.settleTimeoutMs ?? SETTLE_TIMEOUT_MS); });
-    try {
-      return await Promise.race([bridge.settle().then(() => true as const), timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
+  const settleTimeoutMs = options.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
+  const settled = (): Promise<boolean> => within(bridge.settle().then(() => true), settleTimeoutMs, () => false);
   /** The renderer bounds the wait itself; the extra margin only guards a stuck paint. */
-  async function idle(timeoutMs: number): Promise<boolean> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const backstop = new Promise<false>((resolve) => {
-      timer = setTimeout(() => resolve(false), timeoutMs + (options.settleTimeoutMs ?? SETTLE_TIMEOUT_MS));
-    });
-    try {
-      return await Promise.race([bridge.idle(timeoutMs), backstop]);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
+  const idle = (timeoutMs: number): Promise<boolean> => within(bridge.idle(timeoutMs), timeoutMs + settleTimeoutMs, () => false);
 
   // Node screenshots and reads temporarily reveal nodes; one at a time keeps
   // each restore from undoing another's reveal.

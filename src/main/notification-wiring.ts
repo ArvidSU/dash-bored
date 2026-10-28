@@ -1,8 +1,7 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile } from "node:fs/promises";
 import { Utils } from "electrobun/main";
 import { CoreError } from "../core/diagnostics";
-import { writeFileAtomically } from "../core/fs-atomic";
+import { atomicJson } from "../core/fs-atomic";
 import { findResolvedNode } from "../shared/component-agent";
 import {
   boundNotificationText,
@@ -57,8 +56,7 @@ export function createNotifications(options: NotificationsOptions) {
       }
     },
     async remember(version: string): Promise<void> {
-      await mkdir(dirname(options.memoryPath), { recursive: true });
-      await writeFileAtomically(options.memoryPath, `${JSON.stringify({ version: 1, notifiedRelease: version }, null, 2)}\n`);
+      await atomicJson(options.memoryPath, { version: 1, notifiedRelease: version });
     },
   };
 

@@ -1,7 +1,6 @@
 import {
   chmod,
   lstat,
-  mkdir,
   readFile,
   realpath,
   stat,
@@ -11,6 +10,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DASH_BORED_SKILL_FILES, isExecutableSkillFile, skillContentHash } from "./skill-payload";
 import { writeFileAtomically } from "../core/fs-atomic";
+import { ensureDirectory, requireDirectory } from "../core/paths";
 import { adoptLegacySkillPayload } from "../migrations/skill-payloads";
 
 const SKILL_FILES = Object.entries(DASH_BORED_SKILL_FILES);
@@ -31,18 +31,6 @@ export interface InstallSkillResult {
   created: string[];
   updated: string[];
   linked: string[];
-}
-
-async function ensureDirectory(path: string, label: string, check = false): Promise<void> {
-  try {
-    const info = await lstat(path);
-    if (info.isSymbolicLink()) throw new Error(`${label} must not be a symbolic link: ${path}`);
-    if (!info.isDirectory()) throw new Error(`${label} is not a directory: ${path}`);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    if (check) throw new Error(`Missing ${label}: ${path}`);
-    await mkdir(path);
-  }
 }
 
 async function existingContents(path: string): Promise<string | null> {
@@ -102,19 +90,7 @@ export async function installDashBoredSkill(
   const requestedRoot = resolve(
     options.global ? options.homeDirectory ?? homedir() : projectInput,
   );
-  const rootInfo = await stat(requestedRoot).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") {
-      throw new Error(
-        `${options.global ? "Home" : "Project"} directory does not exist: ${requestedRoot}`,
-      );
-    }
-    throw error;
-  });
-  if (!rootInfo.isDirectory()) {
-    throw new Error(
-      `${options.global ? "Home" : "Project"} path is not a directory: ${requestedRoot}`,
-    );
-  }
+  await requireDirectory(requestedRoot, options.global ? "Home" : "Project");
 
   const projectRoot = await realpath(requestedRoot);
   const agentsPath = join(projectRoot, ".agents");

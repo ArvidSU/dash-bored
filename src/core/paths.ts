@@ -1,4 +1,4 @@
-import { lstat, realpath, stat } from "node:fs/promises";
+import { lstat, mkdir, realpath, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   COMPONENTS_DIRECTORY,
@@ -86,13 +86,41 @@ export async function assertProjectLocationContained(location: ProjectLocation):
   }
 }
 
-async function exists(path: string): Promise<boolean> {
+/** Whether `path` exists; `check` is `lstat` (the link itself) or `stat` (its target). */
+export async function exists(path: string, check: (path: string) => Promise<unknown> = lstat): Promise<boolean> {
   try {
-    await lstat(path);
+    await check(path);
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;
+  }
+}
+
+/** Require an existing directory; `label` names it in errors ("Project", "Home"). */
+export async function requireDirectory(path: string, label: string): Promise<void> {
+  const info = await stat(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") throw new Error(`${label} directory does not exist: ${path}`);
+    throw error;
+  });
+  if (!info.isDirectory()) throw new Error(`${label} path is not a directory: ${path}`);
+}
+
+/**
+ * Create a missing real directory and report whether it did; an existing
+ * link or non-directory is an error. `check` reports a missing one instead.
+ */
+export async function ensureDirectory(path: string, label: string, check = false): Promise<boolean> {
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) throw new Error(`${label} must not be a symbolic link: ${path}`);
+    if (!info.isDirectory()) throw new Error(`${label} is not a directory: ${path}`);
+    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if (check) throw new Error(`Missing ${label}: ${path}`);
+    await mkdir(path);
+    return true;
   }
 }
 

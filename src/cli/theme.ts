@@ -1,5 +1,5 @@
-import { mkdir, realpath, writeFile } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
+import { createPackage } from '../core/yaml-package';
+import { join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import { addTheme, removeTheme, statusThemes, syncThemes, themeName, updateTheme } from '../core/theme-install';
 import { loadThemeCatalog, personalThemesDirectory, readTheme } from '../core/themes';
@@ -51,12 +51,7 @@ export async function runThemeCommand(args: string[]): Promise<number> {
         if (!target.global && name === 'external') throw new Error('external is reserved for git theme installations.');
         const boundary = target.global ? personalThemesDirectory() : (await resolveProjectLocation(project)).configDirectory;
         const root = target.global ? boundary : join(boundary, 'themes');
-        await mkdir(root, { recursive: true });
-        const rel = relative(await realpath(boundary), await realpath(root));
-        if (rel === '..' || rel.startsWith(`..${sep}`)) throw new Error('Theme directory escapes its dashboard bundle.');
-        const directory = join(root, name);
-        await mkdir(directory);
-        await writeFile(join(directory, 'theme.yaml'), stringify({ schemaVersion: 1, id: name, name, description: 'A custom dash-bored theme.', light: { accent: '#486500' }, dark: { accent: '#d9ff68' } }), { flag: 'wx' });
+        const directory = await createPackage(boundary, root, name, 'Theme', 'theme.yaml', stringify({ schemaVersion: 1, id: name, name, description: 'A custom dash-bored theme.', light: { accent: '#486500' }, dark: { accent: '#d9ff68' } }));
         result = { directory, reference: target.global ? `global:${name}` : `./themes/${name}` }; break;
       }
       case 'validate':

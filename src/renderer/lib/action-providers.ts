@@ -12,6 +12,7 @@ import { MAX_COMMAND_PALETTE_QUERY_CHARS } from "../../shared/agent-control";
 import { componentActionReference } from "../../shared/action-reference";
 import { isProcessLive, isProcessRunActive } from "../../shared/process-state";
 import { childNodes } from "./component-children";
+import { basename } from "../app/app-utils";
 import { verbLabel } from "./actions";
 import { dashboardNodeEntries, dashboardNodeOptionDescription } from "./virtual-root";
 
@@ -68,10 +69,6 @@ export interface ApplicationActionContext {
   /** Open notification decisions across dashboards. */
   notificationCount?: number;
   callbacks: ApplicationActionCallbacks;
-}
-
-function basename(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
 }
 
 export function projectLabel(project: ProjectListItem): string {

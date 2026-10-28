@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { link, open, rename, rm } from "node:fs/promises";
+import { link, mkdir, open, rename, rm } from "node:fs/promises";
+import { dirname } from "node:path";
 
 export interface AtomicWriteOptions {
   /** Creation permissions before the process umask is applied. Defaults to 0o666. */
@@ -43,4 +44,10 @@ export async function writeFileAtomically(
     if (!closed) await handle.close().catch(() => undefined);
     await rm(temporaryPath, { force: true }).catch(() => undefined);
   }
+}
+
+/** Private, pretty-printed JSON state: owner-only directory and file. */
+export async function atomicJson(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  await writeFileAtomically(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 }

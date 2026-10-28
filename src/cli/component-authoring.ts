@@ -115,15 +115,17 @@ type ParsedAuthoringCommand = {
   error?: string;
 };
 
+export const COMPONENT_AUTHORING_LINES = `  dash-bored component api [--api-version <version>] [--json]
+  dash-bored component init <directory>
+  dash-bored component setup <directory> [--tsconfig <file>]
+  dash-bored component check <directory> [--source-project <file>] [--json]
+  dash-bored component prepare <directory> --dependency <package> --output <relative.js>`;
+
 function usage(): string {
   return `dash-bored component <authoring command>
 
 Commands:
-  dash-bored component api [--api-version <version>] [--json]
-  dash-bored component init <directory>
-  dash-bored component setup <directory> [--tsconfig <file>]
-  dash-bored component check <directory> [--source-project <file>] [--json]
-  dash-bored component prepare <directory> --dependency <package> --output <relative.js>
+${COMPONENT_AUTHORING_LINES}
 
 Create a local component, install the matching editor SDK, and check it against
 the component API shipped with this dash-bored CLI.`;
@@ -241,13 +243,7 @@ export async function runComponentAuthoringCommand(args: string[]): Promise<numb
     const result = await checkComponentDirectory(directory, parsed.sourceProject ? { sourceProject: parsed.sourceProject } : undefined);
     if (parsed.json) console.log(JSON.stringify(result, null, 2));
     else {
-      for (const stage of result.stages) {
-        const record = stage as unknown as Record<string, unknown>;
-        const label = String(record.name ?? record.id ?? record.stage ?? "check");
-        const status = record.status;
-        const outcome = status === "not-run" ? "SKIP" : Boolean(record.ok ?? record.success) ? "PASS" : "FAIL";
-        console.log(`${outcome} ${label}`);
-      }
+      for (const stage of result.stages) console.log(`${stage.status === "not-run" ? "SKIP" : stage.ok ? "PASS" : "FAIL"} ${stage.name}`);
       for (const diagnostic of result.diagnostics) {
         const where = diagnostic.file ? `${diagnostic.file}${diagnostic.line ? `:${diagnostic.line}${diagnostic.column ? `:${diagnostic.column}` : ""}` : ""}` : "component";
         const stream = diagnostic.severity === "error" ? console.error : console.warn;

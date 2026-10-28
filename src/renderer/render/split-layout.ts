@@ -4,9 +4,8 @@ import { childNodes, layoutBranchKey, type LayoutBranch } from "../lib/component
 export const DEFAULT_SPLIT_RATIO = 0.5;
 export const MIN_SPLIT_RATIO = 0.1;
 export const MAX_SPLIT_RATIO = 0.9;
-export const DEFAULT_SPLIT_MIN_PX = 180;
-export const MIN_SPLIT_MIN_PX = 80;
-export const MAX_SPLIT_MIN_PX = 1_200;
+/** Each pane keeps at least this many pixels while space allows. */
+const SPLIT_MIN_PX = 180;
 export const SPLIT_SEPARATOR_PX = 12;
 
 const MAX_SPLIT_RATIO_OVERRIDES = 2_000;
@@ -36,37 +35,22 @@ export function normalizeSplitRatio(value: unknown): number {
   return Math.round(ratio * SPLIT_RATIO_PRECISION) / SPLIT_RATIO_PRECISION;
 }
 
-export function normalizeSplitMinPx(value: unknown): number {
-  return Math.round(clamp(
-    finiteNumber(value, DEFAULT_SPLIT_MIN_PX),
-    MIN_SPLIT_MIN_PX,
-    MAX_SPLIT_MIN_PX,
-  ));
-}
-
-export function clampSplitRatioForSize(
-  value: number,
-  containerSize: number,
-  minFirstPx: number,
-  minSecondPx: number,
-): number {
+export function clampSplitRatioForSize(value: number, containerSize: number): number {
   const requested = normalizeSplitRatio(value);
   if (!Number.isFinite(containerSize) || containerSize <= SPLIT_SEPARATOR_PX) {
     return requested;
   }
 
   const available = containerSize - SPLIT_SEPARATOR_PX;
-  const firstMinimum = normalizeSplitMinPx(minFirstPx);
-  const secondMinimum = normalizeSplitMinPx(minSecondPx);
-  if (firstMinimum + secondMinimum >= available) {
+  if (2 * SPLIT_MIN_PX >= available) {
     // A compact or auto-sized branch cannot satisfy both pixel minima. Keep
     // the splitter usable and let the pane content/overflow handle the
     // shortage instead of locking the handle at one ratio.
     return requested;
   }
 
-  const minimumRatio = Math.max(MIN_SPLIT_RATIO, firstMinimum / available);
-  const maximumRatio = Math.min(MAX_SPLIT_RATIO, 1 - secondMinimum / available);
+  const minimumRatio = Math.max(MIN_SPLIT_RATIO, SPLIT_MIN_PX / available);
+  const maximumRatio = Math.min(MAX_SPLIT_RATIO, 1 - SPLIT_MIN_PX / available);
   return normalizeSplitRatio(clamp(requested, minimumRatio, maximumRatio));
 }
 

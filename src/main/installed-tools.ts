@@ -1,19 +1,12 @@
-import { lstat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { installDashBoredSkill } from "../cli/install-skill";
 import type { Diagnostic, ProjectSnapshot } from "../shared/contracts";
-import { CoreError } from "../core/diagnostics";
-
-const SKILL_DIRECTORY = [".agents", "skills", "dash-bored"] as const;
-const CLAUDE_SKILL_DIRECTORY = [".claude", "skills", "dash-bored"] as const;
+import { CoreError, errorMessage } from "../core/diagnostics";
+import { exists } from "../core/paths";
 
 export function installedSkillPath(root: string): string {
-  return join(root, ...SKILL_DIRECTORY);
-}
-
-export function installedClaudeSkillPath(root: string): string {
-  return join(root, ...CLAUDE_SKILL_DIRECTORY);
+  return join(root, ".agents", "skills", "dash-bored");
 }
 
 export interface InstalledToolsOptions {
@@ -35,12 +28,7 @@ async function moveToTrashIfPresent(
   path: string,
   moveToTrash: RepairInstalledToolsOptions["moveToTrash"],
 ): Promise<void> {
-  try {
-    await lstat(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
+  if (!await exists(path)) return;
   if (!await moveToTrash(path)) {
     throw new Error(`The operating system could not move ${path} to Trash.`);
   }
@@ -52,7 +40,7 @@ async function removeSkillInstallation(
 ): Promise<void> {
   // Move the alias before its canonical directory so the old alias never
   // points at a new installation while the repair is in progress.
-  await moveToTrashIfPresent(installedClaudeSkillPath(root), moveToTrash);
+  await moveToTrashIfPresent(join(root, ".claude", "skills", "dash-bored"), moveToTrash);
   await moveToTrashIfPresent(installedSkillPath(root), moveToTrash);
 }
 
@@ -65,27 +53,16 @@ async function removeSkillInstallation(
 export async function updateInstalledTools(options: InstalledToolsOptions): Promise<Diagnostic[]> {
   const home = options.homeDirectory ?? homedir();
   const diagnostics: Diagnostic[] = [];
-  const jobs: { path: string; update: () => Promise<void> }[] = [];
   const roots = new Set(options.projectRoots ?? []);
   if (options.includeGlobal !== false) roots.add(home);
   for (const root of roots) {
-    jobs.push({
-      path: installedSkillPath(root),
-      update: async () => {
-        await installDashBoredSkill(root);
-      },
-    });
-  }
-  for (const job of jobs) {
+    const path = installedSkillPath(root);
     try {
       // lstat includes conflicting paths and broken links, which need a visible report.
-      try { await lstat(job.path); } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-        throw error;
-      }
-      await job.update();
+      if (!await exists(path)) continue;
+      await installDashBoredSkill(root);
     } catch (error) {
-      diagnostics.push({ severity: "warning", code: "INSTALLED_TOOL_UPDATE_CONFLICT", file: job.path, message: `Could not update the installed dash-bored skill: ${error instanceof Error ? error.message : String(error)}` });
+      diagnostics.push({ severity: "warning", code: "INSTALLED_TOOL_UPDATE_CONFLICT", file: path, message: `Could not update the installed dash-bored skill: ${errorMessage(error)}` });
     }
   }
   return diagnostics;
@@ -98,55 +75,22 @@ export async function updateInstalledTools(options: InstalledToolsOptions): Prom
  */
 export async function repairInstalledTools(options: RepairInstalledToolsOptions): Promise<Diagnostic[]> {
   const home = options.homeDirectory ?? homedir();
-  const jobs: { path: string; remove: () => Promise<void>; update: () => Promise<void> }[] = [];
-  const projectRoots = new Set(options.projectRoots ?? []);
-
-  if (options.repairGlobalSkill) {
-    jobs.push({
-      path: installedSkillPath(home),
-      remove: () => removeSkillInstallation(home, options.moveToTrash),
-      update: async () => { await installDashBoredSkill(home); },
-    });
-  }
-  for (const root of projectRoots) {
-    if (options.repairGlobalSkill && root === home) continue;
-    jobs.push({
-      path: installedSkillPath(root),
-      remove: () => removeSkillInstallation(root, options.moveToTrash),
-      update: async () => { await installDashBoredSkill(root); },
-    });
-  }
-
+  const roots = new Set([...(options.repairGlobalSkill ? [home] : []), ...(options.projectRoots ?? [])]);
   const diagnostics: Diagnostic[] = [];
-  for (const job of jobs) {
+  for (const root of roots) {
     try {
-      await job.remove();
-      await job.update();
+      await removeSkillInstallation(root, options.moveToTrash);
+      await installDashBoredSkill(root);
     } catch (error) {
       diagnostics.push({
         severity: "warning",
         code: "INSTALLED_TOOL_UPDATE_CONFLICT",
-        file: job.path,
-        message: `Could not remove and reinstall the conflicting dash-bored skill: ${error instanceof Error ? error.message : String(error)}`,
+        file: installedSkillPath(root),
+        message: `Could not remove and reinstall the conflicting dash-bored skill: ${errorMessage(error)}`,
       });
     }
   }
   return diagnostics;
-}
-
-async function refreshInstalledTools(options: InstalledToolsOptions): Promise<Diagnostic[]> {
-  try {
-    return await updateInstalledTools(options);
-  } catch (error) {
-    // A refresh is maintenance work; an unexpected enumeration or path error
-    // must remain visible without preventing the dashboard from opening.
-    return [{
-      severity: "warning",
-      code: "INSTALLED_TOOL_UPDATE_FAILED",
-      file: options.homeDirectory,
-      message: `Could not refresh installed dash-bored tools: ${error instanceof Error ? error.message : String(error)}`,
-    }];
-  }
 }
 
 function installedSkillRootFromDiagnostic(file: string): string | null {
@@ -171,14 +115,14 @@ export class InstalledToolDiagnostics {
 
   async refreshRegistered(projectRoots: readonly string[], options: { includeGlobal?: boolean } = {}): Promise<void> {
     for (const root of projectRoots) this.checkedRoots.add(root);
-    this.diagnostics.push(...await refreshInstalledTools({ projectRoots: [...projectRoots], ...options }));
+    this.diagnostics.push(...await updateInstalledTools({ projectRoots: [...projectRoots], ...options }));
   }
 
   /** Refreshes a newly opened project's skill once per run. */
   checkProject(projectRoot: string): void {
     if (this.checkedRoots.has(projectRoot)) return;
     this.checkedRoots.add(projectRoot);
-    void refreshInstalledTools({ projectRoots: [projectRoot], includeGlobal: false }).then((diagnostics) => {
+    void updateInstalledTools({ projectRoots: [projectRoot], includeGlobal: false }).then((diagnostics) => {
       this.diagnostics.push(...diagnostics);
       if (diagnostics.length) this.options.onChange();
     });

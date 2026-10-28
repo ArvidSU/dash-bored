@@ -2,6 +2,7 @@ import { COMPONENT_REACT_EXPORTS } from "../../shared/component-api";
 import { ComponentVisibilityContext } from "../composition/ComponentCompositor";
 import { trackActivity } from "../lib/activity";
 import { useTheme } from "../lib/theme";
+import { errorMessage } from "../app/app-utils";
 import React, {
   useContext,
   useEffect,
@@ -65,10 +66,6 @@ export function installComponentRuntime(): void {
     writable: false,
     value: Object.freeze(bridge),
   });
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function styleId(component: CompiledLocalComponent): string {

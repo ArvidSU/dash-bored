@@ -38,6 +38,15 @@ export interface ComponentFrameProps {
   children: ReactNode;
 }
 
+/** The two-row dot grip shared by every drag handle. */
+export function GripIcon(): ReactNode {
+  return (
+    <svg viewBox="0 0 18 8" aria-hidden="true">
+      {[2, 6].flatMap((cy) => [2, 9, 16].map((cx) => <circle key={`${cx}:${cy}`} cx={cx} cy={cy} r="1.25" />))}
+    </svg>
+  );
+}
+
 function canStartCompositionDrag(
   event: ReactPointerEvent<HTMLElement>,
   nodeId: string,
@@ -430,14 +439,7 @@ export function ComponentFrame({
           title={`Drag to move ${name}`}
           onClick={(event) => event.preventDefault()}
         >
-          <svg viewBox="0 0 18 8" aria-hidden="true">
-            <circle cx="2" cy="2" r="1.25" />
-            <circle cx="9" cy="2" r="1.25" />
-            <circle cx="16" cy="2" r="1.25" />
-            <circle cx="2" cy="6" r="1.25" />
-            <circle cx="9" cy="6" r="1.25" />
-            <circle cx="16" cy="6" r="1.25" />
-          </svg>
+          <GripIcon />
         </button>
       ) : null}
       {showComponentMenu ? <div className="component-node__menu" ref={menuRef}>

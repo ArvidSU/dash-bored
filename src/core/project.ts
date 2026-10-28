@@ -349,7 +349,3 @@ export async function inspectProject(
     };
   }
 }
-
-export async function validateProject(input: string): Promise<InspectResult> {
-  return inspectProject(input, { compile: true, typecheck: true });
-}

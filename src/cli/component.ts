@@ -9,8 +9,8 @@ import {
   updateComponent,
   type ExternalComponentStatus,
 } from "../core/external-components";
-import { CoreError, errorMessage } from "../core/diagnostics";
-import { runComponentAuthoringCommand } from "./component-authoring";
+import { errorMessage } from "../core/diagnostics";
+import { COMPONENT_AUTHORING_LINES, runComponentAuthoringCommand } from "./component-authoring";
 
 const SUBCOMMANDS = ["add", "list", "status", "update", "remove", "sync", "restore", "migrate-ownership"] as const;
 
@@ -27,44 +27,23 @@ interface ParsedComponentArguments {
   error: string | null;
 }
 
-function failed(subcommand: ComponentSubcommand | null, error: string): ParsedComponentArguments {
-  return {
-    subcommand,
-    url: null,
-    name: null,
-    ref: null,
-    to: null,
-    project: ".",
-    help: false,
-    error,
-  };
+function parsed(
+  subcommand: ComponentSubcommand | null,
+  fields: Partial<ParsedComponentArguments>,
+): ParsedComponentArguments {
+  return { subcommand, url: null, name: null, ref: null, to: null, project: ".", help: false, error: null, ...fields };
 }
+
+const failed = (subcommand: ComponentSubcommand | null, error: string) => parsed(subcommand, { error });
+
+/** Value options and the one subcommand that accepts each. */
+const VALUE_OPTIONS = { name: "add", ref: "add", to: "update" } as const;
 
 function isProjectPath(value: string): boolean {
   return value.startsWith(".") || value.includes("/") || value.includes("\\");
 }
 
-function takeOptionValue(
-  args: string[],
-  index: number,
-  flag: string,
-): { value: string; nextIndex: number } | { error: string } {
-  const value = args[index + 1];
-  if (value === undefined || value === "--" || value.startsWith("-")) {
-    return { error: `Option ${flag} requires a value.` };
-  }
-  return { value, nextIndex: index + 1 };
-}
-
-export function componentUsage(): string {
-  return `dash-bored component <command>
-
-Commands:
-  dash-bored component api [--api-version <version>] [--json]
-  dash-bored component init <directory>
-  dash-bored component setup <directory> [--tsconfig <file>]
-  dash-bored component check <directory> [--source-project <file>] [--json]
-  dash-bored component prepare <directory> --dependency <package> --output <relative.js>
+export const COMPONENT_COMMAND_LINES = `${COMPONENT_AUTHORING_LINES}
   dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
   dash-bored component list [project]
   dash-bored component status [<name>] [project]
@@ -72,7 +51,13 @@ Commands:
   dash-bored component remove <name> [project]
   dash-bored component sync [project]
   dash-bored component restore [project]
-  dash-bored component migrate-ownership [project]
+  dash-bored component migrate-ownership [project]`;
+
+export function componentUsage(): string {
+  return `dash-bored component <command>
+
+Commands:
+${COMPONENT_COMMAND_LINES}
 
 Manage external components: dash-bored-owned submodules below components/external/ pinned
 in dash-bored-lock.yaml. <url> is a git clone URL; --ref pins a branch, tag,
@@ -82,34 +67,15 @@ component; pass a path (./proj, ../proj, /abs, a/b) to target a project.`;
 
 export function parseComponentArguments(args: string[]): ParsedComponentArguments {
   const [subcommand, ...rest] = args;
-  if (
-    subcommand === undefined ||
-    subcommand === "--help" ||
-    subcommand === "-h" ||
-    subcommand === "help"
-  ) {
-    return {
-      subcommand: null,
-      url: null,
-      name: null,
-      ref: null,
-      to: null,
-      project: ".",
-      help: true,
-      error: null,
-    };
+  if (subcommand === undefined || subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
+    return parsed(null, { help: true });
   }
   if (!(SUBCOMMANDS as readonly string[]).includes(subcommand)) {
     return failed(null, `Unknown component command: ${subcommand}\n\n${componentUsage()}`);
   }
   const command = subcommand as ComponentSubcommand;
 
-  let name: string | null = null;
-  let ref: string | null = null;
-  let to: string | null = null;
-  let nameSpecified = false;
-  let refSpecified = false;
-  let toSpecified = false;
+  const values: Partial<Record<keyof typeof VALUE_OPTIONS, string>> = {};
   const positional: string[] = [];
   let optionsEnabled = true;
 
@@ -119,61 +85,19 @@ export function parseComponentArguments(args: string[]): ParsedComponentArgument
       optionsEnabled = false;
       continue;
     }
-    if (optionsEnabled && (argument === "--help" || argument === "-h")) {
-      return {
-        subcommand: command,
-        url: null,
-        name: null,
-        ref: null,
-        to: null,
-        project: ".",
-        help: true,
-        error: null,
-      };
-    }
-    if (optionsEnabled && (argument === "--name" || argument.startsWith("--name="))) {
-      if (command !== "add") return failed(command, `component ${command} does not accept --name.`);
-      if (nameSpecified) return failed(command, "Option --name may be specified only once.");
-      if (argument.startsWith("--name=")) {
-        name = argument.slice("--name=".length);
-        if (name === "") return failed(command, "Option --name requires a value.");
-      } else {
-        const taken = takeOptionValue(rest, index, "--name");
-        if ("error" in taken) return failed(command, taken.error);
-        name = taken.value;
-        index = taken.nextIndex;
-      }
-      nameSpecified = true;
-      continue;
-    }
-    if (optionsEnabled && (argument === "--ref" || argument.startsWith("--ref="))) {
-      if (command !== "add") return failed(command, `component ${command} does not accept --ref.`);
-      if (refSpecified) return failed(command, "Option --ref may be specified only once.");
-      if (argument.startsWith("--ref=")) {
-        ref = argument.slice("--ref=".length);
-        if (ref === "") return failed(command, "Option --ref requires a value.");
-      } else {
-        const taken = takeOptionValue(rest, index, "--ref");
-        if ("error" in taken) return failed(command, taken.error);
-        ref = taken.value;
-        index = taken.nextIndex;
-      }
-      refSpecified = true;
-      continue;
-    }
-    if (optionsEnabled && (argument === "--to" || argument.startsWith("--to="))) {
-      if (command !== "update") return failed(command, `component ${command} does not accept --to.`);
-      if (toSpecified) return failed(command, "Option --to may be specified only once.");
-      if (argument.startsWith("--to=")) {
-        to = argument.slice("--to=".length);
-        if (to === "") return failed(command, "Option --to requires a value.");
-      } else {
-        const taken = takeOptionValue(rest, index, "--to");
-        if ("error" in taken) return failed(command, taken.error);
-        to = taken.value;
-        index = taken.nextIndex;
-      }
-      toSpecified = true;
+    if (optionsEnabled && (argument === "--help" || argument === "-h")) return parsed(command, { help: true });
+    const option = optionsEnabled
+      ? (Object.keys(VALUE_OPTIONS) as (keyof typeof VALUE_OPTIONS)[]).find(
+          (key) => argument === `--${key}` || argument.startsWith(`--${key}=`),
+        )
+      : undefined;
+    if (option) {
+      const flag = `--${option}`;
+      if (command !== VALUE_OPTIONS[option]) return failed(command, `component ${command} does not accept ${flag}.`);
+      if (values[option] !== undefined) return failed(command, `Option ${flag} may be specified only once.`);
+      const value = argument === flag ? rest[++index] : argument.slice(flag.length + 1);
+      if (!value || (argument === flag && value.startsWith("-"))) return failed(command, `Option ${flag} requires a value.`);
+      values[option] = value;
       continue;
     }
     if (optionsEnabled && argument.startsWith("-")) {
@@ -182,113 +106,43 @@ export function parseComponentArguments(args: string[]): ParsedComponentArgument
     positional.push(argument);
   }
 
-  // A bare name collides with a bare project directory: treat values that look
-  // like paths (./proj, ../proj, /abs, a/b) as the project, anything else as
-  // the component name. Prefix with ./ to force a project interpretation.
-  const splitNameAndProject = (values: string[]): { name: string | null; project: string } => {
-    if (values.length === 0) return { name: null, project: "." };
-    if (values.length === 2) return { name: values[0]!, project: values[1]! };
-    const [only] = values;
-    return isProjectPath(only!) ? { name: null, project: only! } : { name: only!, project: "." };
-  };
-
   switch (command) {
-    case "add": {
+    case "add":
       if (positional.length < 1) return failed(command, "component add requires a repository URL.");
-      if (positional.length > 2) {
-        return failed(command, "component add accepts a URL and at most one project path.");
-      }
-      return {
-        subcommand: command,
+      if (positional.length > 2) return failed(command, "component add accepts a URL and at most one project path.");
+      return parsed(command, {
         url: positional[0]!,
-        name,
-        ref,
-        to: null,
+        name: values.name ?? null,
+        ref: values.ref ?? null,
         project: positional[1] ?? ".",
-        help: false,
-        error: null,
-      };
-    }
-    case "list": {
-      if (positional.length > 1) {
-        return failed(command, "component list accepts at most one project path.");
-      }
-      return {
-        subcommand: command,
-        url: null,
-        name: null,
-        ref: null,
-        to: null,
-        project: positional[0] ?? ".",
-        help: false,
-        error: null,
-      };
-    }
+      });
     case "status": {
       if (positional.length > 2) {
         return failed(command, "component status accepts at most a component name and a project path.");
       }
-      const split = splitNameAndProject(positional);
-      return {
-        subcommand: command,
-        url: null,
-        name: split.name,
-        ref: null,
-        to: null,
-        project: split.project,
-        help: false,
-        error: null,
-      };
+      // A bare name collides with a bare project directory: treat values that look
+      // like paths (./proj, ../proj, /abs, a/b) as the project, anything else as
+      // the component name. Prefix with ./ to force a project interpretation.
+      const [first, second] = positional;
+      if (second !== undefined) return parsed(command, { name: first!, project: second });
+      if (first === undefined) return parsed(command, {});
+      return parsed(command, isProjectPath(first) ? { project: first } : { name: first });
     }
-    case "update": {
-      if (positional.length < 1) return failed(command, "component update requires a component name.");
+    case "update":
+    case "remove":
+      if (positional.length < 1) return failed(command, `component ${command} requires a component name.`);
       if (positional.length > 2) {
-        return failed(command, "component update accepts a name and at most one project path.");
+        return failed(command, `component ${command} accepts a name and at most one project path.`);
       }
-      return {
-        subcommand: command,
-        url: null,
-        name: positional[0]!,
-        ref: null,
-        to,
-        project: positional[1] ?? ".",
-        help: false,
-        error: null,
-      };
-    }
-    case "remove": {
-      if (positional.length < 1) return failed(command, "component remove requires a component name.");
-      if (positional.length > 2) {
-        return failed(command, "component remove accepts a name and at most one project path.");
-      }
-      return {
-        subcommand: command,
-        url: null,
-        name: positional[0]!,
-        ref: null,
-        to: null,
-        project: positional[1] ?? ".",
-        help: false,
-        error: null,
-      };
-    }
+      return parsed(command, { name: positional[0]!, to: values.to ?? null, project: positional[1] ?? "." });
+    case "list":
     case "restore":
     case "migrate-ownership":
-    case "sync": {
+    case "sync":
       if (positional.length > 1) {
-        return failed(command, "component sync accepts at most one project path.");
+        return failed(command, `component ${command === "list" ? "list" : "sync"} accepts at most one project path.`);
       }
-      return {
-        subcommand: command,
-        url: null,
-        name: null,
-        ref: null,
-        to: null,
-        project: positional[0] ?? ".",
-        help: false,
-        error: null,
-      };
-    }
+      return parsed(command, { project: positional[0] ?? "." });
   }
 }
 
@@ -387,7 +241,7 @@ export async function runComponentCommand(args: string[]): Promise<number> {
       }
     }
   } catch (error) {
-    console.error(error instanceof CoreError || error instanceof Error ? error.message : errorMessage(error));
+    console.error(errorMessage(error));
     return 1;
   }
 }

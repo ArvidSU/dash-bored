@@ -1,4 +1,5 @@
 import type { ComponentActionSelections } from "../../shared/contracts";
+import { browserStorage } from "./dashboard-view-state";
 
 /** One palette run the history can replay: the action and the options chosen for it. */
 export interface PaletteRecent {
@@ -57,14 +58,6 @@ export function parsePaletteRecents(raw: string | null): PaletteRecent[] {
     }, []);
   } catch {
     return [];
-  }
-}
-
-function browserStorage(): RecentsStorage | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
   }
 }
 

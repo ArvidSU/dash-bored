@@ -8,7 +8,6 @@ import type {
   DashboardConfig,
   DashboardLock,
   Diagnostic,
-  ExternalComponentLockEntry,
 } from "../shared/contracts";
 import { SUPPORTED_COMPONENT_API_VERSIONS } from "../shared/component-api";
 import { ANIMATION_REFERENCE_PATTERN } from "../shared/animations";
@@ -426,49 +425,18 @@ export function validateDashboardConfigValue(
     : schemaDiagnostics(file, "CONFIG", validateConfig.errors);
 }
 
-export async function parseDashboardLock(file: string): Promise<ParsedYaml<DashboardLock>> {
-  const result = await parseTyped<DashboardLock>(file, "LOCK", validateLock);
-  if (result.value === null) return result;
-  // The lock entry path must match its key: components/<name> pins
-  // components/external/<name>. Report mismatches as diagnostics.
-  const diagnostics: Diagnostic[] = [];
-  for (const [name, entry] of Object.entries(result.value.components)) {
-    const expected = `components/external/${name}`;
-    if ((entry as ExternalComponentLockEntry).path !== expected) {
-      diagnostics.push(
-        diagnostic({
-          code: "LOCK_COMPONENT_PATH_INVALID",
-          message: `Lock entry ${name} must pin ${expected}.`,
-          file,
-          path: `/components/${name}/path`,
-        }),
-      );
-    }
-  }
-  for (const [name, entry] of Object.entries(result.value.themes ?? {})) {
-    if (entry.path !== `themes/external/${name}`) diagnostics.push(diagnostic({ code: "LOCK_THEME_PATH_INVALID", message: `Theme ${name} must pin themes/external/${name}.`, file }));
-  }
-  if (diagnostics.length > 0) return { value: null, diagnostics };
-  return result;
-}
-
-export function validateDashboardLockValue(
-  value: unknown,
-  file = "dash-bored-lock.yaml",
-): Diagnostic[] {
-  if (!validateLock(value)) return schemaDiagnostics(file, "LOCK", validateLock.errors);
-  const lock = value as DashboardLock;
+// Each lock entry path must match its key: components/<name> pins
+// components/external/<name>, themes/<name> pins themes/external/<name>.
+function lockPathDiagnostics(lock: DashboardLock, file: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const [name, entry] of Object.entries(lock.components)) {
     if (entry.path !== `components/external/${name}`) {
-      diagnostics.push(
-        diagnostic({
-          code: "LOCK_COMPONENT_PATH_INVALID",
-          message: `Lock entry ${name} must pin components/external/${name}.`,
-          file,
-          path: `/components/${name}/path`,
-        }),
-      );
+      diagnostics.push(diagnostic({
+        code: "LOCK_COMPONENT_PATH_INVALID",
+        message: `Lock entry ${name} must pin components/external/${name}.`,
+        file,
+        path: `/components/${name}/path`,
+      }));
     }
   }
   for (const [name, entry] of Object.entries(lock.themes ?? {})) {
@@ -477,12 +445,24 @@ export function validateDashboardLockValue(
   return diagnostics;
 }
 
+export async function parseDashboardLock(file: string): Promise<ParsedYaml<DashboardLock>> {
+  const result = await parseTyped<DashboardLock>(file, "LOCK", validateLock);
+  if (result.value === null) return result;
+  const diagnostics = lockPathDiagnostics(result.value, file);
+  return diagnostics.length > 0 ? { value: null, diagnostics } : result;
+}
+
+export function validateDashboardLockValue(
+  value: unknown,
+  file = "dash-bored-lock.yaml",
+): Diagnostic[] {
+  if (!validateLock(value)) return schemaDiagnostics(file, "LOCK", validateLock.errors);
+  return lockPathDiagnostics(value as DashboardLock, file);
+}
+
 export function serializeDashboardLock(lock: DashboardLock): string {
-  const sorted: Record<string, ExternalComponentLockEntry> = {};
-  for (const name of Object.keys(lock.components).sort()) {
-    sorted[name] = lock.components[name]!;
-  }
-  return stringify({ lockfileVersion: 1, components: sorted, ...(lock.themes === undefined ? {} : { themes: Object.fromEntries(Object.entries(lock.themes).sort(([a], [b]) => a.localeCompare(b))) }) }, { lineWidth: 0 });
+  const components = Object.fromEntries(Object.keys(lock.components).sort().map((name) => [name, lock.components[name]!]));
+  return stringify({ lockfileVersion: 1, components, ...(lock.themes === undefined ? {} : { themes: Object.fromEntries(Object.entries(lock.themes).sort(([a], [b]) => a.localeCompare(b))) }) }, { lineWidth: 0 });
 }
 
 export async function parseComponentManifest(file: string): Promise<ParsedYaml<ComponentManifest>> {

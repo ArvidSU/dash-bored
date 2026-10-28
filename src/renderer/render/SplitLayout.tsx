@@ -17,12 +17,9 @@ interface SplitLayoutProps {
   second: ReactNode;
   ratio: number;
   defaultRatio: number;
-  minFirstPx: number;
-  minSecondPx: number;
-  resizable?: boolean;
   label: string;
-  onRatioChange?: (ratio: number) => void;
-  onRatioReset?: () => void;
+  onRatioChange: (ratio: number) => void;
+  onRatioReset: () => void;
 }
 
 export function SplitLayout({
@@ -31,14 +28,10 @@ export function SplitLayout({
   second,
   ratio,
   defaultRatio,
-  minFirstPx,
-  minSecondPx,
-  resizable = true,
   label,
   onRatioChange,
   onRatioReset,
 }: SplitLayoutProps): ReactNode {
-  const containerRef = useRef<HTMLDivElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
   const separatorRef = useRef<HTMLDivElement>(null);
   const draggingPointer = useRef<number | null>(null);
@@ -50,7 +43,8 @@ export function SplitLayout({
   const firstId = `${instanceId}-first`;
   const secondId = `${instanceId}-second`;
   const effectiveRatio = normalizeSplitRatio(transientRatio ?? ratio);
-  const enabled = axis === "horizontal" && resizable && onRatioChange !== undefined;
+  // Only side-by-side tiles resize; stacked tiles size to their content.
+  const enabled = axis === "horizontal";
   const percent = Math.round(effectiveRatio * 100);
   const defaultPercent = Math.round(normalizeSplitRatio(defaultRatio) * 100);
   const style = {
@@ -59,25 +53,15 @@ export function SplitLayout({
     "--split-separator-size": `${SPLIT_SEPARATOR_PX}px`,
   } as CSSProperties;
 
-  function ratioAt(clientX: number, clientY: number): number {
+  function ratioAt(clientX: number): number {
     const rect = splitRef.current?.getBoundingClientRect();
     if (!rect) return effectiveRatio;
-    const containerSize = axis === "horizontal" ? rect.width : rect.height;
-    const available = Math.max(1, containerSize - SPLIT_SEPARATOR_PX);
-    const offset = axis === "horizontal"
-      ? clientX - rect.left
-      : clientY - rect.top;
-    const requested = (offset - SPLIT_SEPARATOR_PX / 2) / available;
-    return clampSplitRatioForSize(
-      requested,
-      containerSize,
-      minFirstPx,
-      minSecondPx,
-    );
+    const available = Math.max(1, rect.width - SPLIT_SEPARATOR_PX);
+    return clampSplitRatioForSize((clientX - rect.left - SPLIT_SEPARATOR_PX / 2) / available, rect.width);
   }
 
-  function updateDrag(clientX: number, clientY: number): number {
-    const next = ratioAt(clientX, clientY);
+  function updateDrag(clientX: number): number {
+    const next = ratioAt(clientX);
     lastDragRatio.current = next;
     setTransientRatio(next);
     return next;
@@ -86,13 +70,12 @@ export function SplitLayout({
   function finishDrag(
     pointerId: number,
     clientX: number,
-    clientY: number,
     commit: boolean,
     useLastRatio = false,
   ): void {
     if (draggingPointer.current !== pointerId) return;
     const next = commit
-      ? (useLastRatio ? lastDragRatio.current : updateDrag(clientX, clientY))
+      ? (useLastRatio ? lastDragRatio.current : updateDrag(clientX))
       : null;
     draggingPointer.current = null;
     lastDragRatio.current = null;
@@ -101,23 +84,12 @@ export function SplitLayout({
     if (separator?.hasPointerCapture(pointerId)) {
       separator.releasePointerCapture(pointerId);
     }
-    if (next !== null) onRatioChange?.(next);
+    if (next !== null) onRatioChange(next);
     setTransientRatio(null);
   }
 
   function setFromKeyboard(next: number): void {
-    const rect = splitRef.current?.getBoundingClientRect();
-    const size = rect?.width ?? 0;
-    onRatioChange?.(clampSplitRatioForSize(
-      next,
-      size,
-      minFirstPx,
-      minSecondPx,
-    ));
-  }
-
-  function resetSplit(): void {
-    onRatioReset?.();
+    onRatioChange(clampSplitRatioForSize(next, splitRef.current?.getBoundingClientRect().width ?? 0));
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -136,15 +108,15 @@ export function SplitLayout({
       setFromKeyboard(1);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      resetSplit();
+      onRatioReset();
     } else if (event.key === "Escape" && draggingPointer.current !== null) {
       event.preventDefault();
-      finishDrag(draggingPointer.current, 0, 0, false);
+      finishDrag(draggingPointer.current, 0, false);
     }
   }
 
   return (
-    <div className="split-container" ref={containerRef}>
+    <div className="split-container">
       <div
         className={`split split--${axis}${enabled ? " split--resizable" : ""}${dragging ? " split--dragging" : ""}`}
         ref={splitRef}
@@ -161,13 +133,13 @@ export function SplitLayout({
             tabIndex={0}
             aria-controls={`${firstId} ${secondId}`}
             aria-label={`Resize ${label}`}
-            aria-orientation={axis === "horizontal" ? "vertical" : "horizontal"}
+            aria-orientation="vertical"
             aria-valuemin={10}
             aria-valuemax={90}
             aria-valuenow={percent}
             aria-valuetext={`${percent}% first pane, ${100 - percent}% second pane`}
             title={`Drag to resize. Press Enter or double-click to reset to ${defaultPercent}%.`}
-            onDoubleClick={resetSplit}
+            onDoubleClick={onRatioReset}
             onKeyDown={handleKeyDown}
             onPointerDown={(event) => {
               if (event.button !== 0) return;
@@ -175,23 +147,17 @@ export function SplitLayout({
               draggingPointer.current = event.pointerId;
               event.currentTarget.setPointerCapture(event.pointerId);
               setDragging(true);
-              updateDrag(event.clientX, event.clientY);
+              updateDrag(event.clientX);
               pointerSession.start({
                 pointerId: event.pointerId,
                 mouseUpFallback: true,
                 onMove: (moveEvent) => {
                   moveEvent.preventDefault();
-                  updateDrag(moveEvent.clientX, moveEvent.clientY);
+                  updateDrag(moveEvent.clientX);
                 },
                 onFinish: (finishEvent, reason) => {
                   const commit = reason === "up" || reason === "lost";
-                  finishDrag(
-                    event.pointerId,
-                    finishEvent?.clientX ?? 0,
-                    finishEvent?.clientY ?? 0,
-                    commit,
-                    reason === "lost",
-                  );
+                  finishDrag(event.pointerId, finishEvent?.clientX ?? 0, commit, reason === "lost");
                 },
               });
             }}

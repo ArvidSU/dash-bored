@@ -18,7 +18,7 @@ import {
   type PackageStore,
   type PackageStrategy,
 } from './package-store';
-import { resolveProjectLocation } from './paths';
+import { exists, resolveProjectLocation } from './paths';
 import { parseTheme, personalThemesDirectory, readTheme } from './themes';
 
 /**
@@ -48,7 +48,6 @@ async function withThemeStore<T>(target: ThemeInstallTarget, operation: (store: 
   const { root, strategy } = await storeRoot(target);
   return withPackageStore(root, strategy, operation);
 }
-async function exists(path: string): Promise<boolean> { try { await lstat(path); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false; throw e; } }
 async function writePins(store: PackageStore, themes: NonNullable<PackageStore['lock']['themes']>): Promise<void> {
   await writePackageLock(store, { ...store.lock, themes });
 }

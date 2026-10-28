@@ -11,7 +11,7 @@ import {
   type PackageStrategy,
   type RemoteHeadAndTags,
 } from "./package-store";
-import { resolveProjectLocation } from "./paths";
+import { exists, resolveProjectLocation } from "./paths";
 import { personalThemesDirectory } from "./themes";
 import { EXTERNAL_NAME_PATTERN } from "./tree-catalog";
 
@@ -61,16 +61,6 @@ export function packageUpdateId(kind: PackageKind, configPath: string | null, na
   return `${kind}:${configPath ?? "personal"}:${name}`;
 }
 
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
-}
-
 /** Every pin in one store; a bundle without a lock file, or no longer on disk, pins nothing. */
 export async function listPinnedPackages(
   source: PackageUpdateSource,
@@ -85,9 +75,9 @@ export async function listPinnedPackages(
       configPath: null, dashboardName, checkout: join(root, name), storeRoot: root, strategy: "clone" as const,
     }));
   }
-  if (!(await exists(source.configPath))) return [];
+  if (!(await exists(source.configPath, stat))) return [];
   const location = await resolveProjectLocation(source.configPath);
-  if (!(await exists(location.lockPath))) return [];
+  if (!(await exists(location.lockPath, stat))) return [];
   const { lock } = await readPackageStore(location.configDirectory, "submodule");
   const configPath = location.configPath;
   const pinned = (kind: PackageKind, entries: typeof lock.components, directory: string): PinnedPackage[] =>

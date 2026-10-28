@@ -180,6 +180,21 @@ export class ProjectRuntime {
     this.getPublishedEnvironment = options.getPublishedEnvironment ?? (() => ({}));
   }
 
+  /** Apply `fields` as a new snapshot revision and publish it. */
+  private publish(fields: Partial<ProjectSnapshot>): ProjectSnapshot {
+    this.snapshot = { ...this.snapshot, ...fields, revision: this.snapshot.revision + 1 };
+    return this.emitSnapshot();
+  }
+
+  /** End the loaded session: stale callbacks, watches, processes and capabilities. */
+  private async endSession(): Promise<void> {
+    this.sessionToken += 1;
+    this.stopWatching();
+    await this.processManager?.close();
+    this.processManager = null;
+    this.capabilities.configure(null);
+  }
+
   private emitSnapshot(): ProjectSnapshot {
     const value = this.getSnapshot();
     try {
@@ -356,12 +371,7 @@ export class ProjectRuntime {
   /** Refresh public environment state without reconciling or interrupting running commands. */
   async refreshEnvironment(): Promise<ProjectSnapshot> {
     return this.enqueue(async () => {
-      this.snapshot = {
-        ...this.snapshot,
-        environmentByNode: await this.readEnvironmentSnapshots(),
-        revision: this.snapshot.revision + 1,
-      };
-      return this.emitSnapshot();
+      return this.publish({ environmentByNode: await this.readEnvironmentSnapshots() });
     });
   }
 
@@ -409,15 +419,8 @@ export class ProjectRuntime {
       const locationChanged = this.location?.projectRoot !== nextLocation.projectRoot
         || this.location?.configPath !== nextLocation.configPath;
       if (locationChanged) {
-        this.sessionToken += 1;
-        this.stopWatching();
-        await this.processManager?.close();
-        this.processManager = null;
-        this.capabilities.configure(null);
-        this.snapshot = {
-          ...emptySnapshot(),
-          revision: this.snapshot.revision + 1,
-        };
+        await this.endSession();
+        this.snapshot = { ...emptySnapshot(), revision: this.snapshot.revision + 1 };
       }
       this.location = nextLocation;
       const restored = await restoreMissingPackages(nextLocation.configPath);
@@ -443,16 +446,9 @@ export class ProjectRuntime {
   async unload(): Promise<ProjectSnapshot> {
     if (this.closed) throw new CoreError("PROJECT_RUNTIME_CLOSED", "The project runtime is closed.");
     return this.enqueue(async () => {
-      this.sessionToken += 1;
-      this.stopWatching();
-      await this.processManager?.close();
-      this.processManager = null;
-      this.capabilities.configure(null);
+      await this.endSession();
       this.location = null;
-      this.snapshot = {
-        ...emptySnapshot(),
-        revision: this.snapshot.revision + 1,
-      };
+      this.snapshot = { ...emptySnapshot(), revision: this.snapshot.revision + 1 };
       return this.emitSnapshot();
     });
   }
@@ -704,13 +700,7 @@ export class ProjectRuntime {
         permissionsByNode: new Map(),
       });
       this.sessionRevokedRoots.add(this.location.projectRoot);
-      this.snapshot = {
-        ...this.snapshot,
-        trusted: false,
-        components: [],
-        revision: this.snapshot.revision + 1,
-      };
-      this.emitSnapshot();
+      this.publish({ trusted: false, components: [] });
 
       const revokeDiagnostics = [];
       try {
@@ -784,31 +774,16 @@ export class ProjectRuntime {
         this.watchTimer = setTimeout(() => {
           this.watchTimer = null;
           void this.reload().catch((error) => {
-            this.snapshot = {
-              ...this.snapshot,
-              diagnostics: [diagnostic({ code: "PROJECT_RELOAD_FAILED", message: errorMessage(error) })],
-              revision: this.snapshot.revision + 1,
-            };
-            this.emitSnapshot();
+            this.publish({ diagnostics: [diagnostic({ code: "PROJECT_RELOAD_FAILED", message: errorMessage(error) })] });
           });
         }, this.watchDebounceMs);
       });
     } catch (error) {
-      this.snapshot = {
-        ...this.snapshot,
-        diagnostics: [diagnostic({ code: "PROJECT_WATCH_FAILED", message: errorMessage(error) })],
-        revision: this.snapshot.revision + 1,
-      };
-      this.emitSnapshot();
+      this.publish({ diagnostics: [diagnostic({ code: "PROJECT_WATCH_FAILED", message: errorMessage(error) })] });
       return;
     }
     this.watcher.on("error", (error) => {
-      this.snapshot = {
-        ...this.snapshot,
-        diagnostics: [diagnostic({ code: "PROJECT_WATCH_FAILED", message: errorMessage(error) })],
-        revision: this.snapshot.revision + 1,
-      };
-      this.emitSnapshot();
+      this.publish({ diagnostics: [diagnostic({ code: "PROJECT_WATCH_FAILED", message: errorMessage(error) })] });
     });
   }
 

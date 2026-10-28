@@ -19,6 +19,7 @@ import { RightDrawer } from "../lib/right-drawer";
 import { EditorModal } from "../lib/editor-modal";
 import type { CompositionDragPayload } from "./composition-context";
 import { usePointerSession } from "../lib/pointer-session";
+import { GripIcon } from "../render/ComponentFrame";
 
 export { filterComponentCatalog } from "../lib/component-library";
 
@@ -380,14 +381,7 @@ export function CompositionFlyout({
               onPointerCancel={(event) => pointerSession.finish(event.pointerId, event.nativeEvent, "cancel")}
               onLostPointerCapture={(event) => pointerSession.finish(event.pointerId, event.nativeEvent, "lost")}
             >
-              <svg viewBox="0 0 18 8" aria-hidden="true">
-                <circle cx="2" cy="2" r="1.25" />
-                <circle cx="9" cy="2" r="1.25" />
-                <circle cx="16" cy="2" r="1.25" />
-                <circle cx="2" cy="6" r="1.25" />
-                <circle cx="9" cy="6" r="1.25" />
-                <circle cx="16" cy="6" r="1.25" />
-              </svg>
+              <GripIcon />
             </button>
             <div style={{ minWidth: 0 }}>
               <strong style={{ display: "block" }}>{name}</strong>

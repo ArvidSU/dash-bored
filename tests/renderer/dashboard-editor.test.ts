@@ -11,13 +11,11 @@ import {
   countNodes,
   createNode,
   insertNode,
-  managedChildEdges,
   moveNode,
   nodePathById,
   removeNode,
   replaceRoot,
   updateChildMetadata,
-  updateDashboardMetadata,
   updateNodeProps,
   updateNodePersistOnFocus,
   updateTiledSplitRatio,
@@ -159,7 +157,7 @@ describe("dashboard editor tree operations", () => {
       parentPath: [],
       placement: { type: "managed", index: 1, metadata: { label: "Settings" } },
     }, leaf("settings"), catalog);
-    expect(managedChildEdges(inserted.root).map((edge) => edge.metadata?.label)).toEqual([
+    expect(childEdges(inserted.root.children).map((edge) => edge.metadata?.label)).toEqual([
       "Overview", "Settings", "Logs",
     ]);
 
@@ -168,14 +166,14 @@ describe("dashboard editor tree operations", () => {
       parentPath: [],
       placement: { type: "managed", index: 3 },
     }, catalog);
-    expect(managedChildEdges(moved.root).map((edge) => [edge.node.id, edge.metadata?.label])).toEqual([
+    expect(childEdges(moved.root.children).map((edge) => [edge.node.id, edge.metadata?.label])).toEqual([
       ["settings", "Preferences"],
       ["logs", "Logs"],
       ["overview", "Overview"],
     ]);
   });
 
-  test("updates layout ratios, props, metadata, and dashboard identity immutably", () => {
+  test("updates layout ratios, props, and metadata immutably", () => {
     const resized = updateTiledSplitRatio(config(), [], [], 0.63);
     if (resized.root.children === undefined || Array.isArray(resized.root.children) || !("axis" in resized.root.children)) {
       throw new Error("expected split");
@@ -189,14 +187,6 @@ describe("dashboard editor tree operations", () => {
     expect((persistent.root.children as { second: { node: ComponentNode } }).second.node.persistOnFocus).toBeTrue();
     const ordinary = updateNodePersistOnFocus(persistent, [{ type: "tiled", path: ["second"] }], false);
     expect((ordinary.root.children as { second: { node: ComponentNode } }).second.node.persistOnFocus).toBeUndefined();
-
-    const renamed = updateDashboardMetadata(config(), "name", "New dashboard");
-    const icon = updateDashboardMetadata(renamed, "icon", " ./icon.svg ");
-    const themed = updateDashboardMetadata(icon, "themeMode", "light");
-    expect(themed).toMatchObject({ name: "New dashboard", icon: "./icon.svg", themeMode: "light" });
-    const inherited = updateDashboardMetadata(themed, "themeMode", "");
-    expect(inherited.themeMode).toBeUndefined();
-    expect(config().name).toBe("Editor");
   });
 
   test("rejects resizing vertical document flow without changing the draft", () => {

@@ -1,8 +1,8 @@
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { join } from 'node:path';
 import Ajv from 'ajv';
-import { parseDocument } from 'yaml';
+import { containedPackageDirectory, parsePackageYaml, readPackageFile, scanPackageDirectory, type YamlPackageKind } from './yaml-package';
 import {
   ANIMATION_SCHEMA,
   animationProblems,
@@ -15,20 +15,13 @@ import {
 import { childEdges } from '../shared/child-edges';
 import type { ProjectSnapshot, ResolvedComponentNode } from '../shared/contracts';
 
-const MAX_ANIMATION_BYTES = 32 * 1024;
-
 /** Shared by the agent tool and every desktop channel, beside personal themes. */
 export function personalAnimationsDirectory(): string { return join(homedir(), '.config', 'dash-bored', 'animations'); }
 
-const validate = new Ajv({ allErrors: true, strict: false }).compile(ANIMATION_SCHEMA);
+const ANIMATION_PACKAGE: YamlPackageKind = { file: 'animation.yaml', maxBytes: 32 * 1024, validate: new Ajv({ allErrors: true, strict: false }).compile(ANIMATION_SCHEMA) };
 
 export function parseAnimation(source: string): AnimationManifest {
-  if (Buffer.byteLength(source) > MAX_ANIMATION_BYTES) throw new Error('animation.yaml exceeds 32 KiB.');
-  const doc = parseDocument(source, { uniqueKeys: true, strict: true });
-  if (doc.errors.length || doc.warnings.length) throw new Error([...doc.errors, ...doc.warnings].map((e) => e.message).join('; '));
-  const value: unknown = doc.toJS({ maxAliasCount: 0 });
-  if (!validate(value)) throw new Error(`Invalid animation.yaml: ${new Ajv().errorsText(validate.errors)}`);
-  const manifest = value as unknown as AnimationManifest;
+  const manifest = parsePackageYaml(ANIMATION_PACKAGE, source) as AnimationManifest;
   const problems = animationProblems(manifest);
   if (problems.length) throw new Error(`Invalid animation.yaml: ${problems.join(' ')}`);
   return manifest;
@@ -36,41 +29,23 @@ export function parseAnimation(source: string): AnimationManifest {
 
 /** Read one package directory; `animation.yaml` must be a contained regular file. */
 export async function readAnimation(directory: string): Promise<AnimationManifest> {
-  const root = await realpath(directory);
-  const file = await realpath(join(root, 'animation.yaml'));
-  if (relative(root, file) !== 'animation.yaml') throw new Error('animation.yaml must be contained in its package.');
-  const info = await stat(file);
-  if (!info.isFile() || info.size > MAX_ANIMATION_BYTES) throw new Error('animation.yaml must be a regular file of at most 32 KiB.');
-  return parseAnimation(await readFile(file, 'utf8'));
+  return parseAnimation(await readPackageFile(ANIMATION_PACKAGE, await realpath(directory)));
 }
 
 async function readContained(root: string, directory: string): Promise<AnimationManifest> {
-  const [canonicalRoot, canonicalDirectory] = await Promise.all([realpath(root), realpath(directory)]);
-  const rel = relative(canonicalRoot, canonicalDirectory);
-  if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(canonicalRoot, rel) !== canonicalDirectory) {
-    throw new Error('Animation directory escapes its installation root.');
-  }
-  return readAnimation(canonicalDirectory);
+  return readAnimation(await containedPackageDirectory(root, directory, 'Animation'));
 }
 
 async function scanAnimations(catalog: AnimationCatalogItem[], root: string, directory: string, prefix: string): Promise<void> {
-  let entries;
-  try { entries = await readdir(directory, { withFileTypes: true }); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-    catalog.push({ reference: prefix, name: prefix, error: String(error) });
-    return;
-  }
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(entry.name) || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
-    const reference = `${prefix}${entry.name}`;
+  await scanPackageDirectory(catalog, directory, prefix, async (name) => {
+    const reference = `${prefix}${name}`;
     try {
-      const manifest = await readContained(root, join(directory, entry.name));
+      const manifest = await readContained(root, join(directory, name));
       catalog.push({ reference, name: manifest.name, manifest });
     } catch (error) {
       catalog.push({ reference, name: reference, error: error instanceof Error ? error.message : String(error) });
     }
-  }
+  });
 }
 
 /** Built-ins, personal `global:` packages, and the bundle's `./animations/<name>` packages. */

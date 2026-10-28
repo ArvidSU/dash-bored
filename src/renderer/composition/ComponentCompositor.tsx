@@ -10,7 +10,6 @@ import type {
 import { layoutBranchKey, layoutStructureKey, type LayoutBranch } from "../lib/component-children";
 import { SplitLayout } from "../render/SplitLayout";
 import {
-  DEFAULT_SPLIT_MIN_PX,
   effectiveSplitRatio,
   normalizeSplitRatio,
   type SplitRatioOverrides,
@@ -105,13 +104,8 @@ export function composeComponentChildren({
         second={renderLayout(layout.second, [...path, "second"])}
         ratio={effectiveSplitRatio(defaultRatio, runtimeOverride)}
         defaultRatio={defaultRatio}
-        minFirstPx={DEFAULT_SPLIT_MIN_PX}
-        minSecondPx={DEFAULT_SPLIT_MIN_PX}
-        resizable={layout.axis === "horizontal"}
         label={`${childDisplayName(node)} ${path.length ? path.join(" ") : "root"} tiles`}
-        onRatioChange={layout.axis === "horizontal"
-          ? (ratio) => onSplitRatioChange(branchKey, defaultRatio, ratio, node, path)
-          : undefined}
+        onRatioChange={(ratio) => onSplitRatioChange(branchKey, defaultRatio, ratio, node, path)}
         onRatioReset={() => onSplitRatioChange(branchKey, defaultRatio, null, node, path)}
       />
     );

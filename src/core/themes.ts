@@ -1,10 +1,11 @@
 import { validateDashboardLockValue } from './yaml';
 import type { DashboardLock } from '../shared/contracts';
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { join } from 'node:path';
 import Ajv from 'ajv';
 import { parseDocument } from 'yaml';
+import { containedPackageDirectory, parsePackageYaml, readPackageFile, scanPackageDirectory, type YamlPackageKind } from './yaml-package';
 import { BUILTIN_THEMES, projectThemeReference, THEME_SCHEMA, type ThemeCatalogItem, type ThemeManifest } from '../shared/themes';
 
 /** Shared by the agent tool and every desktop channel; independent of Electrobun's instance ID. */
@@ -14,14 +15,9 @@ export interface ApplicationThemeSource {
   configDirectory: string;
   label?: string | null;
 }
-const validate = new Ajv({ allErrors: true, strict: false }).compile(THEME_SCHEMA);
+const THEME_PACKAGE: YamlPackageKind = { file: 'theme.yaml', maxBytes: 64 * 1024, validate: new Ajv({ allErrors: true, strict: false }).compile(THEME_SCHEMA) };
 export function parseTheme(source: string): ThemeManifest {
-  if (Buffer.byteLength(source) > 64 * 1024) throw new Error('theme.yaml exceeds 64 KiB.');
-  const doc = parseDocument(source, { uniqueKeys: true, strict: true });
-  if (doc.errors.length || doc.warnings.length) throw new Error([...doc.errors, ...doc.warnings].map((e) => e.message).join('; '));
-  const value: unknown = doc.toJS({ maxAliasCount: 0 });
-  if (!validate(value)) throw new Error(`Invalid theme.yaml: ${new Ajv().errorsText(validate.errors)}`);
-  return value as unknown as ThemeManifest;
+  return parsePackageYaml(THEME_PACKAGE, source) as ThemeManifest;
 }
 export function parseThemeLock(source: string, file: string): { value: DashboardLock | null; diagnostics: string[]; invalidYaml: boolean } {
   const doc = parseDocument(source, { uniqueKeys: true });
@@ -31,39 +27,19 @@ export function parseThemeLock(source: string, file: string): { value: Dashboard
   return diagnostics.length ? { value: null, diagnostics, invalidYaml: false } : { value, diagnostics: [], invalidYaml: false };
 }
 export async function readTheme(directory: string): Promise<ThemeManifest> {
-  const root = await realpath(directory);
-  return readThemeAt(root);
-}
-async function readThemeAt(root: string): Promise<ThemeManifest> {
-  const file = await realpath(join(root, 'theme.yaml'));
-  if (relative(root, file) !== 'theme.yaml') throw new Error('theme.yaml must be contained in its package.');
-  const info = await stat(file);
-  if (!info.isFile() || info.size > 64 * 1024) throw new Error('theme.yaml must be a regular file of at most 64 KiB.');
-  return parseTheme(await readFile(file, 'utf8'));
+  return parseTheme(await readPackageFile(THEME_PACKAGE, await realpath(directory)));
 }
 async function itemAt(root: string, directory: string, reference: string): Promise<ThemeCatalogItem> {
   try {
-    const [rootResult, directoryResult] = await Promise.allSettled([realpath(root), realpath(directory)]);
-    // Keep the old validation order when both independent paths fail.
-    if (rootResult.status === 'rejected') throw rootResult.reason;
-    if (directoryResult.status === 'rejected') throw directoryResult.reason;
-    const canonicalRoot = rootResult.value;
-    const canonicalDirectory = directoryResult.value;
-    const rel = relative(canonicalRoot, canonicalDirectory);
-    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(canonicalRoot, rel) !== canonicalDirectory) throw new Error('Theme directory escapes its installation root.');
-    const manifest = await readThemeAt(canonicalDirectory);
+    const manifest = await readTheme(await containedPackageDirectory(root, directory, 'Theme'));
     return { reference, name: manifest.name, manifest };
   } catch (error) { return { reference, name: reference, error: error instanceof Error ? error.message : String(error) }; }
 }
 async function scanThemes(catalog: ThemeCatalogItem[], root: string, directory: string, prefix: string): Promise<void> {
-  let entries;
-  try { entries = await readdir(directory, { withFileTypes: true }); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; catalog.push({ reference: prefix, name: prefix, error: String(error) }); return; }
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(entry.name) || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
-    if (entry.name === 'external' && prefix === './themes/') { await scanThemes(catalog, root, join(directory, entry.name), './themes/external/'); continue; }
-    catalog.push(await itemAt(root, join(directory, entry.name), `${prefix}${entry.name}`));
-  }
+  await scanPackageDirectory(catalog, directory, prefix, async (name) => {
+    if (name === 'external' && prefix === './themes/') await scanThemes(catalog, root, join(directory, name), './themes/external/');
+    else catalog.push(await itemAt(root, join(directory, name), `${prefix}${name}`));
+  });
 }
 
 // Read catalog pins and personal pins through one parser. Callers retain their

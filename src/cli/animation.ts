@@ -1,5 +1,5 @@
-import { mkdir, realpath, writeFile } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
+import { createPackage } from '../core/yaml-package';
+import { join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import { loadAnimationCatalog, personalAnimationsDirectory, readAnimation } from '../core/animations';
 import { resolveProjectLocation } from '../core/paths';
@@ -52,12 +52,7 @@ export async function runAnimationCommand(args: string[]): Promise<number> {
         if (extra.length || (global && positional.length > 1)) throw new Error('Use one project target, or --global.');
         const boundary = global ? personalAnimationsDirectory() : (await resolveProjectLocation(project)).configDirectory;
         const root = global ? boundary : join(boundary, 'animations');
-        await mkdir(root, { recursive: true });
-        const rel = relative(await realpath(boundary), await realpath(root));
-        if (rel === '..' || rel.startsWith(`..${sep}`)) throw new Error('Animation directory escapes its dashboard bundle.');
-        const directory = join(root, name);
-        await mkdir(directory);
-        await writeFile(join(directory, 'animation.yaml'), stringify(starter(name)), { flag: 'wx' });
+        const directory = await createPackage(boundary, root, name, 'Animation', 'animation.yaml', stringify(starter(name)));
         result = { directory, reference: global ? `global:${name}` : `./animations/${name}` };
         break;
       }

@@ -18,7 +18,7 @@ import {
   withPackageStore,
   writePackageLock,
 } from "./package-store";
-import { resolveProjectLocation, type ProjectLocation } from "./paths";
+import { exists, resolveProjectLocation, type ProjectLocation } from "./paths";
 import { EXTERNAL_NAME_PATTERN } from "./tree-catalog";
 
 /**
@@ -131,16 +131,6 @@ function lockEntryOrThrow(lock: DashboardLock, name: string): ExternalComponentL
   return entry;
 }
 
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
-}
-
 async function isDirty(checkout: string): Promise<boolean> {
   return (await componentGit(checkout, ["status", "--porcelain"], 15_000)).length > 0;
 }
@@ -164,7 +154,7 @@ export async function addComponent(
       );
     }
     const targetDirectory = targetDirectoryFor(location, name);
-    if (await pathExists(targetDirectory)) {
+    if (await exists(targetDirectory, stat)) {
       throw new CoreError(
         "COMPONENT_TARGET_EXISTS",
         `${targetDirectory} already exists. Remove it or pick another name with --name.`,
@@ -334,7 +324,7 @@ export async function syncComponents(projectInput: string, options: { missingOnl
       const current = await checkedOutCommit(checkout);
       if (current !== null && options.missingOnly) continue;
       if (current === null) {
-        if (await pathExists(checkout)) {
+        if (await exists(checkout, stat)) {
           if ((await readdir(checkout)).length) {
             if (!await hasMissingManagedMetadata(store,checkout)) throw new CoreError("COMPONENT_TARGET_EXISTS", `Unmanaged files at ${checkout}; refusing to overwrite them.`);
           } else await rm(checkout, { recursive: true });

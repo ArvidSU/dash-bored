@@ -1,6 +1,5 @@
 import {
   lstat,
-  mkdir,
   rm,
   rmdir,
   stat,
@@ -22,8 +21,10 @@ import { CONFIG_DIRECTORY } from "../shared/contracts";
 import { INSTALL_APP_SCRIPT, projectReadme } from "./project-readme";
 import {
   assertProjectLocationContained,
+  ensureDirectory,
   parseConfigName,
   resolveConfigBundleLocation,
+  requireDirectory,
   resolveProjectLocation,
   type ProjectLocation,
   type ResolveProjectLocationOptions,
@@ -53,38 +54,6 @@ interface CreateProjectFilesOptions {
 }
 
 export type EnsureProjectFilesOptions = ResolveProjectLocationOptions;
-
-async function requireProjectDirectory(path: string): Promise<void> {
-  let info;
-  try {
-    info = await stat(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Project directory does not exist: ${path}`);
-    }
-    throw error;
-  }
-  if (!info.isDirectory()) {
-    throw new Error(`Project path is not a directory: ${path}`);
-  }
-}
-
-async function ensureDirectory(path: string, label: string): Promise<boolean> {
-  try {
-    const info = await lstat(path);
-    if (info.isSymbolicLink()) {
-      throw new Error(`${label} must not be a symbolic link: ${path}`);
-    }
-    if (!info.isDirectory()) {
-      throw new Error(`${label} is not a directory: ${path}`);
-    }
-    return false;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    await mkdir(path);
-    return true;
-  }
-}
 
 async function existingFile(path: string, label: string): Promise<boolean> {
   try {
@@ -132,7 +101,7 @@ async function createProjectFilesAtLocation(
   location: ProjectLocation,
   existingFiles: CreateProjectFilesOptions["existingFiles"],
 ): Promise<ProjectFilesResult> {
-  await requireProjectDirectory(location.projectRoot);
+  await requireDirectory(location.projectRoot, "Project");
 
   await ensureDirectory(location.configDirectory, "dash-bored directory");
   const componentsDirectory = await ensureDirectory(

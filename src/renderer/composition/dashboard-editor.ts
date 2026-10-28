@@ -384,36 +384,6 @@ export function updateTiledSplitRatio(
   return next;
 }
 
-export type DashboardMetadataField = "name" | "icon" | "theme" | "themeMode";
-
-export function updateDashboardMetadata(
-  config: DashboardConfig,
-  field: "name" | "icon" | "theme",
-  value: string,
-): DashboardConfig;
-export function updateDashboardMetadata(
-  config: DashboardConfig,
-  field: "themeMode",
-  value: DashboardConfig["themeMode"] | "",
-): DashboardConfig;
-export function updateDashboardMetadata(
-  config: DashboardConfig,
-  field: DashboardMetadataField,
-  value: string | DashboardConfig["themeMode"] | undefined,
-): DashboardConfig {
-  const next = structuredClone(config);
-  if (field === "name") {
-    next.name = value as string;
-  } else if (value === undefined || value.trim().length === 0) {
-    delete next[field];
-  } else if (field === "themeMode") {
-    next.themeMode = value as DashboardConfig["themeMode"];
-  } else {
-    next[field] = value.trim();
-  }
-  return next;
-}
-
 export function countNodes(node: ComponentNode): number {
   return 1 + childEdges(node.children).reduce((sum, edge) => sum + countNodes(edge.node), 0);
 }
@@ -466,8 +436,4 @@ export function defaultChildMetadata(
     else if (name === "label") metadata[name] = `Item ${index + 1}`;
   }
   return metadata;
-}
-
-export function managedChildEdges(node: ComponentNode): ComponentChildEdge[] {
-  return Array.isArray(node.children) ? node.children : [];
 }

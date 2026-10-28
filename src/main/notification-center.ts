@@ -87,37 +87,22 @@ export class NotificationCenter {
     const title = boundNotificationText(input.title, NOTIFICATION_TITLE_MAX_CHARS) || "dash-bored";
     const message = boundNotificationText(input.message, NOTIFICATION_MESSAGE_MAX_CHARS);
     const existing = this.entries.find((entry) => entry.key === input.key);
-    const entry: NotificationEntry = existing
-      ? {
-          ...existing,
-          kind: input.kind,
-          // A coalesced raise never quietly downgrades an open interrupt.
-          level: existing.level === "interrupt" ? "interrupt" : level,
-          dashboardName: input.dashboardName,
-          title,
-          message,
-          target: input.target,
-          ...(input.action ? { action: input.action } : {}),
-          updatedAt: now.toISOString(),
-          count: existing.count + 1,
-        }
-      : {
-          id: this.newId(),
-          key: input.key,
-          kind: input.kind,
-          level,
-          configPath: input.configPath,
-          dashboardName: input.dashboardName,
-          title,
-          message,
-          target: input.target,
-          ...(input.action ? { action: input.action } : {}),
-          createdAt: now.toISOString(),
-          updatedAt: now.toISOString(),
-          count: 1,
-          presentation: 0,
-          read: false,
-        };
+    const base = existing ?? {
+      id: this.newId(), key: input.key, configPath: input.configPath, createdAt: now.toISOString(), count: 0, presentation: 0, read: false,
+    };
+    const entry: NotificationEntry = {
+      ...base,
+      kind: input.kind,
+      // A coalesced raise never quietly downgrades an open interrupt.
+      level: existing?.level === "interrupt" ? "interrupt" : level,
+      dashboardName: input.dashboardName,
+      title,
+      message,
+      target: input.target,
+      ...(input.action ? { action: input.action } : {}),
+      updatedAt: now.toISOString(),
+      count: base.count + 1,
+    };
     if (!input.action && existing?.action) delete entry.action;
     // Read entries stay read through repeated observations; news makes them unread again.
     if (existing?.read && (existing.title !== title || existing.message !== message)) entry.read = false;

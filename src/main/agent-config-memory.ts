@@ -1,6 +1,5 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { writeFileAtomically } from "../core/fs-atomic";
+import { readFile } from "node:fs/promises";
+import { atomicJson } from "../core/fs-atomic";
 import type { AgentConfigChoices, AgentConfigOption, RememberedAgentConfig } from "../shared/agent-session";
 import { MAX_CONFIG_OPTIONS } from "./agent-session-updates";
 
@@ -85,11 +84,8 @@ export class AgentConfigMemory {
     entries.delete(command);
     entries.set(command, entry);
     for (const stale of [...entries.keys()].slice(0, Math.max(0, entries.size - MAX_REMEMBERED_AGENTS))) entries.delete(stale);
-    const contents = `${JSON.stringify({ version: VERSION, agents: Object.fromEntries(entries) }, null, 2)}\n`;
-    const write = async () => {
-      await mkdir(dirname(this.path), { recursive: true });
-      await writeFileAtomically(this.path, contents, { mode: 0o600 });
-    };
+    const contents = { version: VERSION, agents: Object.fromEntries(entries) };
+    const write = () => atomicJson(this.path, contents);
     this.writeQueue = this.writeQueue.then(write, write).catch((error: unknown) => {
       console.error("Could not remember agent config options.", error);
     });

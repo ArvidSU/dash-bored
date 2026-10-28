@@ -9,7 +9,7 @@ import { runThemeCommand } from "./theme";
 import { runAnimationCommand } from "./animation";
 import { initializeProject } from "./init-project";
 import { inspectProject } from "../core/index";
-import { runComponentCommand } from "./component";
+import { COMPONENT_COMMAND_LINES, runComponentCommand } from "./component";
 import { runAppCommand } from "./app";
 import { printJson } from "./print-json";
 import { runMigrateCommand } from "./migrate";
@@ -40,19 +40,7 @@ Usage:
   dash-bored app <status|actions|run|open|screenshot|processes|wait|logs|read> [--instance <identifier>]
   dash-bored theme <init|validate|list|status|add|update|remove|sync> [--global]
   dash-bored animation <init|validate|list> [--global]
-  dash-bored component api [--api-version <version>] [--json]
-  dash-bored component init <directory>
-  dash-bored component setup <directory> [--tsconfig <file>]
-  dash-bored component check <directory> [--source-project <file>] [--json]
-  dash-bored component prepare <directory> --dependency <package> --output <relative.js>
-  dash-bored component add <url> [--name <name>] [--ref <ref>] [project]
-  dash-bored component list [project]
-  dash-bored component status [<name>] [project]
-  dash-bored component update <name> [--to <ref>] [project]
-  dash-bored component remove <name> [project]
-  dash-bored component sync [project]
-  dash-bored component restore [project]
-  dash-bored component migrate-ownership [project]
+${COMPONENT_COMMAND_LINES}
   dash-bored migrate inspect <dashboard>
   dash-bored --help
   dash-bored --version`;
@@ -77,8 +65,10 @@ function parseCommandArguments(
   let optionsEnabled = true;
   let json = false;
   let global = false;
-  let project = ".";
-  let projectSpecified = false;
+  let project: string | null = null;
+  const result = (fields: Partial<ParsedCommandArguments>): ParsedCommandArguments =>
+    ({ project: ".", configName: ".", json, global, help: false, error: null, ...fields });
+  const fail = (error: string) => result({ error });
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
@@ -86,83 +76,36 @@ function parseCommandArguments(
       optionsEnabled = false;
       continue;
     }
-    if (optionsEnabled && (argument === "--help" || argument === "-h")) {
-      return { project: ".", configName: ".", json: false, global: false, help: true, error: null };
-    }
-    if (optionsEnabled && command === "init" && argument === "--project") {
-      if (projectSpecified) {
-        return { project, configName: ".", json, global, help: false, error: "Option --project may be specified only once." };
-      }
-      const value = args[index + 1];
-      if (value === undefined || value.startsWith("-")) {
-        return { project, configName: ".", json, global, help: false, error: "Option --project requires a path." };
-      }
+    if (optionsEnabled && (argument === "--help" || argument === "-h")) return result({ help: true });
+    if (optionsEnabled && command === "init" && (argument === "--project" || argument.startsWith("--project="))) {
+      if (project !== null) return fail("Option --project may be specified only once.");
+      const value = argument === "--project" ? args[++index] : argument.slice("--project=".length);
+      if (!value || (argument === "--project" && value.startsWith("-"))) return fail("Option --project requires a path.");
       project = value;
-      projectSpecified = true;
-      index += 1;
-      continue;
-    }
-    if (optionsEnabled && command === "init" && argument.startsWith("--project=")) {
-      if (projectSpecified) {
-        return { project, configName: ".", json, global, help: false, error: "Option --project may be specified only once." };
-      }
-      project = argument.slice("--project=".length);
-      if (project === "") {
-        return { project: ".", configName: ".", json, global, help: false, error: "Option --project requires a path." };
-      }
-      projectSpecified = true;
       continue;
     }
     if (optionsEnabled && command === "install-skill" && argument === "--global") {
-      if (global) {
-        return { project: ".", configName: ".", json, global, help: false, error: "Option --global may be specified only once." };
-      }
+      if (global) return fail("Option --global may be specified only once.");
       global = true;
       continue;
     }
-    if (optionsEnabled && argument.startsWith("-")) {
-      if (command === "validate" && argument === "--json") {
-        if (json) {
-          return { project: ".", configName: ".", json, global, help: false, error: "Option --json may be specified only once." };
-        }
-        json = true;
-        continue;
-      }
-      return {
-        project: ".",
-        configName: ".",
-        json,
-        global,
-        help: false,
-        error: `Unknown option for ${command}: ${argument}`,
-      };
+    if (optionsEnabled && command === "validate" && argument === "--json") {
+      if (json) return fail("Option --json may be specified only once.");
+      json = true;
+      continue;
     }
+    if (optionsEnabled && argument.startsWith("-")) return fail(`Unknown option for ${command}: ${argument}`);
     positional.push(argument);
   }
 
-  if (command !== "init" && positional.length > 1) {
-    return {
-      project: ".",
-      configName: ".",
-      json,
-      global,
-      help: false,
-      error: `${command} accepts at most one project path.`,
-    };
+  if (command === "init") {
+    return result({ project: project ?? ".", configName: positional.length === 0 ? "." : positional.join("/") });
   }
+  if (positional.length > 1) return fail(`${command} accepts at most one project path.`);
   if (command === "install-skill" && global && positional.length > 0) {
-    return {
-      project: ".",
-      configName: ".",
-      json,
-      global,
-      help: false,
-      error: "install-skill --global does not accept a project path.",
-    };
+    return fail("install-skill --global does not accept a project path.");
   }
-  return command === "init"
-    ? { project, configName: positional.length === 0 ? "." : positional.join("/"), json, global, help: false, error: null }
-    : { project: positional[0] ?? ".", configName: ".", json, global, help: false, error: null };
+  return result({ project: positional[0] ?? "." });
 }
 
 async function inspect(path: string, compile: boolean): Promise<InspectResult> {
@@ -207,6 +150,9 @@ async function main(): Promise<number> {
   await warnOnSkillVersionMismatch();
   if (command === "migrate") return runMigrateCommand(args.slice(1));
   if (command === "app") return runAppCommand(args.slice(1));
+  if (command === "theme") return runThemeCommand(args.slice(1));
+  if (command === "animation") return runAnimationCommand(args.slice(1));
+  if (command === "component") return runComponentCommand(args.slice(1));
 
   const commandArgs = args.slice(1);
   const checkIndex = command === "install-skill" ? commandArgs.indexOf("--check") : -1;
@@ -233,9 +179,6 @@ async function main(): Promise<number> {
     }
   }
   const parsed = parseCommandArguments(command, commandArgs);
-  if (command === "theme") return runThemeCommand(args.slice(1));
-  if (command === "animation") return runAnimationCommand(args.slice(1));
-  if (command === "component") return runComponentCommand(args.slice(1));
   if (parsed.help) {
     console.log(usage());
     return 0;

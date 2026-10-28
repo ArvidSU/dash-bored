@@ -3,7 +3,6 @@ import type { AgentCommandOptions, AgentSessionState, AgentSessionTask } from ".
 import {
   AGENT_TASK_LIMIT,
   agentDisplayPath,
-  agentEditSummary,
   agentLocationLabel,
   agentStateNeedsUser,
   agentTaskSummary,
@@ -48,8 +47,6 @@ describe("agent task presentation", () => {
     const config = "/work/app/.dash-bored/dash-bored.yaml";
     expect(agentDisplayPath("/work/app/src/a.ts", config)).toBe("src/a.ts");
     expect(agentDisplayPath("/elsewhere/a.ts", config)).toBe("/elsewhere/a.ts");
-    expect(agentEditSummary({ path: "/work/app/.dash-bored/dash-bored.yaml", added: 4, removed: 1 }, config))
-      .toBe(".dash-bored/dash-bored.yaml +4 −1");
     expect(agentLocationLabel({ path: "/work/app/README.md", line: 12 }, config)).toBe("README.md:12");
   });
 

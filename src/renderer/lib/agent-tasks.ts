@@ -180,11 +180,6 @@ export function agentDisplayPath(path: string, configPath: string): string {
   return path.startsWith(root) && path.length > root.length ? path.slice(root.length) : path;
 }
 
-/** `path +N −M`, the app's whole representation of an edit. */
-export function agentEditSummary(edit: { path: string; added: number; removed: number }, configPath = ""): string {
-  return `${agentDisplayPath(edit.path, configPath)} +${edit.added} −${edit.removed}`;
-}
-
 export function agentLocationLabel(location: { path: string; line?: number }, configPath = ""): string {
   const path = agentDisplayPath(location.path, configPath);
   return location.line === undefined ? path : `${path}:${location.line}`;

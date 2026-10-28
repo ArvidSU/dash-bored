@@ -14,6 +14,7 @@ import {
   agentValidationTone,
   isAgentSessionOpen,
 } from "../lib/agent-tasks";
+import { errorMessage } from "../app/app-utils";
 import { AgentConfigControl } from "./AgentConfigControl";
 import { AgentSession } from "./AgentSession";
 import { AgentStateChip, AgentValidationChip } from "./AgentStatus";
@@ -23,10 +24,6 @@ type AgentModalTab = "session" | "prompt";
 const AGENT_MODAL_TABS: readonly AgentModalTab[] = ["session", "prompt"];
 
 export type AgentTaskCommandRunner = (taskId: string, command: AgentTaskCommand) => Promise<AgentSessionTask>;
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 /** The row's accessible name: state and request, then validation and hand-off. */
 function agentTaskRowLabel(task: AgentSessionTask): string {
