@@ -64,6 +64,7 @@ jobs:
           certificate="$RUNNER_TEMP/release-signing.p12"
           printf '%s' "$SIGNING_CERTIFICATE_P12" | base64 --decode > "$certificate"
           security create-keychain -p "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain"
           security set-keychain-settings -lut 3600 "$keychain"
           security unlock-keychain -p "$keychain_password" "$keychain"
           security import "$certificate" -k "$keychain" -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
