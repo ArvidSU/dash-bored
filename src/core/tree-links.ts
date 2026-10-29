@@ -110,6 +110,13 @@ export function namespaceLinkedTree(
         }
       }
     }
+    // Initial selection names a child node. Read the original prop so a
+    // declaration that also treats it as a resource reference maps it once.
+    const defaultChildProp = node.manifest?.children?.defaultChildProp;
+    const defaultChild = defaultChildProp ? node.props[defaultChildProp] : undefined;
+    if (defaultChildProp && typeof defaultChild === "string") {
+      props[defaultChildProp] = ids.get(defaultChild) ?? defaultChild;
+    }
     // A watch's action names nodes like any action reference.
     const watch = node.watch === undefined ? undefined : structuredClone(node.watch);
     if (watch?.action && typeof watch.action.run === "string") {

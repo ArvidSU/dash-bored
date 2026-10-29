@@ -166,7 +166,9 @@ export function NodeRenderer({ node }: { node: ResolvedComponentNode }): ReactNo
       </div>
     ) : (
       <div className="config-link__content">
-        {renderedChildren?.type === "tiled" ? renderedChildren.surface : null}
+        {renderedChildren?.type === "managed"
+          ? renderedChildren.items.map((child) => child.render())
+          : renderedChildren?.type === "tiled" ? renderedChildren.surface : null}
       </div>
     );
   } else {

@@ -187,7 +187,8 @@ Composition rules:
   unknown IDs.
 - A `group` with a `title` frames two or more related panels. Never wrap a
   single panel in one: it only adds a frame, and validation does not catch it.
-- Don't add core components marked `retiring` in `inspect --summary` or
+- Don't add components marked `retiring` in `inspect --summary`,
+  `inspect --component <ref>`, or
   [references/builtins.md](references/builtins.md); use the replacement named
   there. Leave existing uses alone unless asked.
 - Paths in props (`path`, `cwd`, source `file`, script paths) are relative to

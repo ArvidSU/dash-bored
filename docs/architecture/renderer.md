@@ -302,7 +302,9 @@ node. Copy uses an unambiguous locator such as
 `/project/.dash-bored/dash-bored.yaml#root.children.first.node`.
 Resolved nodes
 retain both the canonical owning YAML and their YAML-style path, including
-nodes reached through standalone config links.
+nodes reached through standalone config links. A config link renders its
+managed child through the compositor's child handle, preserving descendant
+visibility and trust boundaries.
 
 Collapse state is renderer-owned presentation state, persisted locally per
 dashboard config path and resolved node ID. It is not a component prop, a YAML
@@ -503,8 +505,9 @@ shared modal is mounted, including modal-chrome gestures in native WebKit.
 Removing the final modal restores page scrolling. Shared modal focus setup and
 restoration run only on mount and unmount, using the current dismiss callback
 without stealing focus during task updates. Deferred initial focus preserves
-any control the user or a child already focused inside the modal. The Agent
-work panel and the
+any control the user or a child already focused inside the modal. The
+frontmost modal wraps Tab and Shift-Tab between its visible, enabled controls;
+Escape dismisses only that modal. The Agent work panel and the
 component library flyout are mutually exclusive right-side drawers sharing one
 shell (`lib/right-drawer.tsx`: slide transition, outside/Escape dismiss,
 optional initial focus and focus restore, and unified header/body geometry
@@ -1037,10 +1040,24 @@ found by ID, preserving source order within priority groups.
 
 The renderer fixture uses the shipped status manifest so source-backed status
 refreshes receive the same props, action, and permission contract as the app.
+Its host models the terminal lifetime separately from each command run. Tests
+publish deterministic run completion without spawning a shell, proving exit
+badges, repeat runs, process-bound status, and item-action feedback through the
+real renderer.
+
+The project dashboard's configuration-health source uses compact inspection
+without compilation or semantic source checks, keeping its recurring status
+observation bounded. The explicit Validate command performs the full checks.
 
 The renderer has no built-in component registry or rendering branch. Core is
 compiled and loaded by `render/local-components.tsx` through the same blob-module
-and CSS lifecycle as other external code. Terminal rendering lives in the
+and CSS lifecycle as other external code. Effect replay can retain loaded
+component code after removing its style tags; the loader reattaches retained
+styles before skipping an unchanged revision. A failed replacement keeps the
+previous successful code and CSS, while a real unmount removes the tags.
+Real filesystem-watcher regressions cover config and lock-only saves retaining
+mounted state and CSS, and CSS-only source saves replacing the stylesheet.
+Terminal rendering lives in the
 component package. The webview host defaults to an iframe with browser sandbox
 restrictions; Electrobun bridge isolation remains an accepted temporary risk.
 Explicit native compatibility mode measures

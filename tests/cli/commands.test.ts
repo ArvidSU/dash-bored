@@ -103,6 +103,40 @@ describe("dash-bored command arguments", () => {
     expect(otherAction.stderr).toContain("--query is only supported with app:open-palette.");
   });
 
+  test("app screenshot rejects conflicting capture modes and orphan keep-focus before contacting the app", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+
+    for (const [options, message] of [
+      [["--node", "logs", "--focus", "overview"], "--node and --focus cannot be combined"],
+      [["--keep-focus"], "--keep-focus requires --focus"],
+      [["--node", "logs", "--keep-focus"], "--keep-focus requires --focus"],
+    ] as const) {
+      const result = await run(project, "app", "screenshot", ...options, "--instance", "nonexistent-capture-validation-test");
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(message);
+      expect(result.stdout).toBe("");
+    }
+  });
+
+  test("app screenshot options are rejected on actions instead of silently ignored", async () => {
+    const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
+    temporaryDirectories.push(project);
+
+    for (const options of [
+      ["--node", "logs"],
+      ["--focus", "logs"],
+      ["--output", "capture.png"],
+      ["--keep-focus"],
+    ]) {
+      const result = await run(project, "app", "run", "process:tests", ...options, "--instance", "nonexistent-capture-validation-test");
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(`${options[0]} is only supported with app screenshot.`);
+      expect(result.stdout).toBe("");
+    }
+    expect(await exists(join(project, "capture.png"))).toBeFalse();
+  });
+
   test("init accepts a named config and explicit project path", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "dash-bored-cli-"));
     const project = await mkdtemp(join(tmpdir(), "dash-bored-cli-project-"));
@@ -317,7 +351,7 @@ test("bounded inspect preserves diagnostics and exposes only requested schemas",
   expect((await run(project, "inspect", ".", "--summary", "--summary")).exitCode).toBe(2);
 }, 15_000);
 
-test("inspect summary reports deprecation metadata for an unrelated local component", async () => {
+test("inspect summary and component detail report deprecation metadata for an unrelated local component", async () => {
   const project = await mkdtemp(join(tmpdir(), "dash-bored-deprecated-inspect-"));
   temporaryDirectories.push(project);
   const configDirectory = join(project, ".dash-bored");
@@ -371,6 +405,18 @@ test("inspect summary reports deprecation metadata for an unrelated local compon
   expect(current).toBeDefined();
   expect(current).not.toHaveProperty("retiring");
   expect(current).not.toHaveProperty("replacement");
+  const detail = await run(project, "inspect", ".", "--component", "./components/unrelated-widget");
+  expect(detail.exitCode, `${detail.stdout}\n${detail.stderr}`).toBe(0);
+  expect(JSON.parse(detail.stdout).component).toMatchObject({
+    reference: "./components/unrelated-widget",
+    retiring: true,
+    replacement: "./components/vendor/new-widget",
+    manifest: { propsSchema: { type: "object" } },
+  });
+  const currentDetail = await run(project, "inspect", ".", "--component", "./components/current-widget");
+  expect(currentDetail.exitCode, `${currentDetail.stdout}\n${currentDetail.stderr}`).toBe(0);
+  expect(JSON.parse(currentDetail.stdout).component).not.toHaveProperty("retiring");
+  expect(JSON.parse(currentDetail.stdout).component).not.toHaveProperty("replacement");
 }, 15_000);
 
 test("inspect summary discovers bundle overrides, scope, input and declared variables without prompt bodies or environment values", async () => {

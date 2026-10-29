@@ -549,6 +549,8 @@ export function createUiHarnessHost(): UiHarnessHost {
     return structuredClone(notifications.entries[0]!);
   };
   const processSnapshots = new Map<string, ProcessSnapshot>();
+  let processIds = 1000;
+  let processClock = 0;
   const files = new Map<string, string>([
     ["README.md", "# Fixture document\n\nThis file is loaded by the Markdown component.\n"],
     [".dash-bored/.env", "DASH_BORED_AGENT=bundle-agent\n"],
@@ -829,15 +831,44 @@ export function createUiHarnessHost(): UiHarnessHost {
       emitSnapshot();
     },
     async processCommand(nodeId: string, command: ProcessCommand): Promise<ProcessSnapshot> {
+      const current = processSnapshots.get(nodeId)
+        ?? { id: nodeId, phase: "idle" as const, pid: null, exitCode: null, signal: null, logs: [] };
       // Like the desktop host, only commands that change a process push it.
       if (command.type === "write" || command.type === "resize") {
-        return processSnapshots.get(nodeId)
-          ?? { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
+        return structuredClone(current);
       }
-      const process: ProcessSnapshot = { id: nodeId, phase: "idle", pid: null, exitCode: null, signal: null, logs: [] };
-      processSnapshots.set(nodeId, process);
-      emit({ type: "process", process });
-      return process;
+      const active = current.run?.phase === "running" || current.run?.phase === "stopping";
+      const live = current.phase === "running" || current.phase === "stopping";
+      if (command.type === "stop" && !live) return structuredClone(current);
+      if (command.type !== "stop" && (active || current.phase === "stopping" || (command.type === "open" && live))) {
+        throw new Error(`PROCESS_ALREADY_RUNNING: Command ${nodeId} is already running.`);
+      }
+      // No shell is spawned. Tests finish runs with setProcessSnapshot, keeping
+      // the interactive terminal alive just as main's resting shell does.
+      // Monotonic timestamps distinguish successive item invocations even when
+      // a test finishes and restarts them within one wall-clock millisecond.
+      processClock = Math.max(Date.now(), processClock + 1);
+      const now = new Date(processClock).toISOString();
+      let process: ProcessSnapshot;
+      if (command.type === "stop") {
+        const stopping: ProcessSnapshot = { ...current, phase: "stopping",
+          ...(active ? { run: { ...current.run!, phase: "stopping" } } : {}) };
+        processSnapshots.set(nodeId, structuredClone(stopping));
+        emit({ type: "process", process: structuredClone(stopping) });
+        process = { ...current, phase: "exited", pid: null, exitCode: null, signal: "SIGHUP",
+          durationMs: Math.max(0, processClock - Date.parse(current.startedAt ?? now)),
+          ...(active ? { run: { ...current.run!, phase: "exited", exitCode: null, signal: "SIGHUP",
+            durationMs: Math.max(0, processClock - Date.parse(current.run!.startedAt)) } } : {}) };
+      } else {
+        process = { ...current, phase: "running", interactive: true,
+          pid: live ? current.pid : ++processIds, exitCode: null, signal: null,
+          startedAt: live ? current.startedAt : now, logs: live ? current.logs : [] };
+        delete process.durationMs;
+        if (command.type !== "open") process.run = { phase: "running", exitCode: null, signal: null, startedAt: now };
+      }
+      processSnapshots.set(nodeId, structuredClone(process));
+      emit({ type: "process", process: structuredClone(process) });
+      return structuredClone(process);
     },
     async readTextFile(request: FileReadRequest) {
       const content = files.get(request.path);

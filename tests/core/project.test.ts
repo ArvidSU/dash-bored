@@ -7,6 +7,7 @@ import {
   loadProjectDefinition,
   resolveProjectLocation,
 } from "../../src/core";
+import { namespaceLinkedTree } from "../../src/core/tree-links";
 import type {
   ComponentChildLayout,
   ComponentNode,
@@ -352,6 +353,77 @@ describe("project paths and YAML", () => {
 });
 
 describe("tree resolution and local compilation", () => {
+  test("namespaces an initial selection only once when its prop also references a process", () => {
+    const tree: ResolvedComponentNode = {
+      id: "panels",
+      component: "./components/process-selector",
+      source: "local",
+      props: { initialProcess: "details" },
+      manifest: {
+        schemaVersion: 3,
+        apiVersion: "2.0.0",
+        id: "process-selector",
+        name: "Process selector",
+        description: "Selects a process to observe.",
+        entry: "./index.tsx",
+        propsSchema: { type: "object", properties: { initialProcess: { type: "string" } } },
+        permissions: ["process:observe"],
+        children: { min: 1, presentation: { type: "managed" }, select: "single", defaultChildProp: "initialProcess" },
+        references: { initialProcess: { resource: "process" } },
+      },
+      children: ["details", "linked::details"].map((id): { node: ResolvedComponentNode } => ({
+        node: { id, component: "./components/command", source: "local", props: { command: "echo ready" } },
+      })),
+    };
+
+    const namespaced = namespaceLinkedTree(tree, "linked").tree;
+    expect(namespaced.props.initialProcess).toBe("linked::details");
+    expect(namespaceLinkedTree(namespaced, "outer").tree.props.initialProcess).toBe("outer::linked::details");
+    expect(tree.props.initialProcess).toBe("details");
+  });
+
+  test("preserves the configured default selection in each linked bundle occurrence", async () => {
+    const root = await temporaryDirectory();
+    const linked = await temporaryDirectory();
+    cleanup.push(root, linked);
+    await createProject(linked, {
+      schemaVersion: 4,
+      name: "Linked selection",
+      root: {
+        id: "panels",
+        component: "./components/external/core/selection",
+        props: { defaultChild: "details" },
+        children: [
+          { node: { id: "overview", component: "./components/external/core/markdown", props: { content: "Overview" } }, metadata: { label: "Overview" } },
+          { node: { id: "details", component: "./components/external/core/markdown", props: { content: "Details" } }, metadata: { label: "Details" } },
+        ],
+      },
+    });
+    await createProject(root, {
+      schemaVersion: 4,
+      name: "Repeated links",
+      root: {
+        component: "./components/external/core/group",
+        children: tiled([
+          { id: "first", component: join(linked, ".dash-bored") },
+          { id: "second", component: join(linked, ".dash-bored") },
+        ]),
+      },
+    });
+
+    const result = await loadProjectDefinition(root);
+    expect(result.ok).toBeTrue();
+    expect(resolvedChildren(result.tree).map((node) => node.id)).toEqual(["first", "second"]);
+    for (const occurrence of resolvedChildren(result.tree)) {
+      const selection = resolvedChildren(occurrence)[0]!;
+      expect(selection.props.defaultChild).toBe(`${occurrence.id}::details`);
+      expect(resolvedChildren(selection).map((node) => node.id)).toContain(selection.props.defaultChild as string);
+    }
+    const standalone = await loadProjectDefinition(linked);
+    expect(standalone.ok).toBeTrue();
+    expect(standalone.tree?.props.defaultChild).toBe("details");
+  });
+
   test("namespaces action path interpolation inside linked bundles", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);

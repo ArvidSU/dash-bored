@@ -433,6 +433,106 @@ describe("renderer fixture interactions", () => {
     await active.getByRole("button", { name: "Open component library" }).waitFor();
   }, 20_000);
 
+  test("modal Tab navigation stays inside and Escape restores its opener", async () => {
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).click();
+      await proof.waitForFunction(() => document.activeElement === document.querySelector(".right-drawer input[type=search]"));
+      const opener = proof.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Add", exact: true });
+      await opener.focus();
+      await opener.press("Enter");
+      const modal = proof.getByRole("dialog", { name: "Add external component", exact: true });
+      await modal.getByRole("textbox", { name: "Repository URL", exact: true }).fill("https://example.com/components.git");
+      const first = modal.locator(".editor-modal__header").getByRole("button", { name: "Close", exact: true });
+      const last = modal.getByRole("button", { name: "Add component", exact: true });
+      expect(await last.isEnabled()).toBe(true);
+      await last.focus();
+      await proof.keyboard.press("Tab");
+      expect(await first.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Shift+Tab");
+      expect(await last.evaluate((element) => element === document.activeElement)).toBe(true);
+
+      await proof.keyboard.press("Escape");
+      await modal.waitFor({ state: "detached" });
+      expect(await opener.evaluate((element) => element === document.activeElement)).toBe(true);
+      expect(await proof.getByRole("dialog", { name: "Component library" }).count()).toBe(1);
+      expect(await persistedGroupCount(proof)).toBe(0);
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("modal Tab boundary skips a disabled final action", async () => {
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open component library", exact: true }).click();
+      await proof.getByRole("dialog", { name: "Component library" }).getByRole("button", { name: "Add", exact: true }).click();
+      const modal = proof.getByRole("dialog", { name: "Add external component", exact: true });
+      expect(await modal.getByRole("button", { name: "Add component", exact: true }).isDisabled()).toBe(true);
+      const first = modal.locator(".editor-modal__header").getByRole("button", { name: "Close", exact: true });
+      const last = modal.locator(".editor-modal__actions").getByRole("button", { name: "Close", exact: true });
+      await proof.evaluate(() => {
+        // Model macOS WebKit's button-skipping Tab policy. Its default Tab
+        // from the final text field would move into the background shell.
+        window.addEventListener("keydown", (event) => {
+          if (event.key === "Tab" && !event.defaultPrevented && event.target instanceof HTMLInputElement
+            && event.target.getAttribute("aria-label") === "Pin ref (optional)") {
+            event.preventDefault();
+            document.querySelector<HTMLElement>(".composition-library-trigger")?.focus();
+          }
+        });
+      });
+      await modal.getByRole("textbox", { name: "Pin ref (optional)", exact: true }).focus();
+      await proof.keyboard.press("Tab");
+      expect(await last.evaluate((element) => element === document.activeElement)).toBe(true);
+      await last.focus();
+      await proof.keyboard.press("Tab");
+      expect(await first.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Shift+Tab");
+      expect(await last.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Escape");
+      await modal.waitFor({ state: "detached" });
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
+  test("modal Tab navigation includes agent transcript disclosure controls", async () => {
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Open agent work" }).click();
+      await proof.locator('[data-task-id="fixture-working"]').click();
+      const modal = proof.getByRole("dialog", { name: "Agent session", exact: true });
+      const transcript = modal.getByRole("log", { name: "Agent transcript" });
+      const thinking = transcript.locator("summary").first();
+      const close = modal.getByRole("button", { name: "Close", exact: true });
+      await transcript.focus();
+      await proof.keyboard.press("Tab");
+      expect(await thinking.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Tab");
+      expect(await close.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Shift+Tab");
+      expect(await thinking.evaluate((element) => element === document.activeElement)).toBe(true);
+
+      // A new permission moves focus to a non-tabbable heading while its
+      // answer controls settle. That heading is beyond the last Tab stop.
+      await proof.clock.install();
+      await proof.clock.pauseAt(new Date());
+      await proof.evaluate(() => window.__DASH_BORED_UI_HARNESS_HOST__!.requestAgentPermission("fixture-working"));
+      await proof.waitForFunction(() => document.activeElement?.matches(".agent-permission h3") === true);
+      expect(await modal.locator(".agent-permission button:not(:disabled)").count()).toBe(0);
+      await proof.keyboard.press("Tab");
+      expect(await close.evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Escape");
+      await modal.waitFor({ state: "detached" });
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("opening and cleanly closing the library does not begin a draft", async () => {
     const active = currentPage();
     expect(await persistedGroupCount()).toBe(0);
@@ -1226,6 +1326,12 @@ describe("renderer fixture interactions", () => {
       expect(await composer.getByRole("radio", { name: "Dashboard change" }).isChecked()).toBe(true);
       // The composer moves focus to the prompt after it opens.
       await composer.getByRole("textbox", { name: "Agent prompt" }).and(proof.locator(":focus")).waitFor();
+      const selectedTemplate = composer.getByRole("radio", { name: "Dashboard change" });
+      await selectedTemplate.focus();
+      await proof.keyboard.press("Tab");
+      expect(await composer.getByRole("tab", { name: "Request", exact: true }).evaluate((element) => element === document.activeElement)).toBe(true);
+      await proof.keyboard.press("Shift+Tab");
+      expect(await selectedTemplate.evaluate((element) => element === document.activeElement)).toBe(true);
       expect(await composer.getByRole("button", { name: "Send", exact: true }).isEnabled()).toBe(false);
       await composer.getByRole("textbox", { name: "Agent prompt" }).fill("Add a status beside this tile.");
       await composer.getByRole("tab", { name: "Full prompt" }).click();
@@ -2718,7 +2824,6 @@ test('themes select personal and dashboard variants, preview/cancel, and preserv
               } } }, snapshot.configRevision!);
       await host.processCommand("theme-terminal", { type: "start" });
     });
-    await proof.getByRole('button', { name: 'Open terminal', exact: true }).click();
     await proof.locator('.xterm').waitFor();
     await proof.locator('.xterm').evaluate((element) => { element.setAttribute('data-theme-proof', 'same-terminal'); });
     await proof.emulateMedia({ colorScheme: 'light' });

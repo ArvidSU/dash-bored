@@ -3,6 +3,34 @@ import { createUiHarnessHost } from "../helpers/ui-harness-host";
 import { childNodes } from "../../src/renderer/lib/component-children";
 
 describe("ui harness host", () => {
+  test("terminal writes do not push process updates and closing an active run publishes its outcome", async () => {
+    const host = createUiHarnessHost();
+    const events: import("../../src/shared/contracts").ProcessSnapshot[] = [];
+    const unsubscribe = host.subscribe((event) => {
+      if (event.type === "process") events.push(event.process);
+    });
+    try {
+      const started = await host.processCommand("command", { type: "start" });
+      expect(started).toMatchObject({ phase: "running", interactive: true, run: { phase: "running", exitCode: null } });
+      await expect(host.processCommand("command", { type: "quick-action" })).rejects.toThrow("PROCESS_ALREADY_RUNNING");
+      await host.processCommand("command", { type: "write", input: "harmless fixture input" });
+      const resized = await host.processCommand("command", { type: "resize", cols: 80, rows: 24 });
+      expect(resized).toEqual(started);
+      expect(events).toHaveLength(1);
+
+      const stopped = await host.processCommand("command", { type: "stop" });
+      expect(events.map((process) => [process.phase, process.run?.phase])).toEqual([
+        ["running", "running"], ["stopping", "stopping"], ["exited", "exited"],
+      ]);
+      expect(stopped).toMatchObject({ phase: "exited", pid: null, signal: "SIGHUP", run: { phase: "exited", signal: "SIGHUP" } });
+      expect(await host.processCommand("command", { type: "stop" })).toEqual(stopped);
+      expect(events).toHaveLength(3);
+      // Consumers cannot silently mutate fixture state through returned values.
+      stopped.logs.push({ sequence: 1, stream: "stdout", text: "local mutation" });
+      expect((await host.getSnapshot()).processes[0]?.logs).toEqual([]);
+    } finally { unsubscribe(); }
+  });
+
   test("supplies the real renderer with a deterministic dashboard fixture", async () => {
     const host = createUiHarnessHost();
     const snapshot = await host.getSnapshot();

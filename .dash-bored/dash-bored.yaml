@@ -24,6 +24,8 @@ root:
               action: select:project-sections/changes
             - name: Develop
               action: select:project-sections/development
+            - name: Lab
+              action: select:project-sections/atoms-lab
             - name: Roadmap
               action: select:project-sections/roadmap
             - name: Release
@@ -549,8 +551,8 @@ root:
                               - atoms
                               - bug
                           - id: todo-command-run-fixture-coverage
-                            description: The renderer UI fixture host (src/renderer/lib/ui-harness-host.ts) does not model a command's per-run `run` record, so test:renderer-ui cannot prove the Run, exit badge, Run-again loop, a process-bound status tile turning healthy or error, or an item action re-running without Close terminal. Model runs in the fixture and add that interaction test.
-                            done: false
+                            description: "Completed 2026-10-29: the fixture host models persistent terminals and per-run snapshots. Browser regressions cover Run, exit 0, Run again, exit 2, process-bound status, and typed item arguments with feedback on the invoking row."
+                            done: true
                             tags:
                               - atoms
                               - tests
@@ -583,8 +585,8 @@ root:
                               - agent-tool
                               - skill
                           - id: todo-retiring-component-detail
-                            description: Carry the retiring marker from src/shared/retiring-components.ts into `inspect --component <reference>` output too (only --summary has it), and derive SKILL.md's replacement list from the same map or drop it, since today both must be edited together.
-                            done: false
+                            description: "Completed 2026-10-29: inspect --component exposes the same retiring/replacement fields as --summary, derived from ordinary manifest deprecated.replacement metadata. Skill guidance reads those fields rather than maintaining a separate replacement list; CLI regression covers retiring and current unrelated local components."
+                            done: true
                             tags:
                               - agent-tool
                               - skill
@@ -853,8 +855,19 @@ root:
                             tags:
                               - tooling
                           - id: todo-reload-drops-component-css
-                            description: Core component styles disappeared from the whole dev dashboard (tab bars and Markdown headers rendered as unstyled stacked buttons) after watcher reloads caused by editing dash-bored-lock.yaml and dash-bored.yaml on 2026-10-12; Reload app restored them. Reproduce with a lock-file edit and check whether package reloads drop injected component CSS.
-                            done: false
+                            description: >-
+                              Fast Refresh stylesheet loss was reproduced and fixed on 2026-10-29:
+                              effect cleanup removed CSS while retaining loaded component code, and
+                              the unchanged-revision cache skipped restoring it. The loader now
+                              restores retained successful styles, including when a newer revision
+                              fails; a real Fast Refresh browser regression covers both cases.
+                              Watcher-only follow-up completed: three config and lock saves through
+                              a real ProjectRuntime preserve mounted state and CSS; a CSS-only edit
+                              replaces the stylesheet. Native and control-channel screenshots also
+                              retained styles after config and lock-only saves. The historical
+                              watcher-only failure did not reproduce; no additional loader fix was
+                              justified.
+                            done: true
                             tags:
                               - bug
                               - renderer
@@ -1111,16 +1124,17 @@ root:
                         props:
                           content: |
                             **Development loop.** Each checkout owns an isolated, automatically trusted dev app.
-                            Agents may start, restart, and stop it freely. Prefer the `:fast` checks while its watcher runs. For UI
-                            changes, start **UI fixture** and inspect it below at normal and narrow widths before the
-                            native desktop check.
+                            Agents may start, restart, and stop it freely. Prefer the `:fast` checks while its watcher runs.
+                            Prove visible changes in this checkout's running app through its control channel, then
+                            check a harmless native interaction. The **UI fixture** provides extra renderer coverage
+                            at normal and narrow widths. **Lab** exercises sources, actions, and nested selections.
                     second:
                       node:
                         id: component-authoring
                         component: ./components/external/core/group
                         props:
                           title: Component authoring
-                          description: API 1.0.0 starter in the real dashboard host. No permissions needed for the timer.
+                          description: API 2.0.0 starter in the real dashboard host. No permissions needed for the timer.
                         children:
                           axis: horizontal
                           ratio: 0.4
@@ -1351,6 +1365,11 @@ root:
                           component: ./components/external/core/env
                           props:
                             path: .env.worktree
+          - metadata:
+              label: Lab
+            node:
+              id: atoms-lab
+              component: ./dogfood
           - metadata:
               label: Roadmap
             node:

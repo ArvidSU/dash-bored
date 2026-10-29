@@ -59,8 +59,8 @@ describe("project cockpit source scripts", () => {
     expect(workspaceStatus("# branch.head topic\nu UU N... a\n").state).toBe("error");
   });
 
-  test("maps validation output to a status", () => {
-    expect(dashboardHealth(JSON.stringify({ ok: true, diagnostics: [] })).state).toBe("healthy");
+  test("maps configuration inspection output to a status", () => {
+    expect(dashboardHealth(JSON.stringify({ ok: true, diagnostics: [] }))).toEqual({ state: "healthy", detail: "Configuration and component declarations validate." });
     expect(dashboardHealth(JSON.stringify({ ok: true, diagnostics: [{ severity: "warning", code: "x", message: "Legacy reference" }] }))).toEqual({ state: "warning", detail: "1 warning · Legacy reference" });
     expect(dashboardHealth(JSON.stringify({ ok: false, diagnostics: [{ severity: "error", code: "x", message: "Bad" }] }))).toEqual({ state: "error", detail: "1 error · Bad" });
   });

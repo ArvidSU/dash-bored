@@ -15,14 +15,45 @@ export function EditorModal({ title, children, className, onDismiss }: ModalProp
   useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const close = (event: KeyboardEvent): void => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      const panel = panelRef.current;
+      // A discard confirmation can sit above another editor. Only the front
+      // dialog owns keyboard dismissal and its Tab boundary.
+      const modals = document.querySelectorAll<HTMLElement>("[role='dialog'][aria-modal='true']");
+      if (!panel || modals.item(modals.length - 1) !== panel || event.defaultPrevented) return;
       const inInteractiveSurface = event.target instanceof HTMLElement && event.target.closest("[data-dashboard-interactive]") !== null;
-      if (event.key === "Escape" && !event.defaultPrevented && !inInteractiveSurface) {
+      if (event.key === "Escape" && !inInteractiveSurface) {
         event.preventDefault();
         dismissRef.current();
+      } else if (event.key === "Tab") {
+        const controls = Array.from(panel.querySelectorAll<HTMLElement>(
+          "a[href], button, input, textarea, select, summary, [tabindex], [contenteditable='true']",
+        )).filter((control) => control.tabIndex >= 0
+          && !control.matches(":disabled")
+          && !control.closest("[hidden], [inert], [aria-hidden='true']")
+          && control.getClientRects().length > 0
+          && getComputedStyle(control).visibility === "visible");
+        const tabStops = controls.filter((control) => {
+          if (!(control instanceof HTMLInputElement) || control.type !== "radio" || !control.name) return true;
+          const group = controls.filter((candidate): candidate is HTMLInputElement => candidate instanceof HTMLInputElement
+            && candidate.type === "radio" && candidate.name === control.name && candidate.form === control.form);
+          return control === (group.find((radio) => radio.checked) ?? group[0]);
+        }).sort((first, second) => (first.tabIndex || Infinity) - (second.tabIndex || Infinity));
+        const active = document.activeElement;
+        const current = tabStops.findIndex((control) => control === active);
+        const ordered = event.shiftKey ? [...tabStops].reverse() : tabStops;
+        // Choose every Tab destination ourselves: macOS WebKit can skip
+        // ordinary buttons, including a modal's computed final boundary.
+        // A permission heading (tabIndex=-1) resumes at the next DOM control.
+        const target = current >= 0
+          ? tabStops[(current + (event.shiftKey ? -1 : 1) + tabStops.length) % tabStops.length]
+          : ordered.find((control) => active && panel.contains(active)
+            && (active.compareDocumentPosition(control) & (event.shiftKey ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING))) ?? ordered[0];
+        event.preventDefault();
+        target?.focus();
       }
     };
-    window.addEventListener("keydown", close);
+    window.addEventListener("keydown", handleKeyDown);
     // A panel may name its primary field; otherwise the first enabled control wins.
     const focusFrame = requestAnimationFrame(() => {
       const panel = panelRef.current;
@@ -36,7 +67,7 @@ export function EditorModal({ title, children, className, onDismiss }: ModalProp
     });
     return () => {
       cancelAnimationFrame(focusFrame);
-      window.removeEventListener("keydown", close);
+      window.removeEventListener("keydown", handleKeyDown);
       if (previous?.isConnected) previous.focus();
       else document.querySelector<HTMLElement>(".composition-library-trigger")?.focus();
     };

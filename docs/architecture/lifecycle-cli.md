@@ -69,7 +69,7 @@ dash-bored app processes [<command-id>] [--instance <identifier>]
 dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
 dash-bored app read <node-id> [--timeout <ms>] [--instance <identifier>]
 dash-bored app logs <command-id> [--tail <n>] [--instance <identifier>]
-dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
+dash-bored app screenshot [--node <node-id> | --focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
 ```
 
 ### Resolution and version matching
@@ -187,7 +187,8 @@ source equals the link target and that target is a bundled
   component (from its manifest `deprecated.replacement`) also carries
   `retiring: true` and a `replacement` hint, and other entries omit both. The
   same map feeds the generated builtins reference. `--component <reference>`
-  emits one authoritative catalog entry (including its schema) and project
+  emits one authoritative catalog entry (including its schema and the same
+  retirement guidance) and project
   diagnostics. Unknown references fail; modes cannot be combined. Full
   `inspect` writes JSON describing the resolved tree, the complete component
   catalog, component metadata used by the tree, requested permissions, and
@@ -399,6 +400,9 @@ default, including a previously unfocused dashboard through `project:clear-focus
 (`--keep-focus` leaves the new focus), and prints
 `previousFocusedNodeId` and `focusRestored`. Focus also expands and selects the
 node's ancestors; only the focus itself is restored, so prefer `--node`.
+The CLI rejects combining `--node` with `--focus`, using `--keep-focus` without
+`--focus`, or passing screenshot-only flags to another `app` command before
+contacting an instance.
 
 At application startup, the main process refreshes only previously installed
 global and registered-project skills. It skips absent installations, keeps

@@ -115,6 +115,10 @@ export function useLocalComponents(
       if (!desiredIds.has(id)) {
         style.element.remove();
         stylesRef.current.delete(id);
+      } else if (!style.element.isConnected) {
+        // Fast Refresh replays effects but retains loaded component state.
+        // Restore its last successful CSS before skipping unchanged code.
+        document.head.append(style.element);
       }
     }
 
@@ -229,7 +233,8 @@ export function useLocalComponents(
 
   useEffect(() => () => {
     for (const style of stylesRef.current.values()) style.element.remove();
-    stylesRef.current.clear();
+    // Retain the records for effect replay, including a previous revision's
+    // CSS while its replacement fails to load. Real unmount releases the ref.
   }, []);
 
   return scopeRef.current === scope ? loaded : EMPTY_LOADED_COMPONENTS;

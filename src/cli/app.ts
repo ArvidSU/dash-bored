@@ -27,7 +27,7 @@ export const APP_USAGE = `dash-bored app status [--instance <identifier>]
   dash-bored app wait <command-id> [--timeout <ms>] [--tail <n>] [--instance <identifier>]
   dash-bored app logs <command-id> [--tail <n>] [--instance <identifier>]
   dash-bored app read <node-id> [--timeout <ms>] [--instance <identifier>]
-  dash-bored app screenshot [--node <node-id>] [--focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
+  dash-bored app screenshot [--node <node-id> | --focus <node-id> [--keep-focus]] [--output <file.png>] [--timeout <ms>] [--instance <identifier>]
 
 \`actions\` prints choices as {id, label, optionCount}; \`--choices\` adds their options. Run
 \`app:open-palette --query <text>\` to open the command palette on a bounded search, and
@@ -38,7 +38,8 @@ and animate a component (or one of its items) when the user should look at it, a
 notifications across dashboards, whether the user has read them, and recently closed ones. \`screenshot\`
 captures the window; \`--node\` crops to one node and restores any view change it made;
 \`--focus\` focuses a node for the capture and then restores the previous focus unless
-\`--keep-focus\` is given. Node IDs in references may be raw, such as \`focus:linked::pulse\`; the CLI
+\`--keep-focus\` is given. \`--node\` and \`--focus\` cannot be combined; \`--keep-focus\` requires
+\`--focus\`. Node IDs in references may be raw, such as \`focus:linked::pulse\`; the CLI
 percent-encodes them. Focusing the node that is already focused succeeds with \`noop: true\`.`;
 
 interface AppArguments {
@@ -285,6 +286,19 @@ export async function runAppCommand(args: string[]): Promise<number> {
     return 0;
   }
   const parsed = parseAppArguments(args);
+  const screenshotOption = parsed.node !== undefined ? "--node"
+    : parsed.focus !== undefined ? "--focus"
+      : parsed.output !== undefined ? "--output"
+        : parsed.keepFocus ? "--keep-focus" : undefined;
+  if (screenshotOption && parsed.verb !== "screenshot") {
+    throw new Error(`${screenshotOption} is only supported with app screenshot.`);
+  }
+  if (parsed.node !== undefined && parsed.focus !== undefined) {
+    throw new Error("--node and --focus cannot be combined; choose one screenshot capture mode.");
+  }
+  if (parsed.keepFocus && parsed.focus === undefined) {
+    throw new Error("--keep-focus requires --focus.");
+  }
   if (parsed.query !== undefined && parsed.verb !== "run") {
     throw new Error("--query is only supported with app run app:open-palette.");
   }

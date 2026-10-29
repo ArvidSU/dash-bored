@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { configLinkManifest } from "../../src/core/tree-links";
 import type { ResolvedComponentNode } from "../../src/shared/contracts";
 import type { DashboardRenderContextValue } from "../../src/renderer/render/NodeRenderer";
 import { ActionStore } from "../../src/renderer/lib/actions";
@@ -44,6 +45,37 @@ describe("component frames", () => {
   const loaded = (componentValue: typeof component | null, loading: boolean, error: string | null) => new Map([
     ["example", { componentId: "example", revision: "1", component: componentValue, loading, error }],
   ]);
+
+  test("renders a config link's managed child while preserving collapse, trust, and failure boundaries", () => {
+    const link: ResolvedComponentNode = {
+      id: "linked-dashboard",
+      component: "./linked",
+      props: {},
+      source: "config",
+      configName: "Linked dashboard",
+      manifest: configLinkManifest("./linked", "Linked dashboard"),
+      children: [{ node }],
+    };
+    const overrides = { localComponents: loaded(component, false, null) };
+
+    const expanded = render(link, overrides);
+    expect(expanded).toContain("Rendered component");
+    expect(expanded).toContain('data-node-id="example"');
+
+    const collapsed = render(link, { ...overrides, collapsedNodeIds: new Set([link.id]) });
+    expect(collapsed).toContain('data-collapsed="true"');
+    expect(collapsed).not.toContain("Rendered component");
+
+    const untrusted = render(link, { ...overrides, trusted: false });
+    expect(untrusted).toContain("Trust this project");
+    expect(untrusted).not.toContain("Rendered component");
+
+    const failed = render({ ...link, configError: "Linked config invalid" }, overrides);
+    expect(failed).toContain("Could not load Linked dashboard");
+    expect(failed).toContain("Linked config invalid");
+    expect(failed).not.toContain("Rendered component");
+  });
+
   const cases: Array<{ target: ResolvedComponentNode; overrides?: Partial<DashboardRenderContextValue>; visible: string[] }> = [
     { target: { ...node, source: "config", configName: "Linked", configError: "Bad config" }, overrides: { trusted: false }, visible: ["<section", "Could not load Linked", "Bad config", 'role="alert"'] },
     { target: { ...node, source: "config" }, visible: ["<section", "config-link__content"] },

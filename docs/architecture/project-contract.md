@@ -220,6 +220,9 @@ explicit node IDs (`focus:<node-id>`, `process:<node-id>`, or
 reports a deprecation warning (see [Legacy migrations](#legacy-migrations)).
 Resolution is scoped to the owning YAML bundle, then linked-tree namespacing
 remaps the node-bearing segment of focus, process, and component-action IDs.
+The manifest's `children.defaultChildProp` also names a node: its configured
+initial child is scoped to each linked occurrence without changing the source
+YAML or a user's saved selection.
 
 Manifests may also declare `actions: [{id, label, description?, args?}]`;
 `args` is JSON Schema. A present `actions` array opts into registration checks,

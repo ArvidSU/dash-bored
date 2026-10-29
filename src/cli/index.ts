@@ -227,7 +227,11 @@ async function main(): Promise<number> {
 
   if (command === "inspect") {
     const result = await inspect(project, false);
-    const catalog = result.componentCatalog;
+    // Keep retirement guidance identical in compact discovery and schema detail.
+    const catalog = result.componentCatalog.map((item) => {
+      const replacement = item.manifest?.deprecated?.replacement;
+      return { ...item, ...(replacement === undefined ? {} : { retiring: true, replacement }) };
+    });
     const selected = componentReference ? catalog.find((item) => item.reference === componentReference) : undefined;
     if (componentReference && !selected) {
       console.error(`Component not found in project catalog: ${componentReference}`);
@@ -242,11 +246,10 @@ async function main(): Promise<number> {
         reference, name, ...(manifest?.description ? { description: manifest.description } : {}), ...(error ? { error } : {}),
       })),
       // Deprecated components remain inspectable; `replacement` points to their successor.
-      componentCatalog: catalog.map(({ reference, available, manifest }) => {
-        const replacement = manifest?.deprecated?.replacement;
+      componentCatalog: catalog.map(({ reference, available, manifest, retiring, replacement }) => {
         return { reference, available,
           name: manifest?.name, description: manifest?.description, permissions: manifest?.permissions,
-          ...(replacement === undefined ? {} : { retiring: true, replacement }) };
+          ...(replacement === undefined ? {} : { retiring, replacement }) };
       }),
       // Background watches this bundle runs: what each observes, how often, and on which transitions.
       watches: watchSummaries(result.tree, result.tree?.sourceConfigPath).map(({ nodeId, label, on, every, level, description, action }) => ({

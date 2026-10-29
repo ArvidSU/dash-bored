@@ -4,6 +4,15 @@
 turns a project's commands, checks, docs, and services into a shared dashboard.
 This directory is its portable dashboard bundle; it travels with the project.
 
+The **Lab** section embeds the standalone `dogfood/` bundle to exercise linked
+selections, sources, and action feedback in the real app. Its **Failure modes**
+section contains deliberate errors; **Sources** includes a bounded read of
+public GitHub tags, so the lab requests `network:http` alongside local access.
+
+**Dashboard config** polls configuration and component declarations without
+compiling or typechecking component source. Use **Validate** for full component
+source checks; those are too expensive for a recurring status observation.
+
 - `dash-bored.yaml`: dashboard layout, panels, actions, and schema version.
 - `dash-bored-lock.yaml`: exact revisions of external components and themes.
 - `components/`: project-local and pinned external component code.
