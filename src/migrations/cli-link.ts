@@ -1,7 +1,7 @@
 /**
- * Legacy migration, kept past dashboard contract 4 (yaml-todo
- * `todo-retire-legacy-migrations`): retire the
- * CLI link earlier releases could create. Main runs it once per app start.
+ * Installation migration (yaml-todo `todo-installation-migration-sunset`):
+ * retire the CLI link earlier releases could create. Main runs it once per
+ * release app start.
  */
 import { lstat, readFile, readlink, unlink } from "node:fs/promises";
 import { homedir } from "node:os";

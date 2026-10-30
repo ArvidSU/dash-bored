@@ -213,8 +213,9 @@ IDs and `resource: action` for stable action references. A declaration's key
 is a prop path where `*` matches every array item: `items.*.action` names the
 `action` field of each item, and a trailing `*` (`actions.*`) makes each item
 itself a reference. Validation, linked-tree remapping, and legacy migration all
-walk these paths through `referenceLocations` in `src/core/tree-links.ts`. Action references use
-explicit node IDs (`focus:<node-id>`, `process:<node-id>`, or
+walk these paths through `referenceLocations` in
+`src/shared/reference-locations.ts`. Action references use explicit node IDs
+(`focus:<node-id>`, `process:<node-id>`, or
 `component:<node-id>:<action-id>`), never a tree position. Legacy positional
 `${root...}` references still load: every load rewrites them to node IDs and
 reports a deprecation warning (see [Legacy migrations](#legacy-migrations)).
@@ -290,8 +291,9 @@ Loading reports `PROMPT_TEMPLATE_INVALID` for malformed files, unknown fields,
 undeclared references, and unknown includes, and
 `COMPONENT_ACTION_ARGUMENTS_INVALID` when an `agent:prompt` names an unknown
 template or passes undeclared vars. Scope decides the app's follow-up, not the
-wording: `dashboard` requests are validated with at most one repair and diff
-the bundle; `project` requests diff the whole project.
+wording: `dashboard` requests are validated with at most one repair;
+`project` requests are reported through the agent's session. Neither scope
+shows file diffs in the app; review belongs to project tools or external apps.
 
 The same representation is used for YAML, drafts, resolved trees, and saved
 configuration. There is no shorthand expansion or alternate topology model.
@@ -525,15 +527,26 @@ The optional top-level `attentionAnimation` names the animation
 
 ### Legacy migrations
 
-Every rewrite of state written by an earlier release lives in
-`src/migrations/`, one file per legacy form. Contract 4 shipped without
-retiring them; their removal is tracked by yaml-todo `todo-retire-legacy-migrations`. The directory is layer-neutral: files depend
-only on `shared/`, `core/`, and Node, so core, main, the agent tool, and the
-renderer call the same owner instead of carrying their own copies.
+Dedicated compatibility rewrites live in `src/migrations/`, one file per
+legacy form. Contract 4 extracted core components without retiring these
+rewrites. Positional references remain supported in contract 4 until the atoms
+retirement migration can persist explicit node IDs; yaml-todo
+`todo-retire-legacy-migrations` tracks that removal.
+
+Installation and app-settings compatibility has a separate lifetime from the
+dashboard contract. No oldest supported installation release has been chosen;
+`todo-installation-migration-sunset` tracks that decision and its recovery
+instructions. Until then, theme pinning, receipt-free skill adoption, and
+receipt-owned CLI-link cleanup remain active. The settings and project-registry
+stores also retain their existing persisted-record decoders.
+
+The migration directory is layer-neutral so core, main, the agent tool, and
+the renderer share one owner. Renderer imports use Node-free leaves only;
+reference walking comes directly from `shared/reference-locations.ts`.
 
 | File | Legacy form | Runs in |
 | --- | --- | --- |
-| `action-references.ts` | Schema-v3 positional action targets (`focus:${root.children…}`). After reference validation, `resolveComponentTree` rewrites each one to the node ID it resolves to and reports `COMPONENT_ACTION_REFERENCE_DEPRECATED`; an unresolvable path reports `COMPONENT_ACTION_REFERENCE_INVALID`. The rewrite changes the loaded config's props in place, so edit sources and saves persist stable IDs. | core, every load |
+| `action-references.ts` | Legacy positional action targets (`focus:${root.children…}`), still accepted in contract 4. After reference validation, `resolveComponentTree` rewrites each one to the node ID it resolves to and reports `COMPONENT_ACTION_REFERENCE_DEPRECATED`; an unresolvable path reports `COMPONENT_ACTION_REFERENCE_INVALID`. The rewrite changes the loaded config's props in place, so edit sources and saves persist stable IDs. | core, every load |
 | `app-theme-reference.ts` | An app default theme saved as a bare `./themes/<name>`. Main's `getAppSettings` pins it to `project:<active-config>:./themes/<name>` once the active dashboard provides that package, and persists the result. Until then app settings keep it readable. The renderer holds no migration logic; it re-reads settings when the active dashboard or theme catalog changes while the default is still unpinned. | main, settings read |
 | `skill-payloads.ts` | Skill installs without a `skill-version.json` receipt. A complete exact match of one published payload is adopted as owned; anything else stays a conflict. | agent tool `install-skill`, app skill refresh |
 | `cli-link.ts` | The `~/.local/bin/dash-bored` link earlier releases created, removed only when its receipt proves ownership. | main, app start |

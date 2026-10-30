@@ -8,9 +8,8 @@ import type { Diagnostic, ResolvedComponentNode } from "../shared/contracts";
 import { parseSelectionActionReference } from "../shared/action-reference";
 import { actionInvocation } from "../shared/action-invocation";
 import { diagnostic, errorMessage } from "../core/diagnostics";
-import { referenceLocations } from "../core/tree-links";
+import { referenceLocations } from "../shared/reference-locations";
 import { isLegacyActionTarget } from "./action-target";
-export { isLegacyActionTarget } from "./action-target";
 
 export function resolveLegacyActionReference(
   reference: string,
@@ -71,7 +70,7 @@ export function migrateLegacyActionReferences(nodes: readonly ResolvedComponentN
           diagnostics.push(diagnostic({
             severity: "warning",
             code: "COMPONENT_ACTION_REFERENCE_DEPRECATED",
-            message: "Positional action references are deprecated. Migrate this target to a stable node ID before dashboard schema v4.",
+            message: "Positional action references are deprecated. Replace this target with an explicit, stable node ID.",
             path: diagnosticPath,
           }));
         } catch (error) {

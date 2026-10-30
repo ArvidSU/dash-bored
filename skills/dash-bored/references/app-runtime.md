@@ -57,9 +57,10 @@ These are renderer/app state, never YAML — do not try to configure them:
 - **Action buttons.** `./components/external/core/button` uses `{ name, action }`. References
   target explicit node IDs, such as `focus:yaml-todo` or
   `component:project-pulse:refresh-project-pulse`; the editor picker assigns an
-  ID when needed. Schema-v3 dashboards still resolve positional references
-  with a deprecation warning until the v4 migration. Buttons, shortcuts, and the palette share execution,
-  confirmation, choices, trust, running locks, and unavailable reasons.
+  ID when needed. Contract 4 still resolves legacy positional references with
+  a deprecation warning; their retirement awaits a future contract migration.
+  Buttons, shortcuts, and the palette share execution, confirmation, choices,
+  trust, running locks, and unavailable reasons.
 - **Node menu.** Every rendered node offers Focus, Edit component, Collapse /
   Expand, Copy component path (a YAML locator for agent prompts), and Change
   with agent.

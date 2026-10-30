@@ -24,8 +24,8 @@ future contract change; extraction does not authorize retiring these components.
 
 | Package | Status | Evidence and remaining work |
 |---|---|---|
-| WP1–WP5 | Implemented additively | Stable ID references, declared and parameterized actions, bounded sources, and source-bound views validate in the project dashboard. Schema-v3 compatibility forms remain until WP9. |
-| WP6 | Implemented additively | Source lists and editable YAML todo lists use `./components/external/core/list`; per-item actions target stable IDs. The schema-v3 `todo-list` form remains available until WP9 migration. |
+| WP1–WP5 | Implemented additively | Stable ID references, declared and parameterized actions, bounded sources, and source-bound views validate in the project dashboard. Legacy compatibility forms remain in contract 4 until WP9. |
+| WP6 | Implemented additively | Source lists and editable YAML todo lists use `./components/external/core/list`; per-item actions target stable IDs. The legacy `todo-list` form remains available until WP9 migration. |
 | WP7–WP8 | Implemented additively | One action bar replaces the navigation buttons; root and documentation sections use selection containers and tab bars. The library inserts a Switchable panels pattern. |
 | WP9 | In progress | `group` accepts title and description, the focus timer is a local example, and starter setup uses a reviewed `agent:prompt` button with the shared validation supervisor. Source-bound edge visibility and a future contract migration for component retirement remain. |
 | WP10 | Implemented | Branches, package scripts, and project pulse now use YAML plus scripts. The script list's Run action passes item values to a command and exposes invocation and process results. |
@@ -41,7 +41,7 @@ implementation stays usable while the migration is completed.
 | Act | action model, `button` with one action or an action bar, per-item actions, `command` |
 | Observe | sources (`shell`, `file`, `http`, `process`, inline), views: `status`, `list`, `chart`, `markdown`; `env` editor |
 
-Retired builtins: `tabs`, `card`, `conditional`, `live-chart`, `setup-agent`,
+Planned retirements: `tabs`, `card`, `conditional`, `live-chart`, `setup-agent`,
 `focus-timer` (moves to an example local component).
 
 ## Proof of done
@@ -76,11 +76,12 @@ WP1 and WP4 can run in parallel.
 - Action references name targets by node ID only (`focus:yaml-todo`,
   `component:project-pulse:refresh-project-pulse`).
 - Editors create only ID references and unknown target IDs are load-time
-  diagnostics. Existing schema-v3 dashboards keep resolving and warning on
-  `${root.children…}` legacy references until the WP9 schema migration can
-  rewrite them; then
-  remove interpolation from `src/shared/action-reference.ts` and its tree
-  resolution in `src/migrations/action-references.ts`.
+  diagnostics. Contract 4 still resolves and warns on `${root.children…}`
+  legacy references until the WP9 contract migration can persist explicit IDs
+  and rewrite their targets. Then remove `src/migrations/action-references.ts`,
+  its Node-free `action-target.ts` predicate, and their loader, validator, and
+  editor call sites. Stable action parsing already lives separately in
+  `src/shared/action-reference.ts`.
 - The button editor offers a target picker that assigns an explicit `id` to a
   target node that lacks one.
 - Prepare a deterministic migration helper that rewrites positional references

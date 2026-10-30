@@ -1,5 +1,6 @@
 import { loadProjectDefinition } from "../core/project";
 import { resolveProjectLocation } from "../core/paths";
+import { atomicJson } from "../core/fs-atomic";
 import { randomUUID } from "node:crypto";
 import { join, isAbsolute } from "node:path";
 import { APP_VERSION } from "../shared/app-metadata";
@@ -7,7 +8,7 @@ import type { UpdateAction, UpdateReceipt, UpdateState, PublishedRelease } from 
 import { assertReleaseSource, downloadArtifact, hashFile } from "./artifacts";
 import { BUNDLED_MIGRATIONS, compareVersions, discoverRelease, parseReleaseMetadata } from "./releases";
 import { inspectMigration } from "./migrations";
-import { atomicJson, getUpdateSettings, hasUpdateLock, readJson, updateDirectory, validateUpdateSettings, withUpdateLock, recoverUpdateLock } from "./storage";
+import { getUpdateSettings, hasUpdateLock, readJson, updateDirectory, validateUpdateSettings, withUpdateLock, recoverUpdateLock } from "./storage";
 
 export interface UpdateCoordinatorOptions {
   directory?: string;

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { stringify } from "yaml";
 import { inspectProject } from "../../src/core";
-import { referenceLocations } from "../../src/core/tree-links";
+import { referenceLocations } from "../../src/shared/reference-locations";
 import { parseComponentManifest } from "../../src/core/yaml";
 import type { ComponentNode, DashboardConfig } from "../../src/shared/contracts";
 import {
@@ -21,7 +21,7 @@ afterEach(async () => {
 const edge = (node: ComponentNode, metadata?: Record<string, unknown>) => ({ node, ...(metadata === undefined ? {} : { metadata }) });
 
 describe("component child composition", () => {
-  test("transitionally resolves schema-v3 action paths within the owning bundle", async () => {
+  test("resolves legacy positional action paths within the owning bundle", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     const todoPath = "root.children[2].node.children.first.first.node.children.node";
@@ -68,7 +68,7 @@ describe("component child composition", () => {
     expect(missing.diagnostics.map((item) => item.code)).toContain("COMPONENT_ACTION_REFERENCE_INVALID");
   });
 
-  test("transitionally resolves paths to generated node IDs", async () => {
+  test("resolves legacy positional paths to generated node IDs", async () => {
     const root = await temporaryDirectory();
     cleanup.push(root);
     await createProject(root, {

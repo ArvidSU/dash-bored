@@ -22,7 +22,7 @@ import { diagnostic, errorMessage } from "./diagnostics";
 import { resolveContainedPath } from "./paths";
 import { validatePromptInvocation, type PromptTemplate } from "./prompt-templates";
 import { validatePropsSchema } from "./yaml";
-import { referenceLocations, type ReferenceLocation } from "./tree-links";
+import { referenceLocations, type ReferenceLocation } from "../shared/reference-locations";
 import { containsItemTemplate, WATCH_EVENTS, watchFamily, watchSource } from "../shared/watches";
 
 /**

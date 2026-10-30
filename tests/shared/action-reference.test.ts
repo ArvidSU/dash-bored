@@ -23,7 +23,7 @@ describe("action references", () => {
       .toBe("component:linked%3A%3Apulse:refresh-project-pulse");
   });
 
-  test("supports schema-v3 runtime resolution during the migration window", () => {
+  test("resolves legacy positional references during the migration window", () => {
     expect(resolveLegacyActionReference("focus:${root.children.second.node}", (path) =>
       path === "root.children.second.node" ? "todo-list" : undefined)).toBe("focus:todo-list");
     expect(() => resolveLegacyActionReference("focus:${root.children[8].node}", () => undefined))

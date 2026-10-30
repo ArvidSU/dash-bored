@@ -8,7 +8,7 @@ import { APP_VERSION } from "../../src/shared/app-metadata";
 import type { ReleaseMetadata, UpdateReceipt } from "../../src/shared/updates";
 import { inspectMigration } from "../../src/updates/migrations";
 import { UpdateCoordinator } from "../../src/updates/coordinator";
-import { atomicJson } from "../../src/updates/storage";
+import { atomicJson } from "../../src/core/fs-atomic";
 import { parseReleaseMetadata, RELEASE_ASSET_BASE } from "../../src/updates/releases";
 
 const cleanup: string[] = [];

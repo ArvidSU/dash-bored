@@ -1,8 +1,7 @@
 /**
- * Legacy migration, kept past dashboard contract 4 (yaml-todo
- * `todo-retire-legacy-migrations`): skill installs from releases that predate the
- * `skill-version.json` ownership receipt. Once retired, a receipt-free install
- * is simply a conflict.
+ * Installation migration (yaml-todo `todo-installation-migration-sunset`):
+ * skill installs from releases that predate the `skill-version.json` ownership
+ * receipt. Once retired, a receipt-free install is simply a conflict.
  */
 import { skillContentHash } from "../cli/skill-payload";
 

@@ -158,13 +158,14 @@ when its receipt shows it pointed at a bundled app tool.
 
 `native-updater.ts` adapts the existing Electrobun updater to a version-pinned
 loopback mirror of SHA-256-verified artifacts. It retains native quit approval,
-staging, replacement and recovery. `DIRECT_UNSIGNED_UPDATES_VERIFIED` is enabled after the 2026-09-08 isolated
-unsigned 99.0.1-to-99.0.2 replacement, relaunch and bundled-CLI acceptance test.
+staging, replacement and recovery. Native installation is the default for the
+installed canary app following the 2026-09-08 isolated unsigned
+99.0.1-to-99.0.2 replacement, relaunch and bundled-CLI acceptance test.
 The repair pipeline emits USTAR without macOS PAX attributes, which the native
 extractor rejected in the first real test. Downloaded-DMG Gatekeeper approval
 remains a separate manual verification boundary; no security bypass is added.
-The gate cannot be changed by remote release metadata. The verified DMG remains
-available if native preparation or replacement fails.
+Remote release metadata cannot select the installation method. The verified
+DMG remains available if native preparation or replacement fails.
 
 ## Migration and agent verification
 

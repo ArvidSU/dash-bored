@@ -13,7 +13,7 @@ import type { Permission } from "../shared/contracts";
 import type { UpdateReceipt, UpdateState } from "../shared/updates";
 import { BUNDLED_MIGRATIONS } from "./releases";
 import { inspectMigration } from "./migrations";
-import { atomicJson } from "./storage";
+import { atomicJson } from "../core/fs-atomic";
 
 export interface MigrationAgentOptions {
   directory: string;

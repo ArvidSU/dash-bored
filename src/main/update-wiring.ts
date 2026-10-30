@@ -1,11 +1,12 @@
 import { join } from "node:path";
 import { Updater } from "electrobun/main";
 import type { ProjectRuntime, TrustStore } from "../core/index";
+import { atomicJson } from "../core/fs-atomic";
 import { UpdateCoordinator } from "../updates/coordinator";
 import { bundledInstallation, openVerifiedDmg } from "../updates/installation";
 import { runMigrationAgent } from "../updates/migration-agent";
-import { DIRECT_UNSIGNED_UPDATES_VERIFIED, applyVerifiedNativeUpdate } from "../updates/native-updater";
-import { atomicJson, getUpdateSettings, updateDirectory } from "../updates/storage";
+import { applyVerifiedNativeUpdate } from "../updates/native-updater";
+import { getUpdateSettings, updateDirectory } from "../updates/storage";
 import { isAgentTaskBusy } from "../shared/agent-session";
 import type { UpdateAction, UpdateState } from "../shared/updates";
 import type { AgentSessions } from "./agent-sessions";
@@ -53,7 +54,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     install: async (receipt, method) => {
       if (workRunning()) throw new Error("Finish running terminals and agent work before installation. No work has been stopped.");
       await bundledInstallation(options.toolPath);
-      if (DIRECT_UNSIGNED_UPDATES_VERIFIED && method !== "dmg") {
+      if (method !== "dmg") {
         try {
           await applyVerifiedNativeUpdate(Updater, receipt, updateDirectory(), fetch, async () => {
             if (await coordinator.cancelled(receipt)) throw new Error("Update continuation cancelled before restart.");
@@ -87,7 +88,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     async state(): Promise<UpdateState> {
       return {
         ...await coordinator.state(),
-        directInstallAvailable: DIRECT_UNSIGNED_UPDATES_VERIFIED && (await Updater.localInfo.channel()) === "canary",
+        directInstallAvailable: (await Updater.localInfo.channel()) === "canary",
       };
     },
 

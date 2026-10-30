@@ -4,8 +4,6 @@ import { join } from "node:path";
 import type { UpdateSettings } from "../shared/updates";
 import { atomicJson } from "../core/fs-atomic";
 
-export { atomicJson };
-
 /** Shared by all release app/CLI entrypoints; never inside a replaced bundle. */
 export function updateDirectory(): string { return join(homedir(), ".config", "dash-bored", "updates"); }
 export async function readJson(path: string): Promise<unknown | null> {

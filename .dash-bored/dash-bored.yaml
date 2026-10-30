@@ -828,10 +828,16 @@ root:
                               - tests
                               - qa
                           - id: todo-retire-legacy-migrations
-                            description: Decide when to delete the legacy migrations in src/migrations/ (action-references, app-theme-reference, skill-payloads, cli-link). Their headers said 'delete at dashboard schema v4', but contract 4 shipped without retiring them; positional action references also need the contract migration planned in atoms WP9.
+                            description: "Complete atoms WP9 under a future dashboard contract before deleting positional action compatibility: persist explicit node IDs, rewrite targets, replace conditional visibility, and migrate retiring components. Contract 4 intentionally retains these forms. Installation and app-settings migration cutoffs are a separate decision in todo-installation-migration-sunset."
                             done: false
                             tags:
                               - chore
+                              - migrations
+                          - id: todo-installation-migration-sunset
+                            description: "Choose the oldest supported installation release and document recovery before removing receipt-free v0.2.2/v0.2.3 skill adoption, receipt-owned CLI-link cleanup, bare app-theme pinning, or older settings and project-registry decoders. Dashboard contract numbers do not define this cutoff. Keep these paths until that support policy is explicit."
+                            done: false
+                            tags:
+                              - decision
                               - migrations
                           - id: todo-app-run-noop-focus
                             description: "`app run focus:<id>` exits 1 when the node is already focused (the action is disabled), which breaks `&&` chains in agent scripts. Report a no-op focus as success, or return a distinct documented result."

@@ -46,8 +46,6 @@ export async function resolveConfigReferencePath(
   return realpath(configPath);
 }
 
-export { referenceLocations, type ReferenceLocation } from "../shared/reference-locations";
-
 function mapLayout<Node, Mapped>(
   layout: ComponentChildLayout<Node>,
   mapNode: (node: Node) => Mapped,
