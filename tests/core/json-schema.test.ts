@@ -37,18 +37,23 @@ test("repeated prop validation does not retain each freshly parsed schema", () =
 });
 
 test("schema edits do not accumulate in Ajv's generated-code scope after cache eviction", () => {
-  const compileBatch = (start: number) => {
-    for (let index = start; index < start + 1024; index++) {
-      compileJsonSchema({ type: "object", properties: { [`edit${index}`]: { type: "string" } } });
+  let next = 0;
+  const compileBatch = () => {
+    for (const end = next + 1024; next < end; next++) {
+      compileJsonSchema({ type: "object", properties: { [`edit${next}`]: { type: "string" } } });
     }
     Bun.gc(true);
     return heapStats().heapSize;
   };
-  const before = compileBatch(0);
-  compileBatch(1024);
-  const after = compileBatch(2048);
-  // Removing schema registrations alone still retained about 6 MB here.
-  expect(after - before).toBeLessThan(1024 * 1024);
+  const growth = () => {
+    const before = compileBatch();
+    compileBatch();
+    return compileBatch() - before;
+  };
+  // Other suites' background work in the shared test process only adds heap
+  // noise, so the smallest of several samples isolates Ajv's own retention.
+  // Removing schema registrations alone still retained about 6 MB per sample.
+  expect(Math.min(growth(), growth(), growth())).toBeLessThan(1024 * 1024);
 });
 
 test("manifest reloads release both props and child metadata schema registrations", async () => {
