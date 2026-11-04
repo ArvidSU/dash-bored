@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { access, readFile } from "node:fs/promises";
 import { chromium, type Browser, type Locator, type Page } from "playwright-core";
 import type { ComponentNode, ComponentChildLayout } from "../../src/shared/contracts";
+import type { WindowDragRegions } from "../../src/shared/window-drag";
 import { startFixtureServer, type FixtureServer } from "../helpers/fixture-server";
 
 let fixtureServer: FixtureServer | null = null;
@@ -321,6 +322,67 @@ afterAll(async () => {
 }, 30_000);
 
 describe("renderer fixture interactions", () => {
+  test("native window drag regions follow sidebar layout and exclude controls and modals", async () => {
+    const proof = await openPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await proof.goto(fixtureUrl);
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).waitFor();
+      expect(await proof.evaluate(() => Array.from(document.querySelectorAll("[data-window-drag]"))
+        .every((element) => element.classList.contains("electrobun-webkit-app-region-no-drag") === navigator.platform.startsWith("Mac")))).toBe(true);
+      await proof.evaluate(() => {
+        window.__DASH_BORED_UI_HARNESS_HOST__!.setWindowDragRegions = (regions) => {
+          (window as Window & { dragProof?: WindowDragRegions }).dragProof = regions;
+        };
+      });
+      await proof.getByRole("button", { name: "Expand sidebar", exact: true }).click();
+      await proof.waitForFunction(() => {
+        const regions = (window as Window & { dragProof?: WindowDragRegions }).dragProof;
+        const sidebar = document.querySelector(".sidebar")!.getBoundingClientRect();
+        return sidebar.width > 200 && regions?.drag.some((rect) => rect.width === sidebar.width);
+      });
+      const hit = async (selector: string) => proof.evaluate((selector) => {
+        const regions = (window as Window & { dragProof?: WindowDragRegions }).dragProof!;
+        const box = document.querySelector(selector)!.getBoundingClientRect();
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        const contains = (rect: WindowDragRegions["drag"][number]) => x >= rect.x && x < rect.x + rect.width
+          && y >= rect.y && y < rect.y + rect.height;
+        return regions.drag.some(contains) && !regions.exclude.some(contains);
+      }, selector);
+      expect(await hit(".app-header__identity")).toBe(true);
+      expect(await hit(".command-palette-trigger")).toBe(false);
+      expect(await hit(".sidebar__toggle")).toBe(false);
+      expect(await hit(".sidebar__item")).toBe(false);
+      expect(await hit(".workspace")).toBe(false);
+      await proof.evaluate(() => {
+        const project = document.querySelector<HTMLElement>(".sidebar__project")!;
+        project.style.marginTop = "-200px";
+        project.style.minHeight = "400px";
+      });
+      await proof.waitForFunction(() => {
+        const regions = (window as Window & { dragProof?: WindowDragRegions }).dragProof;
+        const nav = document.querySelector(".sidebar__projects")!.getBoundingClientRect();
+        return regions?.exclude.some((rect) => rect.y === nav.y && rect.height > 100);
+      });
+      expect(await hit(".window-chrome")).toBe(true);
+      await proof.evaluate(() => document.querySelector(".sidebar__project")!.removeAttribute("style"));
+      await proof.getByRole("button", { name: /Open command palette/ }).click();
+      await proof.waitForFunction(() => (window as Window & { dragProof?: WindowDragRegions }).dragProof?.drag.length === 0);
+      await proof.keyboard.press("Escape");
+      await proof.waitForFunction(() => (window as Window & { dragProof?: WindowDragRegions }).dragProof?.drag.length === 3);
+      await proof.getByRole("button", { name: "Collapse sidebar", exact: true }).click();
+      await proof.setViewportSize({ width: 390, height: 844 });
+      await proof.waitForFunction(() => {
+        const regions = (window as Window & { dragProof?: WindowDragRegions }).dragProof;
+        return regions?.width === 390 && regions.height === 844 && regions.drag.some((rect) => rect.width === 76);
+      });
+      expect(await hit(".command-palette-trigger")).toBe(false);
+      expect(await hit(".sidebar__toggle")).toBe(false);
+    } finally {
+      await proof.close();
+    }
+  }, 20_000);
+
   test("Bring app to front reaches the native host without discarding a dashboard draft", async () => {
     const proof = await openPage({ viewport: { width: 1280, height: 800 } });
     proof.setDefaultTimeout(5_000);

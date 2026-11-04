@@ -472,12 +472,17 @@ root:
                             tags:
                               - chore
                           - id: todo-window-drag-inactive
-                            description: Resolve the first-drag loss when the app window is inactive. Electrobun starts its native move from webview mousedown, so track and adopt an upstream acceptsFirstMouse fix before claiming this is resolved.
-                            done: false
+                            description: "Replaced asynchronous Electrobun window-move monitors on macOS with an app-owned AppKit drag surface that accepts first mouse and tracks native down/drag/up. Final native input acceptance passed on 2026-11-04, including a mouse-down while active=0/key=0, exact return drags, sidebar controls, and the packaged views:// renderer. Queued events use their original global CGEvent position so earlier window moves cannot compound their displacement."
+                            done: true
                             tags:
                               - bug
                               - native
-                              - dependency
+                          - id: todo-window-drag-background-proof
+                            description: "Completed 2026-11-04: a first native drag moved the inactive HTTP dev window with active=0/key=0 at mouse-down; queued return events restored the exact origin. The packaged views:// renderer also passed exact movement and sidebar click checks through dev:desktop, using the same renderer assets as the canary archive. Temporary UI state and diagnostic logging were restored."
+                            done: true
+                            tags:
+                              - native
+                              - verification
                           - id: todo-029
                             description: "Completed S16: a keyed filter boundary resets on source-provider changes, retains a still-valid selected tag across observations and tag additions, and permanently resets to All when the tag disappears or filtering is disabled. Todo edit buffers and keyboard focus survive tag updates."
                             done: true

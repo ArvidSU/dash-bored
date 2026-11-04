@@ -29,6 +29,7 @@ import { WatchRunner } from "./watches";
 import { loadProjectDefinition } from "../core/project";
 import { getUpdateSettings, updateDirectory } from "../updates/storage";
 import { keepWindowRenderingWhenOccluded } from "./window-capture";
+import { createWindowDrag } from "./window-drag";
 
 configureDesktopExecutableEnvironment();
 const bundledTools = configureBundledToolEnvironment(import.meta.dirname);
@@ -185,6 +186,7 @@ const packageUpdates = createPackageUpdates({
 });
 
 const dashboardRPC = createDashboardRPC({
+  setWindowDragRegions: createWindowDrag(() => mainWindow?.ptr ?? null),
   runtime,
   registry: projectRegistry,
   trustStore,

@@ -211,16 +211,19 @@ export function AppShell({
 }: AppShellProps): ReactNode {
   const title = dashboardTitle(snapshot);
   const dashboardPath = snapshot?.configPath ?? snapshot?.projectRoot ?? null;
+  // macOS uses the native hit-test surface. Disable the preload's separate
+  // gesture path, including before the first geometry message arrives.
+  const windowDragClass = navigator.platform.startsWith("Mac") ? " electrobun-webkit-app-region-no-drag" : "";
   const [draggedProject, setDraggedProject] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ path: string; before: boolean } | null>(null);
   const clearDrag = () => { setDraggedProject(null); setDropTarget(null); };
   return (
     <div className="app-window">
-      <div className="window-chrome" aria-hidden="true" />
+      <div className={`window-chrome${windowDragClass}`} data-window-drag aria-hidden="true" />
       <div
         className={`app-shell${sidebarExpanded ? " app-shell--sidebar-expanded" : ""}`}
       >
-        <aside className="sidebar" aria-label="Dashboards">
+        <aside className={`sidebar${windowDragClass}`} data-window-drag aria-label="Dashboards">
           <button
             className="sidebar__toggle"
             type="button"
@@ -337,7 +340,8 @@ export function AppShell({
         </aside>
         <div className="app-frame">
           <header
-            className={`app-header${editing ? " app-header--editing" : ""}`}
+            data-window-drag
+            className={`app-header${windowDragClass}${editing ? " app-header--editing" : ""}`}
           >
             <div className="app-header__identity">
               <div>
@@ -357,7 +361,7 @@ export function AppShell({
                 )}
               </div>
             </div>
-            <div className="app-header__actions">
+            <div className="app-header__actions" data-window-no-drag>
               <button
                 className="command-palette-trigger"
                 type="button"
@@ -570,7 +574,7 @@ function ProjectSidebarItem({
   const markLevel = notificationMark?.interrupt ? "interrupt" : notificationMark?.inform ? "inform" : null;
   const markLabel = notificationMark && markLevel ? notificationMarkLabel(notificationMark) : null;
   return (
-    <div className={`sidebar__project${dragged ? " sidebar__project--dragging" : ""}`}>
+    <div className={`sidebar__project${dragged ? " sidebar__project--dragging" : ""}`} data-window-no-drag>
       <div
         className={`sidebar__project-row${dropBefore === null ? "" : dropBefore ? " sidebar__project-row--drop-before" : " sidebar__project-row--drop-after"}`}
         onDragOver={(event) => {

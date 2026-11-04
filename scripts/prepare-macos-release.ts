@@ -211,6 +211,12 @@ async function prepare(): Promise<void> {
     await run(["tar", "-xf", updateArchive, "-C", extractedDirectory]);
     const extractedApp = join(extractedDirectory, appBundleName);
     await verifyAppBundle(extractedApp);
+    const dragLibrary = join(extractedApp, "Contents", "Resources", "app", "native", "libWindowDrag.dylib");
+    await requireFile(dragLibrary);
+    if (!(await run(["file", dragLibrary])).includes("arm64")) {
+      throw new Error("Packaged native window-drag library is not arm64.");
+    }
+    await run(["codesign", "--verify", "--strict", dragLibrary]);
     const bundledCli = join(extractedApp, "Contents", "Resources", "app", "tools", APP_NAME);
     await requireFile(bundledCli);
     const cliVersion = await run([bundledCli, "--version"]);

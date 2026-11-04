@@ -167,6 +167,27 @@ brand mark does not collide with the controls. The main process clamps resizes
 below 350px, and the renderer keeps the header single-row at that minimum by
 shrinking and ellipsizing content instead of wrapping actions.
 
+On macOS, window dragging is owned by `src/native/window-drag.m`, not the
+Electrobun preload's asynchronous start/stop-move monitors. A transparent
+AppKit view above the main webview hit-tests only the shell's measured drag
+regions, excludes controls, drawers, menus, and native traffic lights, and
+passes every other point through. It accepts the first mouse press while
+inactive and handles down/drag/up on AppKit's main thread, with a fresh offset
+per gesture; fullscreen windows do not move. Positions come from the original
+CGEvent's global point, converted from Quartz to AppKit coordinates. Queued
+window-relative events must not be reprojected against an already-moved frame,
+which compounds their movement. Starting a gesture no longer
+depends on a webview mouse-down or a per-gesture Bun RPC, and the covered
+chrome never starts webview text selection.
+`use-window-drag.ts` publishes viewport rectangles over the typed
+`windowDragRegions` message after shell layout changes; modal backdrops
+disable interception. Main validates bounded, finite geometry and clears
+interception on invalid input. The native view scales CSS coordinates to the
+current content bounds and keeps no component or project state. Other
+platforms retain Electrobun's CSS regions.
+On macOS the shell also opts out of preload dragging explicitly, so it cannot
+start a competing gesture before native geometry first arrives.
+
 The application action `app:focus-window` calls the typed `focusWindow` host RPC.
 Main restores the window if minimized and uses Electrobun's activating `show()`
 to reveal it, make it key, and bring the app to the foreground. It changes native

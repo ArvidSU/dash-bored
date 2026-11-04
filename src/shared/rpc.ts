@@ -88,7 +88,7 @@ export type DashboardRPC = {
       httpRequest: { params: HttpRequest; response: HttpResponsePayload };
       runShell: { params: ShellRunRequest; response: ShellRunResult };
     };
-    messages: {};
+    messages: { windowDragRegions: import("./window-drag").WindowDragRegions };
   }>;
   webview: RPCSchema<{
     requests: {

@@ -1,4 +1,5 @@
 import { ThemeNotice } from "../lib/theme";
+import { useWindowDrag } from "./use-window-drag";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { keyboardShortcutLabel } from "../../shared/keyboard-shortcut";
@@ -48,6 +49,7 @@ import { DecisionNotice, NotificationInbox } from "../panels/Notifications";
 import { useNotificationLanding, useNotificationPresentation, useNotifications } from "./use-notifications";
 
 export function App(): ReactNode {
+  useWindowDrag();
   const notices = useNotices();
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const updates = useAppUpdates();

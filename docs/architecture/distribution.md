@@ -25,6 +25,13 @@ Its committed `assets/icon.iconset/` renditions are converted to
 `Contents/Resources/AppIcon.icns` by Electrobun, while `CFBundleIconFile`
 references `AppIcon`; that pair is what Finder and the Dock use for the app.
 
+The Electrobun `preBuild` hook runs `scripts/build-window-drag.ts` with the
+macOS command-line tools to compile the app-owned AppKit drag view. Every
+macOS build copies the resulting `.hutch/native/libWindowDrag.dylib` to
+`Contents/Resources/app/native/`; main loads it relative to its bundled
+`app/bun/index.js`. Installed apps need no compiler. The library is included
+in the enclosing app's release-signing and archive boundary.
+
 `bun run release:prepare -- --tag <tag>` fails closed unless all of the
 following hold:
 
@@ -35,7 +42,8 @@ following hold:
 - Electrobun's update manifest describes the same macOS arm64 canary and names
   the generated full-app archive;
 - the expanded application contains a runnable, version-matched standalone
-  `dash-bored` agent tool at `Contents/Resources/app/tools/dash-bored`; and
+  `dash-bored` agent tool at `Contents/Resources/app/tools/dash-bored` and a
+  signed arm64 `app/native/libWindowDrag.dylib`; and
 - the DMG mounts successfully and contains the app plus its Applications link.
 
 The preparation step stages a versioned `*-macos-arm64-unsigned.dmg`, a SHA-256

@@ -799,6 +799,7 @@ export function createUiHarnessHost(): UiHarnessHost {
     async setTrust(_trusted: boolean) { emitSnapshot(); },
     async reloadProject() { emitSnapshot(); },
     async focusWindow() { /* Native window activation is verified in the dev app. */ },
+    setWindowDragRegions() { /* Geometry is exercised through the renderer; AppKit owns input. */ },
     async getDashboardConfigSource(_configPath?: string): Promise<DashboardConfigSource> {
       return {
         configPath: CONFIG_PATH,

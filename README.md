@@ -60,6 +60,9 @@ bun run setup
 `setup` runs `electrobun prepare`, which installs the pinned Electrobun
 toolchain through Hutch (Electrobun's toolchain manager) into this checkout's
 ignored `.hutch/` directory. The `:fast` checks reuse those prepared files.
+Native macOS builds also require Apple's command-line tools (`xcode-select
+--install`): a build hook compiles the AppKit window-drag surface. Installed
+apps include that library and need no compiler.
 `bun install` also points Git's `core.hooksPath` at `.githooks/`, whose
 pre-commit hook rejects a staged `skills/dash-bored/SKILL.md` of 20,000
 characters or more (the same check runs in CI).

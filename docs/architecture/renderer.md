@@ -13,6 +13,9 @@ Everything else lives in focused modules under feature directories:
   tree with its render context),
   `app-utils.ts` (pure snapshot/task/project helpers, edit-session types),
   `main.tsx` (entry), and one hook per concern:
+  - `use-window-drag.ts` — measures shell drag regions and control/overlay
+    exclusions for macOS's native hit-test surface, following mutations,
+    resizing, sidebar transitions, and modal visibility (see [Runtime](./runtime.md));
   - `use-host-session.ts` — everything the host pushes: the snapshot, the
     project list and sidebar outlines, the theme catalog, agent tasks
     (bounded like main's list), and the process map that local components

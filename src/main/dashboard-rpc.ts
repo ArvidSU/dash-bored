@@ -39,6 +39,7 @@ export interface DashboardRPCOptions {
   readAppSettings(): Promise<AppSettings>;
   updateAppSettings(settings: AppSettings): Promise<AppSettings>;
   focusWindow(): void;
+  setWindowDragRegions(regions: import("../shared/window-drag").WindowDragRegions): void;
 }
 
 /**
@@ -179,7 +180,7 @@ export function createDashboardRPC(options: DashboardRPCOptions) {
         httpRequest: (request) => runtime.http(request),
         runShell: (request) => runtime.runShell(request),
       },
-      messages: {},
+      messages: { windowDragRegions: (regions) => options.setWindowDragRegions(regions) },
     },
   });
 }

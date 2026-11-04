@@ -93,6 +93,7 @@ export interface DashboardHost {
   setTrust(trusted: boolean): Promise<void>;
   reloadProject(): Promise<void>;
   focusWindow(): Promise<void>;
+  setWindowDragRegions(regions: import("../../shared/window-drag").WindowDragRegions): void;
   getDashboardConfigSource(configPath?: string): Promise<DashboardConfigSource>;
   validateDashboardDraft(config: DashboardConfig, configPath?: string, sourceNodeId?: string): Promise<DashboardDraftValidation>;
   validateComponentProps(reference: string, props: Record<string, unknown>): Promise<ComponentPropsValidation>;
@@ -249,6 +250,7 @@ const liveHost: DashboardHost = {
   async setTrust(trusted) { ensureTransport(); await rpc.request.setTrust({ trusted }); },
   async reloadProject() { ensureTransport(); await rpc.request.reloadProject({}); },
   async focusWindow() { ensureTransport(); await rpc.request.focusWindow({}); },
+  setWindowDragRegions(regions) { ensureTransport(); rpc.send.windowDragRegions(regions); },
   async getDashboardConfigSource(configPath) { ensureTransport(); return rpc.request.getDashboardConfigSource({ configPath }); },
   async validateDashboardDraft(config, configPath, sourceNodeId) {
     ensureTransport();

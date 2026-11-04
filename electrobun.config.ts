@@ -18,8 +18,10 @@ export default {
       "dist/index.html": "views/mainview/index.html",
       "dist/assets": "views/mainview/assets",
       "dist/tools": "tools",
+      ...(process.platform === "darwin" ? { ".hutch/native/libWindowDrag.dylib": "native/libWindowDrag.dylib" } : {}),
     },
-    watchIgnore: ["dist/**"],
+    watchIgnore: ["dist/**", ".hutch/native/**"],
+    watch: ["src/native", "scripts/build-window-drag.ts"],
     mac: {
       bundleCEF: false,
       icons: "assets/icon.iconset",
@@ -27,4 +29,5 @@ export default {
     linux: { bundleCEF: false },
     win: { bundleCEF: false },
   },
+  scripts: { preBuild: "./scripts/build-window-drag.ts" },
 } satisfies ElectrobunConfig;
