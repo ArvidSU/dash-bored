@@ -13,17 +13,17 @@ software, docs, research, ops, or anything with files and commands: work from
 what it actually contains, not from a generic template.
 
 The user works in the dash-bored desktop app; you work through this skill's
-tool. For dashboards, `dash-bored.yaml` is the source of truth. For standalone
-components, work in the component's manifest, sources and assets.
+tool. The source of truth is `dash-bored.yaml` for a dashboard, and the
+manifest, sources and assets for a standalone component.
 
 ## Running the tool
 
-`dash-bored` is **not** on `PATH`. Run this skill's launcher by its absolute
-path in every command, for example
+`dash-bored` is **not** on `PATH`. Write this skill's launcher out by its
+absolute path in every command (most agent shells keep no variables between
+commands), for example
 `~/.agents/skills/dash-bored/scripts/dash-bored inspect . --summary` (use the
-directory this SKILL.md is in), written out each time: most agent shells do
-not keep variables between commands. Exit 127 means the app is missing: ask
-the user to install and open dash-bored once. In a checkout of the dash-bored
+directory this SKILL.md is in). Exit 127 means the app is missing: ask the
+user to install and open dash-bored once. In a checkout of the dash-bored
 repository itself, use `bun run dash-bored -- <command>`. Below, `dash-bored`
 means the launcher. Commands inside the dashboard (a `command` prop, a
 source's `shell`) run in the app, where the tool is `"$DASH_BORED_TOOL"`.
@@ -62,10 +62,10 @@ source's `shell`) run in the app, where the tool is `"$DASH_BORED_TOOL"`.
   file's name is enough to plan panels. Do not read the dash-bored
   application's source; this skill and the catalog are authoritative.
 - Run `dash-bored inspect . --summary`. Without a dashboard it exits 1 with
-  `FILE_NOT_FOUND` for `dash-bored.yaml` and `dash-bored-lock.yaml`; then run
-  `dash-bored init .`. The starter is onboarding plus a component tour:
-  replace its whole `root` tree rather than adapting it, and keep the
-  generated `.env` (it holds the user's agent choice).
+  `FILE_NOT_FOUND` for `dash-bored.yaml`; then run `dash-bored init .`. The
+  starter is onboarding plus a component tour: replace its whole `root` tree
+  rather than adapting it, and keep the generated `.env` (it holds the user's
+  agent choice).
 - If a dashboard exists, read its `dash-bored.yaml` fully. Keep what the user
   built; change only what the request needs.
 - If the app is running, `dash-bored app status` tells you which dashboard is
@@ -187,10 +187,9 @@ Composition rules:
   unknown IDs.
 - A `group` with a `title` frames two or more related panels. Never wrap a
   single panel in one: it only adds a frame, and validation does not catch it.
-- Don't add components marked `retiring` in `inspect --summary`,
-  `inspect --component <ref>`, or
-  [references/builtins.md](references/builtins.md); use the replacement named
-  there. Leave existing uses alone unless asked.
+- Don't add components that `inspect` or
+  [references/builtins.md](references/builtins.md) mark `retiring`; use the
+  replacement named there. Leave existing uses alone unless asked.
 - Paths in props (`path`, `cwd`, source `file`, script paths) are relative to
   the project root (the directory containing `.dash-bored/`). The top-level
   `icon` resolves from the bundle and is not validated: write a small,
@@ -206,8 +205,7 @@ component layout**, **TSX contract**, **HTTP and bounded shell payloads**;
 permissions the code uses, and leave `renderMode` out. Manifests need
 `schemaVersion: 3` and an exact stable-semver `apiVersion` the app supports
 (`dash-bored component api` shows its offline SDK). Scaffold with
-`component init`, keep editor configuration with `component setup`, and run
-`component check` before dashboard validation.
+`component init` and keep editor configuration with `component setup`.
 
 ### 4. Back observed panels with sources
 
@@ -235,8 +233,8 @@ A value typed into YAML goes stale, so anything that can change comes from a
 5. Set `every` (ms, 1000–300000) for anything that changes; without it the
    view reads once when shown.
 6. Only if the user should hear about a change while this dashboard isn't
-   open (a red CI run, a new urgent item), add a node-level `watch`. It needs
-   the `background:watch` permission, so the user approves trust again.
+   open (a red CI run, a new urgent item), add a node-level `watch` (needs the
+   `background:watch` permission).
 
 [references/sources.md](references/sources.md) has the full source contract,
 tested example scripts, list item actions, watches, and the app's shell
@@ -263,8 +261,7 @@ the app is running:
 1. `dash-bored app status`: note the open dashboard, `focusedNodeId`,
    `trust`, and `diagnostics.items` (runtime errors validation cannot see).
 2. If a different bundle is open, `dash-bored app open .` (refused while the
-   user has unsaved dashboard changes or a save in progress; ask them to save
-   or cancel, or wait for the save).
+   user has unsaved changes or a save is in progress; see Gotchas).
 3. `dash-bored app screenshot --node <node-id>` for each panel you changed,
    then view the PNG path it prints. Check that labels make sense, nothing is
    empty or truncated, no panel shows "Source shape" or "Command failed", and
